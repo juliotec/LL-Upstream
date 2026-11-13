@@ -501,6 +501,10 @@ def repo_of(product):
     return os.environ.get("GITHUB_REPOSITORY") or PRODUCTS[product]["repo"]
 
 
+def on_github():
+    return os.environ.get("RELEASE_FORGE") == "github"
+
+
 UPLOAD_TRIES = 4      # (an upload the server answers with a 5xx, or that the connection drops, is made again: this many times in all)
 UPLOAD_PAUSE = 20.0   # (seconds before the second try; twice that before the third, and so on)
 
@@ -530,7 +534,10 @@ def api(method, path, body=None, data=None, content_type=None, upload=False, mis
 
 
 def api_once(method, path, body, data, content_type, upload, missing_ok, again):
-    base = (os.environ.get("FORGEJO_UPLOAD_API") if upload else None) or os.environ.get("FORGEJO_API") or SERVER + "/api/v1"
+    if on_github():
+        base = "https://uploads.github.com" if upload else "https://api.github.com"
+    else:
+        base = (os.environ.get("FORGEJO_UPLOAD_API") if upload else None) or os.environ.get("FORGEJO_API") or SERVER + "/api/v1"
     headers = {"User-Agent": "longshot-release", "Accept": "application/json"}
     token = os.environ.get("RELEASE_TOKEN")
     if token:
@@ -544,7 +551,7 @@ def api_once(method, path, body, data, content_type, upload, missing_ok, again):
         with urllib.request.urlopen(req, timeout=600) as r:
             text = r.read()
     except urllib.error.HTTPError as e:
-        if missing_ok and e.code == 404:
+        if missing_ok and (e.code == 404 or (on_github() and e.code == 422)):   # (GitHub: 422 for a ref that is not there)
             return None
         said = "%s %s: HTTP %d %s" % (method, path, e.code, e.read().decode("utf-8", "replace")[:300])
         if again and e.code >= 500:
@@ -561,7 +568,7 @@ def upload_file(repo, rel_id, name, data):
     """One release file, uploaded and its size checked. The server's own trouble (a 5xx, a dropped connection: its storage
     or the proxy in front of it, not this file) is not the end of the release: what that try left under the name is
     removed and the upload made again, UPLOAD_TRIES times in all, after a longer pause each time"""
-    form, ctype = multipart(name, data)
+    form, ctype = (data, "application/octet-stream") if on_github() else multipart(name, data)
     path = "/repos/%s/releases/%d/assets?name=%s" % (repo, rel_id, urllib.parse.quote(name))
     for attempt in range(1, UPLOAD_TRIES + 1):
         try:
@@ -587,7 +594,7 @@ def releases(repo, pages=1000):
     releases whose field equals the value (draft=true lists the drafts alone)"""
     out, seen = [], set()
     for page in range(1, pages + 1):
-        items = api("GET", "/repos/%s/releases?limit=50&page=%d" % (repo, page)) or []
+        items = api("GET", "/repos/%s/releases?limit=50&per_page=50&page=%d" % (repo, page)) or []
         new = [r for r in items if r["id"] not in seen]
         if not new:
             return out
@@ -630,7 +637,7 @@ def publish(tag, target, notes_file, files, product):
         upload_file(repo, rel["id"], name, data)
         print("uploaded %s (%d MB)" % (name, len(data) >> 20))
     api("PATCH", "/repos/%s/releases/%d" % (repo, rel["id"]), {"draft": False, "prerelease": not stable})
-    print("published %s: %s/%s/releases/tag/%s" % (tag, SERVER, repo, tag))
+    print("published %s: %s/%s/releases/tag/%s" % (tag, "https://github.com" if on_github() else SERVER, repo, tag))
 
 
 def prune(keep, product):
@@ -643,7 +650,8 @@ def prune(keep, product):
     gone = published[keep:] + [r for r in nightlies if r.get("draft") and published and count(r) < count(published[0])]
     for r in gone:
         api("DELETE", "/repos/%s/releases/%d" % (repo, r["id"]))
-        api("DELETE", "/repos/%s/tags/%s" % (repo, urllib.parse.quote(r["tag_name"])), missing_ok=True)   # (a draft has no tag yet)
+        api("DELETE", ("/repos/%s/git/refs/tags/%s" if on_github() else "/repos/%s/tags/%s") % (repo,
+            urllib.parse.quote(r["tag_name"])), missing_ok=True)   # (a draft has no tag yet)
         print("pruned %s" % r["tag_name"])
 
 
