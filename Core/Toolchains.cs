@@ -204,11 +204,19 @@ public sealed class Toolchains
     async Task Download(Part part, string zip, Action<long> progress, CancellationToken cancel)
     {
         Exception? last = null;
-        foreach (var url in new[] { part.Url }.Concat(part.Mirrors ?? Array.Empty<string>()))
+        IReadOnlyList<string> urls = new[] { part.Url }.Concat(part.Mirrors ?? Array.Empty<string>()).ToList();
+        var through = fetcher;
+        if (part.Mirrors is { Count: > 0 } && fetcher is CdnFetcher cdn)
+        {
+            // (a tool's own links, git-cdn's among them: each tried as it is, in order, so that no link is tried twice)
+            urls = cdn.Expand(urls);
+            through = cdn.Inner;
+        }
+        foreach (var url in urls)
         {
             try
             {
-                await DownloadFrom(url, part.Sha, part.Size, zip, progress, cancel);
+                await DownloadFrom(through, url, part.Sha, part.Size, zip, progress, cancel);
                 return;
             }
             catch (Exception e) when (e is FetchException or InvalidDataException) { last = e; }
@@ -216,7 +224,7 @@ public sealed class Toolchains
         throw last!;
     }
 
-    async Task DownloadFrom(string url, string sha, long size, string path, Action<long> progress, CancellationToken cancel)
+    static async Task DownloadFrom(IFetcher fetcher, string url, string sha, long size, string path, Action<long> progress, CancellationToken cancel)
     {
         await using var file = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None);
         await using var checking = new CheckedStream(file, size);
@@ -247,7 +255,7 @@ public sealed class Toolchains
             // (the builder first, then its tools: its share of the bar until its tools.lock says how much more there is)
             const double builderShare = 0.4;
             progress?.Invoke(new ToolchainProgress(0, 1, 1, $"Downloading the builder ({file.Size >> 20} MB)"));
-            await DownloadFrom(file.Url, file.Sha256, file.Size, image, have => progress?.Invoke(new ToolchainProgress(
+            await DownloadFrom(fetcher, file.Url, file.Sha256, file.Size, image, have => progress?.Invoke(new ToolchainProgress(
                 Math.Min(have, file.Size) / (double)Math.Max(1, file.Size) * builderShare, 1, 1,
                 $"Downloading the builder ({have >> 20} of {file.Size >> 20} MB)")), cancel);
             if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(image, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
@@ -585,16 +593,27 @@ public sealed class Toolchains
         public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancel) =>
             WriteAsync(buffer.AsMemory(offset, count), cancel).AsTask();
 
+        // (seekable only back to its start, with what it had counted dropped: a download started again, CdnFetcher's fallback)
         public override bool CanRead => false;
-        public override bool CanSeek => false;
+        public override bool CanSeek => inner.CanSeek;
         public override bool CanWrite => true;
         public override long Length => length;
-        public override long Position { get => length; set => throw new NotSupportedException(); }
+        public override long Position { get => length; set => Seek(value, SeekOrigin.Begin); }
         public override void Flush() => inner.Flush();
         public override Task FlushAsync(CancellationToken cancel) => inner.FlushAsync(cancel);
         public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
-        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
-        public override void SetLength(long value) => throw new NotSupportedException();
+
+        public override long Seek(long offset, SeekOrigin origin) =>
+            (origin == SeekOrigin.Current ? length + offset : offset) == length ? length : throw new NotSupportedException();
+
+        public override void SetLength(long value)
+        {
+            if (value != 0 || !inner.CanSeek) throw new NotSupportedException();
+            inner.SetLength(0);
+            inner.Position = 0;
+            hash.GetHashAndReset();
+            length = 0;
+        }
 
         protected override void Dispose(bool disposing)
         {

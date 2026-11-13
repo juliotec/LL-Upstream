@@ -209,6 +209,7 @@ dotnet run --project App
 |---|---|
 | `LONGSHOT_LAUNCHER_DEBUG_SLOW=<ms>` | A Debug build only: waits that long before each answer from git.magicbean.dev and a tenth of it after each MB downloaded, to see the busy states (the launcher's update, the check, the tools' download) |
 | `LONGSHOT_LAUNCHER_HOME=<folder>` | The launcher's home (`builds.json`, `settings.json`, `toolchains/`) somewhere else, for trying it out |
+| `LONGSHOT_LAUNCHER_NO_CDN=1` | Every release file and build tool from git.magicbean.dev itself, not through `git-cdn.magicbean.dev` (Cloudflare's cache of the same files, tried first otherwise; the API is always git.magicbean.dev's) |
 | `LONGSHOT_LAUNCHER_OFFLINE=1` | No update check |
 | `LONGSHOT_LAUNCHER_PARTS=<list>` | Build from a parts list on this PC instead of a release's (`file://` parts allowed): every channel offers that list's tag |
 | `LONGSHOT_LAUNCHER_TRUST=<public key .pem>` | Trust one more release key, for a release signed with a test key |

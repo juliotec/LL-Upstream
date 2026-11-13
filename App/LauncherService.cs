@@ -42,10 +42,12 @@ public sealed class LauncherService
         Registry = BuildRegistry.Load(home.Builds);
         Settings = LauncherSettings.Load(home.Settings);
         LocalList = ToolsSource.LocalList();
-        Fetcher = Slow(new LocalFileFetcher(new HttpFetcher(TimeSpan.FromSeconds(60))));
+        // (release files and packages through git-cdn.magicbean.dev first: CdnFetcher; LONGSHOT_LAUNCHER_NO_CDN=1 turns it off)
+        var cdn = CdnFetcher.EnabledByEnvironment();
+        Fetcher = new CdnFetcher(Slow(new LocalFileFetcher(new HttpFetcher(TimeSpan.FromSeconds(60)))), cdn);
         Tools = new Toolchains(home.Toolchains, Fetcher);
         // (its own timeout, shorter: the check at start should not keep the window waiting on a server that does not answer)
-        var check = Slow(new LocalFileFetcher(new HttpFetcher(TimeSpan.FromSeconds(20))));
+        var check = new CdnFetcher(Slow(new LocalFileFetcher(new HttpFetcher(TimeSpan.FromSeconds(20)))), cdn);
         var keys = ReleaseKeys.Current();
         Releases = new Releases(check, platform, keys, product: Product.Longshot);
         // (the launcher's own releases: its own versions on its own three channels, chosen apart from the builds' in Settings)
