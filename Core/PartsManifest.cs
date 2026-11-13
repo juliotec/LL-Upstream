@@ -26,7 +26,7 @@ public sealed record PartsList(ListKind Kind, string Tag, IReadOnlyList<Part> Pa
 ///       tag <tag>
 ///       part <sha256> <bytes> <folder under the install> <top folder in the zip to rename, or -> <new name, or -> <url>
 ///       run <the builder, relative to the install>
-///   longshot-linux.txt (builder/linux/linux_update.py parse_list)
+///   longshot-linux.txt (scripts/linux/make_parts.py writes it)
 ///       tag <tag>
 ///       part <sha256> <bytes> <dir under the install> <url>
 ///       tree | file <name>...
@@ -56,7 +56,7 @@ public static class PartsManifest
         return true;
     }
 
-    /// linux_update._safe_name: a relative zip or list name with no ".." part
+    /// A relative zip or list name with no ".." part
     public static bool SafeName(string s) =>
         s.Length > 0 && !s.StartsWith('/') && !s.Split('/').Contains("..");
 
@@ -93,7 +93,7 @@ public static class PartsManifest
         return new PartsList(ListKind.Setup, tag, parts, run);
     }
 
-    /// local: a list from this PC, whose parts may be file:// links (linux_update.parse_list's local)
+    /// local: a list from this PC, whose parts may be file:// links
     public static PartsList ParseLinux(string text, bool local = false)
     {
         string tag = "";
