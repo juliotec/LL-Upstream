@@ -87,6 +87,9 @@ Players on the nightly channel keep the last good nightly until then.
 3. **What CI does** (`release.yml`): it checks the tag (`check-tag`: its form, on `main`, above every release, as high as the
    commits call for). It builds both systems' files, writes and signs `SHA256SUMS`, checks the signature with the key the
    launcher trusts, writes the notes with git-cliff, uploads everything to a draft, and publishes it as a pre-release.
+   For Longshot, when the commit's nightly is still published (CI keeps the newest 5), `release.py released-as` finds it
+   and checks its signed `SHA256SUMS`: the build checks that ship no file (the Windows Vulkan back end, AMD FSR 4) passed
+   in its run and are not run again. The files are built again: each carries its version.
 4. **Check it.**
    - The run is green, and the release page shows every file, `SHA256SUMS` and `SHA256SUMS.sig`.
    - `python -I scripts/release.py channels` shows the tag on `rc`.
@@ -111,7 +114,8 @@ git push forge v3.1.0
 
 Web UI: *New release*, tag `v3.1.0`, target: the rc's commit, **Create tag**.
 
-CI builds it again from that commit, signs and publishes it: it appears on **stable** and on **rc**. Its notes cover every
+CI builds it again from that commit (its files carry the version; for Longshot, the build checks the rc's run passed are
+not run again: `release.py released-as`), signs and publishes it: it appears on **stable** and on **rc**. Its notes cover every
 change since the previous stable, the release candidates included. A later commit of `main` can be tagged instead, but
 then it was not what testers tried.
 
@@ -193,7 +197,7 @@ for Linux. A bump is a pull request that changes its line:
   the profile):
   ```sh
   python -I scripts/tools.py assemble python --requirements nx2/prompt_requirements.txt --out python.zip
-  python -I scripts/tools.py assemble cpm --add <dav1d-cpm folder from build-windows.yml's dav1d artifact> --out cpm.zip
+  python -I scripts/tools.py assemble cpm --add <cpm folder> --out cpm.zip   # (its dav1d/<version>: scripts/windows/dav1d.sh <cpm folder>)
   python -I scripts/tools.py assemble third-party --from <an archive with tools/third_party> --out third-party.zip
   python -I scripts/tools.py assemble profile --work work --out profile.zip
   RELEASE_TOKEN=<your token> python -I scripts/tools.py add python 3.14.2-1 python.zip --dest LongshotBuilder/tools/python --prefix python
