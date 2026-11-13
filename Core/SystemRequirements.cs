@@ -30,16 +30,17 @@ public static class SystemRequirements
         else if (!gpus.Any(g => g.Vulkan13)) failures.Add("No Vulkan 1.3 GPU found; check your graphics driver");
         else
         {
-            // Choose one usable GPU; never combine different cards' capabilities.
+            // Check the GPU the game will use (Longshot's pick_device in gpu/vk/vk_main.cpp): a discrete GPU over an
+            // integrated one, then the newer driver. Never combine different cards' capabilities. An integrated GPU
+            // reports a share of system RAM as its memory, so ranking by memory picks it over a laptop's own card.
             var gpu = gpus.Where(g => g.Vulkan13)
-                .OrderByDescending(g => g.MemoryBytes >= 8UL << 30 && g.MeshShaders == true)
-                .ThenByDescending(g => g.MemoryBytes).First();
+                .OrderByDescending(g => g.Kind).ThenByDescending(g => g.DriverVersion).First();
             observed.Add("Vulkan 1.3");
             if (gpu.MemoryBytes > 0) observed.Add(FormattableString.Invariant($"{gpu.MemoryBytes / (double)(1UL << 30):0.#} GB VRAM"));
             if (gpu.MeshShaders == true) observed.Add("Mesh shaders available");
             if (gpu.MemoryBytes == 0) unknown.Add("GPU memory could not be checked");
-            else if (gpu.MemoryBytes < 4UL << 30) warnings.Add("4 GB VRAM minimum; shared memory may differ");
-            else if (gpu.MemoryBytes < 8UL << 30) warnings.Add("8 GB VRAM recommended");
+            else if (!AtLeastGb(gpu.MemoryBytes, 4)) warnings.Add("4 GB VRAM minimum; shared memory may differ");
+            else if (!AtLeastGb(gpu.MemoryBytes, 8)) warnings.Add("8 GB VRAM recommended");
             if (gpu.MeshShaders == false) warnings.Add("No mesh shaders; using the slower compute fallback");
             else if (gpu.MeshShaders is null) unknown.Add("Mesh shader support could not be checked");
         }
@@ -55,6 +56,10 @@ public static class SystemRequirements
         var detail = string.Join(" · ", observed.Concat(failures).Concat(warnings).Concat(unknown));
         return new(status, summary, detail + (detail.EndsWith('.') ? "" : "."));
     }
+
+    // A card sold as 8 GB reports a little less as its memory heap (an RTX 4070 Laptop GPU: 8188 MiB), so the thresholds
+    // allow 256 MiB under the marketed size.
+    static bool AtLeastGb(ulong bytes, int gb) => bytes >= ((ulong)gb << 30) - (256UL << 20);
 
     public static RequirementResult Check(string folder)
     {
@@ -73,7 +78,10 @@ public static class SystemRequirements
     [DllImport("libc.so.6")] static extern IntPtr gnu_get_libc_version();
 }
 
-public sealed record GpuRequirement(bool Vulkan13, ulong MemoryBytes, bool? MeshShaders = null);
+/// Ordered as the game prefers them: VkPhysicalDeviceType discrete over integrated over the rest.
+public enum GpuKind { Other, Integrated, Discrete }
+public sealed record GpuRequirement(bool Vulkan13, ulong MemoryBytes, bool? MeshShaders = null,
+    GpuKind Kind = GpuKind.Other, uint DriverVersion = 0);
 
 /// Queries the installed Vulkan loader without external utilities or a Vulkan package.
 internal static class VulkanRequirements
@@ -128,15 +136,21 @@ internal static class VulkanRequirements
             {
                 var device = Marshal.ReadIntPtr(devices, i * IntPtr.Size);
                 properties(device, buffer);
+                // VkPhysicalDeviceProperties: apiVersion, driverVersion, vendorID, deviceID, deviceType.
                 uint api = (uint)Marshal.ReadInt32(buffer);
+                uint driver = (uint)Marshal.ReadInt32(buffer, 4);
+                int type = Marshal.ReadInt32(buffer, 16);
                 // CPU software renderers are not suitable game GPUs.
-                if (Marshal.ReadInt32(buffer, 16) == 4) continue;
+                if (type == 4) continue;
+                var kind = type switch { 1 => GpuKind.Integrated, 2 => GpuKind.Discrete, _ => GpuKind.Other };
                 memory(device, buffer);
                 uint heaps = (uint)Marshal.ReadInt32(buffer, 260);
+                // The largest device-local heap, as the game measures VRAM: AMD without resizable BAR lists its
+                // CPU-visible 256 MiB of VRAM as a heap of its own, which a sum would count twice.
                 ulong bytes = 0;
                 for (int h = 0; h < Math.Min(heaps, 16); h++)
                     if ((Marshal.ReadInt32(buffer, 264 + h * 16 + 8) & 1) != 0)
-                        bytes += (ulong)Marshal.ReadInt64(buffer, 264 + h * 16);
+                        bytes = Math.Max(bytes, (ulong)Marshal.ReadInt64(buffer, 264 + h * 16));
                 bool? mesh = null;
                 if (features != null)
                 {
@@ -147,9 +161,10 @@ internal static class VulkanRequirements
                     Marshal.WriteIntPtr(buffer, 8, buffer + 512);
                     Marshal.WriteInt32(buffer, 512, 1000328000);
                     features(device, buffer);
-                    mesh = Marshal.ReadInt32(buffer, 512 + 20) != 0;
+                    // taskShader and meshShader: the game uses mesh shaders only with both.
+                    mesh = Marshal.ReadInt32(buffer, 512 + 16) != 0 && Marshal.ReadInt32(buffer, 512 + 20) != 0;
                 }
-                result.Add(new(api >= ((1u << 22) | (3u << 12)), bytes, mesh));
+                result.Add(new(api >= ((1u << 22) | (3u << 12)), bytes, mesh, kind, driver));
             }
             return result;
         }

@@ -34,5 +34,16 @@ static partial class Program
             "Vulkan and memory must belong to the same GPU.");
         Require(Check([new(false, 16UL << 30), ..good]).Status == RequirementStatus.Green,
             "An older secondary GPU does not fail a usable GPU.");
+        // A laptop: an integrated GPU reporting 3/4 of 31 GB RAM without mesh shaders, and an RTX 4070 Laptop GPU's 8188 MiB.
+        var laptop = new GpuRequirement[] { new(true, 23300UL << 20, false, GpuKind.Integrated),
+            new(true, 8188UL << 20, true, GpuKind.Discrete) };
+        Require(Check(laptop).Status == RequirementStatus.Green && Check(laptop).Detail.Contains("Mesh shaders available")
+                && Check(laptop).Detail.Contains("8 GB VRAM"),
+            "The discrete GPU the game uses is checked, not an integrated GPU reporting more shared memory.");
+        Require(Check([..laptop.Reverse()]).Status == RequirementStatus.Green, "The discrete GPU wins in either order.");
+        Require(Check([new(true, 8UL << 30, true, GpuKind.Integrated, 1), new(true, 4UL << 30, false, GpuKind.Integrated, 2)])
+                .Detail.Contains("No mesh shaders"), "Between GPUs of one kind, the newer driver is checked, as in the game.");
+        Require(Check([new(true, (8UL << 30) - (300UL << 20), true)]).Status == RequirementStatus.Yellow,
+            "Well under 8 GB still calls for a lower preset.");
     }
 }
