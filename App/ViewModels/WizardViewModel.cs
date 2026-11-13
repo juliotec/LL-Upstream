@@ -140,9 +140,25 @@ public sealed class FilesStepViewModel : ViewModelBase, IWizardPage
         FoldersCommand = new Command(() => _ = FoldersAsync());
         // (only after a failure: a second click while it downloads again starts nothing)
         RetryCommand = new Command(StartTools, () => toolsFailed);
+        RequirementsCommand = new Command(() => Main.Host?.Open(SystemRequirements.Url));
+        _ = Task.Run(() => SystemRequirements.Check(job.InstallDir)).ContinueWith(task => Ui.Post(() =>
+        {
+            if (task.IsCompletedSuccessfully) requirements = task.Result;
+            else requirements = new(RequirementStatus.Gray, "This PC could not be checked", "See the system requirements before building.");
+            RaiseAll(nameof(RequirementsSummary), nameof(RequirementsDetail), nameof(RequirementsGreen), nameof(RequirementsYellow), nameof(RequirementsRed), nameof(RequirementsGray));
+        }));
         if (tools) StartTools();
         StartSearch();
     }
+
+    RequirementResult requirements = new(RequirementStatus.Gray, "Checking this PC…", "Checking OS, memory, storage and Vulkan support.");
+    public string RequirementsSummary => requirements.Summary;
+    public string RequirementsDetail => requirements.Detail;
+    public bool RequirementsGray => requirements.Status == RequirementStatus.Gray;
+    public bool RequirementsGreen => requirements.Status == RequirementStatus.Green;
+    public bool RequirementsYellow => requirements.Status == RequirementStatus.Yellow;
+    public bool RequirementsRed => requirements.Status == RequirementStatus.Red;
+    public Command RequirementsCommand { get; }
 
     public BuildJob Job { get; }
     MainViewModel Main => Job.Main;

@@ -303,3 +303,12 @@ The Longshot Launcher is free software under the [GNU General Public License, ve
 
 The Inter font keeps its own licence. The launcher is an unofficial fan project, not affiliated with or endorsed by
 Nintendo. The Legend of Zelda and Ocarina of Time are trademarks of Nintendo.
+
+The game-files screen shows a status card above the builder download. Its first line keeps the status and requirements
+link together; the second line shows detected RAM and VRAM, mesh-shader availability and any limitations or unknown checks. Green means the checked OS, RAM (16 GB),
+free space, Vulkan 1.3, VRAM (8 GB) and mesh-shader requirements are met. Yellow highlights known limitations (such as
+4 GB VRAM or missing mesh shaders); gray means a check is unknown. Red identifies an unsupported OS, missing Linux AVX2,
+or no Vulkan 1.3 hardware GPU. A known limitation takes precedence over unknown checks. The status is advisory and never
+prevents a download or build. Use its System requirements link to open
+https://longshot.magicbean.dev/requirements/ for CPU model guidance and performance estimates. GPU memory comes from
+Vulkan's device-local heaps; shared-memory GPUs can report it differently.

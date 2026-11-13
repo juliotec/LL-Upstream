@@ -26,6 +26,22 @@
         <TextBlock Classes="heading" Text="Your game files"/>
         <TextBlock Classes="sub" Text="{Binding Sub}"/>
 
+        <Border Classes="card" Margin="0,16,0,0" Padding="16,10" ToolTip.Tip="{Binding RequirementsDetail}"
+                AutomationProperties.HelpText="{Binding RequirementsDetail}">
+          <Grid ColumnDefinitions="10,*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="12" RowSpacing="4">
+            <Panel VerticalAlignment="Center">
+              <Ellipse Width="10" Height="10" Fill="{StaticResource InkFaintText}" IsVisible="{Binding RequirementsGray}"/>
+              <Ellipse Width="10" Height="10" Fill="{StaticResource Go}" IsVisible="{Binding RequirementsGreen}"/>
+              <Ellipse Width="10" Height="10" Fill="{StaticResource Warn}" IsVisible="{Binding RequirementsYellow}"/>
+              <Ellipse Width="10" Height="10" Fill="{StaticResource Bad}" IsVisible="{Binding RequirementsRed}"/>
+            </Panel>
+            <TextBlock Grid.Column="1" Text="{Binding RequirementsSummary}" FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+            <Button Grid.Column="2" Classes="link" Content="System requirements ↗" Command="{Binding RequirementsCommand}"/>
+            <TextBlock Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Classes="note"
+                       Text="{Binding RequirementsDetail}" TextWrapping="Wrap"/>
+          </Grid>
+        </Border>
+
         <!-- the version's tools, downloading while the files are picked -->
         <Border Classes="card" Margin="0,16,0,0" Padding="16,10">
           <Grid ColumnDefinitions="34,*,190" ColumnSpacing="14">

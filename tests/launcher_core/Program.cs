@@ -53,6 +53,7 @@ static partial class Program
         scratch = args[2];
         Directory.CreateDirectory(scratch);
 
+        RequirementsChecks();
         VersionChecks(vectors.RootElement);
         await ReleaseChecks(Path.Combine(fixtures, "release"));
         await SelfUpdateChecks();
