@@ -8,6 +8,14 @@
     <Style Selector="Border.vrow.selected">
       <Setter Property="Background" Value="{StaticResource Selected}"/>
     </Style>
+    <Style Selector="Button.savescard">
+      <Setter Property="Height" Value="NaN"/>
+      <Setter Property="Padding" Value="12,10,14,10"/>
+      <Setter Property="CornerRadius" Value="10"/>
+      <Setter Property="HorizontalAlignment" Value="Stretch"/>
+      <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+      <Setter Property="FontWeight" Value="Normal"/>
+    </Style>
     <Style Selector="Border.vrow:pointerover">
       <Setter Property="Background" Value="{StaticResource RowHover}"/>
     </Style>
@@ -127,11 +135,19 @@
             </Border>
           </StackPanel>
           <TextBlock Classes="note" Text="{Binding HeroNote}" TextWrapping="Wrap" Margin="0,4,0,0"/>
-          <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,10,0,0">
-            <c:Icon Kind="disk" Width="15" Height="15" Foreground="{StaticResource InkFaintText}" VerticalAlignment="Center"/>
-            <TextBlock Classes="note" Text="{Binding HeroSaves}" VerticalAlignment="Center"/>
-            <Button Classes="link" Content="Saves" Command="{Binding SavesDefaultCommand}" Margin="2,0,0,0"/>
-          </StackPanel>
+          <!-- the default version's saves: a button the size of a card, so copying, importing and exporting saves is easy to find -->
+          <Button Classes="savescard" Command="{Binding SavesDefaultCommand}" Margin="0,16,0,0" ToolTip.Tip="Copy saves between versions, import them, export them">
+            <Grid ColumnDefinitions="32,*,Auto" ColumnSpacing="12">
+              <Border Width="32" Height="32" CornerRadius="16" Background="{StaticResource GoSoft}" VerticalAlignment="Center">
+                <c:Icon Kind="disk" Width="16" Height="16" Foreground="{StaticResource Go}"/>
+              </Border>
+              <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
+                <TextBlock Text="Manage saves" FontSize="14" FontWeight="SemiBold"/>
+                <TextBlock Classes="note" Text="{Binding HeroSaves}" TextTrimming="CharacterEllipsis"/>
+              </StackPanel>
+              <c:Icon Grid.Column="2" Kind="chevronRight" Width="16" Height="16" Foreground="{StaticResource InkFaintText}" VerticalAlignment="Center"/>
+            </Grid>
+          </Button>
           <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,14,0,0" IsVisible="{Binding HeroHasUpdate}">
             <c:Icon Kind="arrowUp" Width="15" Height="15" Foreground="{StaticResource BrandInk}" VerticalAlignment="Center"/>
             <TextBlock FontSize="13" Foreground="{StaticResource BrandInk}" Text="{Binding HeroUpdate}" VerticalAlignment="Center"/>
@@ -221,7 +237,12 @@
                               </Button>
                             </StackPanel>
                             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
-                              <Button Classes="icon" Command="{Binding SavesCommand}" ToolTip.Tip="Saves"><c:Icon Kind="disk"/></Button>
+                              <Button Classes="small" Command="{Binding SavesCommand}" ToolTip.Tip="Copy, import or export this version's saves">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                  <c:Icon Kind="disk" Width="14" Height="14"/>
+                                  <TextBlock Text="Saves"/>
+                                </StackPanel>
+                              </Button>
                               <Button Classes="icon" Command="{Binding FolderCommand}" ToolTip.Tip="Open folder"><c:Icon Kind="folder"/></Button>
                               <Button Classes="icon iconbad" Command="{Binding DeleteCommand}" ToolTip.Tip="Delete"><c:Icon Kind="trash"/></Button>
                             </StackPanel>

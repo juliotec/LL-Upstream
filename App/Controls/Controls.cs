@@ -71,6 +71,7 @@ public sealed class Icon : Control
         ["info"] = new[] { ("M12 10.5v6", 2.2), ("M13.3 7.3a1.3 1.3 0 1 1-2.6 0a1.3 1.3 0 1 1 2.6 0z", 0.0) },
         ["clock"] = new[] { ("M20 12a8 8 0 1 1-16 0a8 8 0 1 1 16 0z", 1.7), ("M12 8v4.5l3 2", 1.7) },
         ["chevron"] = new[] { ("M7 10l5 5 5-5", 1.6) },
+        ["chevronRight"] = new[] { ("M10 7l5 5-5 5", 1.6) },
     };
 
     static readonly Dictionary<string, Geometry> Parsed = new();
