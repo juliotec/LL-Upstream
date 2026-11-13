@@ -58,13 +58,10 @@ public static class Disk
     {
         try
         {
-            var at = Path.GetFullPath(path);
-            while (!Directory.Exists(at))
-            {
-                var up = Path.GetDirectoryName(at);
-                if (up == null || up == at) return null;
-                at = up;
-            }
+            var at = Existing(path);
+            if (at == null) return null;
+            // Unix asks the filesystem that holds the folder itself, so links and mounts are followed by the OS
+            if (!OperatingSystem.IsWindows()) return new DriveInfo(at).AvailableFreeSpace;
             // (the mount that holds it: the longest drive root it starts with)
             var drive = DriveInfo.GetDrives()
                 .Where(d => { try { return d.IsReady && Within(at, d.RootDirectory.FullName); } catch (IOException) { return false; } })
@@ -72,6 +69,34 @@ public static class Disk
             return drive?.AvailableFreeSpace;
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException) { return null; }
+    }
+
+    /// The nearest folder at or above path that exists, as a full path; on Unix with its links followed, so it names the
+    /// mount FreeBytes measures (on Bazzite /home is a link to /var/home); null when none does
+    static string? Existing(string path)
+    {
+        var at = Path.GetFullPath(path);
+        while (!Directory.Exists(at))
+        {
+            var up = Path.GetDirectoryName(at);
+            if (up == null || up == at) return null;
+            at = up;
+        }
+        return OperatingSystem.IsWindows() ? at : Real(at);
+    }
+
+    /// path with every link along it followed, as realpath does (a link's target may itself pass through links)
+    static string Real(string path, int depth = 0)
+    {
+        if (depth > 40) return path;   // (a loop of links: give up and keep the path as it is)
+        var at = "/";
+        foreach (var part in path.Split('/', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var next = Path.Combine(at, part);
+            var target = new DirectoryInfo(next).LinkTarget == null ? null : new DirectoryInfo(next).ResolveLinkTarget(true);
+            at = target == null ? next : Real(target.FullName, depth + 1);
+        }
+        return at;
     }
 
     static bool Within(string path, string root)
@@ -88,6 +113,7 @@ public static class Disk
         {
             var full = Path.GetFullPath(path);
             if (OperatingSystem.IsWindows()) return (Path.GetPathRoot(full) ?? full).TrimEnd('\\', '/');
+            full = Existing(full) ?? full;   // (the folder FreeBytes measures, its links followed)
             var mount = DriveInfo.GetDrives()
                 .Select(d => d.RootDirectory.FullName)
                 .Where(r => Within(full, r))

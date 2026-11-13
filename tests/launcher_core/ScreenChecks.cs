@@ -430,6 +430,20 @@ static partial class Program
         Require(free is > 0, "The free space where a folder would go, from the nearest folder that is there.");
         Require(Disk.DriveName(root).Length > 0, "The drive's name.");
 
+        if (OperatingSystem.IsLinux())
+        {
+            // A folder reached through a link is on the link's target (on Bazzite /home is a link to /var/home). The target
+            // here is /proc, which always reports 0 bytes free, so a check that didn't follow the link would see the free
+            // space of the drive the test folder is on instead
+            var linkedMount = Path.Combine(root, "other-mount");
+            Directory.CreateSymbolicLink(linkedMount, "/proc");
+            Require(Disk.FreeBytes(linkedMount) == 0, "A linked folder uses the target filesystem's free space.");
+            Require(Disk.FreeBytes(Path.Combine(linkedMount, "not", "made", "yet")) == 0,
+                    "A future folder under a link uses the target filesystem's free space.");
+            Require(Disk.DriveName(linkedMount) == "/proc" && Disk.DriveName(Path.Combine(linkedMount, "not", "made", "yet")) == "/proc",
+                    "A linked folder is named by the drive its free space is measured on.");
+        }
+
         // (Free up space: only what make_game made in the build files folder, which may be one the player chose)
         var work = Folder("work");
         File.WriteAllBytes(Path.Combine(work, "system_headers.txt"), new byte[10]);
