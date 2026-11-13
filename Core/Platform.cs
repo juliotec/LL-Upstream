@@ -9,7 +9,4 @@ public static class Platforms
 
     /// The game's executable under its folder's bin/
     public static string GameExe(Platform platform) => platform == Platform.Windows ? "longshot.exe" : "longshot";
-
-    /// The name of a version's parts list on a release: the Windows setup's and the Linux updater's
-    public static string PartsListName(Platform platform) => platform == Platform.Windows ? "longshot-setup.txt" : "longshot-linux.txt";
 }

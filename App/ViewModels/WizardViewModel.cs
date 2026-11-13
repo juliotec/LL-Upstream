@@ -201,7 +201,7 @@ public sealed class FilesStepViewModel : ViewModelBase, IWizardPage
         {
             try
             {
-                var t = await ToolsSource.EnsureAsync(Service.Tools, Service.Releases, Job.Version, Service.LocalList,
+                var t = await ToolsSource.EnsureAsync(Service.Tools, Service.Releases, Job.Version,
                                                       p => Ui.Post(() => Progress(p)), token);
                 Ui.Post(() => ToolsReady(t));
             }

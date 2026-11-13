@@ -128,7 +128,7 @@ public sealed class Releases
         if (!release.Builder.TryGetValue("windows-x64", out var zip)) throw new InvalidDataException($"{tag} has no Windows builder.");
         if (!release.Tools.TryGetValue("windows-x64", out var lockFile)) throw new InvalidDataException($"{tag} has no tools.lock.");
         var lockText = Encoding.UTF8.GetString(await ReleaseManifest.FetchAsync(Fetcher, lockFile, MaxSmall, cancel).ConfigureAwait(false));
-        var parts = new List<Part> { new(zip.Sha256, zip.Size, ".", null, null, zip.Url, null) };
+        var parts = new List<Part> { new(zip.Sha256, zip.Size, ".", null, null, zip.Url) };
         parts.AddRange(ToolsLock.Parse(lockText, "windows-x64"));
         return new PartsList(ListKind.Setup, tag, parts, ToolsLock.Run);
     }

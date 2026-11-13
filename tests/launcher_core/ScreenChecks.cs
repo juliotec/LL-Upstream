@@ -224,18 +224,18 @@ static partial class Program
         var releases = new Releases(forge.Server, Platform.Linux, keys, NoWait);
         var chains = new Toolchains(Path.Combine(root, "toolchains"), forge.Server);
         var seen = new List<ToolsDownloadProgress>();
-        var t = await ToolsSource.EnsureAsync(chains, releases, "v3.0.0", null, seen.Add, default, Extract);
+        var t = await ToolsSource.EnsureAsync(chains, releases, "v3.0.0", seen.Add, default, Extract);
         Require(File.Exists(t.MakeGame) && extracted.Single() == "\x7fELF an authored AppImage" && seen[0].Fraction == 0
                 && Math.Abs(seen[^1].Fraction - 1) < 1e-9 && !Directory.Exists(Path.Combine(root, "toolchains", "v3.0.0.part")),
                 "Linux: the version's AppImage, checked against the signed SHA256SUMS and unpacked.");
         forge.Server.Asked.Clear();
         seen.Clear();
-        await ToolsSource.EnsureAsync(chains, releases, "v3.0.0", null, seen.Add, default, Extract);
+        await ToolsSource.EnsureAsync(chains, releases, "v3.0.0", seen.Add, default, Extract);
         Require(forge.Server.Asked.Count == 0 && seen.Single().Fraction == 1, "Installed tools are not asked for again.");
         forge.Add("v3.0.1", key, files: new() { [ReleaseManifest.BuilderFile("v3.0.1", "linux-x64")] = image },
                   sums: s => s.Replace(ShaOf(image), new string('0', 64)));
         await ThrowsAsync<InvalidDataException>(() => ToolsSource.EnsureAsync(chains, new Releases(forge.Server, Platform.Linux, keys, NoWait),
-                                                                               "v3.0.1", null, null, default, Extract),
+                                                                               "v3.0.1", null, default, Extract),
                                                 "An AppImage that is not the one its signed SHA256SUMS names was installed.");
 
         // (Linux, a builder without its tools: the tools.lock inside the AppImage names them, linux-x64 lines, unpacked beside it
@@ -263,7 +263,7 @@ static partial class Program
         var lnxChains = new Toolchains(Path.Combine(root, "toolchains-linux-tools"), lnx.Server);
         var lnxReleases = new Releases(lnx.Server, Platform.Linux, keys, NoWait);
         seen.Clear();
-        var lt4 = await ToolsSource.EnsureAsync(lnxChains, lnxReleases, "v3.4.0", null, seen.Add, default, ExtractWithLock);
+        var lt4 = await ToolsSource.EnsureAsync(lnxChains, lnxReleases, "v3.4.0", seen.Add, default, ExtractWithLock);
         var lib = lt4.LibRoot;
         Require(File.ReadAllText(Path.Combine(lib, "emsdk", "upstream", "bin", "clang")) == "#!/bin/sh\n"
                 && new FileInfo(Path.Combine(lib, "emsdk", "upstream", "bin", "clang")).LinkTarget == "clang-23"
@@ -284,7 +284,7 @@ static partial class Program
         lockInside = LinuxLock(clang2);
         lnx.Add("v3.4.1", key, files: new() { [ReleaseManifest.BuilderFile("v3.4.1", "linux-x64")] = image });
         lnx.Server.Asked.Clear();
-        var lt5 = await ToolsSource.EnsureAsync(lnxChains, lnxReleases, "v3.4.1", null, null, default, ExtractWithLock);
+        var lt5 = await ToolsSource.EnsureAsync(lnxChains, lnxReleases, "v3.4.1", null, default, ExtractWithLock);
         Require(!lnx.Server.Asked.Contains("https://tools/sdl2.zip") && lnx.Server.Asked.Contains("https://tools/clang.zip")
                 && File.ReadAllText(Path.Combine(lt5.LibRoot, "sdl2", "libSDL2-2.0.so.0")) == "\x7fELF sdl"
                 && File.ReadAllText(Path.Combine(lt5.LibRoot, "emsdk", "upstream", "bin", "clang-23")) == "#!/bin/sh\n# 2\n",
@@ -292,7 +292,7 @@ static partial class Program
         // (a tool whose bytes differ from its line: nothing is installed)
         lockInside = LinuxLock(Zip(("emsdk/upstream/bin/clang-23", "#!/bin/sh\n# 3\n", null, 0x1ED)));
         lnx.Add("v3.4.2", key, files: new() { [ReleaseManifest.BuilderFile("v3.4.2", "linux-x64")] = image });
-        await ThrowsAsync<InvalidDataException>(() => ToolsSource.EnsureAsync(lnxChains, lnxReleases, "v3.4.2", null, null, default, ExtractWithLock),
+        await ThrowsAsync<InvalidDataException>(() => ToolsSource.EnsureAsync(lnxChains, lnxReleases, "v3.4.2", null, default, ExtractWithLock),
                                                 "A build tool that is not the one the AppImage's tools.lock names was installed.");
         Require(lnxChains.Find("v3.4.2") == null && !Directory.Exists(Path.Combine(root, "toolchains-linux-tools", "v3.4.2.part")),
                 "A failed install leaves nothing that looks installed.");
@@ -333,26 +333,6 @@ static partial class Program
         Require(File.ReadAllText(Path.Combine(tp2, "a64-kit", "lift", "a64emit.cpp")) == "// source\n"
                 && File.ReadAllText(Path.Combine(tp2, "sdl2", "SDL3.dll")) == "MZ SDL3",
                 "Windows: the kept third-party files merged into the next version's third_party, its sources kept.");
-
-        // (a list on this PC with file:// parts: LONGSHOT_LAUNCHER_PARTS)
-        var parts = Path.Combine(root, "parts ゲーム");
-        Directory.CreateDirectory(parts);
-        File.WriteAllBytes(Path.Combine(parts, "t.zip"), tools);
-        File.WriteAllBytes(Path.Combine(parts, "p.zip"), python);
-        var localList = Path.Combine(parts, "longshot-linux.txt");
-        File.WriteAllText(localList, "tag v3.1.0-local\n" +
-                          $"part {ShaOf(tools)} {tools.Length} usr/share/longshot {new Uri(Path.Combine(parts, "t.zip")).AbsoluteUri}\ntree\n" +
-                          $"part {ShaOf(python)} {python.Length} usr/python {new Uri(Path.Combine(parts, "p.zip")).AbsoluteUri}\nfile bin/python3\n");
-        Require(ToolsSource.LocalList(k => k == ToolsSource.LocalListVariable ? localList : null) == localList
-                && ToolsSource.LocalList(_ => null) == null, "The local list is set by LONGSHOT_LAUNCHER_PARTS.");
-        var local = new LocalFileFetcher(gh);
-        var chains2 = new Toolchains(Path.Combine(root, "toolchains2"), local);
-        gh.Asked.Clear();
-        var lt = await ToolsSource.EnsureAsync(chains2, new Releases(local, Platform.Linux, keys, NoWait), "v3.1.0-local", localList);
-        Require(File.ReadAllText(lt.MakeGame) == "print('authored')\n" && gh.Asked.Count == 0, "file:// parts are read from the disk, not fetched.");
-        await ThrowsAsync<FetchException>(() => local.GetTextAsync(new Uri(Path.Combine(parts, "none.txt")).AbsoluteUri, null, default), "A missing file.");
-        Require(await local.GetTextAsync(new Uri(localList).AbsoluteUri, null, default) == File.ReadAllText(localList), "A local text.");
-        Throws<FormatException>(() => PartsManifest.ParseLinux(File.ReadAllText(localList)), "file:// links are only for a local list.");
     }
 
     static void BuildsFolderChecks()

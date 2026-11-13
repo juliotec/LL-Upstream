@@ -57,7 +57,6 @@ static partial class Program
         await ReleaseChecks(Path.Combine(fixtures, "release"));
         await SelfUpdateChecks();
         await InstallChecks();
-        ManifestChecks();
         await ToolchainChecks();
         await CdnChecks();
         RegistryChecks();
@@ -425,58 +424,6 @@ static partial class Program
         }
     }
 
-    // ---- the parts lists (LONGSHOT_LAUNCHER_PARTS, a list made on this PC; releases go through tools.lock) ----
-
-    const string Sha = "552191b5754c49a5a20723276a6fc56541ea1922c4c50b7b669022333fc1b40f";
-
-    static void ManifestChecks()
-    {
-        var setup = PartsManifest.ParseSetup($"""
-            tag v3.3.0
-            part {Sha} 100 . - - https://example.invalid/LongshotBuilder-app-552191b5754c.zip
-            part {Sha} 191037046 LongshotBuilder/tools llvm-mingw-20261104-ucrt-x86_64 llvm-mingw https://github.com/mstorsjo/llvm-mingw/releases/download/20261104/llvm-mingw-20261104-ucrt-x86_64.zip
-            run LongshotBuilder/LongshotBuilder.exe
-            """);
-        Require(setup.Tag == "v3.3.0" && setup.Run == "LongshotBuilder/LongshotBuilder.exe" && setup.Parts.Count == 2, "The setup list's lines.");
-        Require(setup.Parts[0].Dest == "." && setup.Parts[0].From == null && setup.Parts[1].From == "llvm-mingw-20261104-ucrt-x86_64"
-                && setup.Parts[1].To == "llvm-mingw" && setup.Parts[1].Size == 191037046, "The setup list's part fields.");
-        foreach (var bad in new[]
-                 {
-                     $"tag v1\npart {Sha} 1 . - - https://x/y\n",                                   // (no run)
-                     $"tag v1\nrun a\n",                                                              // (no part)
-                     $"tag ..\nrun a\npart {Sha} 1 . - - https://x/y\n",
-                     $"tag v1\nrun a\npart {Sha.ToUpperInvariant()} 1 . - - https://x/y\n",
-                     $"tag v1\nrun a\npart {Sha} 1 . - - http://x/y\n",
-                     $"tag v1\nrun a\npart {Sha} 1 ../up - - https://x/y\n",
-                     $"tag v1\nrun a\npart {Sha} 1 . a/b - https://x/y\n",
-                     $"tag v1\nrun /abs\npart {Sha} 1 . - - https://x/y\n",
-                     $"tag v1\nrun a\npart {Sha} -1 . - - https://x/y\n",
-                     $"tag v1\nrun a\npart {Sha} 1 . - https://x/y\n",
-                 })
-            Throws<FormatException>(() => PartsManifest.ParseSetup(bad), "A setup list the setup refuses was read: " + bad);
-        Require(PartsManifest.ParseSetup($"# note\n\ntag v1\nrun a\nfuture line\npart {Sha} 1 . - - https://x/y\n").Parts.Count == 1,
-                "The setup reads past lines it does not know.");
-
-        var linux = PartsManifest.ParseLinux($"tag nightly-2029-c544828f\npart {Sha} 10 usr/share/longshot https://example.invalid/a.zip\ntree\n" +
-                                             $"part {Sha} 20 usr/python https://example.invalid/b.zip\nfile bin/python3\nfile lib/x.py\n");
-        Require(linux.Kind == ListKind.Linux && linux.Parts[0].Files == null && linux.Parts[1].Files!.SequenceEqual(new[] { "bin/python3", "lib/x.py" }),
-                "The Linux list's tree and file lines.");
-        foreach (var bad in new[]
-                 {
-                     $"tag v1\nfile x\n",
-                     $"tag v1\npart {Sha} 10 a https://x/a.zip\nunknown\n",
-                     $"part {Sha} 10 a https://x/a.zip\n",
-                     $"tag v1\npart {Sha} 10 a https://x/a.zip extra\n",
-                     $"tag v1\npart {Sha} 10 /abs https://x/a.zip\n",
-                     $"tag v1\npart {Sha} 10 a/../.. https://x/a.zip\n",
-                     $"tag v1\npart {Sha} 10 a https://x/a.zip\nfile ../x\n",
-                     $"tag v1\npart {Sha} 10 a file:///tmp/a.zip\n",
-                     $"tag v1\npart {Sha} 10 a https://x/a.zip\ntree\nfile x\n",
-                 })
-            Throws<FormatException>(() => PartsManifest.ParseLinux(bad), "A list linux_update.parse_list refuses was read: " + bad);
-        Require(PartsManifest.ParseLinux($"tag v1\npart {Sha} 10 a file:///tmp/a.zip\n", local: true).Parts.Count == 1, "A local list's file link.");
-    }
-
     // ---- Toolchains ----
 
     static byte[] Zip(params (string Name, string? Text, string? Link, int Mode)[] entries)
@@ -494,11 +441,15 @@ static partial class Program
     }
 
 
-    static string Line(FakeFetcher f, string url, byte[] bytes, string dest)
+    /// A part served by f at url, unpacked whole under dest
+    static Part PartAt(FakeFetcher f, string url, byte[] bytes, string dest)
     {
         f.Files[url] = bytes;
-        return $"part {ShaOf(bytes)} {bytes.Length} {dest} {url}";
+        return new Part(ShaOf(bytes), bytes.Length, dest, null, null, url);
     }
+
+    /// A Linux version's parts, as InstallAppImageAsync installs the tools of the tools.lock in an AppImage
+    static PartsList Linux(string tag, params Part[] parts) => new(ListKind.Linux, tag, parts, null);
 
     static async Task ToolchainChecks()
     {
@@ -509,10 +460,9 @@ static partial class Program
         var python = Zip(("bin/python3", "#!/bin/sh\n", null, 0x1ED));
         var python2 = Zip(("bin/python3", "#!/bin/sh\n# 2\n", null, 0x1ED));
         var sysroot = Zip(("lib/libc.so.6", "authored", null, 0x1A4), ("lib64/ld.so", null, "/lib/libc.so.6", 0));
-        var v1 = PartsManifest.ParseLinux("tag v3.3.0\n" +
-                                          Line(gh, "https://x/tools.zip", tools, "usr/share/longshot") + "\ntree\n" +
-                                          Line(gh, "https://x/python.zip", python, "usr/python") + "\nfile bin/python3\n" +
-                                          Line(gh, "https://x/sysroot.zip", sysroot, Toolchains.SysrootPart) + "\ntree\n");
+        var v1 = Linux("v3.3.0", PartAt(gh, "https://x/tools.zip", tools, "usr/share/longshot"),
+                       PartAt(gh, "https://x/python.zip", python, "usr/python"),
+                       PartAt(gh, "https://x/sysroot.zip", sysroot, Toolchains.SysrootPart));
         var chains = new Toolchains(root, gh);
         var seen = new List<double>();
         var t1 = await chains.InstallAsync(v1, p => seen.Add(p.Fraction));
@@ -531,10 +481,9 @@ static partial class Program
 
         // (the next version: the unchanged parts come from v3.3.0, only the changed one is downloaded)
         gh.Asked.Clear();
-        var v2 = PartsManifest.ParseLinux("tag v3.3.1\n" +
-                                          Line(gh, "https://x/tools.zip", tools, "usr/share/longshot") + "\ntree\n" +
-                                          Line(gh, "https://x/python2.zip", python2, "usr/python") + "\nfile bin/python3\n" +
-                                          Line(gh, "https://x/sysroot.zip", sysroot, Toolchains.SysrootPart) + "\ntree\n");
+        var v2 = Linux("v3.3.1", PartAt(gh, "https://x/tools.zip", tools, "usr/share/longshot"),
+                       PartAt(gh, "https://x/python2.zip", python2, "usr/python"),
+                       PartAt(gh, "https://x/sysroot.zip", sysroot, Toolchains.SysrootPart));
         var t2 = await chains.InstallAsync(v2);
         Require(gh.Asked.SequenceEqual(new[] { "https://x/python2.zip" }), "Unchanged parts were downloaded again: " + string.Join(", ", gh.Asked));
         Require(File.ReadAllText(t2.MakeGame) == "print('authored')\n" && File.ReadAllText(t2.Python).Contains("# 2")
@@ -545,28 +494,26 @@ static partial class Program
 
         // (a part whose bytes differ from its list: nothing is left, the version is not installed)
         var python3 = Zip(("bin/python3", "#!/bin/sh\n# 3\n", null, 0x1ED));
-        var tampered = PartsManifest.ParseLinux("tag v3.4.0\n" + Line(gh, "https://x/tools.zip", tools, "usr/share/longshot") + "\ntree\n" +
-                                                $"part {ShaOf(python3)} {python3.Length} usr/python https://x/python3.zip\nfile bin/python3\n");
+        var tampered = Linux("v3.4.0", PartAt(gh, "https://x/tools.zip", tools, "usr/share/longshot"),
+                             new Part(ShaOf(python3), python3.Length, "usr/python", null, null, "https://x/python3.zip"));
         gh.Files["https://x/python3.zip"] = Zip(("bin/python3", "#!/bin/sh\n# 4\n", null, 0x1ED));
         await ThrowsAsync<InvalidDataException>(() => chains.InstallAsync(tampered), "A part with another checksum was installed.");
         Require(!Directory.Exists(Path.Combine(root, "v3.4.0")) && !Directory.Exists(Path.Combine(root, "v3.4.0.part"))
                 && !Directory.EnumerateFiles(root, "*.zip.part", SearchOption.AllDirectories).Any(), "A failed install left files.");
         gh.Files["https://x/python3.zip"] = python3;
-        var longer = PartsManifest.ParseLinux("tag v3.4.0\n" + $"part {ShaOf(python3)} {python3.Length - 1} usr/python https://x/python3.zip\nfile bin/python3\n");
+        var longer = Linux("v3.4.0", new Part(ShaOf(python3), python3.Length - 1, "usr/python", null, null, "https://x/python3.zip"));
         await ThrowsAsync<InvalidDataException>(() => chains.InstallAsync(longer), "A part larger than its list was installed.");
         Require(!Directory.Exists(Path.Combine(root, "v3.4.0.part")), "A part too large left its staging.");
-        // (a zip with a name outside its folder, or that its list does not name)
+        // (a zip with a name outside its folder)
         var evil = Zip(("../evil", "x", null, 0x1A4));
-        var slip = PartsManifest.ParseLinux("tag v3.4.0\n" + Line(gh, "https://x/evil.zip", evil, "usr/share/longshot") + "\ntree\n");
+        var slip = Linux("v3.4.0", PartAt(gh, "https://x/evil.zip", evil, "usr/share/longshot"));
         await ThrowsAsync<InvalidDataException>(() => chains.InstallAsync(slip), "A zip's ../ name was unpacked.");
         Require(!File.Exists(Path.Combine(root, "evil")) && !File.Exists(Path.Combine(root, "v3.4.0.part", "usr", "share", "evil")), "../evil was written.");
-        var unlisted = PartsManifest.ParseLinux("tag v3.4.0\n" + Line(gh, "https://x/tools.zip", tools, "usr/share/longshot") + "\nfile nx2/make_game.py\n");
-        await ThrowsAsync<InvalidDataException>(() => chains.InstallAsync(unlisted), "A zip's file its list does not name was unpacked.");
         var outward = Zip(("x", null, "../../../../outside", 0));
-        var outwardList = PartsManifest.ParseLinux("tag v3.4.0\n" + Line(gh, "https://x/out.zip", outward, "usr/share/longshot") + "\ntree\n");
+        var outwardList = Linux("v3.4.0", PartAt(gh, "https://x/out.zip", outward, "usr/share/longshot"));
         await ThrowsAsync<InvalidDataException>(() => chains.InstallAsync(outwardList), "A link out of the version's folder was made.");
         var absolute = Zip(("x", null, "/etc/passwd", 0));
-        var absoluteList = PartsManifest.ParseLinux("tag v3.4.0\n" + Line(gh, "https://x/abs.zip", absolute, "usr/share/longshot") + "\ntree\n");
+        var absoluteList = Linux("v3.4.0", PartAt(gh, "https://x/abs.zip", absolute, "usr/share/longshot"));
         await ThrowsAsync<InvalidDataException>(() => chains.InstallAsync(absoluteList), "An absolute link outside the sysroot was made.");
         Require(!Directory.Exists(Path.Combine(root, "v3.4.0")) && !Directory.Exists(Path.Combine(root, "v3.4.0.part")), "A refused part left files.");
 
@@ -574,7 +521,7 @@ static partial class Program
         using (var cancel = new CancellationTokenSource())
         {
             var big = Zip(("nx2/make_game.py", string.Concat(Enumerable.Range(0, 200).Select(_ => Guid.NewGuid().ToString())), null, 0x1A4));
-            var cancelled = PartsManifest.ParseLinux("tag v3.5.0\n" + Line(gh, "https://x/big.zip", big, "usr/share/longshot") + "\ntree\n");
+            var cancelled = Linux("v3.5.0", PartAt(gh, "https://x/big.zip", big, "usr/share/longshot"));
             gh.DuringDownload = n => { if (n > 100) cancel.Cancel(); };
             await ThrowsAsync<OperationCanceledException>(() => chains.InstallAsync(cancelled, null, cancel.Token), "The cancel was not heard.");
             gh.DuringDownload = null;
@@ -582,18 +529,20 @@ static partial class Program
                     && !Directory.EnumerateFiles(root, "*.zip.part", SearchOption.AllDirectories).Any(), "A cancelled install left files.");
         }
 
-        // (Windows' list: dest . with the zip's LongshotBuilder/ folder, and llvm-mingw's top folder renamed)
+        // (Windows: the builder's zip under ., with its LongshotBuilder/ folder, and a tool's prefix folder renamed as tools.lock says)
         var app = Zip(("LongshotBuilder/LongshotBuilder.exe", "MZ", null, 0x1A4), ("LongshotBuilder/tools/nx2/make_game.py", "w", null, 0x1A4),
                       ("LongshotBuilder/tools/python/python.exe", "MZ", null, 0x1A4));
         var llvm = Zip(("llvm-mingw-20261104-ucrt-x86_64/bin/clang.exe", "MZ", null, 0x1A4));
-        var setupLines = "tag v3.3.0-rc.2\n" + Line(gh, "https://x/app.zip", app, ".").Replace(" . ", " . - - ") + "\n" +
-                         $"part {ShaOf(llvm)} {llvm.Length} LongshotBuilder/tools llvm-mingw-20261104-ucrt-x86_64 llvm-mingw https://x/llvm.zip\n" +
-                         "run LongshotBuilder/LongshotBuilder.exe\n";
         gh.Files["https://x/llvm.zip"] = llvm;
-        var w = await chains.InstallAsync(PartsManifest.ParseSetup(setupLines));
+        var setup = new PartsList(ListKind.Setup, "v3.3.0-rc.2", new List<Part>
+        {
+            PartAt(gh, "https://x/app.zip", app, "."),
+            new(ShaOf(llvm), llvm.Length, "LongshotBuilder/tools", "llvm-mingw-20261104-ucrt-x86_64", "llvm-mingw", "https://x/llvm.zip"),
+        }, ToolsLock.Run);
+        var w = await chains.InstallAsync(setup);
         Require(w.ToolsRoot == Path.Combine(root, "v3.3.0-rc.2", "LongshotBuilder", "tools") && File.Exists(w.MakeGame)
                 && w.Python == Path.Combine(w.ToolsRoot, "python", "python.exe")
-                && File.Exists(Path.Combine(w.ToolsRoot, "llvm-mingw", "bin", "clang.exe")), "The Windows list's layout.");
+                && File.Exists(Path.Combine(w.ToolsRoot, "llvm-mingw", "bin", "clang.exe")), "The Windows layout.");
         Require(chains.Find("v3.3.0-rc.2")?.Kind == ListKind.Setup, "The record says which list made it.");
 
         Require(chains.Installed().SequenceEqual(new[] { "v3.3.0", "v3.3.0-rc.2", "v3.3.1" }), "The installed versions.");

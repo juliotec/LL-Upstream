@@ -196,7 +196,7 @@ static partial class Program
         server.Files[llvmOrigin] = new Served(otherApp);
         server.Files[upstream] = new Served(llvm);
         PartsList Setup(string tag, string toolLinks) => new(ListKind.Setup, tag,
-            new List<Part> { new(ShaOf(app), app.Length, ".", null, null, appUrl, null) }
+            new List<Part> { new(ShaOf(app), app.Length, ".", null, null, appUrl) }
                 .Concat(ToolsLock.Parse($"tool llvm-mingw 20261104 windows-x64 {ShaOf(llvm)} {llvm.Length} LongshotBuilder/tools/llvm-mingw "
                                         + $"llvm-mingw-20261104-ucrt-x86_64 {toolLinks}", "windows-x64")).ToList(), ToolsLock.Run);
         var chains = new Toolchains(Path.Combine(root, "toolchains"), cdn);

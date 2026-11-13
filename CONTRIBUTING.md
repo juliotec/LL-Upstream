@@ -24,8 +24,7 @@ python -I tests/test_launcher_core.py                  (the core's tests: no gam
 python -I tests/test_release.py                        (scripts/release.py; needs the openssl command line)
 ```
 
-To try a build without any release, point `LONGSHOT_LAUNCHER_PARTS` at a parts list made by Longshot's
-`scripts/linux/make_parts.py` (README.md, *Build and run*). Sign in to git.magicbean.dev as for Longshot
+Sign in to git.magicbean.dev as for Longshot
 (`python -I scripts/forge.py login` in a Longshot checkout: one sign-in covers both).
 
 ## Changes and tests

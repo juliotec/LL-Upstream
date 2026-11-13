@@ -12,8 +12,6 @@ public sealed class LauncherService
     public BuildRegistry Registry { get; private set; }
     public LauncherSettings Settings { get; private set; }
     public IReadOnlyDictionary<string, string?> Newest => newest;
-    /// A parts list on this PC that stands in for the releases (LONGSHOT_LAUNCHER_PARTS: trying the launcher out); null normally
-    public string? LocalList { get; }
     public IFetcher Fetcher { get; }
     /// Longshot's signed releases on git.magicbean.dev (the builder of each version), checked against the keys this launcher trusts
     public Releases Releases { get; }
@@ -30,7 +28,7 @@ public sealed class LauncherService
     public SaveEnvironment SaveEnv { get; set; }
     /// The makers of this PC's graphics cards (Linux only for now: SystemInfo.GpuVendors)
     public IReadOnlyList<string> Gpus { get; set; }
-    /// Whether the update check has answered (or was not asked: offline, or a local list)
+    /// Whether the update check has answered (or was not asked: offline)
     public bool Checked { get; set; }
 
     readonly Dictionary<string, string?> newest = new();
@@ -41,29 +39,18 @@ public sealed class LauncherService
         Home = home;
         Registry = BuildRegistry.Load(home.Builds);
         Settings = LauncherSettings.Load(home.Settings);
-        LocalList = ToolsSource.LocalList();
         // (release files and packages through git-cdn.magicbean.dev first: CdnFetcher; LONGSHOT_LAUNCHER_NO_CDN=1 turns it off)
         var cdn = CdnFetcher.EnabledByEnvironment();
-        Fetcher = new CdnFetcher(Slow(new LocalFileFetcher(new HttpFetcher(TimeSpan.FromSeconds(60)))), cdn);
+        Fetcher = new CdnFetcher(Slow(new HttpFetcher(TimeSpan.FromSeconds(60))), cdn);
         Tools = new Toolchains(home.Toolchains, Fetcher);
         // (its own timeout, shorter: the check at start should not keep the window waiting on a server that does not answer)
-        var check = new CdnFetcher(Slow(new LocalFileFetcher(new HttpFetcher(TimeSpan.FromSeconds(20)))), cdn);
+        var check = new CdnFetcher(Slow(new HttpFetcher(TimeSpan.FromSeconds(20))), cdn);
         var keys = ReleaseKeys.Current();
         Releases = new Releases(check, platform, keys, product: Product.Longshot);
         // (the launcher's own releases: its own versions on its own three channels, chosen apart from the builds' in Settings)
         LauncherReleases = new Releases(check, platform, keys, product: Product.Launcher);
         SaveEnv = SaveEnvironment.Current() with { Platform = platform, BackupFolder = home.Portable ? home.PortableSaveBackups : null };
         Gpus = SystemInfo.GpuVendors(platform);
-        if (LocalList != null)
-        {
-            try
-            {
-                var tag = ToolsSource.ReadLocal(LocalList, platform).Tag;
-                foreach (var c in Versions.Channels) newest[c] = tag;
-                Checked = true;
-            }
-            catch (Exception e) when (e is IOException or UnauthorizedAccessException or FormatException) { }
-        }
     }
 
     /// A Debug build only: LONGSHOT_LAUNCHER_DEBUG_SLOW=<ms> waits that long before each answer and after each MB of a download, to
@@ -140,7 +127,6 @@ public sealed class LauncherService
     /// answers are kept
     public async Task<bool> CheckReleasesAsync(CancellationToken cancel = default)
     {
-        if (LocalList != null) return true;
         var any = false;
         // (each product's release list once per check: Longshot's three channels from one list, the launcher's from its own)
         foreach (var (channel, info) in await Releases.ChannelsAsync(Versions.Channels, cancel))

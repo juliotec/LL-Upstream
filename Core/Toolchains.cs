@@ -27,14 +27,15 @@ public sealed record Toolchain(string Tag, string Folder, ListKind Kind, string?
     public string MakeGame => Path.Combine(ToolsRoot, "nx2", "make_game.py");
 }
 
-/// The build tools of each version the launcher builds with, in &lt;home&gt;/toolchains/&lt;tag&gt;/, from the version's parts list.
+/// The build tools of each version the launcher builds with, in &lt;home&gt;/toolchains/&lt;tag&gt;/, from the version's parts (its
+/// release's builder and the tools of its tools.lock).
 /// Each part is checked for its size and SHA-256 before it is unpacked; a part another installed version already has (the same
 /// SHA-256, unpacked the same way) is linked or copied from it instead of downloaded. A version is unpacked into &lt;tag&gt;.part and
 /// renamed once complete, so a failed or cancelled install leaves nothing that looks installed.
 public sealed class Toolchains
 {
     public const string RecordName = "toolchain.json";
-    public const string SysrootPart = "usr/lib/longshot/sysroot";   // (builder/linux/part_links.py: its rooted links are rebased)
+    public const string SysrootPart = "usr/lib/longshot/sysroot";   // (its rooted links are rebased inside it)
     const string Downloads = ".downloads";
 
     readonly string root;
@@ -132,8 +133,7 @@ public sealed class Toolchains
                 }
                 record.Parts.Add(new RecordPart
                 {
-                    Sha = part.Sha, Size = part.Size, Dest = part.Dest, From = part.From, To = part.To, Url = part.Url,
-                    Files = part.Files?.ToList(), Entries = entries,
+                    Sha = part.Sha, Size = part.Size, Dest = part.Dest, From = part.From, To = part.To, Url = part.Url, Entries = entries,
                 });
             }
             CheckLinksInside(staging);
@@ -332,8 +332,7 @@ public sealed class Toolchains
             }
             record.Parts.Add(new RecordPart
             {
-                Sha = part.Sha, Size = part.Size, Dest = part.Dest, From = part.From, To = part.To, Url = part.Url,
-                Files = part.Files?.ToList(), Entries = entries,
+                Sha = part.Sha, Size = part.Size, Dest = part.Dest, From = part.From, To = part.To, Url = part.Url, Entries = entries,
             });
         }
         TryDeleteEmpty(downloads);
@@ -360,7 +359,7 @@ public sealed class Toolchains
     /// A zip entry's name: relative, '/' between its parts, none of them "..", no drive or backslash
     static string ZipName(string name)
     {
-        if (!PartsManifest.SafeName(name) || name.Contains('\\') || name.Contains(':') || name.Split('/').Any(p => p == "."))
+        if (!ToolsLock.SafeName(name) || name.Contains('\\') || name.Contains(':') || name.Split('/').Any(p => p == "."))
             throw new InvalidDataException("A part of the tools has a path outside its folder: " + name);
         return name;
     }
@@ -375,8 +374,6 @@ public sealed class Toolchains
                 var name = entry.FullName;
                 if (name.EndsWith('/')) continue;
                 ZipName(name);
-                if (part.Files != null && !part.Files.Contains(name))
-                    throw new InvalidDataException($"A part of the tools has {name}, which its list does not name.");
                 if (part.From != null)
                 {
                     // (a tool's archive may hold more than its folder: only the folder is taken, tools.lock's prefix)
@@ -540,10 +537,9 @@ public sealed class Toolchains
         public string? From { get; set; }
         public string? To { get; set; }
         public string Url { get; set; } = "";
-        public List<string>? Files { get; set; }
         public List<Entry> Entries { get; set; } = new();
 
-        public Part AsPart() => new(Sha, Size, Dest, From, To, Url, Files);
+        public Part AsPart() => new(Sha, Size, Dest, From, To, Url);
     }
 
     /// One file a part put in the version's folder, relative with '/'; Link: a symbolic link's target
