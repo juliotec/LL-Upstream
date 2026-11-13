@@ -126,6 +126,9 @@ public sealed class SettingsViewModel : ViewModelBase
             s.LauncherChannel = value;
             Save();
             foreach (var c in LauncherChannels) c.Changed();
+            // (new builds follow the launcher's channel while none was picked for them)
+            foreach (var c in Channels) c.Changed();
+            Raise(nameof(ChannelHint));
             _ = Main.Home.CheckReleasesAsync();
         }
     }
@@ -138,7 +141,7 @@ public sealed class SettingsViewModel : ViewModelBase
 
     public string Channel
     {
-        get => s.DefaultChannel;
+        get => Main.Service.DefaultChannel;
         set
         {
             if (value == s.DefaultChannel || !Versions.IsChannel(value)) return;
@@ -149,7 +152,9 @@ public sealed class SettingsViewModel : ViewModelBase
         }
     }
 
-    public string ChannelHint => (ChannelPickerViewModel.All.FirstOrDefault(c => c.Id == s.DefaultChannel).About ?? "") + " Builds you have keep their own channel.";
+    public string ChannelHint =>
+        ChannelPickerViewModel.AboutOf(Main.Service, Channel, ChannelPickerViewModel.All.FirstOrDefault(c => c.Id == Channel).About ?? "") +
+        " Builds you have keep their own channel.";
 
     public string BuildsFolder
     {

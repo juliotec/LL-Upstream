@@ -92,8 +92,8 @@ public sealed class HomeViewModel : ViewModelBase
     public HomeViewModel(MainViewModel main)
     {
         Main = main;
-        BuildCommand = new Command(() => StartBuild(Service.Settings.DefaultChannel), () => NewestDefault != null);
-        ChannelCommand = new Command(() => Main.Modal = new ChannelPickerViewModel(Main, Service.Settings.DefaultChannel));
+        BuildCommand = new Command(() => StartBuild(Service.DefaultChannel), () => NewestDefault != null);
+        ChannelCommand = new Command(() => Main.Modal = new ChannelPickerViewModel(Main, Service.DefaultChannel));
         DismissProblemCommand = new Command(() => Notice = null);
         RetryCheckCommand = new Command(() => _ = CheckReleasesAsync());
         PlayDefaultCommand = new Command(() => { if (Default is { } d) Play(d); }, () => Default?.IsBuilt == true);
@@ -120,9 +120,9 @@ public sealed class HomeViewModel : ViewModelBase
 
     // ---- the empty home ----
 
-    public string? NewestDefault => Service.NewestOf(Service.Settings.DefaultChannel);
+    public string? NewestDefault => Service.NewestOf(Service.DefaultChannel);
     public string NewestDefaultText => NewestDefault is { } v ? Versions.Shown(v) : "";
-    public string DefaultChannel => Service.Settings.DefaultChannel;
+    public string DefaultChannel => Service.DefaultChannel;
     public bool DefaultIsRelease => DefaultChannel == Versions.Stable;
     public bool DefaultIsCandidate => DefaultChannel == Versions.Candidate;
     public bool DefaultIsNightly => DefaultChannel == Versions.Nightly;
@@ -415,6 +415,10 @@ public sealed class ChannelPickerViewModel : ViewModelBase
         public void Changed() => Raise(nameof(IsPicked));
     }
 
+    /// A channel's line; the one new builds start on while the player has not picked one says it follows the launcher
+    public static string AboutOf(LauncherService service, string id, string about) =>
+        service.Settings.DefaultChannel == null && service.DefaultChannel == id ? about + " It follows the launcher until you pick one in Settings." : about;
+
     public static readonly (string Id, string Name, string About)[] All =
     {
         (Versions.Stable, "Stable", "The tested version. Best for playing."),
@@ -425,7 +429,7 @@ public sealed class ChannelPickerViewModel : ViewModelBase
     public ChannelPickerViewModel(MainViewModel main, string start)
     {
         Main = main;
-        Rows = All.Select(c => new Row(this, c.Id, c.Name, c.About, main.Service.NewestOf(c.Id), Has(main.Service.NewestOf(c.Id)))).ToList();
+        Rows = All.Select(c => new Row(this, c.Id, c.Name, AboutOf(main.Service, c.Id, c.About), main.Service.NewestOf(c.Id), Has(main.Service.NewestOf(c.Id)))).ToList();
         pick = start;
         GoCommand = new Command(Go, () => Version != null);
         CancelCommand = new Command(() => Main.Modal = null);

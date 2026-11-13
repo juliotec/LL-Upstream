@@ -6,7 +6,9 @@ namespace LongshotLauncher.Core;
 /// builds start on. A license flag is true only once its license was accepted on its tick.
 public sealed class LauncherSettings
 {
-    public int Format { get; set; } = 1;
+    /// 2: defaultChannel is null until the player picks one (format 1 wrote "stable" for everyone; Load reads it as not picked)
+    public const int CurrentFormat = 2;
+    public int Format { get; set; } = CurrentFormat;
     public string? Nup { get; set; }
     public string? Romfs { get; set; }
     public string? Exefs { get; set; }
@@ -22,7 +24,8 @@ public sealed class LauncherSettings
     public int? BuildWorkers { get; set; }
     /// make_game.py's --work; null: the launcher's own (LauncherHome.Work)
     public string? Work { get; set; }
-    public string DefaultChannel { get; set; } = Versions.Stable;
+    /// The channel new builds start on, as the player picked it in Settings; null: not picked, so it follows the launcher (BuildChannel)
+    public string? DefaultChannel { get; set; }
     /// The channel the launcher updates itself from (its own releases, apart from Longshot's); null: its own version's track
     public string? LauncherChannel { get; set; }
     /// The player answered the offer to import Hookshot's saves (imported, or Not now): it is not offered again at start
@@ -34,6 +37,10 @@ public sealed class LauncherSettings
     public string? BuildsFolder { get; set; }
     /// Ask git.magicbean.dev for each channel's newest version when the launcher starts
     public bool CheckUpdates { get; set; } = true;
+
+    /// The channel new builds start on: the one the player picked, else the launcher's own (a nightly launcher builds nightlies, an rc
+    /// launcher release candidates; LauncherChannel when set, else its own version's track)
+    public string BuildChannel(string ownTag) => DefaultChannel ?? SelfUpdate.ChannelOf(ownTag, LauncherChannel);
 
     /// The folder builds go in when none was chosen: make_game.py's own default game folder's parent, ~/Games/Longshot
     /// (%USERPROFILE%\Games\Longshot on Windows)
@@ -60,6 +67,12 @@ public sealed class LauncherSettings
         try
         {
             var s = JsonSerializer.Deserialize(File.ReadAllText(path), CoreJson.Default.LauncherSettings) ?? new LauncherSettings();
+            if (s.Format < CurrentFormat)
+            {
+                // (format 1 saved its own default, "stable", for every player who never picked: that one is not a pick)
+                if (s.DefaultChannel == Versions.Stable) s.DefaultChannel = null;
+                s.Format = CurrentFormat;
+            }
             return s.Checked();
         }
         catch (Exception e) when (e is JsonException or IOException or UnauthorizedAccessException or NotSupportedException)
@@ -70,7 +83,7 @@ public sealed class LauncherSettings
 
     LauncherSettings Checked()
     {
-        if (!Versions.IsChannel(DefaultChannel)) DefaultChannel = Versions.Stable;
+        if (DefaultChannel != null && !Versions.IsChannel(DefaultChannel)) DefaultChannel = null;
         if (LauncherChannel != null && !Versions.IsChannel(LauncherChannel)) LauncherChannel = null;
         if (MemoryGb is <= 0) MemoryGb = null;
         if (BuildWorkers is <= 0) BuildWorkers = null;

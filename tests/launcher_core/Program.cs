@@ -677,7 +677,7 @@ static partial class Program
     {
         var path = Path.Combine(Folder("settings"), "settings.json");
         var d = LauncherSettings.Load(path);
-        Require(d.MoveSaves && d.PrepareShaders && !d.Dlss && d.DefaultChannel == "stable" && d.MemoryGb == null, "The defaults.");
+        Require(d.MoveSaves && d.PrepareShaders && !d.Dlss && d.DefaultChannel == null && d.MemoryGb == null, "The defaults.");
         var s = new LauncherSettings
         {
             Nup = "/n.nup", Language = "de", Dlss = true, DlssLicense = true, Fsr = true, FsrLicense = true, PrepareShaders = false,
@@ -689,9 +689,32 @@ static partial class Program
                 && t.BuildWorkers == 6 && t.Work == "/w" && t.DefaultChannel == "nightly" && !t.MoveSaves, "settings.json round trip.");
         File.WriteAllText(path, """{"dlss":true,"dlssLicense":false,"defaultChannel":"beta","memoryGb":0}""");
         var u = LauncherSettings.Load(path);
-        Require(!u.Dlss && u.DefaultChannel == "stable" && u.MemoryGb == null, "Saved values outside their range are not taken.");
+        Require(!u.Dlss && u.DefaultChannel == null && u.MemoryGb == null, "Saved values outside their range are not taken.");
         File.WriteAllText(path, "nope");
         Require(LauncherSettings.Load(path).PrepareShaders, "Unreadable settings are the defaults.");
+
+        // (the channel new builds start on: the launcher's own until the player picks one)
+        var none = new LauncherSettings();
+        foreach (var (own, track) in new[] { ("v1.2.0", "stable"), ("v1.3.0-rc.1", "rc"), ("nightly-8-3b243d73", "nightly"), ("dev", "stable") })
+            Require(none.BuildChannel(own) == track, $"A launcher {own} does not start new builds on {track}.");
+        Require(new LauncherSettings { LauncherChannel = "rc" }.BuildChannel("nightly-8-3b243d73") == "rc",
+                "New builds do not follow the launcher's chosen channel.");
+        new LauncherSettings { DefaultChannel = "stable" }.Save(path);
+        var picked = LauncherSettings.Load(path);
+        Require(picked.DefaultChannel == "stable" && picked.BuildChannel("nightly-8-3b243d73") == "stable"
+                && picked.Format == LauncherSettings.CurrentFormat, "A channel the player picked does not stick.");
+        new LauncherSettings().Save(path);
+        Require(File.ReadAllText(path).Contains("\"defaultChannel\": null") && LauncherSettings.Load(path).BuildChannel("v1.3.0-rc.1") == "rc",
+                "No pick is saved as none.");
+        // (format 1 wrote its own default, stable, for everyone: read once as no pick; a pick of another channel stays)
+        File.WriteAllText(path, """{"format":1,"defaultChannel":"stable","launcherChannel":null,"checkUpdates":true}""");
+        var old = LauncherSettings.Load(path);
+        Require(old.DefaultChannel == null && old.Format == LauncherSettings.CurrentFormat && old.BuildChannel("nightly-8-3b243d73") == "nightly",
+                "An old settings.json's stable is not read as no pick.");
+        old.Save(path);
+        Require(LauncherSettings.Load(path).BuildChannel("nightly-8-3b243d73") == "nightly", "The migrated settings.json changes on its next load.");
+        File.WriteAllText(path, """{"format":1,"defaultChannel":"rc"}""");
+        Require(LauncherSettings.Load(path).DefaultChannel == "rc", "An old settings.json's pick of rc is lost.");
     }
 
     // ---- make_game.py's lines and the overall bar ----

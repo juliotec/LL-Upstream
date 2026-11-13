@@ -24,6 +24,8 @@ public sealed class LauncherService
     public string OwnTag { get; } = SelfUpdate.OwnTag();
     public ReleaseInfo? LauncherUpdate { get; private set; }
     public string LauncherChannel => SelfUpdate.ChannelOf(OwnTag, Settings.LauncherChannel);
+    /// The channel new builds start on: the player's pick, else the launcher's own (LauncherSettings.BuildChannel)
+    public string DefaultChannel => Settings.BuildChannel(OwnTag);
     /// The save folders are worked out from this (the screenshots point it into a temporary folder)
     public SaveEnvironment SaveEnv { get; set; }
     /// The makers of this PC's graphics cards (Linux only for now: SystemInfo.GpuVendors)

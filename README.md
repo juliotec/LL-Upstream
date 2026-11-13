@@ -152,7 +152,7 @@ Longshot and the launcher are released apart, from their own repositories, each 
 | `nightly` | every change to `main` | the newest changes, untested |
 
 **Two choices in Settings.** *Channel for new builds* is the channel of Longshot a new build follows (each build keeps
-its own). *Launcher updates* is the channel the launcher updates **itself** from: LongshotLauncher's own stable, rc or
+its own). Until you pick one, it follows the launcher's channel: a nightly launcher builds nightlies. *Launcher updates* is the channel the launcher updates **itself** from: LongshotLauncher's own stable, rc or
 nightly, apart from any build's. It starts on the channel of the launcher you installed.
 
 Every release's `SHA256SUMS` is signed with the release key, which the launcher has built in. The launcher installs nothing
