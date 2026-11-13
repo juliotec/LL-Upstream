@@ -713,23 +713,25 @@ static partial class Program
             p.Download(i / 10.0);
             bars.Add(p.Overall);
         }
-        Require(Math.Abs(p.Overall - 0.02) < 1e-9, "The tools' download fills its weight.");
+        Require(Math.Abs(p.Overall - 10.0 / 825) < 1e-9, "The tools' download fills its weight: its forecast 10 s of the 825.");
         foreach (var line in transcript)
         {
             p.Feed(line);
             bars.Add(p.Overall);
-            if (line.StartsWith("@@eta")) Require(p.Eta == 120, "The ETA passes through.");
+            if (line.StartsWith("@@eta")) Require(p.Eta == 120 && p.EtaLines == 1, "The ETA passes through, counted.");
+            if (line.StartsWith("@@plan")) Require(p.Stages.First(s => s.Id == "compile").Kept, "A compile of 3 files of 10 kept the rest.");
             if (line.StartsWith("@@file c.c")) Require(p.Stages.First(s => s.Id == "compile").Note == "2 of 3 changed files", "The compile's note.");
         }
         Require(bars.Zip(bars.Skip(1)).All(x => x.Second >= x.First), "The bar went back: " + string.Join(" ", bars.Select(b => b.ToString("0.000"))));
         Require(bars[^1] == 1 && p.Finished && p.Folder == "/authored/game" && p.Stages.All(s => s.State == StageState.Done), "The bar ends full.");
-        Require(Math.Abs(bars[bars.Count - 3] - 0.815) < 1e-9, "The shaders' half: 0.63 + 0.37 / 2.");
+        Require(Math.Abs(bars[bars.Count - 3] - (825 - 311 / 2.0) / 825) < 1e-9, "The shaders' half: their forecast 311 s of the 825, halfway.");
+        Require(p.Stages.Where(s => s.Id != "compile").All(s => !s.Kept), "Nothing else said it kept an earlier build's work.");
 
         var q = new BuildProgress(download: false, shaders: true);
         q.Feed("@@stage read x");
         Require(q.Overall == 0 && q.Current == "read", "With no download, the read starts at 0.");
         q.Feed("@@stage compile x");
-        Require(Math.Abs(q.Overall - (0.18 - 0.02) / 0.98) < 1e-9, "The weights scale to the stages a build has.");
+        Require(Math.Abs(q.Overall - (76 + 57) / 815.0) < 1e-9, "The weights scale to the stages a build has.");
         q.Feed("the shaders were not prepared now (\"Prepare shaders now\" is unticked): the game prepares them at its first start");
         q.Feed("@@done /g");
         var shaders = q.Stages.First(s => s.Id == "shaders");
@@ -738,10 +740,27 @@ static partial class Program
         r.Feed("@@stage finish x");
         r.Feed("@@done /g");
         Require(r.Stages.First(s => s.Id == "shaders").State == StageState.Skipped, "No @@stage shaders is no check mark.");
+        // (the bar's shares are the forecast at the build's threads: fewer threads, more of it for the compile and the shaders)
+        var slow = new BuildProgress(download: false, shaders: true, threads: 8);
+        var fast = new BuildProgress(download: false, shaders: true, threads: 24);
+        double Share(BuildProgress b, string id) => b.Stages.First(s => s.Id == id).Weight;
+        Require(Math.Abs(slow.Stages.Sum(s => s.Weight) - 1) < 1e-9 && Share(slow, "compile") > Share(fast, "compile") + 0.03
+                && Share(slow, "read") < Share(fast, "read") && Math.Abs(Share(slow, "compile") / Share(slow, "read") - BuildForecast.Seconds("compile", 8) / 76) < 1e-9,
+                "The bar's shares follow this PC's forecast.");
+        var kept = new BuildProgress(download: false, shaders: false);
+        kept.Feed("@@stage read x");
+        kept.Feed("the game was read from this .nup before: reading it again is skipped");
+        kept.Feed("@@stage lift x");
+        kept.Feed("the game was read from this .nup before: reading it again is skipped");   // (a read's line in the lift: not the lift's)
+        Require(kept.Stages[0].Kept && !kept.Stages[1].Kept, "A read skipped kept the read's work.");
+        kept.Feed("the game was translated with these tools before (its compiled code kept): translating it again is skipped");
+        kept.Feed("@@stage compile x");
+        kept.Feed("@@plan 10 10");
+        Require(kept.Stages[1].Kept && !kept.Stages[2].Kept, "A translation skipped kept; a compile of every file did not.");
         var e = new BuildProgress(download: false, shaders: false, update: true);
         e.Feed("@@stage read x");
         e.Feed("@@error No space left");
-        Require(e.Error == "No space left" && !e.Finished && e.Overall < 1 && e.Stages[0].Title.Contains("kept"), "A failed update.");
+        Require(e.Error == "No space left" && !e.Finished && e.Overall < 1 && e.Stages[0].Title.Contains("kept") && e.Stages[0].Kept, "A failed update.");
     }
 
     // ---- make_game.py's command line ----

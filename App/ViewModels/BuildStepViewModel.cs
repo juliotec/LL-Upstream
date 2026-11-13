@@ -68,8 +68,9 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
     {
         Job = job;
         var s = job.Service.Settings;
-        progress = new BuildProgress(download: true, shaders: s.PrepareShaders);
-        clock = new BuildClock(SettingsStepViewModel.BuildThreads(s));
+        var threads = SettingsStepViewModel.BuildThreads(s);
+        progress = new BuildProgress(download: true, shaders: s.PrepareShaders, threads: threads);
+        clock = new BuildClock(threads);
         progress.Download(1);
         Rows = progress.Stages.Select(st => new StageRowViewModel(st.Id, Names.GetValueOrDefault(st.Id, st.Title))).ToList();
         Notches = progress.Stages.Skip(1).Select(st => st.Start).ToList();

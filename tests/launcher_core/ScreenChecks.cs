@@ -207,6 +207,40 @@ static partial class Program
         p.Feed("@@done /g");
         clock.Observe(p, TimeSpan.FromSeconds(200));
         Require(clock.SecondsLeft(p) == 0 && clock.Elapsed == TimeSpan.FromSeconds(200), "Done.");
+
+        // (build.py says @@eta only as a file ends, minutes apart for the biggest: the time left counts down between them)
+        var c = new BuildProgress(download: false, shaders: false);
+        var cc = new BuildClock(threads: 24);
+        c.Feed("@@stage read Reading");
+        cc.Observe(c, TimeSpan.FromSeconds(0));
+        // (the read unpacks for a minute saying nothing, then checks the files: its progress is the check's, from when it moved)
+        cc.Observe(c, TimeSpan.FromSeconds(60));
+        c.Feed("@@progress 0.5");
+        cc.Observe(c, TimeSpan.FromSeconds(80));
+        Require(Math.Abs(cc.SecondsLeft(c)!.Value - (20 + 57 + 305 + 66)) < 1e-6, "The read's rest from the rate its check moves at, not from its start.");
+        c.Feed("the game was read from this .nup before: reading it again is skipped");
+        c.Feed("@@stage lift Translating");
+        cc.Observe(c, TimeSpan.FromSeconds(82));
+        c.Feed("the game was translated with these tools before: translating it again is skipped");
+        c.Feed("@@stage compile Compiling");
+        cc.Observe(c, TimeSpan.FromSeconds(84));
+        Require(cc.Pace(c) == 1, "Stages that kept an earlier build's work say nothing of the pace.");
+        c.Feed("@@plan 300 579");
+        c.Feed("@@eta 400");
+        cc.Observe(c, TimeSpan.FromSeconds(90));
+        cc.Observe(c, TimeSpan.FromSeconds(190));
+        Require(Math.Abs(cc.SecondsLeft(c)!.Value - (300 + 66)) < 1e-6, "The compile counts down from its last @@eta.");
+        c.Feed("@@eta 310");
+        cc.Observe(c, TimeSpan.FromSeconds(200));
+        Require(Math.Abs(cc.SecondsLeft(c)!.Value - (310 + 66)) < 1e-6, "A new @@eta starts the countdown again.");
+        cc.Observe(c, TimeSpan.FromSeconds(600));
+        Require(Math.Abs(cc.SecondsLeft(c)!.Value - (305 * 0.1 + 66)) < 1e-6, "A countdown run out, the compile's progress saying little: a little left, not none.");
+        c.Feed("@@progress 0.8");
+        cc.Observe(c, TimeSpan.FromSeconds(610));
+        Require(Math.Abs(cc.SecondsLeft(c)!.Value - (526 / 0.8 * 0.2 + 66)) < 1e-6, "Then the compile's own progress says the rest, its rate from its start (its files work from there).");
+        c.Feed("@@stage finish Finishing");
+        cc.Observe(c, TimeSpan.FromSeconds(1000));
+        Require(Math.Abs(cc.Pace(c) - 1) < 1e-9 && Math.Abs(cc.SecondsLeft(c)!.Value - 66) < 1e-6, "A compile of some files is no pace either.");
     }
 
     static async Task ToolsSourceChecks()

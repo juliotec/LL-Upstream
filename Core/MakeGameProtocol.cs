@@ -74,6 +74,9 @@ public sealed class BuildStage
     public StageState State { get; internal set; }
     /// Under the row: the compile's files, or why the shaders were left to the first start
     public string? Note { get; internal set; }
+    /// It kept what an earlier build did (the read or the translation skipped, a compile of the changed files only): its time is
+    /// no measure of this PC's pace
+    public bool Kept { get; internal set; }
 
     internal double From, Size;
 
@@ -91,10 +94,10 @@ public sealed class BuildStage
     }
 }
 
-/// One overall 0..1 for the whole build, from the stages' measured weights (the same as the Windows Builder's MainWindow.xaml.cs:
-/// WithShaders, WithoutShaders): the tools' download first when the version's tools are not installed, then make_game.py's stages. Only the
-/// stages this build has count, scaled to fill the bar; the bar never goes back (make_game may run a stage again), and it is 1
-/// once make_game says @@done.
+/// One overall 0..1 for the whole build, each stage's share of it its forecast time on this PC (BuildForecast at the build's
+/// threads: with fewer threads the compile and the shaders take more of the bar, as they take more of the time): the tools'
+/// download first when the version's tools are not installed, then make_game.py's stages. Only the stages this build has count,
+/// scaled to fill the bar; the bar never goes back (make_game may run a stage again), and it is 1 once make_game says @@done.
 public sealed class BuildProgress
 {
     static readonly (string Id, string Title)[] Titles =
@@ -106,32 +109,29 @@ public sealed class BuildProgress
         ("finish", "Put the game together"),
         (MakeGameProtocol.ShadersStage, "Prepare the shaders"),
     };
-    static readonly Dictionary<string, double> WithShaders = new()
+    // (make_game's plain lines when a stage keeps what an earlier build did: its time then says nothing of this PC's pace)
+    static readonly (string Stage, string Line)[] KeptLines =
     {
-        // (each step's share of a player's first build of nightly-56, measured on a Ryzen 9 7900X and an RTX 3090: Longshot's
-        // docs/development.md, "Build times". The shaders on Most are about a third, more on some GPUs)
-        ["download"] = 0.02, ["read"] = 0.09, ["lift"] = 0.07, ["compile"] = 0.37, ["finish"] = 0.08, [MakeGameProtocol.ShadersStage] = 0.37,
-    };
-    static readonly Dictionary<string, double> WithoutShaders = new()
-    {
-        ["download"] = 0.02, ["read"] = 0.15, ["lift"] = 0.11, ["compile"] = 0.59, ["finish"] = 0.13,
+        ("read", "the game was read from this .nup before"),
+        ("lift", "the game was translated with these tools before"),
     };
 
     readonly List<BuildStage> stages = new();
     BuildStage? current;
 
     /// download: the tools are downloaded first; shaders: this build prepares the shaders; update: make_game --update (its
-    /// read step reads the files the folder keeps)
-    public BuildProgress(bool download, bool shaders, bool update = false)
+    /// read step reads the files the folder keeps); threads: the CPU threads the build may use (the stages' shares of the bar)
+    public BuildProgress(bool download, bool shaders, bool update = false, int threads = BuildForecast.ReferenceThreads)
     {
-        var weights = shaders ? WithShaders : WithoutShaders;
-        var included = Titles.Where(t => weights.ContainsKey(t.Id) && (download || t.Id != "download")).ToList();
-        var sum = included.Sum(t => weights[t.Id]);
+        var included = Titles.Where(t => (download || t.Id != "download") && (shaders || t.Id != MakeGameProtocol.ShadersStage)).ToList();
+        var sum = included.Sum(t => BuildForecast.Seconds(t.Id, threads));
         var from = 0.0;
         foreach (var (id, title) in included)
         {
-            var size = weights[id] / sum;
-            stages.Add(new BuildStage(id, update && id == "read" ? "Read the game files kept in the folder" : title, from, size));
+            var size = BuildForecast.Seconds(id, threads) / sum;
+            // (an update's read copies the files the folder kept: no measure of reading a dump on this PC)
+            stages.Add(new BuildStage(id, update && id == "read" ? "Read the game files kept in the folder" : title, from, size)
+                { Kept = update && id == "read" });
             from += size;
         }
     }
@@ -139,8 +139,11 @@ public sealed class BuildProgress
     public IReadOnlyList<BuildStage> Stages => stages;
     public double Overall { get; private set; }
     public string? Current => current?.Id;
-    /// The compile's time left in seconds (@@eta), as build.py worked it out; null before it says
+    /// The compile's time left in seconds (@@eta), as build.py worked it out when it said it; null before it says
     public double? Eta { get; private set; }
+    /// How many @@eta lines came: build.py says one only as a file ends (minutes apart for the biggest), so BuildClock counts
+    /// down from the last one
+    public int EtaLines { get; private set; }
     public int? FilesChanged { get; private set; }
     public int? FilesTotal { get; private set; }
     public int FilesCompiled { get; private set; }
@@ -173,6 +176,7 @@ public sealed class BuildProgress
         if (stages.FirstOrDefault(s => s.Id == "download") is not { } d) return;
         if (current != d) Begin("download");
         Set(d.From + d.Size * Math.Clamp(fraction, 0, 1));
+        if (fraction >= 1) d.State = StageState.Done;   // (downloaded: none of it is left to count down)
     }
 
     public MakeGameLine Feed(string line)
@@ -196,6 +200,8 @@ public sealed class BuildProgress
                 FilesChanged = plan.Changed;
                 FilesTotal = plan.Total;
                 FilesCompiled = 0;
+                // (some of the files compiled, the rest from the cache: no measure of a whole compile on this PC)
+                if (stages.FirstOrDefault(s => s.Id == "compile") is { } compile) compile.Kept = plan.Changed < plan.Total;
                 Note();
                 break;
             case MakeGameLine.File f when f.Kind is "new" or "again":
@@ -204,6 +210,11 @@ public sealed class BuildProgress
                 break;
             case MakeGameLine.Eta e:
                 Eta = Math.Max(0, e.Seconds);
+                EtaLines++;
+                break;
+            case MakeGameLine.Plain plain when current != null:
+                foreach (var (stage, kept) in KeptLines)
+                    if (current.Id == stage && plain.Text.StartsWith(kept, StringComparison.Ordinal)) current.Kept = true;
                 break;
             case MakeGameLine.NotPrepared n:
                 if (stages.FirstOrDefault(s => s.Id == MakeGameProtocol.ShadersStage) is { } shaders)

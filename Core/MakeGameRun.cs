@@ -122,28 +122,41 @@ public static class BuildForecast
 
 /// A build's times: how long each stage took (or has run), and how long the whole build has left, from BuildProgress and a clock.
 /// Before the build has gone far, the time left is BuildForecast's for this PC. As stages end, it learns this PC's pace: the
-/// stages still to come are the forecast scaled by how long the finished stages took against theirs. A running stage counts
-/// down from its own progress once that says enough, and the compile uses make_game's own estimate (@@eta, from what earlier
-/// builds measured on this PC)
+/// stages still to come are the forecast scaled by how long the finished stages took against theirs (a stage that kept an
+/// earlier build's work, BuildStage.Kept, says nothing of the pace and is left out). A running stage counts down from the rate
+/// its own progress moves at, from when it began to move (the read's progress is only its last check, after minutes of
+/// unpacking; the shaders' begins once the game has started), and the compile counts down from make_game's own estimate (@@eta,
+/// from what earlier builds measured on this PC), which build.py says only as a file ends
 public sealed class BuildClock
 {
     readonly Dictionary<string, TimeSpan> started = new();
     readonly Dictionary<string, TimeSpan> took = new();
+    readonly Dictionary<string, TimeSpan> still = new();   // (a running stage's last moment at no progress: its progress moves from there)
     readonly int threads;
     TimeSpan begun = TimeSpan.MinValue;
     TimeSpan last;
+    int etaLines;
+    TimeSpan etaAt;
 
     /// threads: the CPU threads the build may use (0: this PC's)
     public BuildClock(int threads = 0) => this.threads = threads > 0 ? threads : SystemInfo.Threads();
+
+    static double Fraction(BuildProgress p, BuildStage s) => s.Weight > 0 ? Math.Clamp((p.Overall - s.Start) / s.Weight, 0, 1) : 0;
 
     /// The progress seen at now (a monotonic time: a Stopwatch's elapsed)
     public void Observe(BuildProgress p, TimeSpan now)
     {
         if (begun == TimeSpan.MinValue) begun = now;
         last = now;
+        if (p.EtaLines != etaLines)
+        {
+            etaLines = p.EtaLines;
+            etaAt = now;
+        }
         foreach (var s in p.Stages)
         {
             if (s.State == StageState.Running && !started.ContainsKey(s.Id)) started[s.Id] = now;
+            if (s.State == StageState.Running && Fraction(p, s) == 0) still[s.Id] = now;
             if (s.State is StageState.Done or StageState.Skipped && started.TryGetValue(s.Id, out var from) && !took.ContainsKey(s.Id))
                 took[s.Id] = now - from;
         }
@@ -156,13 +169,14 @@ public sealed class BuildClock
     public TimeSpan Elapsed => begun == TimeSpan.MinValue ? TimeSpan.Zero : last - begun;
 
     /// This PC's pace against the forecast: the finished stages' time over their forecast (the download is the network's, not
-    /// the PC's, and is left out). 1 until 30 forecast seconds have finished; kept within 0.25..4
+    /// the PC's, and a stage that kept an earlier build's work took seconds where the forecast has minutes: both are left out).
+    /// 1 until 30 forecast seconds have finished; kept within 0.25..4
     public double Pace(BuildProgress p)
     {
         double actual = 0, forecast = 0;
         foreach (var s in p.Stages)
         {
-            if (s.State != StageState.Done || s.Id == "download" || !took.TryGetValue(s.Id, out var t)) continue;
+            if (s.State != StageState.Done || s.Id == "download" || s.Kept || !took.TryGetValue(s.Id, out var t)) continue;
             actual += t.TotalSeconds;
             forecast += BuildForecast.Seconds(s.Id, threads);
         }
@@ -185,9 +199,16 @@ public sealed class BuildClock
                 continue;
             }
             var ran = Of(s.Id)?.TotalSeconds ?? 0;
-            var fraction = s.Weight > 0 ? Math.Clamp((p.Overall - s.Start) / s.Weight, 0, 1) : 0;
-            if (s.Id == "compile" && p.Eta is double eta) left += eta;
-            else if (fraction >= 0.1 && ran >= 10) left += ran / fraction * (1 - fraction);
+            var fraction = Fraction(p, s);
+            // (the compile: build.py's @@eta less the time since it said it. Run out (the link after the last file, or a PC slower
+            // than the times it knows), the compile's own progress says the rest)
+            var countdown = s.Id == "compile" && p.Eta is double eta ? eta - (last - etaAt).TotalSeconds : 0;
+            // (the compile's progress counts its files' work from its start, the first file ending minutes in; the other stages'
+            // progress covers their last part, from when it began to move)
+            var moving = s.Id != "compile" && still.TryGetValue(s.Id, out var from) ? (last - from).TotalSeconds : ran;
+            if (countdown > 0) left += countdown;
+            else if (fraction >= 0.1 && moving >= 10) left += moving / fraction * (1 - fraction);
+            else if (s.Id == "compile" && p.Eta != null) left += expected * 0.1;   // (its countdown out, its progress not yet telling)
             else left += Math.Max(expected - ran, expected * 0.1);
         }
         return left;
