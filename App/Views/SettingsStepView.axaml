@@ -140,7 +140,7 @@
                   <ToggleButton Grid.Column="1" Classes="switch" IsChecked="{Binding Dlss}" VerticalAlignment="Center"/>
                 </Grid>
                 <Border Classes="divider"/>
-                <Grid Classes="srow" ColumnDefinitions="*,Auto" IsVisible="{Binding Windows}">
+                <Grid Classes="srow" ColumnDefinitions="*,Auto">
                   <StackPanel VerticalAlignment="Center" Spacing="1">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                       <TextBlock Classes="rtitle" Text="AMD FSR 4"/>
@@ -155,13 +155,7 @@
                       <TextBlock Classes="rdesc" Text="{Binding FsrLine}" TextWrapping="NoWrap" IsVisible="{Binding !FsrAccepted}"/>
                     </WrapPanel>
                   </StackPanel>
-                  <ToggleButton Grid.Column="1" Classes="switch" IsChecked="{Binding Fsr}" VerticalAlignment="Center"/>
-                </Grid>
-                <Grid Classes="srow" IsVisible="{Binding Linux}">
-                  <StackPanel VerticalAlignment="Center" Spacing="1">
-                    <TextBlock Classes="rtitle off" Text="AMD FSR 4"/>
-                    <TextBlock Classes="rdesc" Text="Windows only for now."/>
-                  </StackPanel>
+                  <ToggleButton Grid.Column="1" Classes="switch" IsChecked="{Binding Fsr}" IsEnabled="{Binding FsrBuildable}" VerticalAlignment="Center"/>
                 </Grid>
               </StackPanel>
             </Border>

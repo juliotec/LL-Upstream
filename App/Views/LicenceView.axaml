@@ -15,7 +15,7 @@
       </Border>
       <StackPanel Classes="buttons">
         <Button Content="Decline" Command="{Binding DeclineCommand}"/>
-        <Button Classes="primary" Content="Accept" Command="{Binding AcceptCommand}"/>
+        <Button Classes="primary" Content="{Binding AcceptText}" Command="{Binding AcceptCommand}"/>
       </StackPanel>
     </StackPanel>
   </Border>

@@ -117,16 +117,29 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
         }
     }
 
+    /// AMD's licence (Windows) or the Linux notice (FsrLinuxNotice), whichever this platform asks for before FSR 4 is on
+    bool FsrKnown => Linux ? s.FsrLinuxNotice : s.FsrLicense;
+
+    /// (Linux) This version's tools can build FSR 4: they carry AMD's FSR API headers (MakeGameCommand.FsrBuilds). Unknown
+    /// tools (not found yet) are taken as able: the build says so in its log if they were not
+    public bool FsrBuildable => Windows || Job.Tools is not { } tools || MakeGameCommand.FsrBuilds(tools, Platform.Linux);
+
     public bool Fsr
     {
-        get => s.Fsr && Windows;
+        get => s.Fsr && FsrKnown && FsrBuildable;
         set
         {
-            if (Linux || value == s.Fsr) return;
-            if (value && !s.FsrLicense)
+            if (value == Fsr || (value && !FsrBuildable)) return;
+            if (value && !FsrKnown)
             {
-                Main.Modal = new LicenceViewModel(Main, false, Linux, () => { s.FsrLicense = true; s.Fsr = true; Save(); RaiseUpscalers(); },
-                                                  RaiseUpscalers);
+                Main.Modal = new LicenceViewModel(Main, false, Linux, () =>
+                {
+                    if (Linux) s.FsrLinuxNotice = true;
+                    else s.FsrLicense = true;
+                    s.Fsr = true;
+                    Save();
+                    RaiseUpscalers();
+                }, RaiseUpscalers);
                 Raise();
                 return;
             }
@@ -138,11 +151,16 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
 
     public bool DlssAccepted => s.Dlss;
     public string DlssLine => s.Dlss ? "" : s.DlssLicense ? "Licence accepted earlier." : "Shows NVIDIA's licence first.";
+    // (Linux: nothing of AMD's is downloaded, so there is no licence to accept; the player's own library goes beside the game)
     public bool FsrAccepted => s.Fsr && Windows;
-    public string FsrLine => Linux ? "" : s.Fsr ? "" : s.FsrLicense ? "Licence accepted earlier." : "Shows AMD's licence first.";
+    public string FsrLine => Linux
+        ? (!FsrBuildable ? "This version can't build it on Linux yet." :
+           Fsr ? "Put amd_fidelityfx_upscaler_vk.so beside the game." : "Needs your own Vulkan FSR 4 library.")
+        : Fsr ? "" : s.FsrLicense ? "Licence accepted earlier." : "Shows AMD's licence first.";
 
     void RaiseUpscalers() =>
-        RaiseAll(nameof(Dlss), nameof(Fsr), nameof(DlssAccepted), nameof(DlssLine), nameof(FsrAccepted), nameof(FsrLine), nameof(Estimate));
+        RaiseAll(nameof(Dlss), nameof(Fsr), nameof(DlssAccepted), nameof(DlssLine), nameof(FsrAccepted), nameof(FsrLine), nameof(FsrBuildable),
+                 nameof(Estimate));
 
     // ---- install ----
 
@@ -321,16 +339,21 @@ public sealed class LicenceViewModel : ViewModelBase
         Nvidia = nvidia;
         this.accepted = accepted;
         this.declined = declined;
-        Text = nvidia ? DlssText(linux) : FsrText;
+        Linux = linux;
+        Text = nvidia ? DlssText(linux) : linux ? FsrLinuxText : FsrText;
         AcceptCommand = new Command(() => { Main.Modal = null; this.accepted(); });
         DeclineCommand = new Command(() => { Main.Modal = null; this.declined(); });
     }
 
     public MainViewModel Main { get; }
     public bool Nvidia { get; }
-    public string Title => Nvidia ? "NVIDIA's licence for DLSS" : "AMD's licence for FSR 4";
-    public string Sub => (Nvidia ? "The build downloads NVIDIA's DLSS SDK" : "The build downloads AMD's FSR 4 runtime") + " under this licence. Nothing of " +
-                         (Nvidia ? "NVIDIA's" : "AMD's") + " comes with Longshot.";
+    public bool Linux { get; }
+    public string AcceptText => !Nvidia && Linux ? "Turn on" : "Accept";
+    public string Title => Nvidia ? "NVIDIA's licence for DLSS" : Linux ? "AMD FSR 4 on Linux" : "AMD's licence for FSR 4";
+    public string Sub => !Nvidia && Linux
+        ? "Nothing is downloaded: AMD publishes no FSR 4 runtime for Linux. Nothing of AMD's comes with Longshot."
+        : (Nvidia ? "The build downloads NVIDIA's DLSS SDK" : "The build downloads AMD's FSR 4 runtime") + " under this licence. Nothing of " +
+          (Nvidia ? "NVIDIA's" : "AMD's") + " comes with Longshot.";
     public string Text { get; }
     public Command AcceptCommand { get; }
     public Command DeclineCommand { get; }
@@ -350,4 +373,13 @@ public sealed class LicenceViewModel : ViewModelBase
         "github.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK, each file checked against its SHA-256, under AMD's FSR SDK license:\n\n" +
         "https://github.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK/blob/7539ae8b6568ad29ed78a753404351daf3b5cca7/Kits/FidelityFX/docs/license.md\n\n" +
         "Its files stay on this PC (in the launcher's ffx-sdk folder, and the two DLLs with LICENSE-AMD-FSR-SDK.md in the game folder).";
+
+    // (Linux: Longshot's README, AMD FSR 4. The build compiles the Vulkan back end with AMD's MIT FSR API headers; the library
+    // is the player's, loaded by the game at its start)
+    const string FsrLinuxText =
+        "AMD FSR 4 is AMD's, not Longshot's. AMD publishes its FSR 4 runtime for Windows only, so on Linux the build downloads " +
+        "nothing: it compiles the game's Vulkan renderer with FSR 4 in it (a few minutes longer), and FSR 4 runs once you put a " +
+        "Vulkan FSR 4 library, amd_fidelityfx_upscaler_vk.so, beside the game (in its folder or its bin folder). Where you get " +
+        "it and under which terms is yours to check.\n\n" +
+        "Without it, the game's Upscaler row says AMD's files were not found and offers the other upscalers.";
 }

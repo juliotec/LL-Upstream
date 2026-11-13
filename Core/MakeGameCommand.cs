@@ -55,9 +55,10 @@ public sealed record MakeGameCommand(
         if (!r.PrepareShaders) args.Add("--no-prepare-shaders");
         var dlss = r.Dlss && r.DlssLicense;
         if (dlss) args.AddRange(new[] { "--fetch-ngx-sdk", "--accept-nvidia-license" });
-        // (AMD FSR 4: Windows only, as in the 2.x Builders; the AppImage's prebuilt back end has none)
-        var fsr = windows && r.Fsr && r.FsrLicense;
-        if (fsr) args.AddRange(new[] { "--fsr", "--fetch-fsr-runtime", "--accept-amd-license" });
+        // (AMD FSR 4: on Windows AMD's runtime is fetched under AMD's licence; AMD publishes none for Linux, where the player puts a
+        // Vulkan FSR 4 library beside the game, and the build compiles its own Vulkan back end, as with DLSS)
+        var fsr = r.Fsr && r.FsrLicense && FsrBuilds(tools, platform, directoryExists);
+        if (fsr) args.AddRange(windows ? new[] { "--fsr", "--fetch-fsr-runtime", "--accept-amd-license" } : new[] { "--fsr" });
 
         var env = new Dictionary<string, string?>(StringComparer.Ordinal)
         {
@@ -69,7 +70,7 @@ public sealed record MakeGameCommand(
             ["LONGSHOT_BUILDER_ARGS"] = null,
             // (DLSS and FSR only when ticked: one set on the PC is not passed on either)
             ["LONGSHOT_NGX_SDK"] = dlss ? home.NgxSdk : null,
-            ["LONGSHOT_FFX_SDK"] = fsr ? home.FfxSdk : null,
+            ["LONGSHOT_FFX_SDK"] = fsr && windows ? home.FfxSdk : null,
             ["LONGSHOT_MEM_LIMIT_GB"] = r.MemoryGb?.ToString(CultureInfo.InvariantCulture),
         };
         if (windows && r.Jobs is int workers) env["LONGSHOT_JOBS"] = workers.ToString(CultureInfo.InvariantCulture);
@@ -93,11 +94,16 @@ public sealed record MakeGameCommand(
             // (tools.lock's sdl2, unpacked beside the builder; a builder that carried its tools has it in lib itself)
             env["LONGSHOT_SDL2"] = directoryExists(Path.Combine(lib, "sdl2"))
                 ? Path.Combine(lib, "sdl2", "libSDL2-2.0.so.0") : Path.Combine(lib, "libSDL2-2.0.so.0");
-            // (DLSS: longshot_vk.so built here with NGX, not the prebuilt one; longshot_builder.make_game_env)
-            env["LONGSHOT_VK_PREBUILT"] = dlss ? null : Path.Combine(lib, "longshot_vk.so");
+            // (DLSS or FSR 4: longshot_vk.so built here with NGX or AMD's FSR API headers, not the prebuilt one, which has neither)
+            env["LONGSHOT_VK_PREBUILT"] = dlss || fsr ? null : Path.Combine(lib, "longshot_vk.so");
         }
         return new MakeGameCommand(tools.Python, args, tools.ToolsRoot, env);
     }
+
+    /// Whether these tools build AMD FSR 4: on Windows always; on Linux when they carry AMD's FSR API headers, which the Vulkan
+    /// back end compiled in the build reads (an AppImage made before it carried them has none, and its build would stop at them)
+    public static bool FsrBuilds(Toolchain tools, Platform platform, Func<string, bool>? directoryExists = null) =>
+        platform == Platform.Windows || (directoryExists ?? Directory.Exists)(Path.Combine(tools.ToolsRoot, "third_party", "fidelityfx"));
 
     /// make_game.py --check: is this the game, and the version these tools build? (the 2.x Builders' check: --nup, or the exefs
     /// folder alone). The same program and environment as a build with no DLSS; a .nup is read into &lt;work&gt;/probe

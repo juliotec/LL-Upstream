@@ -59,6 +59,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
     string? lastError;
     TimeSpan? fixedTime;
     bool showLog, running;
+    bool fsr;   // (AMD FSR 4 in this build: asked for, and these tools build it; MakeGameCommand.FsrBuilds)
 
     public BuildStepViewModel(BuildJob job, bool start = true)
     {
@@ -72,7 +73,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
         CancelCommand = new Command(() => Job.Main.Modal = new StopBuildViewModel(this));
         log.Add($"Longshot Launcher {typeof(BuildStepViewModel).Assembly.GetName().Version?.ToString(3)}: {job.Verb.Trim().ToLowerInvariant()} {job.Version} ({job.Channel})");
         log.Add($"settings: memory {(s.MemoryGb is int m ? m + " GB" : "automatic")}, workers {(s.BuildWorkers is int w ? w : "automatic")}, " +
-                $"{Languages.NameOf(s.Language)}{(s.Dlss ? ", DLSS" : "")}{(s.Fsr && !job.Main.Linux ? ", FSR 4" : "")}");
+                $"{Languages.NameOf(s.Language)}{(s.Dlss ? ", DLSS" : "")}{(s.Fsr ? ", FSR 4" : "")}");
         if (start)
         {
             ticker = new DispatcherTimer(TimeSpan.FromSeconds(1), DispatcherPriority.Background, (_, _) => Update());
@@ -128,11 +129,14 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
         var s = job.Service.Settings;
         var file = job.Picked!;
         var request = new BuildRequest(file.Source, job.InstallDir, s.Language, job.Service.Work, s.BuildWorkers, s.MemoryGb, s.PrepareShaders,
-                                       s.Dlss, s.DlssLicense, s.Fsr, s.FsrLicense);
+                                       s.Dlss, s.DlssLicense, s.Fsr, job.Main.Linux ? s.FsrLinuxNotice : s.FsrLicense);
         MakeGameCommand command;
         try
         {
             command = MakeGameCommand.For(job.Tools!, request, job.Service.Platform, job.Service.Home, LauncherService.LauncherPath);
+            fsr = command.Arguments.Contains("--fsr");
+            if (request.Fsr && request.FsrLicense && !fsr)   // (Linux only: MakeGameCommand.FsrBuilds is always true on Windows)
+                lock (log) log.Add("AMD FSR 4: this version's tools carry no AMD FSR API headers, so it is built without FSR 4.");
             Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(job.InstallDir))!);
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException)
@@ -292,7 +296,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
             entry.Romfs = entry.Exefs = null;
         }
         entry.Dlss = s.Dlss && s.DlssLicense;
-        entry.Fsr = !job.Main.Linux && s.Fsr && s.FsrLicense;
+        entry.Fsr = fsr;
         entry.Bytes = null;
         string? problem = null;
         try { registry.Save(); }
@@ -341,7 +345,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
         sb.AppendLine($"{System.Runtime.InteropServices.RuntimeInformation.OSDescription}, {SystemInfo.MemoryGb()} GB, {SystemInfo.Threads()} threads" +
                       (Job.Service.Gpus.Count > 0 ? ", " + string.Join(" and ", Job.Service.Gpus) + " GPU" : ""));
         sb.AppendLine($"settings: memory {(s.MemoryGb is int m ? m + " GB" : "automatic")}, workers {(s.BuildWorkers is int w ? w : "automatic")}, " +
-                      $"shaders {(s.PrepareShaders ? "now" : "at first start")}, DLSS {(s.Dlss ? "on" : "off")}, FSR 4 {(s.Fsr ? "on" : "off")}");
+                      $"shaders {(s.PrepareShaders ? "now" : "at first start")}, DLSS {(s.Dlss ? "on" : "off")}, FSR 4 {(fsr ? "on" : s.Fsr ? "asked, not built" : "off")}");
         sb.AppendLine("stopped: " + why);
         sb.AppendLine();
         lock (log) foreach (var l in log.Skip(Math.Max(0, log.Count - 200))) sb.AppendLine(l);

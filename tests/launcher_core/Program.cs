@@ -639,6 +639,12 @@ static partial class Program
         var t = LauncherSettings.Load(path);
         Require(t.Nup == "/n.nup" && t.Language == "de" && t.Dlss && t.DlssLicense && t.Fsr && t.FsrLicense && !t.PrepareShaders && t.MemoryGb == 16
                 && t.BuildWorkers == 6 && t.Work == "/w" && t.DefaultChannel == "nightly" && !t.MoveSaves, "settings.json round trip.");
+        // (AMD FSR 4: the Linux notice keeps the switch on without AMD's licence, and is not that licence)
+        new LauncherSettings { Fsr = true, FsrLinuxNotice = true }.Save(path);
+        var n = LauncherSettings.Load(path);
+        Require(n.Fsr && n.FsrLinuxNotice && !n.FsrLicense, "FSR 4 with the Linux notice read: on, and AMD's licence still not accepted.");
+        new LauncherSettings { Fsr = true }.Save(path);
+        Require(!LauncherSettings.Load(path).Fsr, "FSR 4 with neither AMD's licence nor the Linux notice: off.");
         File.WriteAllText(path, """{"dlss":true,"dlssLicense":false,"defaultChannel":"beta","memoryGb":0}""");
         var u = LauncherSettings.Load(path);
         Require(!u.Dlss && u.DefaultChannel == null && u.MemoryGb == null, "Saved values outside their range are not taken.");
@@ -764,18 +770,39 @@ static partial class Program
 
         var lin = new Toolchain("v3.3.0", Path.Combine(home.Toolchains, "v3.3.0"), ListKind.Linux, null);
         var l = MakeGameCommand.For(lin, request with { Source = new BuildSource.Folders("/d/romfs", "/d/exefs"), Out = "/g", Work = "/w" },
-                                    Platform.Linux, home, "/L/Longshot.AppImage");
+                                    Platform.Linux, home, "/L/Longshot.AppImage", _ => false);
         Require(l.FileName == Path.Combine(lin.Folder, "usr", "python", "bin", "python3") && l.WorkingDirectory == Path.Combine(lin.Folder, "usr", "share", "longshot"),
                 "Linux: the AppImage layout's Python.");
         Require(l.Arguments.SequenceEqual(new[]
                 {
                     "-I", lin.MakeGame, "--romfs", "/d/romfs", "--exefs", "/d/exefs", "--out", "/g", "--language", "fr", "--work", "/w",
                     "--jobs", "6", "--no-prepare-shaders", "--fetch-ngx-sdk", "--accept-nvidia-license",
-                }), "Linux arguments (no FSR): " + string.Join(" ", l.Arguments));
+                }), "Linux arguments (tools without AMD's FSR API headers: no FSR): " + string.Join(" ", l.Arguments));
         Require(!l.Environment.ContainsKey("LONGSHOT_JOBS") && l.Environment["LONGSHOT_MEM_LIMIT_GB"] == "16"
                 && l.Environment["LONGSHOT_VK_PREBUILT"] == null && l.Environment["LONGSHOT_TOOLS"] == lin.ToolsRoot
                 && l.Environment["LONGSHOT_SYSROOT"] == Path.Combine(lin.LibRoot, "sysroot") && l.Environment["EMSDK"] == Path.Combine(lin.LibRoot, "emsdk")
                 && l.Environment["LONGSHOT_FFX_SDK"] == null, "Linux environment (DLSS builds its own Vulkan back end).");
+        // (AMD FSR 4 on Linux: --fsr alone, nothing of AMD's fetched, and the Vulkan back end compiled here, not the prebuilt one)
+        var fidelityfx = Path.Combine(lin.ToolsRoot, "third_party", "fidelityfx");
+        var lf = MakeGameCommand.For(lin, request with { Dlss = false, Source = new BuildSource.Nup("/g/game.nup"), Out = "/g", Work = "/w" },
+                                     Platform.Linux, home, "/L", d => d == fidelityfx);
+        Require(lf.Arguments.SequenceEqual(new[]
+                {
+                    "-I", lin.MakeGame, "--nup", "/g/game.nup", "--out", "/g", "--language", "fr", "--work", "/w", "--jobs", "6",
+                    "--no-prepare-shaders", "--fsr",
+                }), "Linux arguments with FSR 4: " + string.Join(" ", lf.Arguments));
+        Require(lf.Environment["LONGSHOT_VK_PREBUILT"] == null && lf.Environment["LONGSHOT_FFX_SDK"] == null && lf.Environment["LONGSHOT_NGX_SDK"] == null,
+                "Linux environment with FSR 4: its own Vulkan back end, no AMD runtime folder.");
+        Require(MakeGameCommand.FsrBuilds(lin, Platform.Linux, d => d == fidelityfx) && !MakeGameCommand.FsrBuilds(lin, Platform.Linux, _ => false)
+                && MakeGameCommand.FsrBuilds(win, Platform.Windows, _ => false), "FSR 4: Windows always, Linux with AMD's FSR API headers.");
+        var both = MakeGameCommand.For(lin, request with { Source = new BuildSource.Nup("/g/game.nup"), Out = "/g", Work = "/w" },
+                                       Platform.Linux, home, "/L", d => d == fidelityfx);
+        Require(both.Arguments.Contains("--fsr") && both.Arguments.Contains("--fetch-ngx-sdk") && !both.Arguments.Contains("--fetch-fsr-runtime")
+                && both.Environment["LONGSHOT_VK_PREBUILT"] == null && both.Environment["LONGSHOT_NGX_SDK"] == home.NgxSdk
+                && both.Environment["LONGSHOT_FFX_SDK"] == null, "Linux with DLSS and FSR 4: both, one back end compiled here.");
+        var lfu = MakeGameCommand.For(lin, request with { Dlss = false, FsrLicense = false }, Platform.Linux, home, "/L", d => d == fidelityfx);
+        Require(!lfu.Arguments.Contains("--fsr") && lfu.Environment["LONGSHOT_VK_PREBUILT"] == Path.Combine(lin.LibRoot, "longshot_vk.so"),
+                "Linux, FSR 4 not acknowledged: the prebuilt back end.");
         var u = MakeGameCommand.For(lin, new BuildRequest(new BuildSource.Update("/g"), null), Platform.Linux, home, "/L");
         Require(u.Arguments.SequenceEqual(new[] { "-I", lin.MakeGame, "--update", "/g", "--work", home.Work })
                 && u.Environment["LONGSHOT_VK_PREBUILT"] == Path.Combine(lin.LibRoot, "longshot_vk.so"), "An update: the folder, no --out or --language.");

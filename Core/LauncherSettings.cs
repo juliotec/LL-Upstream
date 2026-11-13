@@ -17,6 +17,9 @@ public sealed class LauncherSettings
     public bool DlssLicense { get; set; }
     public bool Fsr { get; set; }
     public bool FsrLicense { get; set; }
+    /// (Linux) The AMD FSR 4 notice read: nothing of AMD's is downloaded there, so no licence is accepted, and FsrLicense is left
+    /// as it was (a launcher home shared with Windows must not take this for AMD's licence)
+    public bool FsrLinuxNotice { get; set; }
     public bool PrepareShaders { get; set; } = true;
     /// Build memory in GB (LONGSHOT_MEM_LIMIT_GB); null: Automatic
     public int? MemoryGb { get; set; }
@@ -88,7 +91,7 @@ public sealed class LauncherSettings
         if (MemoryGb is <= 0) MemoryGb = null;
         if (BuildWorkers is <= 0) BuildWorkers = null;
         if (!DlssLicense) Dlss = false;   // (a tick saved before its license was accepted is not one)
-        if (!FsrLicense) Fsr = false;
+        if (!FsrLicense && !FsrLinuxNotice) Fsr = false;
         return this;
     }
 
