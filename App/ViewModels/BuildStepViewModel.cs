@@ -53,12 +53,15 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
     readonly BuildProgress progress;
     readonly BuildClock clock;
     readonly Stopwatch watch = new();
-    readonly List<string> log = new();
+    readonly BuildLog log = new();
     readonly CancellationTokenSource cancel = new();
     readonly DispatcherTimer? ticker;
     string? lastError;
     TimeSpan? fixedTime;
     bool showLog, running;
+    LogLevelChoice level = LogLevelChoice.Of(LogLevel.Info);
+    string search = "";
+    bool following = true;
     bool fsr;   // (AMD FSR 4 in this build: asked for, and these tools build it; MakeGameCommand.FsrBuilds)
 
     public BuildStepViewModel(BuildJob job, bool start = true)
@@ -89,7 +92,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
     public IReadOnlyList<StageRowViewModel> Rows { get; }
     public IReadOnlyList<double> Notches { get; }
     public BuildProgress Progress => progress;
-    public IReadOnlyList<string> Log => log;
+    public BuildLog Log => log;
 
     public string Title => Job.Kind switch
     {
@@ -117,8 +120,30 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
     {
         get
         {
-            lock (log) return string.Join("\n", log.Count > 2000 ? log.Skip(log.Count - 2000) : log);
+            return string.Join("\n", log.Tail(level.Level, search, 2000));
         }
+    }
+
+    /// The details' level picker (Info by default: info, warnings and errors; Debug and Trace add the game's detail lines) and
+    /// search box (only the lines holding its text, any case)
+    public IReadOnlyList<LogLevelChoice> Levels => LogLevelChoice.All;
+    public LogLevelChoice Level
+    {
+        get => level;
+        set { if (Set(ref level, value ?? LogLevelChoice.Of(LogLevel.Info))) Raise(nameof(LogText)); }
+    }
+    public string Search
+    {
+        get => search;
+        set { if (Set(ref search, value ?? "")) Raise(nameof(LogText)); }
+    }
+
+    /// The details are at their bottom, following new lines (the view says so as it scrolls). Scrolled up to read, the text
+    /// stays as it is: past the 2000 lines shown, each new line would push the lines being read up a line
+    public bool Following
+    {
+        get => following;
+        set { if (Set(ref following, value) && value && showLog) Raise(nameof(LogText)); }
     }
 
     public Command ToggleLogCommand { get; }
@@ -137,7 +162,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
             command = MakeGameCommand.For(job.Tools!, request, job.Service.Platform, job.Service.Home, LauncherService.LauncherPath);
             fsr = command.Arguments.Contains("--fsr");
             if (request.Fsr && request.FsrLicense && !fsr)   // (Linux only: MakeGameCommand.FsrBuilds is always true on Windows)
-                lock (log) log.Add("AMD FSR 4: this version's tools carry no AMD FSR API headers, so it is built without FSR 4.");
+                log.Add("AMD FSR 4: this version's tools carry no AMD FSR API headers, so it is built without FSR 4.");
             Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(job.InstallDir))!);
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException)
@@ -169,7 +194,6 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
     public void Line(string line)
     {
         var parsed = progress.Feed(line);
-        lock (log)
         {
             switch (parsed)
             {
@@ -192,9 +216,10 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
 
     void ErrorLine(string line)
     {
-        if (!string.IsNullOrWhiteSpace(line)) lastError = line.Trim();
-        lock (log) log.Add(line);
-        if (showLog) Raise(nameof(LogText));
+        // (the message a stopped build quotes: a line the details show by default, not a game's debug or trace line)
+        if (!string.IsNullOrWhiteSpace(line) && LogLevels.Of(line) <= LogLevel.Info) lastError = line.Trim();
+        log.Add(line);
+        if (showLog && following) Raise(nameof(LogText));
     }
 
     void Exited(int code)
@@ -251,7 +276,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
             }
         }
         RaiseAll(nameof(Overall), nameof(Percent), nameof(Left));
-        if (showLog) Raise(nameof(LogText));
+        if (showLog && following) Raise(nameof(LogText));
     }
 
     /// Cancel: the build and everything it started stopped, back home
@@ -349,7 +374,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
                       $"shaders {(s.PrepareShaders ? "now" : "at first start")}, DLSS {(s.Dlss ? "on" : "off")}, FSR 4 {(fsr ? "on" : s.Fsr ? "asked, not built" : "off")}");
         sb.AppendLine("stopped: " + why);
         sb.AppendLine();
-        lock (log) foreach (var l in log.Skip(Math.Max(0, log.Count - 200))) sb.AppendLine(l);
+        foreach (var l in log.Last(200)) sb.AppendLine(l);
         return sb.ToString();
     }
 }
@@ -504,7 +529,7 @@ public sealed class ProblemViewModel : ViewModelBase, IWizardPage
     public string Body => $"Building {build.Job.Shown} stopped in {Stage}, {Percent}% of the way through. It said: {Why}";
     public bool ShowLog { get => showLog; set { if (Set(ref showLog, value)) RaiseAll(nameof(LogButton), nameof(LogTail)); } }
     public string LogButton => showLog ? "Hide details" : "Show details";
-    public string LogTail => string.Join("\n", build.Log.Skip(Math.Max(0, build.Log.Count - 6)));
+    public string LogTail => string.Join("\n", build.Log.Tail(LogLevel.Info, null, 6));
 
     public Command ToggleLogCommand { get; }
     public Command CopyCommand { get; }
@@ -516,4 +541,12 @@ public sealed class ProblemViewModel : ViewModelBase, IWizardPage
         if (build.Job.Main.Host is { } host) await host.CopyAsync(build.Report(Why));
         build.Job.Main.ShowToast("Copied: the version, this PC's memory and GPU, the settings and the log's last 200 lines.");
     }
+}
+
+/// One of the build log's levels as its picker shows it
+public sealed record LogLevelChoice(LogLevel Level, string Name)
+{
+    public static IReadOnlyList<LogLevelChoice> All { get; } = LogLevels.All.Select(l => new LogLevelChoice(l, LogLevels.Name(l))).ToList();
+    public static LogLevelChoice Of(LogLevel level) => All.First(c => c.Level == level);
+    public override string ToString() => Name;
 }

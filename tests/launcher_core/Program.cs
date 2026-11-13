@@ -63,6 +63,7 @@ static partial class Program
         RegistryChecks();
         SettingsChecks();
         ProgressChecks();
+        LogChecks();
         CommandChecks();
         UpdatePolicyChecks();
         CommandLineChecks();
