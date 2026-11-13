@@ -96,7 +96,7 @@ public sealed class HomeViewModel : ViewModelBase
 {
     string? notice;
     string status = "";
-    bool checkAgain;
+    bool checkAgain, asked;
     readonly HashSet<string> deleting = new();
 
     public HomeViewModel(MainViewModel main)
@@ -115,6 +115,12 @@ public sealed class HomeViewModel : ViewModelBase
         UpdateDefaultCommand = new Command(() => { if (Default is { } d) UpdateBuild(d); }, () => CanStartBuild && Default?.IsDeleting != true);
         SavesDefaultCommand = new Command(() => Main.ShowSaves(Default?.Entry));
         CancelLauncherUpdateCommand = new Command(() => UpdateLauncherCommand.Cancel());
+        // (not while the launcher updates itself: a check forgets the update it is putting in place)
+        CheckForUpdatesCommand = new Command(() =>
+        {
+            asked = true;
+            _ = CheckReleasesAsync();
+        }, () => CanStartBuild);
         ImportHookshotCommand = new Command(() => Main.Modal = new HookshotImportViewModel(Main, Default?.Entry));
         NotNowHookshotCommand = new Command(() =>
         {
@@ -215,6 +221,9 @@ public sealed class HomeViewModel : ViewModelBase
     public Command DismissProblemCommand { get; }
     /// The update check: at start, from Try again, and after the launcher's channel changed in Settings
     public BusyCommand CheckCommand { get; }
+    /// Check for updates, under the versions: the same check, for Longshot's channels and the launcher's own, which says so when
+    /// it found nothing new
+    public Command CheckForUpdatesCommand { get; }
     /// Try again, on the empty home when the check got no answer: the check itself
     public BusyCommand RetryCheckCommand => CheckCommand;
     public Command PlayDefaultCommand { get; }
@@ -236,6 +245,7 @@ public sealed class HomeViewModel : ViewModelBase
     void BusyChanged()
     {
         BuildCommand.Changed();
+        CheckForUpdatesCommand.Changed();
         ChannelCommand.Changed();
         UpdateDefaultCommand.Changed();
         foreach (var b in Builds) b.RaiseCommands();
@@ -359,11 +369,14 @@ public sealed class HomeViewModel : ViewModelBase
     async Task CheckAsync(BusyCommand busy, CancellationToken cancel)
     {
         busy.Report("Checking for updates…");
+        var wasAsked = asked;
+        asked = false;
         Service.Checked = false;
         Refresh();
+        var any = false;
         try
         {
-            var any = await Service.CheckReleasesAsync();
+            any = await Service.CheckReleasesAsync();
             Status = any ? "" : Service.Releases.Problem is { } problem
                 ? "Updates were not checked: " + problem
                 : "Could not reach git.magicbean.dev: updates were not checked.";
@@ -374,6 +387,9 @@ public sealed class HomeViewModel : ViewModelBase
             Status = "Could not check for updates: " + e.Message;
         }
         Refresh();
+        // (a check someone asked for answers even when nothing is new; an update shows itself: the banner, the Update buttons)
+        if (wasAsked && any && !HasLauncherUpdate && !Builds.Any(b => b.HasUpdate))
+            Status = $"Everything is up to date, the launcher too. Checked at {DateTime.Now:t}.";
     }
 
     public void Select(BuildItemViewModel b)

@@ -163,7 +163,7 @@
         </StackPanel>
 
         <StackPanel Grid.Column="1" VerticalAlignment="Center">
-          <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,10">
+          <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,16">
             <TextBlock Classes="label" Text="YOUR VERSIONS" Margin="0" VerticalAlignment="Center"/>
             <Button Grid.Column="1" Classes="link" Command="{Binding ChannelCommand}">
               <StackPanel Orientation="Horizontal" Spacing="6">
@@ -254,7 +254,17 @@
               </ItemsControl>
             </ScrollViewer>
           </Border>
-          <TextBlock Classes="faint" Text="{Binding Footer}" Margin="0,10,0,0" TextTrimming="CharacterEllipsis"/>
+          <!-- the footer, and Check for updates: Longshot's channels and the launcher's own, now -->
+          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" Margin="0,16,0,0">
+            <TextBlock Classes="faint" Text="{Binding Footer}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+            <Button Grid.Column="1" Classes="link smaller" Command="{Binding CheckForUpdatesCommand}" VerticalAlignment="Center"
+                    ToolTip.Tip="Look for a new Longshot on your versions' channels, and a new launcher">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <c:Icon Kind="refresh" Width="13" Height="13"/>
+                <TextBlock Text="Check for updates"/>
+              </StackPanel>
+            </Button>
+          </Grid>
           <TextBlock Classes="faint" Text="{Binding Status}" Margin="0,4,0,0" IsVisible="{Binding ShowStatus}"/>
           <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,4,0,0" IsVisible="{Binding CheckCommand.IsBusy}">
             <c:Spinner Width="12" Height="12" VerticalAlignment="Center"/>

@@ -170,5 +170,9 @@ static partial class Program
                 && view.Contains("Command=\"{Binding CancelLauncherUpdateCommand}\""),
                 "The launcher's banner shows its update running: the button's spinner, each step, the download's bar, Cancel.");
         Require(view.Contains("Text=\"{Binding CheckCommand.Status}\""), "The home shows the check running.");
+        Require(Regex.IsMatch(home, @"CheckForUpdatesCommand = new Command\([\s\S]*?_ = CheckReleasesAsync\(\);[\s\S]*?\}, \(\) => CanStartBuild\);")
+                && Regex.IsMatch(home, @"void BusyChanged\(\)\s*\{[^}]*CheckForUpdatesCommand\.Changed\(\);")
+                && view.Contains("Command=\"{Binding CheckForUpdatesCommand}\""),
+                "Check for updates runs the check, and is off while the check runs and while the launcher updates itself.");
     }
 }
