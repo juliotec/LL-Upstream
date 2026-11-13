@@ -75,15 +75,34 @@ public static class Installer
         foreach (var left in new[] { SelfUpdate.Staged(at.Program), SelfUpdate.Backup(at.Program), at.Program + ".rolledback" })
             File.Delete(left);
         Register(at, version, registry);
-        shortcuts.Make(at.StartMenuLink, at.Program, null, at.Program, "Install Longshot's builder, build the game from your own copy, and play");
+        MakeLink(at, shortcuts);
         return at.Program;
     }
+
+    static void MakeLink(InstallPlaces at, IShortcutMaker shortcuts) =>
+        shortcuts.Make(at.StartMenuLink, at.Program, null, at.Program, "Install Longshot's builder, build the game from your own copy, and play");
 
     /// The entry written again with this version (an installed launcher does it at each start, so it follows its own updates)
     public static void Register(InstallPlaces at, string version, IUserRegistry registry)
     {
         var bytes = File.Exists(at.Program) ? new FileInfo(at.Program).Length : 0;
         registry.Write(UninstallKey, Entry(at, version, bytes));
+    }
+
+    /// An installed launcher's start: its entry written again with this version (Register), and, at the first start of another
+    /// version (the entry named another one), its Start menu shortcut made again. An update moves the running program aside to
+    /// &lt;name&gt;.old before the new one takes its name (SelfUpdate.Swap), and Windows' shortcut tracking can follow it there; the
+    /// next update deletes that .old, and the Start menu drops a shortcut to nothing. Made again, it starts the program by its name.
+    /// Once per version only: a shortcut the player deleted stays deleted. The entry is written after the shortcut, so a shortcut
+    /// that could not be made is tried again at the next start. Returns whether it was made again (then the game's own shortcuts
+    /// are made again too)
+    public static bool Refresh(InstallPlaces at, string version, IUserRegistry registry, IShortcutMaker shortcuts)
+    {
+        var was = registry.Read(UninstallKey) is { } entry && entry.TryGetValue("DisplayVersion", out var v) ? v as string : null;
+        var changed = was != (string)Entry(at, version, 0)["DisplayVersion"];
+        if (changed) MakeLink(at, shortcuts);
+        Register(at, version, registry);
+        return changed;
     }
 
     public static bool IsRegistered(IUserRegistry registry) => registry.Read(UninstallKey) != null;

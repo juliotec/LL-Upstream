@@ -23,7 +23,7 @@ public sealed class BuildItemViewModel : ViewModelBase
         SetDefaultCommand = new Command(() => home.SetDefault(this), () => !IsDeleting);
         DeleteCommand = new Command(() => home.AskDelete(this), () => !IsDeleting);
         UpdateCommand = new Command(() => home.UpdateBuild(this), () => !IsDeleting && home.CanStartBuild);
-        SavesCommand = new Command(() => home.Main.ShowSaves(Entry), () => !IsDeleting);
+        SavesCommand = new Command(() => home.Main.ShowSaves(), () => !IsDeleting);
         FolderCommand = new Command(() => home.Main.Host?.Open(Entry.Folder));
     }
 
@@ -44,7 +44,7 @@ public sealed class BuildItemViewModel : ViewModelBase
     public bool HasUpdate => Update != null;
     public string UpdateLine => Update == null ? "" : Versions.Shown(Update) + " is out";
 
-    /// "Built 3 Nov, 38.4 GB, 3 save slots" (no saves count on Linux, where every build shares them)
+    /// "Built 3 Nov, 38.4 GB" (no saves count: every build shares them)
     public string Meta
     {
         get
@@ -52,7 +52,6 @@ public sealed class BuildItemViewModel : ViewModelBase
             var bits = new List<string> { "Built " + Durations.Day(Entry.Updated.LocalDateTime, DateTime.Now) };
             if (!IsBuilt) bits.Add("not built");
             if (Entry.Bytes is long b) bits.Add(Durations.Size(b));
-            if (!home.Main.Linux) bits.Add(SaveText.Count(Saves.Count));
             return string.Join(", ", bits);
         }
     }
@@ -113,7 +112,7 @@ public sealed class HomeViewModel : ViewModelBase
         DismissProblemCommand = new Command(() => Notice = null);
         PlayDefaultCommand = new Command(() => { if (Default is { } d) Play(d); }, () => Default is { IsBuilt: true, IsDeleting: false });
         UpdateDefaultCommand = new Command(() => { if (Default is { } d) UpdateBuild(d); }, () => CanStartBuild && Default?.IsDeleting != true);
-        SavesDefaultCommand = new Command(() => Main.ShowSaves(Default?.Entry));
+        SavesDefaultCommand = new Command(() => Main.ShowSaves());
         CancelLauncherUpdateCommand = new Command(() => UpdateLauncherCommand.Cancel());
         // (not while the launcher updates itself: a check forgets the update it is putting in place)
         CheckForUpdatesCommand = new Command(() =>
@@ -121,7 +120,7 @@ public sealed class HomeViewModel : ViewModelBase
             asked = true;
             _ = CheckReleasesAsync();
         }, () => CanStartBuild);
-        ImportHookshotCommand = new Command(() => Main.Modal = new HookshotImportViewModel(Main, Default?.Entry));
+        ImportHookshotCommand = new Command(() => Main.Modal = new HookshotImportViewModel(Main));
         NotNowHookshotCommand = new Command(() =>
         {
             Service.Settings.HookshotSavesAsked = true;
@@ -264,10 +263,10 @@ public sealed class HomeViewModel : ViewModelBase
     }
     public bool HasHookshotOffer => hookshotOffer != null;
 
-    /// Hookshot saves on this PC, not offered yet: the home offers to import them (Windows: once there is a build to import into)
+    /// Hookshot saves on this PC, not offered yet: the home offers to import them
     void OfferHookshot()
     {
-        if (Service.Settings.HookshotSavesAsked || (!Main.Linux && Service.Registry.Builds.Count == 0)) return;
+        if (Service.Settings.HookshotSavesAsked) return;
         try
         {
             var found = HookshotSaves.Find(Service.SaveEnv).Where(s => s.Valid).ToList();
@@ -331,9 +330,10 @@ public sealed class HomeViewModel : ViewModelBase
     {
         var selected = Builds.FirstOrDefault(b => b.IsSelected)?.Entry.Id;
         Builds.Clear();
+        var saves = Service.SaveSlots();
         foreach (var b in Service.Registry.Builds)
         {
-            var item = new BuildItemViewModel(this, b, Service.IsBuilt(b), Service.UpdateFor(b), Service.SavesOf(b), deleting.Contains(b.Id));
+            var item = new BuildItemViewModel(this, b, Service.IsBuilt(b), Service.UpdateFor(b), saves, deleting.Contains(b.Id));
             item.IsSelected = b.Id == selected;
             item.IsFirst = Builds.Count == 0;
             Builds.Add(item);
@@ -403,7 +403,11 @@ public sealed class HomeViewModel : ViewModelBase
     {
         try
         {
-            Service.Play(b.Entry);
+            if (Service.Play(b.Entry) is { } said)
+            {
+                Notice = said;
+                Refresh();
+            }
             Main.ShowToast($"Starting Longshot, {b.Version}…");
         }
         catch (Exception e) when (e is System.ComponentModel.Win32Exception or IOException or InvalidOperationException)
@@ -521,7 +525,7 @@ public sealed class ChannelPickerViewModel : ViewModelBase
     }
 }
 
-/// Deleting a build: what goes with it (on Windows its saves), and who becomes the default
+/// Deleting a build: what goes with it (its folder; never the saves, which every build shares), and who becomes the default
 public sealed class DeleteViewModel : ViewModelBase
 {
     readonly BuildItemViewModel build;
@@ -544,10 +548,6 @@ public sealed class DeleteViewModel : ViewModelBase
     public string Folder => ShownPath.Of(build.Entry.Folder);
     public string FolderFull => build.Entry.Folder;
 
-    public bool Linux => Main.Linux;
-    public bool Windows => !Main.Linux;
-    public string SavesWarning => "Its saves go with it" + (build.Saves.Count > 0 ? $" ({SaveText.Long(build.Saves, DateTime.Now)})" : "") +
-                                  ". To keep them, copy them to another build in Saves first.";
     BuildEntry? Next => Main.Service.Registry.Builds.FirstOrDefault(b => b.Id != build.Entry.Id);
     public bool DefaultNote => build.IsDefault && Next != null;
     public string DefaultText => Next is { } n ? $"It is your default: Play will start {(n.Version is { } v ? Versions.Shown(v) : n.Name)} instead." : "";

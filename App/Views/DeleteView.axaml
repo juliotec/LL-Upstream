@@ -15,15 +15,7 @@
                      VerticalAlignment="Center"/>
         </Grid>
       </Border>
-      <Border Classes="warnbox" IsVisible="{Binding Windows}">
-        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
-          <Border Width="18" Height="18" CornerRadius="9" Background="#33E2B86B" VerticalAlignment="Top" Margin="0,1,0,0">
-            <c:Icon Kind="alert" Width="18" Height="18" Foreground="{StaticResource Warn}"/>
-          </Border>
-          <TextBlock Grid.Column="1" Text="{Binding SavesWarning}" TextWrapping="Wrap"/>
-        </Grid>
-      </Border>
-      <TextBlock Classes="hint" Margin="0,12,0,0" IsVisible="{Binding Linux}" Text="Your saves stay: on Linux they are shared by every build."/>
+      <TextBlock Classes="hint" Margin="0,12,0,0" Text="Your saves stay: every version shares them."/>
       <TextBlock Classes="hint" Margin="0,12,0,0" IsVisible="{Binding DefaultNote}" Text="{Binding DefaultText}"/>
       <StackPanel Classes="buttons">
         <Button Content="Keep it" Command="{Binding KeepCommand}"/>

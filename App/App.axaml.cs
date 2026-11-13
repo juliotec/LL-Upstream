@@ -34,6 +34,12 @@ public sealed class App : Application
         var service = LauncherService.Open();
         var main = new MainViewModel(service, Program.Start);
         if (Program.Recovered is { } recovered) main.Home.Notice = main.Home.Notice is { } n ? n + "\n" + recovered : recovered;
+        // (Windows: the saves each build kept in its own folder, brought into the one every build shares now; said once)
+        if (LauncherService.GatherSaid(service.GatherSaves()) is { } said)
+        {
+            main.Home.Notice = main.Home.Notice is { } n ? n + "\n" + said : said;
+            main.Home.Refresh();
+        }
         var window = new MainWindow { DataContext = main };
         desktop.MainWindow = window;
         if (show) window.Show();

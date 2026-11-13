@@ -631,16 +631,16 @@ static partial class Program
     {
         var path = Path.Combine(Folder("settings"), "settings.json");
         var d = LauncherSettings.Load(path);
-        Require(d.MoveSaves && d.PrepareShaders && !d.Dlss && d.DefaultChannel == null && d.MemoryGb == null, "The defaults.");
+        Require(d.PrepareShaders && !d.Dlss && d.DefaultChannel == null && d.MemoryGb == null, "The defaults.");
         var s = new LauncherSettings
         {
             Nup = "/n.nup", Language = "de", Dlss = true, DlssLicense = true, Fsr = true, FsrLicense = true, PrepareShaders = false,
-            MemoryGb = 16, BuildWorkers = 6, Work = "/w", DefaultChannel = "nightly", MoveSaves = false,
+            MemoryGb = 16, BuildWorkers = 6, Work = "/w", DefaultChannel = "nightly",
         };
         s.Save(path);
         var t = LauncherSettings.Load(path);
         Require(t.Nup == "/n.nup" && t.Language == "de" && t.Dlss && t.DlssLicense && t.Fsr && t.FsrLicense && !t.PrepareShaders && t.MemoryGb == 16
-                && t.BuildWorkers == 6 && t.Work == "/w" && t.DefaultChannel == "nightly" && !t.MoveSaves, "settings.json round trip.");
+                && t.BuildWorkers == 6 && t.Work == "/w" && t.DefaultChannel == "nightly", "settings.json round trip.");
         // (AMD FSR 4: the Linux notice keeps the switch on without AMD's licence, and is not that licence)
         new LauncherSettings { Fsr = true, FsrLinuxNotice = true }.Save(path);
         var n = LauncherSettings.Load(path);
@@ -822,8 +822,17 @@ static partial class Program
                 "Linux Play drops the AppImage's and the tools' environment.");
         Require(GamePlay.Environment(Platform.Windows, env).ContainsKey("LONGSHOT_TOOLS"), "Windows Play keeps the environment, as the Builder's.");
         var play = GamePlay.StartInfo("/g", Platform.Linux, env);
-        Require(play.FileName == Path.Combine("/g", "bin", "longshot") && play.WorkingDirectory == "/g" && !play.Environment.ContainsKey("APPDIR"),
-                "Play starts bin/longshot in its folder.");
+        Require(play.FileName == Path.Combine("/g", "bin", "longshot") && play.WorkingDirectory == "/g" && !play.Environment.ContainsKey("APPDIR")
+                && play.ArgumentList.Count == 0, "Play starts bin/longshot in its folder.");
+        Require(GamePlay.StartInfo("/g", Platform.Linux, env, user: "/s").ArgumentList.Count == 0
+                && GamePlay.StartInfo("/g", Platform.Windows, env, user: @"C:\Users\Zoë\AppData\Roaming\Longshot").ArgumentList
+                    .SequenceEqual(new[] { "--user", @"C:\Users\Zoë\AppData\Roaming\Longshot" })
+                && GamePlay.StartInfo("/g", Platform.Windows, env).ArgumentList.Count == 0,
+                "Windows Play gives the game the shared user folder (--user); Linux's game finds it by itself.");
+        // (a settings.json of before, with moveSaves: still read)
+        var old = Path.Combine(Folder("settings-old"), "settings.json");
+        File.WriteAllText(old, "{\"format\":2,\"moveSaves\":false,\"language\":\"fr\"}");
+        Require(LauncherSettings.Load(old).Language == "fr", "A settings.json from before shared saves is still read.");
     }
 
     static void UpdatePolicyChecks()

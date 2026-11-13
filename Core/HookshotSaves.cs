@@ -112,26 +112,12 @@ public static class HookshotSaves
     }
 
     /// Where an import goes: the Longshot save of the same profile if there is one, else Longshot's only profile, else a new folder
-    /// for Hookshot's profile id (Linux: Longshot's data folder, shared by every build; Windows: the build's folder, buildFolder)
-    public static string TargetFor(string profileId, SaveEnvironment env, string? buildFolder)
+    /// for Hookshot's profile id, in Longshot's user folder, which every build shares (SaveEnvironment.LongshotUser)
+    public static string TargetFor(string profileId, SaveEnvironment env)
     {
-        IReadOnlyList<SaveProfile> longshot;
-        string fresh;
-        if (env.Platform == Platform.Windows)
-        {
-            if (buildFolder == null) throw new SaveFailure("On Windows each build keeps its own saves: build Longshot first, then import into it.");
-            var set = Saves.ForBuild(buildFolder, env);
-            longshot = set.Profiles;
-            fresh = Saves.BuildSavePath(buildFolder, profileId);
-        }
-        else
-        {
-            var data = env.FoldersOf(Saves.Longshot)[0];
-            longshot = Directory.Exists(data) ? Saves.Find(data) : Array.Empty<SaveProfile>();
-            fresh = System.IO.Path.Combine(data, "save", profileId);
-        }
+        var longshot = Saves.Shared(env).Profiles;
         return longshot.FirstOrDefault(p => string.Equals(p.Id, profileId, StringComparison.OrdinalIgnoreCase))?.Path
-               ?? (longshot.Count == 1 ? longshot[0].Path : fresh);
+               ?? (longshot.Count == 1 ? longshot[0].Path : Saves.SharedSavePath(env, profileId));
     }
 
     /// Whether importing into target would replace a Longshot save (then the player is asked first)

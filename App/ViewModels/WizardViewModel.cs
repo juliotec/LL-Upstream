@@ -20,10 +20,6 @@ public sealed class BuildJob
         var s = main.Service;
         InstallDir = kind == JobKind.Rebuild && replaces != null ? replaces.Folder
             : LauncherSettings.FolderFor(s.BuildsFolder, version, p => s.Registry.FindByFolder(p) is { } e && e.Id != replaces?.Id);
-        // (the saves come from the build an update replaces, else the default)
-        var others = s.Registry.Builds.Where(b => kind != JobKind.Rebuild || b.Id != replaces?.Id).ToList();
-        MoveFrom = others.FirstOrDefault(b => b.Id == replaces?.Id) ?? others.FirstOrDefault(b => b.Default) ?? others.FirstOrDefault();
-        MoveOn = s.Settings.MoveSaves && MoveFrom != null;
     }
 
     public MainViewModel Main { get; }
@@ -43,9 +39,6 @@ public sealed class BuildJob
     /// The tools were downloaded in step 1 (not already on this PC), and how long that took
     public bool ToolsDownloaded { get; set; }
     public TimeSpan ToolsTime { get; set; }
-    /// Step 2's saves: from which build (Windows, where each build has its own), or none
-    public BuildEntry? MoveFrom { get; set; }
-    public bool MoveOn { get; set; }
     public bool AdvancedOpen { get; set; }
     public readonly CancellationTokenSource Cancel = new();
 

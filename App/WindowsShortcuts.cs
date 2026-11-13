@@ -56,6 +56,9 @@ public static class WindowsShortcuts
         Run(lines);
     }
 
+    /// The game's shortcuts that are there made again, starting launcher (after the launcher's own update: Installer.Refresh)
+    public static void Refresh(string launcher) => Write(launcher, File.Exists(DesktopLink), File.Exists(StartLink));
+
     /// The game's shortcuts taken away with the launcher they start (its uninstall)
     public static void RemoveGame()
     {

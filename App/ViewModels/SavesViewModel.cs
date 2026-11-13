@@ -2,7 +2,7 @@ using LongshotLauncher.Core;
 
 namespace LongshotLauncher.ViewModels;
 
-public enum SaveMode { Copy, Import, Export }
+public enum SaveMode { Import, Export }
 
 /// A row of the Saves page's list: a group's title, a build's saves, or an emulator's
 public sealed class SaveRowViewModel
@@ -50,21 +50,16 @@ static class SaveViews
     public static IReadOnlyList<SaveSlot> Describe(SaveProfile? p) => p == null ? Array.Empty<SaveSlot>() : Saves.Describe(p.Path);
 }
 
-/// Saves: one build's slots, every save found on this PC (the builds' and the emulators'), and the copies: from another build
-/// (Windows), import from and export to an emulator or another folder. Each copy is confirmed first and backs up what it replaces
+/// Saves: Longshot's slots, which every build shares, every other save found on this PC (the emulators'), and the copies: import
+/// from and export to an emulator or another folder. Each copy is confirmed first and backs up what it replaces
 public sealed class SavesViewModel : ViewModelBase
 {
-    BuildEntry target;
-
-    public SavesViewModel(MainViewModel main, BuildEntry? build)
+    public SavesViewModel(MainViewModel main)
     {
         Main = main;
-        target = build ?? main.Service.Registry.Default ?? main.Service.Registry.Builds[0];
-        Builds = main.Service.Registry.Builds.ToList();
-        CopyCommand = new Command(() => Main.Modal = new SavePickViewModel(this, SaveMode.Copy), () => OthersHaveSaves);
         ImportCommand = new Command(() => Main.Modal = new SavePickViewModel(this, SaveMode.Import));
         ExportCommand = new Command(() => Main.Modal = new SavePickViewModel(this, SaveMode.Export), () => Slots.Count > 0);
-        HookshotCommand = new Command(() => Main.Modal = new HookshotImportViewModel(Main, target));
+        HookshotCommand = new Command(() => Main.Modal = new HookshotImportViewModel(Main));
         DoneCommand = new Command(Main.ShowHome);
         Reload();
     }
@@ -73,39 +68,19 @@ public sealed class SavesViewModel : ViewModelBase
     public Command HookshotCommand { get; }
     LauncherService Service => Main.Service;
     public SaveEnvironment Env => Service.SaveEnv;
-    public bool Linux => Main.Linux;
-    public bool Windows => !Main.Linux;
-    public IReadOnlyList<BuildEntry> Builds { get; }
     public IReadOnlyList<SaveRowViewModel> Rows { get; private set; } = Array.Empty<SaveRowViewModel>();
     public IReadOnlyList<SlotViewModel> Slots { get; private set; } = Array.Empty<SlotViewModel>();
     public IReadOnlyList<SaveSet> Emulators { get; private set; } = Array.Empty<SaveSet>();
     public bool HasSlots => Slots.Count > 0;
     public bool NoSlots => Slots.Count == 0;
 
-    public BuildEntry Target
-    {
-        get => target;
-        set
-        {
-            if (value == null || !Set(ref target, value)) return;
-            Reload();
-        }
-    }
-
-    public string Sub => Linux ? "All your Longshot versions share these saves." : "Pick a version to view its saves or transfer your progress.";
-    public string EmptyHint => Linux ? "Import saves from an emulator or Hookshot. They will be available to every Longshot version."
-        : "Import saves from an emulator, Hookshot or another Longshot version. Your saves will appear here.";
+    public string Sub => "All your Longshot versions share these saves.";
+    public string EmptyHint => "Import saves from an emulator or Hookshot. They will be available to every Longshot version.";
     public string SlotCount => Slots.Count == 1 ? "1 save slot" : $"{Slots.Count} save slots";
     public IReadOnlyList<SaveRowViewModel> OtherSaves => Rows.Where(r => r.IsRow && !r.IsThis && !r.Dim).ToList();
     public bool HasOtherSaves => OtherSaves.Count > 0;
     public string OtherSavesLabel => $"Other save locations ({OtherSaves.Count})";
-    public string CopyHint => OthersHaveSaves ? "Copy from another Longshot version" : "No other version has saves to copy";
     public string ExportHint => HasSlots ? "Send to an emulator or a folder" : "Play or import saves to enable export";
-    /// (the build is named by "Saves of" above it: a version upper-cased would read badly, a nightly's commit most of all)
-    public string ThisLabel => Linux ? "EVERY BUILD'S SLOTS" : "SLOTS";
-    public bool OthersHaveSaves => Windows && Builds.Any(b => b.Id != target.Id && Service.SavesOf(b).Count > 0);
-
-    public Command CopyCommand { get; }
     public Command ImportCommand { get; }
     public Command ExportCommand { get; }
     public Command DoneCommand { get; }
@@ -114,29 +89,14 @@ public sealed class SavesViewModel : ViewModelBase
     {
         var now = DateTime.Now;
         var rows = new List<SaveRowViewModel> { new() { IsGroup = true, Name = "Longshot", First = true } };
-        if (Linux)
+        var set = Saves.Shared(Env);
+        var slots = Service.SaveSlots();
+        rows.Add(new SaveRowViewModel
         {
-            var set = Saves.ForBuild(target.Folder, Env);
-            rows.Add(new SaveRowViewModel
-            {
-                Name = "Every build", Shared = true, IsThis = true,
-                Where = SaveViews.Short(set.Found ? set.Profiles[0].Path : Path.Combine(Env.Data, "longshot", "save")),
-                Summary = SaveText.Long(Service.SavesOf(target), now),
-            });
-        }
-        else
-        {
-            foreach (var b in Builds)
-            {
-                var set = Saves.ForBuild(b.Folder, Env);
-                rows.Add(new SaveRowViewModel
-                {
-                    Name = b.Version is { } v ? Versions.Shown(v) : b.Name, Channel = UpdatePolicy.ChannelOf(b.Channel, b.Version), IsThis = b.Id == target.Id,
-                    Where = SaveViews.Short(set.Found ? set.Profiles[0].Path : Path.Combine(b.Folder, "user", "save")),
-                    Summary = SaveText.Long(Service.SavesOf(b), now),
-                });
-            }
-        }
+            Name = "Every build", Shared = true, IsThis = true,
+            Where = SaveViews.Short(set.Found ? set.Profiles[0].Path : Path.Combine(Env.LongshotUser, "save")),
+            Summary = SaveText.Long(slots, now),
+        });
         rows.Add(new SaveRowViewModel { IsGroup = true, Name = "Emulators and ports" });
         Emulators = Saves.Emulator(Env);
         foreach (var e in Emulators)
@@ -157,33 +117,30 @@ public sealed class SavesViewModel : ViewModelBase
         }
         for (var i = 1; i < rows.Count; i++) rows[i].AfterGroup = rows[i - 1].IsGroup;
         Rows = rows;
-        Slots = SaveViews.Slots(Service.SavesOf(target));
-        RaiseAll(nameof(Rows), nameof(Slots), nameof(HasSlots), nameof(NoSlots), nameof(ThisLabel), nameof(OthersHaveSaves),
-                 nameof(SlotCount), nameof(OtherSaves), nameof(HasOtherSaves), nameof(OtherSavesLabel), nameof(CopyHint), nameof(ExportHint));
-        CopyCommand.Changed();
+        Slots = SaveViews.Slots(slots);
+        RaiseAll(nameof(Rows), nameof(Slots), nameof(HasSlots), nameof(NoSlots), nameof(SlotCount), nameof(OtherSaves), nameof(HasOtherSaves),
+                 nameof(OtherSavesLabel), nameof(ExportHint));
         ExportCommand.Changed();
     }
 }
 
-/// One side of a copy: a build, an emulator's profile, or a folder
+/// One side of a copy: Longshot's save, an emulator's profile, or a folder
 public sealed record SaveSide(string Name, string Where, IReadOnlyList<SaveSlot> Slots, string? Path, bool Emulator);
 
-/// The copy being set up: which way, which build, from or to what
+/// The copy being set up: which way, from or to what
 public sealed class SaveOp
 {
     public SaveMode Mode { get; init; }
-    public BuildEntry Target { get; init; } = null!;
-    public BuildEntry? SourceBuild { get; set; }
     public SaveSet? Set { get; set; }
     public string? Folder { get; set; }
     public string? Profile { get; set; }
     public bool KeepSettings { get; set; }
-    public string Verb => Mode switch { SaveMode.Copy => "Copy", SaveMode.Import => "Import", _ => "Export" };
+    public string Verb => Mode == SaveMode.Import ? "Import" : "Export";
     public SaveProgram Program => Set != null ? Saves.Named(Set.Owner) : Saves.Folder;
     public string OtherName => Set != null ? Set.Display.Replace(" / ", ", ") : "the folder";
 }
 
-/// Import or export: which emulator (or another folder), and which profile when it has several; or which build to copy from
+/// Import or export: which emulator (or another folder), and which profile when it has several
 public sealed class SavePickViewModel : ViewModelBase
 {
     public sealed class Option(SavePickViewModel owner, string key, string name, string about, string right, bool enabled, string? channel = null,
@@ -242,26 +199,13 @@ public sealed class SavePickViewModel : ViewModelBase
         Mode = mode;
         var now = DateTime.Now;
         var main = page.Main;
-        if (mode == SaveMode.Copy)
-        {
-            Options = page.Builds.Where(b => b.Id != page.Target.Id).Select(b =>
-            {
-                var slots = main.Service.SavesOf(b);
-                var set = Saves.ForBuild(b.Folder, page.Env);
-                return new Option(this, b.Id, b.Version is { } v ? Versions.Shown(v) : b.Name, SaveViews.Short(set.Found ? set.Profiles[0].Path : b.Folder),
-                                  SaveText.Long(slots, now), slots.Count > 0, UpdatePolicy.ChannelOf(b.Channel, b.Version));
-            }).ToList();
-        }
-        else
-        {
-            Options = page.Emulators.Select(e => new Option(this, e.Owner, e.Display.Replace(" / ", ", "), e.Found ? "" : "Not found on this PC",
-                    !e.Found ? "" : e.Profiles.Count > 1 ? $"{e.Profiles.Count} profiles" : SaveText.Long(SaveViews.Describe(e.Profiles[0]), now), e.Found,
-                    waiting: e.Profiles.Any(p => Saves.PendingCommit(p.Path) != null)))
-                .Append(new Option(this, "folder", "Another folder…",
-                                   mode == SaveMode.Import ? "A folder holding account.sav and slot folders, or one above it"
-                                       : "A portable emulator's user folder, or any folder", "", true))
-                .ToList();
-        }
+        Options = page.Emulators.Select(e => new Option(this, e.Owner, e.Display.Replace(" / ", ", "), e.Found ? "" : "Not found on this PC",
+                !e.Found ? "" : e.Profiles.Count > 1 ? $"{e.Profiles.Count} profiles" : SaveText.Long(SaveViews.Describe(e.Profiles[0]), now), e.Found,
+                waiting: e.Profiles.Any(p => Saves.PendingCommit(p.Path) != null)))
+            .Append(new Option(this, "folder", "Another folder…",
+                               mode == SaveMode.Import ? "A folder holding account.sav and slot folders, or one above it"
+                                   : "A portable emulator's user folder, or any folder", "", true))
+            .ToList();
         GoCommand = new Command(() => _ = GoAsync(), () => CanGo);
         Pick = Options.FirstOrDefault(o => o.Enabled)?.Key;
         CancelCommand = new Command(() => main.Modal = null);
@@ -273,16 +217,11 @@ public sealed class SavePickViewModel : ViewModelBase
     public Command GoCommand { get; }
     public Command CancelCommand { get; }
 
-    public string Title => Mode switch
-    {
-        SaveMode.Copy => "Copy saves from which build?",
-        SaveMode.Import => "Import from which emulator?",
-        _ => "Export to which emulator?",
-    };
+    public string Title => Mode == SaveMode.Import ? "Import from which emulator?" : "Export to which emulator?";
 
     public string Sub => Mode == SaveMode.Export
-        ? $"The saves of {(Page.Linux ? "every build" : Versions.Shown(Page.Target.Version))} replace the ones there, after a backup."
-        : $"Its saves replace {(Page.Linux ? "the ones every build uses" : Versions.Shown(Page.Target.Version) + "'s")}, after a backup.";
+        ? "The saves every build uses replace the ones there, after a backup."
+        : "Its saves replace the ones every build uses, after a backup.";
 
     SaveSet? PickedSet => Page.Emulators.FirstOrDefault(e => e.Owner == pick);
 
@@ -333,9 +272,8 @@ public sealed class SavePickViewModel : ViewModelBase
     async Task GoAsync()
     {
         var main = Page.Main;
-        var op = new SaveOp { Mode = Mode, Target = Page.Target };
-        if (Mode == SaveMode.Copy) op.SourceBuild = Page.Builds.First(b => b.Id == pick);
-        else if (pick == "folder")
+        var op = new SaveOp { Mode = Mode };
+        if (pick == "folder")
         {
             if (main.Host is not { } host) return;
             var folder = await host.PickFolderAsync(Mode == SaveMode.Import ? "The folder with the saves" : "The folder to export to", null);
@@ -379,12 +317,7 @@ public sealed class SavesConfirmViewModel : ViewModelBase
     public string? Backup { get; private set; }
     public string? Problem { get; private set; }
 
-    public string Title => Op.Mode switch
-    {
-        SaveMode.Copy => "Copy saves from " + From.Name,
-        SaveMode.Import => "Import saves from " + From.Name,
-        _ => "Export saves to " + To.Name,
-    };
+    public string Title => Op.Mode == SaveMode.Import ? "Import saves from " + From.Name : "Export saves to " + To.Name;
 
     public string Sub => $"Check what gets replaced. Nothing changes until you choose {Op.Verb}.";
     public string Verb => Op.Verb;
@@ -392,7 +325,7 @@ public sealed class SavesConfirmViewModel : ViewModelBase
     public string Replaced => $"Replaced in {To.Name}: " + (To.Slots.Count == 0 ? "nothing saved yet" : SaveText.Long(To.Slots, DateTime.Now)) +
                               ", its account.sav" + (Op.KeepSettings ? "" : ", and its game settings (option.sav)") + ".";
 
-    public string KeepLabel => "Keep " + (Op.Mode == SaveMode.Export ? To.Name + "'s" : Page.Linux ? "Longshot's" : "this build's") +
+    public string KeepLabel => "Keep " + (Op.Mode == SaveMode.Export ? To.Name + "'s" : "Longshot's") +
                                " game settings (option.sav)";
 
     public bool KeepSettings
@@ -411,49 +344,38 @@ public sealed class SavesConfirmViewModel : ViewModelBase
     public Command BackCommand { get; }
     public Command RunCommand { get; }
 
-    SaveSide BuildSide(BuildEntry b, string? profile)
+    /// Longshot's side: the save every build shares
+    SaveSide LongshotSide()
     {
-        var set = Saves.ForBuild(b.Folder, Page.Env);
-        var path = set.Found ? set.Profiles[0].Path : profile != null ? Saves.BuildSavePath(b.Folder, profile) : null;
-        var name = Page.Linux ? "Longshot" : b.Version is { } v ? Versions.Shown(v) : b.Name;
-        return new SaveSide(name, path ?? Path.Combine(b.Folder, "user", "save"), set.Found ? Saves.Describe(set.Profiles[0].Path) : Array.Empty<SaveSlot>(), path, false);
+        var set = Saves.Shared(Page.Env);
+        var path = set.Found ? set.Profiles[0].Path : null;
+        return new SaveSide("Longshot", path ?? Path.Combine(Page.Env.LongshotUser, "save"), path != null ? Saves.Describe(path) : Array.Empty<SaveSlot>(), path, false);
     }
 
     void Refresh()
     {
         Problem = null;
-        if (Op.Mode == SaveMode.Copy)
+        SaveSide other;
+        try
         {
-            var src = BuildSide(Op.SourceBuild!, null);
-            var srcProfile = src.Path != null ? Path.GetFileName(src.Path) : null;
-            From = src;
-            To = BuildSide(Op.Target, srcProfile);
+            var (_, found) = Saves.Locate(Op.Program, Op.Folder, Page.Env);
+            var p = Saves.Pick(found, Op.OtherName, Op.Profile);
+            other = new SaveSide(Op.OtherName, p.Path + (found.Count > 1 ? $" (profile {p.Id[..Math.Min(8, p.Id.Length)]}…)" : ""), Saves.Describe(p.Path), p.Path, true);
         }
-        else
+        catch (SaveFailure e)
         {
-            SaveSide other;
-            try
-            {
-                var (folder, found) = Saves.Locate(Op.Program, Op.Folder, Page.Env);
-                var p = Saves.Pick(found, Op.OtherName, Op.Profile);
-                other = new SaveSide(Op.OtherName, p.Path + (found.Count > 1 ? $" (profile {p.Id[..Math.Min(8, p.Id.Length)]}…)" : ""), Saves.Describe(p.Path), p.Path, true);
-            }
-            catch (SaveFailure e)
-            {
-                Problem = e.Message;
-                other = new SaveSide(Op.OtherName, Op.Folder ?? "", Array.Empty<SaveSlot>(), null, true);
-            }
-            var me = BuildSide(Op.Target, null);
-            (From, To) = Op.Mode == SaveMode.Import ? (other, me) : (me, other);
+            Problem = e.Message;
+            other = new SaveSide(Op.OtherName, Op.Folder ?? "", Array.Empty<SaveSlot>(), null, true);
         }
+        var me = LongshotSide();
+        (From, To) = Op.Mode == SaveMode.Import ? (other, me) : (me, other);
         // (where the backup goes: the dry run of the same copy)
         if (From.Path != null && To.Path != null)
         {
             try
             {
-                var (command, name) = Op.Mode == SaveMode.Copy ? ("build", Path.GetFileName(Path.TrimEndingDirectorySeparator(Op.Target.Folder)))
-                    : (Op.Mode == SaveMode.Import ? "import" : "export", Op.Program.Name);
-                Backup = Saves.Copy(From.Path, To.Path, Page.Env.BackupRoot, command, name, Op.KeepSettings, dryRun: true, force: true).Backup;
+                Backup = Saves.Copy(From.Path, To.Path, Page.Env.BackupRoot, Op.Mode == SaveMode.Import ? "import" : "export", Op.Program.Name,
+                                    Op.KeepSettings, dryRun: true, force: true).Backup;
             }
             catch (Exception e) when (e is SaveFailure or IOException or UnauthorizedAccessException) { Problem = e.Message; }
         }
@@ -464,9 +386,7 @@ public sealed class SavesConfirmViewModel : ViewModelBase
         var main = Page.Main;
         try
         {
-            SaveCopy done = Op.Mode == SaveMode.Copy
-                ? Saves.BetweenBuilds(Op.SourceBuild!.Folder, Op.Target.Folder, Page.Env, Op.KeepSettings)
-                : Saves.ImportExport(Op.Mode == SaveMode.Import, Op.Target.Folder, Op.Program, Op.Folder, Page.Env, Op.Profile, Op.KeepSettings);
+            var done = Saves.ImportExport(Op.Mode == SaveMode.Import, Op.Program, Op.Folder, Page.Env, Op.Profile, Op.KeepSettings);
             main.Navigate(new SavesResultViewModel(this, SaveResult.Done, done.Backup, null));
         }
         catch (SaveFailure e)
@@ -521,12 +441,7 @@ public sealed class SavesResultViewModel : ViewModelBase
 
     public string Heading => Kind switch
     {
-        SaveResult.Done => Confirm.Op.Mode switch
-        {
-            SaveMode.Copy => "Saves copied from " + Confirm.From.Name,
-            SaveMode.Import => "Saves imported from " + Confirm.From.Name,
-            _ => "Saves exported to " + Confirm.To.Name,
-        },
+        SaveResult.Done => Confirm.Op.Mode == SaveMode.Import ? "Saves imported from " + Confirm.From.Name : "Saves exported to " + Confirm.To.Name,
         SaveResult.Running => "Close the game first",
         SaveResult.Waiting => "NX2navi has a save waiting",
         _ => "The saves were not copied",
@@ -550,12 +465,7 @@ public sealed class SavesResultViewModel : ViewModelBase
         {
             var n = Confirm.TargetSlotsNow().Count;
             var slots = $"{n} save slot{(n == 1 ? "" : "s")}";
-            return Confirm.Op.Mode switch
-            {
-                SaveMode.Copy => $"Copied {slots} from {Confirm.From.Name}.",
-                SaveMode.Import => $"Imported {slots} from {Confirm.From.Name}.",
-                _ => $"Exported {slots} to {Confirm.To.Name}.",
-            };
+            return Confirm.Op.Mode == SaveMode.Import ? $"Imported {slots} from {Confirm.From.Name}." : $"Exported {slots} to {Confirm.To.Name}.";
         }
     }
 

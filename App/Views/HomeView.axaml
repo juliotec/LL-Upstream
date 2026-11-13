@@ -135,7 +135,7 @@
           </StackPanel>
           <TextBlock Classes="note" Text="{Binding HeroNote}" TextWrapping="Wrap" Margin="0,4,0,0"/>
           <!-- the default version's saves: a button the size of a card, so copying, importing and exporting saves is easy to find -->
-          <Button Classes="savescard" Command="{Binding SavesDefaultCommand}" Margin="0,16,0,0" ToolTip.Tip="Copy saves between versions, import them, export them">
+          <Button Classes="savescard" Command="{Binding SavesDefaultCommand}" Margin="0,16,0,0" ToolTip.Tip="Your saves, which every version shares: import them, export them">
             <Grid ColumnDefinitions="32,*,Auto" ColumnSpacing="12">
               <Border Width="32" Height="32" CornerRadius="16" Background="{StaticResource GoSoft}" VerticalAlignment="Center">
                 <c:Icon Kind="disk" Width="16" Height="16" Foreground="{StaticResource Go}"/>
@@ -236,7 +236,7 @@
                               </Button>
                             </StackPanel>
                             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
-                              <Button Classes="small" Command="{Binding SavesCommand}" ToolTip.Tip="Copy, import or export this version's saves">
+                              <Button Classes="small" Command="{Binding SavesCommand}" ToolTip.Tip="Import or export your saves, which every version shares">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                   <c:Icon Kind="disk" Width="14" Height="14"/>
                                   <TextBlock Text="Saves"/>

@@ -35,7 +35,7 @@ static partial class Program
                 && found[0].Slots.All(s => s.Saved != null), "Linux: Hookshot's save, with its slots and when they were saved.");
         var hookshotBefore = Tree(Path.Combine(linuxData, "hookshot"));
 
-        var target = HookshotSaves.TargetFor(found[0].Profile, linux, null);
+        var target = HookshotSaves.TargetFor(found[0].Profile, linux);
         Require(target == Path.Combine(linuxData, "longshot", "save", Id1) && !HookshotSaves.WouldReplace(target),
                 "Linux: a new Longshot save for Hookshot's profile, in Longshot's own data folder.");
         var backups = Path.Combine(root, "backups");
@@ -49,7 +49,7 @@ static partial class Program
         // (a Longshot save there: refused without a yes, untouched; with it, backed up first, then replaced)
         File.WriteAllText(Path.Combine(target, "slot_01", "progress.sav"), "played on in Longshot");
         var longshotBefore = Tree(target);
-        Require(HookshotSaves.WouldReplace(target) && HookshotSaves.TargetFor(Id1, linux, null) == target, "The same profile is found again.");
+        Require(HookshotSaves.WouldReplace(target) && HookshotSaves.TargetFor(Id1, linux) == target, "The same profile is found again.");
         try
         {
             HookshotSaves.Import(found[0], target, backups, overwrite: false, none, when);
@@ -70,15 +70,14 @@ static partial class Program
         catch (SaveFailure e) when (e.Reason == SaveRefusal.Running) { checks++; }
         Require(Saves.ProcessNames().TryGetValue("hookshot", out var who) && who == "Hookshot", "A running Hookshot is seen.");
 
-        // (Windows: the default game folder, and a version folder in it; the import goes into a build's own folder)
+        // (Windows: the default game folder, and a version folder in it; the import goes into the save every build shares)
         var home = Path.Combine(root, "windows");
-        var windows = new SaveEnvironment(Platform.Windows, k => k switch { "HOME" => home, "USERPROFILE" => home, _ => null });
+        var windows = new SaveEnvironment(Platform.Windows, k => k switch { "HOME" => home, "USERPROFILE" => home, "APPDATA" => Path.Combine(home, "Roaming"), _ => null });
         var win = HookshotSaves.Find(windows);
         Require(win.Count == 2 && win.Select(s => s.Profile).SequenceEqual(new[] { Id1, Id2 }) && win.All(s => s.Valid)
                 && win[1].Slots.Single().Name == "slot_02", "Windows: Games\\Hookshot and its version folders.");
-        Throws<SaveFailure>(() => HookshotSaves.TargetFor(Id2, windows, null), "Windows: an import with no build to go into.");
-        var build = Path.Combine(root, "build");
-        Require(HookshotSaves.TargetFor(Id2, windows, build) == Saves.BuildSavePath(build, Id2), "Windows: into the build's user\\save.");
+        Require(HookshotSaves.TargetFor(Id2, windows) == Path.Combine(home, "Roaming", "Longshot", "save", Id2),
+                "Windows: into the shared save, %APPDATA%\\Longshot\\save, with no build needed.");
 
         // (a folder chosen by hand: a game folder, or the save folder itself)
         Require(HookshotSaves.Find(linux, Path.Combine(home, "Games", "Hookshot", "v3.0.0")).Single().Profile == Id2

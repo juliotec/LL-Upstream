@@ -49,7 +49,12 @@ public sealed class LauncherService
         Releases = new Releases(check, platform, keys, product: Product.Longshot);
         // (the launcher's own releases: its own versions on its own three channels, chosen apart from the builds' in Settings)
         LauncherReleases = new Releases(check, platform, keys, product: Product.Launcher);
-        SaveEnv = SaveEnvironment.Current() with { Platform = platform, BackupFolder = home.Portable ? home.PortableSaveBackups : null };
+        SaveEnv = SaveEnvironment.Current() with
+        {
+            Platform = platform,
+            BackupFolder = home.Portable ? home.PortableSaveBackups : null,
+            UserFolder = home.Portable ? home.PortableUser : null,
+        };
         Gpus = SystemInfo.GpuVendors(platform);
     }
 
@@ -183,10 +188,56 @@ public sealed class LauncherService
     /// What a channel's newest is, as the update check found it (also the screenshots' stand-in for the server)
     public void SetNewest(string channel, string? tag) => newest[channel] = tag;
 
-    /// The build's game, from its folder (no window of the launcher needed)
-    public void Play(BuildEntry b)
+    /// The build's game, from its folder (no window of the launcher needed). Returns what the window says first, if anything: the
+    /// saves brought together before it started (PlayFolder)
+    public string? Play(BuildEntry b) => PlayFolder(b.Folder);
+
+    /// A game folder's game, with the saves every build shares: the old builds' brought in first (GatherSaves), and on Windows
+    /// the shared user folder given to it (GatherSaves, GamePlay.StartInfo). Returns what that gather did or why it could not
+    /// (SaveText.Gathered), null when there was nothing to do
+    public string? PlayFolder(string folder)
     {
-        using var _ = Process.Start(GamePlay.StartInfo(b.Folder, Platform));
+        var said = GatherSaid(GatherSaves());
+        string? user = null;
+        if (Platform == Platform.Windows)
+        {
+            user = SaveEnv.LongshotUser;
+            // (the game makes it too; one it cannot make is the game's to report)
+            try { Directory.CreateDirectory(user); }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException or NotSupportedException) { }
+        }
+        using var _ = Process.Start(GamePlay.StartInfo(folder, Platform, user: user));
+        return said;
+    }
+
+    /// What the window says of a gather (GatherSaves): which save every version uses now and where the backup is, or why it
+    /// could not; null when there was nothing to do
+    public static string? GatherSaid((SaveGathered? Done, string? Problem) g) =>
+        g.Done != null ? SaveText.Gathered(g.Done) : g.Problem != null ? "Your saves were not brought together: " + g.Problem : null;
+
+    /// (Windows) The saves the builds kept in their own folders brought into the shared one (Saves.Gather): when the window opens
+    /// and before a game starts. The folders: every build's, every Longshot game folder in the builds folder (a version an update
+    /// replaced before it took its saves along is no longer listed, its saves still there; only Longshot's, never another game's
+    /// such as Hookshot's), and the 2.x Builder's (not for a portable launcher). Done: what it did (null: nothing to bring, or
+    /// Longshot runs); Problem: why it could not, with nothing changed
+    public (SaveGathered? Done, string? Problem) GatherSaves()
+    {
+        if (Platform != Platform.Windows) return (null, null);
+        try
+        {
+            IEnumerable<string> inBuilds;
+            try
+            {
+                inBuilds = Directory.Exists(BuildsFolder)
+                    ? Directory.EnumerateDirectories(BuildsFolder).Where(d => GameFolder.IsGameFolder(d, Platform)).ToList()
+                    : Enumerable.Empty<string>();
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { inBuilds = Enumerable.Empty<string>(); }
+            var old = Saves.OldUserFolders(SaveEnv, Registry.Builds.Select(b => b.Folder).Concat(inBuilds),
+                                           Home.Portable ? null : LauncherSettings.DefaultBuildsFolder(SaveEnv.Getenv));
+            return (Saves.Gather(SaveEnv, old), null);
+        }
+        catch (Exception e) when (e is SaveFailure or IOException or UnauthorizedAccessException) { return (null, e.Message); }
     }
 
     public void SetDefault(BuildEntry b)
@@ -232,10 +283,10 @@ public sealed class LauncherService
         });
     }
 
-    /// The saves of a build: its own folder's on Windows, the shared ones on Linux
-    public IReadOnlyList<SaveSlot> SavesOf(BuildEntry b)
+    /// Longshot's save slots, the same for every build (Saves.Shared)
+    public IReadOnlyList<SaveSlot> SaveSlots()
     {
-        var set = Saves.ForBuild(b.Folder, SaveEnv);
+        var set = Saves.Shared(SaveEnv);
         return set.Found ? Saves.Describe(set.Profiles[0].Path) : Array.Empty<SaveSlot>();
     }
 }

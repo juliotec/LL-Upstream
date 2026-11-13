@@ -81,23 +81,7 @@
           <TextBlock Grid.Column="1" Classes="faint" Text="Remembered from your last build" VerticalAlignment="Bottom" Margin="0,0,0,4"/>
         </Grid>
 
-        <!-- saves: moved from another build (Windows), shared (Linux) -->
-        <StackPanel IsVisible="{Binding ShowMoveSaves}">
-          <TextBlock Classes="glabel" Text="SAVES" Margin="0,8,0,6"/>
-          <Border Classes="card" Classes.on="{Binding MoveOn}">
-            <Grid Classes="srow" ColumnDefinitions="*,Auto">
-              <StackPanel VerticalAlignment="Center" Spacing="1">
-                <TextBlock Classes="rtitle" Text="{Binding MoveTitle}"/>
-                <TextBlock Classes="rdesc" Text="{Binding MoveDesc}"/>
-              </StackPanel>
-              <ComboBox Grid.Column="1" Classes="dd" ItemsSource="{Binding SaveSources}" SelectedItem="{Binding Source}" VerticalAlignment="Center">
-                <ComboBox.ItemTemplate>
-                  <DataTemplate x:DataType="vm:SaveSource"><TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis"/></DataTemplate>
-                </ComboBox.ItemTemplate>
-              </ComboBox>
-            </Grid>
-          </Border>
-        </StackPanel>
+        <!-- saves: every build shares them -->
         <StackPanel IsVisible="{Binding ShowSharedSaves}">
           <TextBlock Classes="glabel" Text="SAVES" Margin="0,8,0,6"/>
           <Border Classes="card">

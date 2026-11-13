@@ -164,11 +164,19 @@ public static class GamePlay
         return env;
     }
 
-    public static ProcessStartInfo StartInfo(string folder, Platform platform, IReadOnlyDictionary<string, string>? current = null)
+    /// user: Longshot's user folder, which every build shares (SaveEnvironment.LongshotUser), given to the game as --user on Windows.
+    /// Every Windows build takes --user, the ones from before the launcher too; without it the game keeps its saves in its own
+    /// folder's user\. On Linux the game finds the shared one by itself, so nothing is passed
+    public static ProcessStartInfo StartInfo(string folder, Platform platform, IReadOnlyDictionary<string, string>? current = null, string? user = null)
     {
         current ??= System.Environment.GetEnvironmentVariables().Cast<System.Collections.DictionaryEntry>()
             .ToDictionary(e => (string)e.Key, e => (string?)e.Value ?? "");
         var si = new ProcessStartInfo(GameFolder.ExePath(folder, platform)) { UseShellExecute = false, WorkingDirectory = folder };
+        if (platform == Platform.Windows && user != null)
+        {
+            si.ArgumentList.Add("--user");
+            si.ArgumentList.Add(user);
+        }
         si.Environment.Clear();
         foreach (var (k, v) in Environment(platform, current)) si.Environment[k] = v;
         return si;

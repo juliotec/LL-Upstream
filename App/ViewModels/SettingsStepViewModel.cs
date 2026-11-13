@@ -6,16 +6,12 @@ public sealed record Choice(int? Value, string Label);
 
 public sealed record LanguageChoice(string Code, string Name);
 
-/// Step 2's saves dropdown: from a build, or none
-public sealed record SaveSource(BuildEntry? Build, string Label);
-
-/// Step 2, the build settings (LauncherSettings, remembered for the next build): the saves to move (Windows), DLSS and FSR 4 with
+/// Step 2, the build settings (LauncherSettings, remembered for the next build): the saves it shares, DLSS and FSR 4 with
 /// their licences, the game folder and the space it needs, the language, the shaders, and under Advanced the build's memory,
 /// workers and build files
 public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
 {
     readonly LauncherSettings s;
-    SaveSource source;
     long? free;
 
     public SettingsStepViewModel(BuildJob job)
@@ -33,13 +29,6 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
         WorkerChoices = new[] { new Choice(null, "Automatic") }
             .Concat(Enumerable.Range(1, Math.Max(1, threads)).Select(i => new Choice(i, $"{i} at once"))).ToList();
         LanguageChoices = Languages.All.Select(l => new LanguageChoice(l.Code, l.Name)).ToList();
-        var builds = job.Service.Registry.Builds.Where(b => b.Id != (job.Kind == JobKind.Rebuild ? job.Replaces?.Id : null)).ToList();
-        SaveSources = builds.Select(b =>
-        {
-            var n = job.Service.SavesOf(b).Count;
-            return new SaveSource(b, $"From {(b.Version is { } v ? Versions.Shown(v) : b.Name)}" + (n == 0 ? " (empty)" : n == 1 ? " (1 slot)" : $" ({n} slots)"));
-        }).Append(new SaveSource(null, "Start with no saves")).ToList();
-        source = job.MoveOn ? SaveSources.FirstOrDefault(x => x.Build?.Id == job.MoveFrom?.Id) ?? SaveSources[^1] : SaveSources[^1];
         BackCommand = new Command(() => job.Main.Navigate(job.Files ?? new FilesStepViewModel(job)));
         StartCommand = new Command(Start, () => !Short);
         ChangeInstallCommand = new Command(() => _ = ChangeInstallAsync());
@@ -65,33 +54,10 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
 
     // ---- saves ----
 
-    public bool ShowSaves => Job.Kind != JobKind.Rebuild && SaveSources.Count > 1;
-    public bool ShowMoveSaves => ShowSaves && Windows;
-    public bool ShowSharedSaves => ShowSaves && Linux;
-    public IReadOnlyList<SaveSource> SaveSources { get; }
-    public string MoveTitle => "Move my saves to " + Job.Shown;
-    public bool MoveOn => source.Build != null;
+    /// (every build uses the same saves: said once there is a build, so nobody looks for a way to move them; not for a rebuild)
+    public bool ShowSharedSaves => Job.Kind != JobKind.Rebuild && Job.Service.Registry.Builds.Count > 0;
 
-    public SaveSource Source
-    {
-        get => source;
-        set
-        {
-            if (value == null || !Set(ref source, value)) return;
-            Job.MoveOn = value.Build != null;
-            Job.MoveFrom = value.Build ?? Job.MoveFrom;
-            s.MoveSaves = value.Build != null;
-            Save();
-            RaiseAll(nameof(MoveOn), nameof(MoveDesc));
-        }
-    }
-
-    public string MoveDesc => source.Build is { } b
-        ? SaveText.Long(Job.Service.SavesOf(b), DateTime.Now) + ". Backed up first."
-        : Job.Shown + " starts empty. You can copy saves in later.";
-
-    public string SharedDesc => "Every build on Linux uses the same saves: " +
-        (Job.Service.Registry.Builds.FirstOrDefault() is { } any ? SaveText.Long(Job.Service.SavesOf(any), DateTime.Now) : "No saves yet") + ".";
+    public string SharedDesc => "Every version uses the same saves: " + SaveText.Long(Job.Service.SaveSlots(), DateTime.Now) + ".";
 
     // ---- upscaling ----
 

@@ -39,4 +39,6 @@ public sealed class LauncherHome
     /// SaveEnvironment.BackupRoot)
     public string PortableBuilds => Path.Combine(Root, "builds");
     public string PortableSaveBackups => Path.Combine(Root, "save-backups");
+    /// (Windows) A portable launcher's Longshot user folder, its saves, which every build it starts shares (SaveEnvironment.UserFolder)
+    public string PortableUser => Path.Combine(Root, "user");
 }

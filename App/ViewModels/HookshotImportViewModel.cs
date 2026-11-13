@@ -22,10 +22,9 @@ public sealed class HookshotImportViewModel : ViewModelBase
     string? problem;
     bool busy;
 
-    public HookshotImportViewModel(MainViewModel main, BuildEntry? build)
+    public HookshotImportViewModel(MainViewModel main)
     {
         Main = main;
-        Build = build ?? main.Service.Registry.Default;
         CloseCommand = new Command(() => Main.Modal = null);
         PickFolderCommand = new Command(() => _ = PickFolderAsync());
         ReplaceCommand = new Command(() => Run(overwrite: true));
@@ -34,7 +33,6 @@ public sealed class HookshotImportViewModel : ViewModelBase
     }
 
     public MainViewModel Main { get; }
-    public BuildEntry? Build { get; }
     SaveEnvironment Env => Main.Service.SaveEnv;
 
     public List<Source> Sources { get; } = new();
@@ -86,7 +84,7 @@ public sealed class HookshotImportViewModel : ViewModelBase
         Problem = null;
         try
         {
-            var to = HookshotSaves.TargetFor(source.Profile, Env, Build?.Folder);
+            var to = HookshotSaves.TargetFor(source.Profile, Env);
             chosen = source;
             if (HookshotSaves.WouldReplace(to))
             {

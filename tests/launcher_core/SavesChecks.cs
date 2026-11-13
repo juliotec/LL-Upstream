@@ -126,11 +126,20 @@ static class SavesChecks
         };
         foreach (var program in Saves.Emulators)
             Require(Saves.Locate(program, null, w.Windows).Profiles.Select(p => p.Path).SequenceEqual(new[] { wexpect[program.Name] }), program.Name + " on Windows");
-        Fails(() => Saves.Locate(Saves.Longshot, null, w.Windows), "game folder", "Windows: Longshot's saves are per game folder");
+        Fails(() => Saves.Locate(Saves.Longshot, null, w.Windows), "No Longshot save found", "Windows: no shared save yet");
+        Require(!Saves.Shared(w.Windows).Found && Saves.Shared(w.Windows).Problem != null, "Windows: no shared save yet, and why.");
         var game = P(w.Tmp, "Longshot");
         MakeSave(P(game, "user", "save", Uid), "W");
-        Require(Saves.Locate(Saves.Longshot, game, w.Windows).Profiles.SequenceEqual(new[] { new SaveProfile(Uid, P(game, "user", "save", Uid)) })
-                && Saves.ForBuild(game, w.Windows).Profiles.Single().Path == P(game, "user", "save", Uid), "A Windows build's own save.");
+        Require(Saves.Locate(Saves.Longshot, game, w.Windows).Profiles.SequenceEqual(new[] { new SaveProfile(Uid, P(game, "user", "save", Uid)) }),
+                "A Windows game folder of before, chosen.");
+        var winShared = P(w.AppData, "Longshot", "save", Uid);
+        MakeSave(winShared, "S");
+        Require(w.Windows.LongshotUser == P(w.AppData, "Longshot") && Saves.Locate(Saves.Longshot, null, w.Windows).Profiles.Single().Path == winShared
+                && Saves.Shared(w.Windows).Profiles.Single().Path == winShared && Saves.SharedSavePath(w.Windows, Uid) == winShared,
+                "Windows: the save every build shares, in %APPDATA%\\Longshot.");
+        Require((w.Windows with { UserFolder = P(w.Tmp, "usb", "user") }).LongshotUser == P(w.Tmp, "usb", "user")
+                && w.Linux.LongshotUser == P(w.Data, "longshot") && (w.Linux with { UserFolder = P(w.Tmp, "usb", "user") }).LongshotUser == P(w.Data, "longshot")
+                && Saves.Shared(w.Linux).Profiles.Single().Path == w.Hs, "A portable launcher's own user folder (Windows); on Linux the game's own.");
 
         // (test_lichii_s_own_folder_first)
         var l = new Case(root, "lichii-own");
@@ -370,28 +379,111 @@ static class SavesChecks
 
     static void Builds(string root)
     {
-        // (Windows: each game folder its own saves; the launcher copies one build's into another, a new one too)
+        // (import and export: the save every build shares, on Windows as on Linux)
         var c = new Case(root, "builds");
-        var a = P(c.Tmp, "Longshot 2.3");
-        var b = P(c.Tmp, "Longshot 3.0");
-        MakeSave(Saves.BuildSavePath(a, Uid), "A");
-        Directory.CreateDirectory(b);
-        var copied = Saves.BetweenBuilds(a, b, c.Windows, backupRoot: c.Backups, running: () => c.Busy);
-        Require(Tree(Saves.BuildSavePath(b, Uid)) == Tree(Saves.BuildSavePath(a, Uid)) && copied.Backup == null, "Into a build with no save yet.");
-        File.WriteAllText(P(Saves.BuildSavePath(a, Uid), "slot_00", "progress.sav"), "played on");
-        copied = Saves.BetweenBuilds(a, b, c.Windows, keepSettings: true, backupRoot: c.Backups, running: () => c.Busy);
-        Require(File.ReadAllText(P(Saves.BuildSavePath(b, Uid), "slot_00", "progress.sav")) == "played on" && copied.Backup != null && Directory.Exists(copied.Backup)
-                && Path.GetFileName(copied.Backup).StartsWith("build-Longshot 3.0-"), "Into a build with a save: backed up first.");
-        Fails(() => Saves.BetweenBuilds(a, b, c.Linux), "same saves", "Linux builds share one save.");
-        // (import and export for a build: its own save on Windows, the shared one on Linux)
         MakeSave(EdenSave(P(c.AppData, "eden")), "WE", "slot_07");
-        Saves.ImportExport(true, b, Saves.Named("lichii"), null, c.Windows, backupRoot: c.Backups, running: () => c.Busy);
-        Require(Tree(Saves.BuildSavePath(b, Uid)) == Tree(EdenSave(P(c.AppData, "eden"))), "Import into a Windows build.");
-        Fails(() => Saves.ImportExport(true, P(c.Tmp, "unbuilt"), Saves.Named("lichii"), null, c.Windows, backupRoot: c.Backups, running: () => c.Busy),
-              "Start this build once", "A build that never saved.");
-        Saves.ImportExport(false, "/unused on Linux", Saves.Named("eden"), null, c.Linux, backupRoot: c.Backups, running: () => c.Busy);
+        Fails(() => Saves.ImportExport(true, Saves.Named("lichii"), null, c.Windows, backupRoot: c.Backups, running: () => c.Busy),
+              "Start Longshot once", "Windows: Longshot never saved yet.");
+        var shared = Saves.SharedSavePath(c.Windows, Uid);
+        MakeSave(shared, "S");
+        Saves.ImportExport(true, Saves.Named("lichii"), null, c.Windows, backupRoot: c.Backups, running: () => c.Busy);
+        Require(Tree(shared) == Tree(EdenSave(P(c.AppData, "eden"))), "Import into Windows' shared save.");
+        Saves.ImportExport(false, Saves.Named("eden"), null, c.Linux, backupRoot: c.Backups, running: () => c.Busy);
         Require(Tree(c.Li) == Tree(c.Hs), "Export from Linux's shared save.");
-        Require(Saves.MoveOnBuild(true, Platform.Windows, 1) && !Saves.MoveOnBuild(true, Platform.Linux, 3) && !Saves.MoveOnBuild(false, Platform.Windows, 2)
-                && !Saves.MoveOnBuild(true, Platform.Windows, 0), "When a build takes another's saves.");
+        Gather(root);
+    }
+
+    /// Every file of a folder written at that time
+    static void Age(string folder, DateTime when)
+    {
+        foreach (var f in Directory.EnumerateFiles(folder, "*", SearchOption.AllDirectories)) File.SetLastWriteTime(f, when);
+    }
+
+    static void Gather(string root)
+    {
+        // (Windows: the saves each build kept in its own folder, and the 2.x Builder's, into the one every build shares)
+        var c = new Case(root, "gather");
+        var builds = P(c.Home, "Games", "Longshot");   // (the 2.x Builder's game folder, the launcher's builds folder in it)
+        var a = P(builds, "v3.0.0-rc.1");
+        var b = P(builds, "v3.0.0-rc.2");
+        var old = Saves.OldUserFolders(c.Windows, new[] { a, b, a + Path.DirectorySeparatorChar }, builds);
+        Require(old.SequenceEqual(new[] { P(a, "user"), P(b, "user"), P(builds, "user") }), "The old user folders: each build's once, then the 2.x Builder's.");
+        Require(Saves.OldUserFolders(c.Linux, new[] { a }, builds).Count == 0, "None on Linux: the game has always shared them there.");
+        Require(Saves.OldUserFolders(c.Windows with { UserFolder = P(a, "user") }, new[] { a, b }, null).SequenceEqual(new[] { P(b, "user") }),
+                "Never the shared folder itself; no 2.x Builder's for a portable launcher.");
+        Require(Saves.Gather(c.Windows, old, () => c.Busy) == null && Saves.Gather(c.Linux, old, () => c.Busy) == null, "Nothing to gather.");
+
+        var when = new DateTime(2026, 11, 13, 9, 0, 0);
+        var sharedSave = P(c.Windows.LongshotUser, "save");
+        MakeSave(P(builds, "user", "save", Uid), "OLD");
+        MakeSave(P(a, "user", "save", Uid), "A");
+        MakeSave(P(b, "user", "save", Uid), "B");
+        File.WriteAllText(P(a, "user", "mouse_sens.txt"), "2.5");
+        Age(P(builds, "user", "save"), when.AddDays(-30));
+        Age(P(a, "user", "save"), when.AddDays(-1));
+        Age(P(b, "user", "save"), when.AddDays(-2));
+        var treeA = Tree(P(a, "user", "save"));
+        Require(Saves.Gather(c.Windows, old, () => new[] { "Longshot" }) == null && Directory.Exists(P(a, "user", "save")) && !Directory.Exists(sharedSave),
+                "Not while Longshot runs: the next start tries again.");
+        var g = Saves.Gather(c.Windows, old, () => new[] { "Lichii" }, () => when)!;
+        Require(g.From == P(a, "user") && !g.WasShared && Tree(sharedSave) == treeA, "The newest save becomes the shared one (an emulator may run).");
+        Require(File.ReadAllText(P(c.Windows.LongshotUser, "mouse_sens.txt")) == "2.5", "The kept save's own settings come along (mouse_sens.txt).");
+        Require(g.Moved.SequenceEqual(old) && old.All(u => !Directory.Exists(P(u, "save")) && Directory.Exists(P(u, "save.moved-20261113-090000"))),
+                "Each old save renamed aside: the game no longer finds it, nothing is deleted.");
+        Require(Path.GetFileName(g.Backup) == "gather-20261113-090000" && Path.GetDirectoryName(g.Backup) == c.Windows.BackupRoot
+                && Tree(P(g.Backup, "v3.0.0-rc.1")) == treeA && Tree(P(g.Backup, "Longshot")) != "" && Tree(P(g.Backup, "v3.0.0-rc.2")) != "",
+                "Every one backed up first, each named for its game folder.");
+        Require(SaveText.Gathered(g).Contains(a) && SaveText.Gathered(g).Contains(g.Backup), "What the home says: where the save came from, and the backup.");
+        Require(Saves.Gather(c.Windows, old, () => c.Busy) == null, "Done once: nothing left to gather.");
+
+        // (an old build started on its own, without --user, saves in its folder again: the newer one wins, the shared one backed up)
+        MakeSave(P(b, "user", "save", Uid), "B2");
+        Age(sharedSave, when.AddDays(-1));
+        Age(P(b, "user", "save"), when);
+        var g2 = Saves.Gather(c.Windows, old, () => c.Busy, () => when.AddHours(1))!;
+        Require(g2.From == P(b, "user") && Tree(sharedSave) == Tree(P(b, "user", "save.moved-20261113-100000")) && Tree(P(g2.Backup, "shared")) == treeA,
+                "A newer save in a build's own folder wins; the shared one is backed up.");
+
+        // (an older one: the shared save stays, the old one goes aside)
+        var kept = Tree(sharedSave);
+        MakeSave(P(a, "user", "save", Uid), "A3");
+        Age(P(a, "user", "save"), when.AddDays(-5));
+        Age(sharedSave, when);
+        var g3 = Saves.Gather(c.Windows, old, () => c.Busy, () => when.AddHours(2))!;
+        Require(g3.WasShared && g3.From == c.Windows.LongshotUser && Tree(sharedSave) == kept && !Directory.Exists(P(a, "user", "save"))
+                && SaveText.Gathered(g3).Contains("shared"), "An older save: the shared one kept, the old one moved aside.");
+
+        // (a swap that fails: the shared save and the old one as they were, the backup kept)
+        MakeSave(P(a, "user", "save", Uid), "A4");
+        Age(P(a, "user", "save"), when.AddDays(1));
+        Saves.Fault = s => { if (s == "swap") throw new IOException("disk full"); };
+        try { Fails(() => Saves.Gather(c.Windows, old, () => c.Busy, () => when.AddHours(3)), "Nothing was changed", "A gather that fails half way."); }
+        finally { Saves.Fault = null; }
+        Require(Tree(sharedSave) == kept && Directory.Exists(P(a, "user", "save")) && !Directory.Exists(P(c.Windows.LongshotUser, ".save.longshot-old")),
+                "After a failed gather: the shared save and the old one as they were.");
+
+        // (a shared save a gather cut short left aside, while a new one was made since: backed up before it goes)
+        var aside = P(c.Windows.LongshotUser, ".save.longshot-old");
+        MakeSave(P(aside, Uid), "ASIDE");
+        var asideTree = Tree(aside);
+        var g4 = Saves.Gather(c.Windows, old, () => c.Busy, () => when.AddHours(4))!;
+        Require(g4.From == P(a, "user") && Tree(P(g4.Backup, "shared (set aside)")) == asideTree && !Directory.Exists(aside),
+                "What a gather cut short left aside is backed up too.");
+
+        // (an old build started on its own makes a save with nothing played: it never replaces the shared one)
+        var keptNow = Tree(sharedSave);
+        Directory.CreateDirectory(P(b, "user", "save", Uid));
+        File.WriteAllText(P(b, "user", "save", Uid, "account.sav"), "fresh");
+        File.WriteAllText(P(b, "user", "save", Uid, "option.sav"), "fresh");
+        var g5 = Saves.Gather(c.Windows, old, () => c.Busy, () => when.AddHours(5))!;
+        Require(g5.WasShared && Tree(sharedSave) == keptNow && !Directory.Exists(P(b, "user", "save")),
+                "A save with nothing played yet never replaces the shared one; it goes aside.");
+
+        // (a user\save that is a link, the player's own arrangement or the shared folder itself, is left alone)
+        var linked = P(c.Tmp, "linked");
+        Directory.CreateDirectory(P(linked, "user"));
+        Directory.CreateSymbolicLink(P(linked, "user", "save"), sharedSave);
+        Require(Saves.Gather(c.Windows, new[] { P(linked, "user") }, () => c.Busy, () => when.AddHours(6)) == null
+                && Tree(sharedSave) == keptNow && Directory.Exists(P(linked, "user", "save")), "A linked save folder is never gathered nor renamed.");
     }
 }

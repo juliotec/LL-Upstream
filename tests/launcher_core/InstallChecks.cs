@@ -35,6 +35,12 @@ static partial class Program
         }
     }
 
+    sealed class FailingShortcuts : IShortcutMaker
+    {
+        public void Make(string link, string target, string? arguments, string icon, string description) => throw new IOException("blocked");
+        public void Remove(string link) { }
+    }
+
     /// A stream that gives a few bytes, then nothing until it is cancelled (a download that stalled half way)
     sealed class StallingStream : Stream
     {
@@ -108,6 +114,19 @@ static partial class Program
                 "The installed program knows it is installed (whatever the case of its path), and updates from the setup program.");
         Installer.Register(at, "v1.1.0-rc.1", registry);
         Require((string)registry.Read(Installer.UninstallKey)!["DisplayVersion"] == "1.1.0-rc.1", "The entry follows the launcher's own updates.");
+        // (the Start menu shortcut made again at the first start of another version; else left alone, deleted or not)
+        File.WriteAllText(at.StartMenuLink, @"C:\a moved-aside LongshotLauncher.exe.old");
+        links.Links[at.StartMenuLink] = "stale";
+        Require(Installer.Refresh(at, "v1.1.0-rc.2", registry, links) && links.Links[at.StartMenuLink] == installed
+                && (string)registry.Read(Installer.UninstallKey)!["DisplayVersion"] == "1.1.0-rc.2", "After an update: the shortcut made again, to the installed program.");
+        links.Links[at.StartMenuLink] = "untouched";
+        Require(!Installer.Refresh(at, "v1.1.0-rc.2", registry, links) && links.Links[at.StartMenuLink] == "untouched", "The same version again: left alone.");
+        links.Remove(at.StartMenuLink);
+        Require(!Installer.Refresh(at, "v1.1.0-rc.2", registry, links) && !File.Exists(at.StartMenuLink), "A shortcut the player deleted stays deleted.");
+        var failing = new FailingShortcuts();
+        Throws<IOException>(() => Installer.Refresh(at, "v1.1.0-rc.3", registry, failing), "A shortcut that cannot be made: the start goes on.");
+        Require((string)registry.Read(Installer.UninstallKey)!["DisplayVersion"] == "1.1.0-rc.2" && Installer.Refresh(at, "v1.1.0-rc.3", registry, links)
+                && links.Links[at.StartMenuLink] == installed, "...and it is tried again at the next start.");
         File.WriteAllText(setup, "MZ launcher v1.1.0");
         Installer.Install(setup, "v1.1.0", at, registry, links);
         Require(File.ReadAllText(installed) == "MZ launcher v1.1.0" && links.Links.Count == 1, "Installing again replaces the installed program.");

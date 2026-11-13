@@ -27,14 +27,6 @@
         <TextBlock Classes="heading" Text="Saves"/>
         <TextBlock Classes="sub" Text="{Binding Sub}"/>
       </StackPanel>
-      <StackPanel Grid.Column="1" Spacing="4" IsVisible="{Binding Windows}" VerticalAlignment="Bottom">
-        <TextBlock Classes="faint" Text="Manage saves for"/>
-        <ComboBox Width="220" ItemsSource="{Binding Builds}" SelectedItem="{Binding Target}" AutomationProperties.Name="Manage saves for game version">
-          <ComboBox.ItemTemplate>
-            <DataTemplate x:DataType="core:BuildEntry"><TextBlock Text="{Binding Version, Converter={x:Static c:Converters.ShownVersion}}"/></DataTemplate>
-          </ComboBox.ItemTemplate>
-        </ComboBox>
-      </StackPanel>
     </Grid>
 
     <Grid Grid.Row="1" ColumnDefinitions="*,290" ColumnSpacing="24">
@@ -93,16 +85,6 @@
               <StackPanel Grid.Column="1" Spacing="3">
                 <TextBlock Classes="transferTitle" Text="From an emulator…"/>
                 <TextBlock Classes="faint" FontSize="11.5" Text="Choose an emulator or a save folder" TextWrapping="Wrap"/>
-              </StackPanel>
-            </Grid>
-          </Button>
-          <Button Classes="transfer" Command="{Binding CopyCommand}" IsVisible="{Binding Windows}"
-                  ToolTip.Tip="{Binding CopyHint}" ToolTip.ShowOnDisabled="True">
-            <Grid ColumnDefinitions="20,*" ColumnSpacing="10">
-              <c:Icon Kind="swap" Width="18" Height="18" VerticalAlignment="Center"/>
-              <StackPanel Grid.Column="1" Spacing="3">
-                <TextBlock Classes="transferTitle" Text="From another version…"/>
-                <TextBlock Classes="faint" FontSize="11.5" Text="{Binding CopyHint}" TextWrapping="Wrap"/>
               </StackPanel>
             </Grid>
           </Button>

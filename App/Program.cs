@@ -70,15 +70,18 @@ static class Program
             try { Recovered = SelfUpdate.Recover(current); }
             catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
         }
-        // (an installed launcher's Apps & features entry follows its own updates)
+        // (an installed launcher's Apps & features entry follows its own updates; after one, its Start menu shortcut and the game's
+        // shortcuts are made again, so none is left pointing at the program the update moved aside: Installer.Refresh)
         if (OperatingSystem.IsWindows() && Layout.Kind == LauncherKind.Installed && SelfUpdate.OwnTag() != "dev")
         {
             try
             {
                 var registry = new UserRegistry();
-                if (Installer.IsRegistered(registry)) Installer.Register(InstallPlaces.Of(), SelfUpdate.OwnTag(), registry);
+                if (Installer.IsRegistered(registry) && Installer.Refresh(InstallPlaces.Of(), SelfUpdate.OwnTag(), registry, new ShellShortcuts()))
+                    WindowsShortcuts.Refresh(LauncherService.LauncherPath);
             }
-            catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.Security.SecurityException) { }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.Security.SecurityException
+                                          or System.ComponentModel.Win32Exception or InvalidOperationException) { }
         }
         try { return BuildAvaloniaApp().StartWithClassicDesktopLifetime(args); }
         finally { ReleaseLock(); }
@@ -184,7 +187,7 @@ static class Program
                 Console.Error.WriteLine("Longshot: no built game to start. Open the launcher and build one, or pass its folder.");
                 return 1;
             }
-            using var _ = System.Diagnostics.Process.Start(GamePlay.StartInfo(Path.GetFullPath(folder), service.Platform));
+            service.PlayFolder(Path.GetFullPath(folder));
             return 0;
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception)

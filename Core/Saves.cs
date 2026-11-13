@@ -23,6 +23,10 @@ public sealed record SaveSet(string Owner, string Display, string? Folder, IRead
 /// What a copy did (or, dry, would do): Backup is the copy of the target taken first (null: the target had nothing yet)
 public sealed record SaveCopy(string Source, string Target, string? Backup, IReadOnlyList<string> Slots, IReadOnlyList<string> Files, bool KeptSettings, bool Dry);
 
+/// What Saves.Gather did: the save every build uses now (From: the user folder it came from; WasShared: it was the shared one
+/// already), the old user folders whose save was moved aside, and the backup of every one of them, the shared one's too
+public sealed record SaveGathered(string From, bool WasShared, IReadOnlyList<string> Moved, string Backup);
+
 /// A copy refused, and why (oot_saves.Fail)
 public sealed class SaveFailure(string message, SaveRefusal reason = SaveRefusal.Other, IReadOnlyList<string>? who = null, string? backup = null)
     : Exception(message)
@@ -59,6 +63,16 @@ public sealed record SaveEnvironment(Platform Platform, Func<string, string?> Ge
     /// Where the backups go instead of BackupRoot's default (a portable launcher's own folder); null: the default
     public string? BackupFolder { get; init; }
 
+    /// (Windows) Longshot's user folder instead of LongshotUser's default (a portable launcher's own folder); null: the default
+    public string? UserFolder { get; init; }
+
+    /// Longshot's user folder, the same for every build (the game's --user: save\&lt;user id&gt;\, its cache and its temp). On
+    /// Windows %APPDATA%\Longshot, which the launcher starts every build with; on Linux $XDG_DATA_HOME/longshot, where the game
+    /// keeps it by itself
+    public string LongshotUser => Path.GetFullPath(Platform == Platform.Windows
+        ? UserFolder ?? Path.Combine(AppData, "Longshot")
+        : Path.Combine(Data, "longshot"));
+
     /// oot_saves.default_backup_dir: the script's and the launcher's backups in one place
     public string BackupRoot => BackupFolder ?? (Platform == Platform.Windows
         ? Path.Combine(LocalAppData, "Longshot", "oot-save-backups")
@@ -74,9 +88,9 @@ public sealed record SaveEnvironment(Platform Platform, Func<string, string?> Ge
 
 /// The game's saves, the same files in Longshot and in the emulators and ports that run it (Longshot's docs/saves.md): found, summed up and
 /// copied one way after a backup. A port of scripts/oot_saves.py, rule for rule (each piece names the function it mirrors), so
-/// that the launcher needs no Python and no installed tools for it. Longshot keeps its saves per game folder on Windows
-/// (&lt;folder&gt;\user\save\&lt;user id&gt;\: each build its own) and in one place on Linux ($XDG_DATA_HOME/longshot/save/&lt;user id&gt;/:
-/// every build shares them).
+/// that the launcher needs no Python and no installed tools for it. Every build shares one save folder
+/// (SaveEnvironment.LongshotUser: save\&lt;user id&gt;\ in %APPDATA%\Longshot on Windows, $XDG_DATA_HOME/longshot on Linux). Windows
+/// builds kept their own in their game folder (&lt;folder&gt;\user) before: Gather brings those into the shared one.
 public static class Saves
 {
     public const string Title = "0400486024DEC000";
@@ -99,7 +113,7 @@ public static class Saves
         new SaveProgram("nx2navi", "NX2navi", On(new[] { "{home}/Games/Ocarina" }, new[] { "{localappdata}/Programs/NX2navi/game", "C:/Games/Ocarina" }),
                         new[] { "nx2navi", "ocarina" }, Array.Empty<string>()),
     };
-    public static readonly SaveProgram Longshot = new("longshot", "Longshot", On(new[] { "{data}/longshot" }, Array.Empty<string>()), new[] { "longshot" }, Array.Empty<string>());
+    public static readonly SaveProgram Longshot = new("longshot", "Longshot", On(new[] { "{data}/longshot" }, new[] { "{appdata}/Longshot" }), new[] { "longshot" }, Array.Empty<string>());
     public static readonly SaveProgram Folder = new("folder", "the folder", On(Array.Empty<string>(), Array.Empty<string>()), Array.Empty<string>(), Array.Empty<string>());
 
     // (oot_saves.LAYOUTS: where the save folders sit under a data folder; "<id>" is one folder per profile. A folder deeper down
@@ -109,7 +123,7 @@ public static class Saves
         new[] { "nand", "user", "save", "account", "<id>", Title, "0" },   // (Eden's newer layout: used first when it exists)
         new[] { "nand", "user", "save", NoAccount, "<id>", Title },        // (Eden and its forks: Lichii, Eglantine, ...)
         new[] { "profile", "save", "<id>" },                                // (NX2navi's game folder)
-        new[] { "user", "save", "<id>" },                                   // (Longshot's game folder on Windows)
+        new[] { "user", "save", "<id>" },                                   // (a Windows Longshot game folder of before, Hookshot's)
         new[] { "save", "<id>" },                                           // (Longshot's data folder)
     };
 
@@ -203,8 +217,6 @@ public static class Saves
         var tried = env.FoldersOf(program);
         foreach (var d in tried)
             if (Directory.Exists(d) && Find(d) is { Count: > 0 } found) return (d, found);
-        if (program == Longshot && tried.Count == 0)
-            throw new SaveFailure("Longshot's saves are in the user folder of each game folder on Windows: choose the build.");
         throw new SaveFailure($"No {program.Display} save found (looked in {(tried.Count > 0 ? string.Join(", ", tried) : "no default folder")}): " +
                               $"start the game in {program.Display} once and save, or choose its folder.");
     }
@@ -256,27 +268,16 @@ public static class Saves
 
     // ---- by build, and everything at once (oot_saves.list_all) ----
 
-    /// Longshot's saves for a build: in its game folder on Windows (user\save\&lt;user id&gt;), the shared ones on Linux
-    public static SaveSet ForBuild(string folder, SaveEnvironment env)
+    /// Longshot's saves, the same for every build: in SaveEnvironment.LongshotUser (save\&lt;user id&gt;)
+    public static SaveSet Shared(SaveEnvironment env)
     {
-        try
-        {
-            if (env.Platform == Platform.Windows)
-            {
-                var found = Directory.Exists(System.IO.Path.Combine(folder, "user")) ? Find(System.IO.Path.Combine(folder, "user")) : Array.Empty<SaveProfile>();
-                return new SaveSet("longshot", "Longshot", folder, found, found.Count == 0 ? "No save in this build's folder yet." : null);
-            }
-            var (where, profiles) = Locate(Longshot, null, env);
-            return new SaveSet("longshot", "Longshot", where, profiles, null);
-        }
-        catch (SaveFailure e)
-        {
-            return new SaveSet("longshot", "Longshot", null, Array.Empty<SaveProfile>(), e.Message);
-        }
+        var user = env.LongshotUser;
+        var found = Directory.Exists(user) ? Find(user) : Array.Empty<SaveProfile>();
+        return new SaveSet("longshot", "Longshot", user, found, found.Count == 0 ? $"No Longshot save in {user} yet." : null);
     }
 
-    /// Where a build's save goes for a profile on Windows when it has none yet: &lt;folder&gt;\user\save\&lt;id&gt;
-    public static string BuildSavePath(string folder, string profile) => System.IO.Path.Combine(folder, "user", "save", profile);
+    /// Where Longshot's save of a profile goes when there is none yet: &lt;LongshotUser&gt;\save\&lt;id&gt;
+    public static string SharedSavePath(SaveEnvironment env, string profile) => System.IO.Path.Combine(env.LongshotUser, "save", profile);
 
     /// Every emulator's saves, grouped by the folder they come from (the emulators that share Eden's folder in one group), as
     /// list_all shows them: a group with nothing names the folders it looked in
@@ -545,38 +546,166 @@ public static class Saves
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return false; }
     }
 
-    /// Import (an emulator's save into a build) and export (a build's save into an emulator), as oot_saves.run picks the two sides:
-    /// the build's one profile, the emulator's (profile: when it has several); folder: the emulator's folder instead of where it is
+    /// Import (an emulator's save into Longshot) and export (Longshot's save into an emulator), as oot_saves.run picks the two sides:
+    /// Longshot's one profile, the emulator's (profile: when it has several); folder: the emulator's folder instead of where it is
     /// looked for (a portable user folder, NX2navi's game folder, any folder holding a save)
-    public static SaveCopy ImportExport(bool import, string buildFolder, SaveProgram other, string? folder, SaveEnvironment env, string? profile = null,
+    public static SaveCopy ImportExport(bool import, SaveProgram other, string? folder, SaveEnvironment env, string? profile = null,
                                         bool keepSettings = false, bool dryRun = false, bool force = false, string? backupRoot = null,
                                         Func<IReadOnlyList<string>>? running = null, Func<DateTime>? now = null)
     {
-        var build = ForBuild(buildFolder, env);
+        var build = Shared(env);
         var em = Locate(other, folder, env).Profiles;
         var emulator = Pick(em, other.Display, profile);
         // (as the script: Longshot's side has to exist, so the save lands in the user id folder the game made)
-        if (!build.Found) throw new SaveFailure((build.Problem ?? "No Longshot save found.") + " Start this build once and save first.");
+        if (!build.Found) throw new SaveFailure((build.Problem ?? "No Longshot save found.") + " Start Longshot once and save first.");
         var hs = Pick(build.Profiles, "Longshot").Path;
         var (src, dst) = import ? (emulator.Path, hs) : (hs, emulator.Path);
         return Copy(src, dst, backupRoot ?? env.BackupRoot, import ? "import" : "export", other.Name, keepSettings, dryRun, force, running, now);
     }
 
-    /// Whether a build (a new one, or an update) takes its saves from another build first: the moveSaves setting, on Windows
-    /// (Linux builds share one save folder), when there is another build to take them from
-    public static bool MoveOnBuild(bool moveSaves, Platform platform, int otherBuilds) => moveSaves && platform == Platform.Windows && otherBuilds > 0;
+    // ---- Windows: the saves each build kept in its own folder, into the shared one ----
 
-    /// A build's save into another build (Windows: each game folder has its own). The target build's folder gets the source's
-    /// profile when it has no save yet
-    public static SaveCopy BetweenBuilds(string fromFolder, string toFolder, SaveEnvironment env, bool keepSettings = false, bool force = false,
-                                         string? backupRoot = null, Func<IReadOnlyList<string>>? running = null, Func<DateTime>? now = null)
+    /// The user folders where Windows builds kept their saves before they shared one (Gather takes them in): each build's own
+    /// (&lt;folder&gt;\user, until the launcher started every build with --user) and the 2.x Builder's game folder's, oldBuilder
+    /// (%USERPROFILE%\Games\Longshot; null for a portable launcher, which writes nothing outside its own folder). None on Linux,
+    /// where the game has always shared them
+    public static IReadOnlyList<string> OldUserFolders(SaveEnvironment env, IEnumerable<string> buildFolders, string? oldBuilder)
     {
-        if (env.Platform != Platform.Windows) throw new SaveFailure("On Linux every build already uses the same saves.");
-        var from = ForBuild(fromFolder, env);
-        if (!from.Found) throw new SaveFailure(from.Problem ?? "The build has no save.");
-        var source = Pick(from.Profiles, "That build");
-        var to = ForBuild(toFolder, env);
-        var target = to.Found ? Pick(to.Profiles, "This build").Path : BuildSavePath(toFolder, source.Id);
-        return Copy(source.Path, target, backupRoot ?? env.BackupRoot, "build", Base(toFolder), keepSettings, false, force, running, now);
+        if (env.Platform != Platform.Windows) return Array.Empty<string>();
+        var shared = System.IO.Path.TrimEndingDirectorySeparator(env.LongshotUser);
+        var list = new List<string>();
+        foreach (var f in oldBuilder == null ? buildFolders : buildFolders.Append(oldBuilder))
+        {
+            var user = System.IO.Path.TrimEndingDirectorySeparator(System.IO.Path.GetFullPath(System.IO.Path.Combine(f, "user")));
+            if (!user.Equals(shared, StringComparison.OrdinalIgnoreCase) && !list.Contains(user, StringComparer.OrdinalIgnoreCase)) list.Add(user);
+        }
+        return list;
+    }
+
+    /// When a save folder's adventure was last saved: its newest progress.sav, in any profile and slot (DateTime.MinValue when it
+    /// has none). Only progress counts: a game that just started writes account.sav and option.sav before anything is played
+    static DateTime LastProgress(string save)
+    {
+        try
+        {
+            return Directory.EnumerateFiles(save, "progress.sav", SearchOption.AllDirectories).Select(File.GetLastWriteTimeUtc)
+                            .DefaultIfEmpty(DateTime.MinValue).Max();
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return DateTime.MinValue; }
+    }
+
+    static bool HasSave(string user) => Directory.Exists(System.IO.Path.Combine(user, "save")) && Find(user).Count > 0;
+
+    static bool IsLinked(string path) => (Directory.Exists(path) || File.Exists(path)) && IsLink(new DirectoryInfo(path));
+
+    /// The per-player files the game keeps beside save\ in its user folder (host/nn_hid.c, gpu/render/rx_present_fx.cpp): brought
+    /// along with the save that is kept, when the shared folder has none of its own yet
+    static readonly string[] PlayerFiles = { "mouse_sens.txt", "present.txt" };
+
+    /// The saves of the old user folders (OldUserFolders) into the shared one, so that every build plays the same adventure. The
+    /// save with the newest progress of them all, the shared one's included, is kept (its newest progress.sav; a tie keeps the
+    /// shared one, so a save an old build just made, with nothing played, never replaces it): it becomes the shared save\. Every
+    /// one of them is backed up whole first, in one folder (&lt;backups&gt;/gather-&lt;yyyyMMdd-HHmmss&gt;/&lt;name&gt;), and each old folder's
+    /// save\ is then renamed save.moved-&lt;stamp&gt;, so the game does not find it there again and nothing is deleted. An old folder
+    /// that is a link, or holds one as its user\ or save\ (a player's own synced folder, or the shared one itself), is the
+    /// player's own arrangement and is left alone. Null when no old folder has a save, or while Longshot runs (the next start
+    /// tries again). A failure changes nothing (SaveFailure). An old save that cannot be renamed (a file in use) is taken in
+    /// again at the next start, where it ties with the shared one and loses
+    public static SaveGathered? Gather(SaveEnvironment env, IReadOnlyList<string> oldUsers, Func<IReadOnlyList<string>>? running = null,
+                                       Func<DateTime>? now = null)
+    {
+        if (env.Platform != Platform.Windows) return null;
+        var shared = env.LongshotUser;
+        var sharedSave = System.IO.Path.Combine(shared, "save");
+        var sharedReal = Real(sharedSave);
+        var old = oldUsers.Where(u => HasSave(u) && !IsLinked(u) && !IsLinked(System.IO.Path.Combine(u, "save"))
+                                      && !Inside(sharedReal, Real(System.IO.Path.Combine(u, "save"))) && !Inside(Real(System.IO.Path.Combine(u, "save")), sharedReal))
+                          .ToList();
+        if (old.Count == 0) return null;
+        if ((running ?? (() => Running(Platforms.Current)))().Any(n => n.Contains(Longshot.Display, StringComparison.Ordinal))) return null;
+
+        // (a gather cut short between its two renames, the PC off: the shared save waits beside itself, and goes back first)
+        var (staging, aside) = Beside(sharedSave);
+        if (!Directory.Exists(sharedSave) && Directory.Exists(aside)) Directory.Move(aside, sharedSave);
+
+        // (each one named in the backup for its game folder: "v3.0.0-rc.1", or "Longshot" for the 2.x Builder's)
+        var sides = new List<(string User, string Name)>();
+        if (HasSave(shared)) sides.Add((shared, "shared"));
+        foreach (var u in old)
+        {
+            var name = Base(Up(u)) is { Length: > 0 } b ? b : "build";
+            var unique = name;
+            for (var n = 2; sides.Any(s => s.Name.Equals(unique, StringComparison.OrdinalIgnoreCase)); n++) unique = $"{name} ({n})";
+            sides.Add((u, unique));
+        }
+        var kept = sides.OrderByDescending(s => LastProgress(System.IO.Path.Combine(s.User, "save"))).First();   // (stable: the shared one first)
+
+        var stamp = (now ?? (() => DateTime.Now))().ToString("yyyyMMdd-HHmmss", System.Globalization.CultureInfo.InvariantCulture);
+        var backup = System.IO.Path.Combine(env.BackupRoot, "gather-" + stamp);
+        for (var n = 2; Directory.Exists(backup) || File.Exists(backup); n++) backup = System.IO.Path.Combine(env.BackupRoot, $"gather-{stamp}-{n}");
+        try
+        {
+            foreach (var (user, name) in sides) CopyTree(System.IO.Path.Combine(user, "save"), System.IO.Path.Combine(backup, name));
+            // (what a gather cut short left aside while a new shared save was made since: backed up too, before it goes)
+            if (Directory.Exists(aside)) CopyTree(aside, System.IO.Path.Combine(backup, "shared (set aside)"));
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            DeleteTree(backup);
+            throw new SaveFailure($"The saves could not be backed up ({e.Message}), so none was moved: they are as they were.");
+        }
+
+        if (kept.User != shared)
+        {
+            DeleteTree(staging);
+            DeleteTree(aside);
+            try
+            {
+                Directory.CreateDirectory(shared);
+                CopyTree(System.IO.Path.Combine(kept.User, "save"), staging);
+                if (Directory.Exists(sharedSave))
+                {
+                    Directory.Move(sharedSave, aside);
+                    try
+                    {
+                        Fault?.Invoke("swap");
+                        Directory.Move(staging, sharedSave);
+                    }
+                    catch (Exception) when (!Directory.Exists(sharedSave))
+                    {
+                        Directory.Move(aside, sharedSave);
+                        throw;
+                    }
+                    DeleteTree(aside);
+                }
+                else Directory.Move(staging, sharedSave);
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                DeleteTree(staging);
+                throw new SaveFailure($"The saves could not be moved ({e.Message}). Nothing was changed; a backup of them all is in {backup}.", backup: backup);
+            }
+            foreach (var f in PlayerFiles)
+            {
+                var from = System.IO.Path.Combine(kept.User, f);
+                var to = System.IO.Path.Combine(shared, f);
+                try { if (File.Exists(from) && !File.Exists(to)) File.Copy(from, to); }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+            }
+        }
+
+        var moved = new List<string>();
+        foreach (var u in old)
+        {
+            var to = System.IO.Path.Combine(u, "save.moved-" + stamp);
+            for (var n = 2; Directory.Exists(to) || File.Exists(to); n++) to = System.IO.Path.Combine(u, $"save.moved-{stamp}-{n}");
+            try
+            {
+                Directory.Move(System.IO.Path.Combine(u, "save"), to);
+                moved.Add(u);
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+        }
+        return new SaveGathered(kept.User, kept.User == shared, moved, backup);
     }
 }

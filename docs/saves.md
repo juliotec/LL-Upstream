@@ -1,6 +1,6 @@
 # Saves
 
-What the launcher does with your saves: where Longshot keeps them, copying them between builds, importing them from
+What the launcher does with your saves: where Longshot keeps them (one place, shared by every build), importing them from
 emulators and from Hookshot, and exporting them. Everything is on the **Saves** page (the *Saves* link on the home, under
 the default version). Every copy backs up the save it replaces first, and every copy is refused while Longshot, Hookshot or
 an emulator is running, since a running game can write its save again and undo the copy.
@@ -15,26 +15,41 @@ does (for Lichii, Eden, NX2navi and the rest) without the launcher.
 
 | | Where |
 |---|---|
-| Linux and Steam Deck | `$XDG_DATA_HOME/longshot/save/<user id>/` (default `~/.local/share/longshot/save/`): every build shares it |
-| Windows | `<build folder>\user\save\<user id>\`: each build keeps its own, and the Saves page copies them between builds |
+| Linux and Steam Deck | `$XDG_DATA_HOME/longshot/save/<user id>/` (default `~/.local/share/longshot/save/`) |
+| Windows | `%APPDATA%\Longshot\save\<user id>\`; a portable launcher's in `LongshotLauncher-data\user\save\` beside it |
+
+Every build uses the same saves, on both systems, so a new build or an update starts where you left off, and there is nothing
+to copy between builds. On Linux the game finds that folder by itself. On Windows the launcher starts every build with
+`--user <that folder>`; a build started on its own (`bin\longshot.exe` double-clicked) still keeps its saves in its own
+folder's `user\`, and the launcher brings them in at its next start (below).
 
 Backups go to `%LOCALAPPDATA%\Longshot\oot-save-backups` on Windows and `$XDG_DATA_HOME/oot-save-backups` on Linux, one
 folder per copy, named by the time it was made.
 
-## Between builds (Windows)
+## Saves from before (Windows)
 
-**Copy saves from another build** copies another build's save into the one the page is on. A new build or an update can
-also take its saves from your default build by itself (*Move my saves*, in the build wizard's second step). On Linux every build already
-uses the same saves, so the button is not shown.
+Windows builds used to keep their saves each in its own game folder (`<build folder>\user\save\`), and the 2.x Builder's game
+in `%USERPROFILE%\Games\Longshot\user\save\`. When the launcher opens, and before it starts a game, it brings those into the
+shared folder by itself (`Saves.Gather`):
+
+- **Where it looks:** every build in its list, every Longshot game folder in the builds folder (a version an update replaced
+  is no longer listed, but its saves may still be there), and the 2.x Builder's game folder (not for a portable launcher).
+- **The newest one is kept.** Of all of them, the shared one included, the save whose newest file was written last becomes
+  the shared save; on a tie the shared one stays.
+- **Every one is backed up first,** whole, in one folder: `oot-save-backups\gather-<yyyyMMdd-HHmmss>\<game folder name>`
+  (`shared` for the one that was already shared). The home says once which save was kept and where the backup is.
+- **Nothing is deleted.** Each old `save` folder is renamed `save.moved-<yyyyMMdd-HHmmss>` beside it, so the game no longer
+  finds it there.
+- **Never while Longshot runs:** the next start tries again. A failure changes nothing and says why.
 
 ## Importing
 
 ### From an emulator
 
 **Import from emulator** lists the emulators whose saves were found on this PC (Lichii, Eden, Eglantine, Orchid,
-PokeDinner, Frizti, NX2navi), with their slots and when they were saved, and copies the one you pick into the build. A
-save somewhere else (a portable install, a copy on another drive) is picked with *Choose a folder*. The build must have
-been started and saved once, so that its own save folder exists.
+PokeDinner, Frizti, NX2navi), with their slots and when they were saved, and copies the one you pick into Longshot's. A
+save somewhere else (a portable install, a copy on another drive) is picked with *Choose a folder*. Longshot must have
+been started and saved once, so that its save folder exists.
 
 NX2navi writes a save to `profile/save-tx` first. A finished one waiting there (`save-tx/ready-<n>`) is the save it loads
 at its next start, so a copy from or to NX2navi is refused until NX2navi has been started and quit once. The rest of
@@ -78,8 +93,7 @@ why.
 - **It copies; Hookshot keeps its saves as they were.** Nothing in Hookshot's folders is moved, changed or deleted.
 - **Where it goes:** Longshot's save of the same profile when there is one; else Longshot's only profile; else a new one
   with Hookshot's user id.
-  - On Linux, in `$XDG_DATA_HOME/longshot/save/`.
-  - On Windows, in the build's `user\save\`: the build the Saves page is on, or the default build.
+  - In the shared folder above: `$XDG_DATA_HOME/longshot/save/` on Linux, `%APPDATA%\Longshot\save\` on Windows.
 - **It never replaces a Longshot save without asking.** When Longshot already has a save there, the window asks first. If
   you say yes, Longshot's save is copied whole to the backup folder before anything is replaced, and the message says
   where the backup is.

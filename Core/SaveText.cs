@@ -22,6 +22,14 @@ public static class SaveText
     /// "3 save slots", "1 save slot", "no saves" (a row of the home's list)
     public static string Count(int slots) => slots == 0 ? "no saves" : slots + (slots == 1 ? " save slot" : " save slots");
 
+    /// What the home says once Saves.Gather brought the builds' own saves together: which one every version plays now, and where
+    /// the backup of them all is
+    public static string Gathered(SaveGathered g)
+    {
+        var which = g.WasShared ? "the shared ones, which were the newest" : "the newest, from " + System.IO.Path.GetDirectoryName(g.From);
+        return $"Every Longshot version now uses the same saves: {which}. All of them are backed up in {g.Backup}.";
+    }
+
     /// A slot's number from its folder's name: slot_00 is 1
     public static int Number(string slotName) =>
         slotName.StartsWith("slot_", StringComparison.Ordinal) && int.TryParse(slotName[5..], System.Globalization.NumberStyles.None,

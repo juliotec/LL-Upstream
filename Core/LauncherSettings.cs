@@ -33,9 +33,6 @@ public sealed class LauncherSettings
     public string? LauncherChannel { get; set; }
     /// The player answered the offer to import Hookshot's saves (imported, or Not now): it is not offered again at start
     public bool HookshotSavesAsked { get; set; }
-    /// A new build, or an update, takes its saves from the build chosen as the source when other builds exist (Windows: each
-    /// game folder keeps its own saves; Linux builds share theirs). Saves.MoveOnBuild
-    public bool MoveSaves { get; set; } = true;
     /// Where new builds go, each version in its own folder; null: DefaultBuildsFolder
     public string? BuildsFolder { get; set; }
     /// Ask git.magicbean.dev for each channel's newest version when the launcher starts

@@ -53,7 +53,7 @@ Discord: https://discord.gg/KX99srmQTe
 | **Installs Longshot's builder** | For each version, from Longshot's signed release: every file checked against its SHA-256 before it is used |
 | **Updates the game** | Offers each build its channel's newest version and builds it from the game files the build kept |
 | **Updates itself** | From its own signed releases, checked and tested before it replaces itself; `--rollback` puts the previous one back |
-| **Saves** | Copies saves between builds, imports them from emulators and from Hookshot, exports them to emulators ([docs/saves.md](docs/saves.md)) |
+| **Saves** | One save folder for every build, imports saves from emulators and from Hookshot, exports them to emulators ([docs/saves.md](docs/saves.md)) |
 
 ## Download
 
@@ -99,7 +99,8 @@ There is no installer program: the launcher installs itself.
 
 - **Install** copies it to `%LOCALAPPDATA%\Programs\LongshotLauncher\LongshotLauncher.exe` (for your user only, no
   administrator rights), adds a *Longshot Launcher* shortcut to the Start menu and an entry in *Apps & features*
-  (publisher Magic Bean), then starts the installed copy. Its data goes in `%LOCALAPPDATA%\LongshotLauncher`. You can
+  (publisher Magic Bean), then starts the installed copy. After each of its own updates it makes the Start menu shortcut
+  (and the *Longshot* shortcuts it made) again, so they start the updated program. Its data goes in `%LOCALAPPDATA%\LongshotLauncher`. You can
   delete the setup file afterwards. `LongshotLauncher-<v>-windows-x64-setup.exe --install` does the same without asking.
 - **Run portable** puts a file named `portable` beside the program, and from then on the launcher keeps everything in a
   `LongshotLauncher-data` folder beside it: its settings, its list of builds, the builder's tools, the build files, and by
@@ -133,8 +134,8 @@ next time it starts. If `LongshotLauncher.exe` itself is missing, rename `Longsh
 1. **Build another version** (or, the first time, **Build the game**) opens the wizard. Pick the channel: *Stable* for
    playing, *Release candidate* to try the next version, *Nightly* for the newest changes.
 2. **Game files**: the launcher looks for your dump on this PC; point it at the folder if it doesn't find it.
-3. **Settings**: where the game goes, the language, DLSS or FSR 4 (their licences are shown first), and whether to copy
-   your saves from another build.
+3. **Settings**: where the game goes, the language, and DLSS or FSR 4 (their licences are shown first). Your saves come
+   along: every build shares them.
 4. **Build**: about 15 to 30 minutes the first time, shaders included. An update compiles only what changed.
 5. **Play**. Ready can also make desktop and menu shortcuts, which start the default version.
 
@@ -148,7 +149,9 @@ applications menu.
 
 ## Saves
 
-The **Saves** page copies saves between builds (Windows; on Linux every build shares one save folder), imports them from
+Every build shares one save folder (`%APPDATA%\Longshot` on Windows, `~/.local/share/longshot` on Linux). On Windows the
+launcher brings in, once, the saves each build kept in its own folder before, and the 2.x Builder's, keeping the newest
+after backing them all up ([docs/saves.md](docs/saves.md#saves-from-before-windows)). The **Saves** page imports saves from
 Lichii, Eden, NX2navi and the other emulators, and exports them back. Every copy backs up what it replaces first.
 
 **Coming from Hookshot?** The launcher finds Hookshot's saves and offers once to copy them in, or use
@@ -253,9 +256,10 @@ temporary folders. With `--longshot`, it also checks the languages and the DLSS 
 
 Calls made here, most of them the design mockup's; each can be changed:
 
-- **Saves are copied, never moved.** "Move my saves" in step 2 copies the chosen build's saves into the new one after a
-  backup (`Saves.BetweenBuilds`); the old build keeps its own. On by default (`moveSaves`), from the build an update
-  replaces, else the default build.
+- **One save folder for every build.** On Windows the launcher starts each build with `--user %APPDATA%\Longshot`, as
+  the game finds `~/.local/share/longshot` by itself on Linux, so an update or a new build starts where you left off. The
+  saves builds kept in their own folders before are brought in once (`Saves.Gather`): the one with the newest progress
+  is kept, all of them backed up, the old ones renamed aside and never deleted.
 - **An update replaces its build's row.** An update builds the new version into its own folder (`<builds>/<version>`)
   from the game files the build was made from, then takes the old row's place, its default included
   (`BuildRegistry.Replace`). The old folder stays on the disk; nothing deletes it yet.

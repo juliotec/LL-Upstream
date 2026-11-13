@@ -329,23 +329,8 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { problem = "The list of builds could not be saved: " + e.Message; }
         service.PruneTools();
 
-        // (the saves of the build chosen in step 2, copied into the new one after a backup: Windows, where each build has its own)
-        string? moved = null, backup = null;
-        if (!job.Main.Linux && job.MoveOn && job.MoveFrom is { } from && !BuildRegistry.SameFolder(from.Folder, job.InstallDir))
-        {
-            try
-            {
-                var copy = Saves.BetweenBuilds(from.Folder, job.InstallDir, service.SaveEnv);
-                moved = from.Version ?? from.Name;
-                backup = copy.Backup;
-            }
-            catch (Exception e) when (e is SaveFailure or IOException or UnauthorizedAccessException)
-            {
-                problem = $"Your saves from {from.Version ?? from.Name} were not moved: {e.Message} You can copy them from Saves.";
-                backup = (e as SaveFailure)?.Backup;
-            }
-        }
-        job.Main.Navigate(new ReadyViewModel(job.Main, entry, job.Kind, job.From, clock.Elapsed + job.ToolsTime, moved, backup, problem));
+        // (no saves to move: every build shares them, SaveEnvironment.LongshotUser)
+        job.Main.Navigate(new ReadyViewModel(job.Main, entry, job.Kind, job.From, clock.Elapsed + job.ToolsTime, problem));
     }
 
     /// For the screenshots: the lines a build would have said so far, with the clock at elapsed
@@ -392,22 +377,21 @@ public sealed class ReadyViewModel : ViewModelBase, IWizardPage
 {
     bool desktop = true, menu = true;
 
-    public ReadyViewModel(MainViewModel main, BuildEntry entry, JobKind kind, string? from, TimeSpan took, string? moved, string? backup, string? problem)
+    public ReadyViewModel(MainViewModel main, BuildEntry entry, JobKind kind, string? from, TimeSpan took, string? problem)
     {
         Main = main;
         Entry = entry;
         Kind = kind;
         From = from;
         Took = took;
-        Moved = moved;
-        Backup = backup;
         Problem = problem;
         PlayCommand = new Command(() =>
         {
             try
             {
-                Main.Service.Play(Entry);
+                var said = Main.Service.Play(Entry);
                 Main.ShowHome();
+                if (said != null) Main.Home.Notice = said;
                 Main.ShowToast($"Starting Longshot, {Version}…");
             }
             catch (Exception e) when (e is System.ComponentModel.Win32Exception or IOException or InvalidOperationException)
@@ -416,7 +400,6 @@ public sealed class ReadyViewModel : ViewModelBase, IWizardPage
             }
         });
         FolderCommand = new Command(() => Main.Host?.Open(Entry.Folder));
-        BackupCommand = new Command(() => { if (Backup != null) Main.Host?.Open(Backup); });
         HomeCommand = new Command(Main.ShowHome);
         WriteShortcuts();
     }
@@ -426,8 +409,6 @@ public sealed class ReadyViewModel : ViewModelBase, IWizardPage
     public JobKind Kind { get; }
     public string? From { get; }
     public TimeSpan Took { get; }
-    public string? Moved { get; }
-    public string? Backup { get; }
     public string? Problem { get; }
     public int Step => 3;
     public bool Finished => true;
@@ -436,9 +417,6 @@ public sealed class ReadyViewModel : ViewModelBase, IWizardPage
     public string Heading => Version + " is ready";
     public string Sub => (Kind == JobKind.Update && From != null ? "Updated from " + From : "Built") +
                          $" in {Math.Max(1, (int)Math.Round(Took.TotalMinutes))} min, in {ShownPath.Of(Entry.Folder)}.";
-    public bool HasMoved => Moved != null;
-    public string MovedText => $"Your saves from {Moved} are here.";
-    public bool HasBackup => Backup != null;
     public bool HasProblem => Problem != null;
     public string MenuLabel => Main.Linux ? "Applications menu entry" : "Start menu entry";
     public bool ShowDefaultTick => Main.Service.Registry.Builds.Count > 1;
@@ -497,7 +475,6 @@ public sealed class ReadyViewModel : ViewModelBase, IWizardPage
 
     public Command PlayCommand { get; }
     public Command FolderCommand { get; }
-    public Command BackupCommand { get; }
     public Command HomeCommand { get; }
 }
 

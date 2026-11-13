@@ -136,7 +136,7 @@ public sealed class MainViewModel : ViewModelBase
 
     public void ShowSettings() => Navigate(new SettingsViewModel(this));
 
-    public void ShowSaves(BuildEntry? build = null) => Navigate(new SavesViewModel(this, build));
+    public void ShowSaves() => Navigate(new SavesViewModel(this));
 
     /// The wizard for a version: a new build, building one you have again, or an update of a build (replaces)
     public FilesStepViewModel StartWizard(JobKind kind, string channel, string version, BuildEntry? replaces = null, bool tools = true)
