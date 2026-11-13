@@ -113,6 +113,7 @@ public sealed class HookshotImportViewModel : ViewModelBase
             Main.ShowToast($"Imported {done.Slots.Count} save slot{(done.Slots.Count == 1 ? "" : "s")} from Hookshot" +
                            (done.Backup != null ? ". Longshot's earlier save is in " + ShownPath.Of(done.Backup) : "."));
             Main.Home.Refresh();
+            if (Main.Page is SavesViewModel saves) saves.Reload();   // (opened from Saves: its slots are the imported ones now)
         }
         catch (Exception e) when (e is SaveFailure or IOException or UnauthorizedAccessException)
         {

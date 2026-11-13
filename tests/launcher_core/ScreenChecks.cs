@@ -477,7 +477,10 @@ static partial class Program
             Require(false, "A copy went ahead while a game ran.");
         }
         catch (SaveFailure f) { Require(f.Reason == SaveRefusal.Running && f.Who.SequenceEqual(new[] { "Longshot" }), "Refused: a game runs."); }
-        Touch(Path.Combine(root, "game", "profile", "save-tx", "commit"));
+        Touch(Path.Combine(root, "game", "profile", "save-tx", "work", "account.sav"));
+        Require(Saves.Copy(src, dst, Path.Combine(root, "b"), "import", "x", dryRun: true).Dry,
+                "NX2navi's working copy, which a quit leaves in save-tx, is no save waiting.");
+        Touch(Path.Combine(root, "game", "profile", "save-tx", "ready-0000000001", "account.sav"));
         try
         {
             Saves.Copy(src, dst, Path.Combine(root, "b"), "import", "x", running: () => Array.Empty<string>());

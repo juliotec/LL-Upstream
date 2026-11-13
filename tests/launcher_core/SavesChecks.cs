@@ -317,6 +317,15 @@ static class SavesChecks
         MakeSave(nx, "NX", "slot_05");
         File.WriteAllBytes(P(game, "profile", "account.uid"), new byte[16]);
         Directory.CreateDirectory(P(game, "profile", "save-tx"));
+        // (what NX2navi leaves in save-tx that is not a save in waiting, runtime/fs_host.c: the working copy a quit leaves,
+        // an unfinished commit, the save a commit replaced, and names that are not a finished commit's)
+        var tx = P(game, "profile", "save-tx");
+        MakeSave(P(tx, "work"), "WORK", "slot_05");
+        MakeSave(P(tx, "new"), "NEW", "slot_05");
+        MakeSave(P(tx, "old"), "OLD", "slot_05");
+        foreach (var name in new[] { "ready-0", "ready-", "ready-1x", "Ready-1", "ready-99999999999" }) MakeSave(P(tx, name), "NOT", "slot_05");
+        File.WriteAllText(P(tx, "ready-2"), "a file, not a folder");
+        Require(Saves.PendingCommit(nx) == null, "A working copy, an unfinished commit or an old save in save-tx is no save waiting.");
         // (test_both_ways)
         c.Run(true, "nx2navi");
         Require(Tree(c.Hs) == Tree(nx), "From NX2navi.");
@@ -324,7 +333,7 @@ static class SavesChecks
         c.Run(false, "nx2navi", game);
         Require(Tree(nx) == Tree(c.Hs) && File.ReadAllBytes(P(game, "profile", "account.uid")).Length == 16, "To NX2navi's game folder.");
         // (test_waiting_save_refused)
-        File.WriteAllText(P(game, "profile", "save-tx", "commit"), "pending");
+        MakeSave(P(tx, "ready-0000000003"), "READY", "slot_05");
         var before = Tree(c.Hs) + Tree(nx);
         var backups = c.BackupDirs().Count;
         foreach (var import in new[] { true, false })

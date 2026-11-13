@@ -36,6 +36,13 @@ PokeDinner, Frizti, NX2navi), with their slots and when they were saved, and cop
 save somewhere else (a portable install, a copy on another drive) is picked with *Choose a folder*. The build must have
 been started and saved once, so that its own save folder exists.
 
+NX2navi writes a save to `profile/save-tx` first. A finished one waiting there (`save-tx/ready-<n>`) is the save it loads
+at its next start, so a copy from or to NX2navi is refused until NX2navi has been started and quit once. The rest of
+`save-tx` is not a save in waiting and is ignored: `work` (the working copy NX2navi leaves after a quit), `new` and `old`.
+
+A copy that worked says so: the page that follows names what was copied and where the backup went, and the Saves page
+says it again, briefly, when you go back to it.
+
 ### From Hookshot
 
 [Hookshot](https://github.com/NotRexed/Hookshot) is the project Longshot was forked from. Its game writes the same save

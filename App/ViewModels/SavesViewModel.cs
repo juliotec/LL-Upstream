@@ -503,6 +503,8 @@ public sealed class SavesResultViewModel : ViewModelBase
         {
             confirm.Page.Reload();
             main.Navigate(confirm.Page);
+            // (the Saves page shows the slots as they are now; this says, there too, that they came from the copy)
+            if (Done) main.ShowToast(DoneToast);
         });
         RetryCommand = new Command(confirm.Retry);
         BackupCommand = new Command(() => { if (Backup != null) main.Host?.Open(Backup); });
@@ -540,6 +542,22 @@ public sealed class SavesResultViewModel : ViewModelBase
                               "loads. Start NX2navi and quit it, then try again.",
         _ => Message ?? "",
     };
+
+    /// What the Saves page says, back from a copy that worked: "Imported 3 save slots from NX2navi."
+    public string DoneToast
+    {
+        get
+        {
+            var n = Confirm.TargetSlotsNow().Count;
+            var slots = $"{n} save slot{(n == 1 ? "" : "s")}";
+            return Confirm.Op.Mode switch
+            {
+                SaveMode.Copy => $"Copied {slots} from {Confirm.From.Name}.",
+                SaveMode.Import => $"Imported {slots} from {Confirm.From.Name}.",
+                _ => $"Exported {slots} to {Confirm.To.Name}.",
+            };
+        }
+    }
 
     public string Faint => Done ? (HasBackup ? "The saves it replaced are backed up, in " + ShownPath.Of(Backup) + "." : "There was nothing there to back up.")
         : HasBackup ? "Nothing was changed. The backup made first is in " + ShownPath.Of(Backup) + "." : "Nothing was changed.";

@@ -227,16 +227,24 @@ public static class Saves
         ?? throw new SaveFailure($"Unknown emulator {name}: use one of {string.Join(", ", Emulators.Select(p => p.Name))}, or choose a folder.");
 
     /// oot_saves.pending_commit: NX2navi writes a save to profile/save-tx first and moves it into profile/save/&lt;account&gt; after;
-    /// while something waits there, that is the save the game loads next
+    /// while a finished commit waits there (save-tx/ready-&lt;n&gt;, n from 1), that is the save the game loads next. The rest of
+    /// save-tx is not a save in waiting (NX2navi's runtime/fs_host.c, "save transactions"): work/ is the working copy, which a
+    /// quit leaves behind (the exit waits for a commit but does not unmount the save) and the next start deletes; new/ is an unfinished
+    /// commit, rolled back; old/ is the save a commit replaced, on its way to save-backup
     public static string? PendingCommit(string save)
     {
         var parent = Up(System.IO.Path.TrimEndingDirectorySeparator(System.IO.Path.GetFullPath(save)));
         var tx = System.IO.Path.Combine(Up(parent), "save-tx");
-        if (Base(parent).ToLowerInvariant() == "save" && Directory.Exists(tx)
-            && Directory.EnumerateFiles(tx, "*", SearchOption.AllDirectories).Any())
+        if (Base(parent).ToLowerInvariant() == "save" && Subdirs(tx).Any(IsFinishedCommit))
             return tx;
         return null;
     }
+
+    /// fs_host.c ready_number: "ready-" and a number above 0, nothing else
+    static bool IsFinishedCommit(string name) =>
+        name.StartsWith("ready-", StringComparison.Ordinal) && name.Length > 6 && name[6..].All(char.IsAsciiDigit)
+        && ulong.TryParse(name[6..], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var n)
+        && n is > 0 and <= uint.MaxValue;
 
     /// oot_saves.describe: each slot and when its progress.sav was written (local time)
     public static IReadOnlyList<SaveSlot> Describe(string path) =>
