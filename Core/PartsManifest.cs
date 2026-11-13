@@ -6,7 +6,7 @@ namespace LongshotLauncher.Core;
 /// One part of a version's tools: a zip checked by its SHA-256 and size, unpacked under Dest of the version's folder.
 /// From/To (the Windows list): the zip's top folder From is renamed To (llvm-mingw-<version>-ucrt-x86_64 to llvm-mingw).
 /// Files (the Linux list): the names the zip may hold, null for a whole tree.
-/// Mirrors: other links to the same bytes, tried when Url fails or gives others (tools.lock's copies in Longshot's tools release).
+/// Mirrors: other links to the same bytes, tried when Url fails or gives others (tools.lock's fallbacks: where each tool came from).
 public sealed record Part(string Sha, long Size, string Dest, string? From, string? To, string Url, IReadOnlyList<string>? Files,
                           IReadOnlyList<string>? Mirrors = null)
 {

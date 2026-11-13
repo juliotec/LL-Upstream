@@ -5,7 +5,8 @@ namespace LongshotLauncher.Core;
 
 /// Longshot's tools.lock (docs/releases.md, "tools.lock"; scripts/tools.py and builder/setup/setup.c read it the same way):
 ///     tool &lt;name&gt; &lt;version&gt; &lt;system&gt; &lt;sha256&gt; &lt;size&gt; &lt;dest&gt; &lt;prefix&gt; &lt;url&gt; [&lt;url&gt; ...]
-/// Each tool is a part of the Windows builder's install: its archive's &lt;prefix&gt; folder ("-": all of it) becomes &lt;dest&gt;.
+/// Each tool is a part of a builder's install (windows-x64: the Windows builder's; linux-x64: beside the unpacked Linux AppImage,
+/// from the tools.lock inside it): its archive's &lt;prefix&gt; folder ("-": all of it) becomes &lt;dest&gt;.
 /// The first URL is tried first, the others (Longshot's "tools" release) when it fails or gives other bytes. A tool another
 /// installed version has (the same SHA-256, unpacked the same way) is taken from it, not downloaded again (Toolchains).
 public static class ToolsLock

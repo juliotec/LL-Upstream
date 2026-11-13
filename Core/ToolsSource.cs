@@ -43,7 +43,7 @@ public sealed class LocalFileFetcher(IFetcher inner) : IFetcher
 public sealed record ToolsDownloadProgress(double Fraction, long Total);
 
 /// A version's builder and build tools for the wizard's first step: the installed ones, else its release's (Windows: the builder's
-/// zip and the tools of its tools.lock; Linux: its AppImage), checked against the release's signed SHA256SUMS, installed with
+/// zip and the tools of its tools.lock; Linux: its AppImage and the tools of the tools.lock inside it), checked against the release's signed SHA256SUMS, installed with
 /// Toolchains. LONGSHOT_LAUNCHER_PARTS: a parts list on this PC instead (file:// links allowed), for trying the launcher out
 public static class ToolsSource
 {
@@ -70,7 +70,7 @@ public static class ToolsSource
             progress?.Invoke(new ToolsDownloadProgress(1, 0));
             return have;
         }
-        if (localList == null && releases.Platform != Platform.Windows)   // (Linux: the release's AppImage, which holds its tools)
+        if (localList == null && releases.Platform != Platform.Windows)   // (Linux: the release's AppImage, then the tools its tools.lock names)
         {
             var image = await releases.BuilderAsync(tag, cancel).ConfigureAwait(false);
             progress?.Invoke(new ToolsDownloadProgress(0, image.Size));

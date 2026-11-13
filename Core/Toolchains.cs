@@ -16,7 +16,8 @@ public sealed record Toolchain(string Tag, string Folder, ListKind Kind, string?
         ? Path.Combine(Folder, Path.GetDirectoryName(Run ?? "LongshotBuilder/x")!.Replace('/', Path.DirectorySeparatorChar), "tools")
         : Path.Combine(Folder, "usr", "share", "longshot");
 
-    /// Linux: the AppImage's usr/lib/longshot (emsdk, the sysroot, FFmpeg, SDL2 and the prebuilt Vulkan back end; builder/linux/AppRun)
+    /// Linux: the AppImage's usr/lib/longshot (the prebuilt Vulkan back end, and beside it tools.lock's emsdk, sysroot, FFmpeg and
+    /// SDL2, unpacked there by InstallAppImageAsync; an older AppImage carries them itself. builder/linux/AppRun)
     public string LibRoot => Path.Combine(Folder, "usr", "lib", "longshot");
 
     public string Python => Kind == ListKind.Setup
@@ -227,8 +228,10 @@ public sealed class Toolchains
     }
 
     /// The Linux builder of a release: its AppImage, checked by its size and SHA-256, unpacked (extract: the AppImage's own
-    /// --appimage-extract, run in a folder, making squashfs-root there) into &lt;tag&gt;.part and renamed once complete. The
-    /// AppImage holds its own tools: nothing else is downloaded
+    /// --appimage-extract, run in a folder, making squashfs-root there) into &lt;tag&gt;.part, then the build tools of the
+    /// tools.lock inside it (its linux-x64 lines, covered by the AppImage's checksum) unpacked beside it at their dests, as on
+    /// Windows: each checked by its size and SHA-256, or kept from another installed version. Renamed once complete. An
+    /// AppImage with no tools.lock inside carries its own tools: nothing else is downloaded
     public async Task<Toolchain> InstallAppImageAsync(string tag, FileRef file, Func<string, string, CancellationToken, Task>? extract = null,
                                                       Action<ToolchainProgress>? progress = null, CancellationToken cancel = default)
     {
@@ -241,12 +244,14 @@ public sealed class Toolchains
         try
         {
             var image = Path.Combine(work, "builder.AppImage");
+            // (the builder first, then its tools: its share of the bar until its tools.lock says how much more there is)
+            const double builderShare = 0.4;
             progress?.Invoke(new ToolchainProgress(0, 1, 1, $"Downloading the builder ({file.Size >> 20} MB)"));
             await DownloadFrom(file.Url, file.Sha256, file.Size, image, have => progress?.Invoke(new ToolchainProgress(
-                Math.Min(have, file.Size) / (double)Math.Max(1, file.Size) * 0.9, 1, 1,
+                Math.Min(have, file.Size) / (double)Math.Max(1, file.Size) * builderShare, 1, 1,
                 $"Downloading the builder ({have >> 20} of {file.Size >> 20} MB)")), cancel);
             if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(image, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
-            progress?.Invoke(new ToolchainProgress(0.9, 1, 1, "Unpacking the builder"));
+            progress?.Invoke(new ToolchainProgress(builderShare, 1, 1, "Unpacking the builder"));
             await (extract ?? ExtractAppImage)(image, work, cancel);
             var tree = Path.Combine(work, "squashfs-root");
             if (!File.Exists(Path.Combine(tree, "AppRun"))) throw new InvalidDataException("The builder's AppImage has no AppRun.");
@@ -254,6 +259,13 @@ public sealed class Toolchains
             CheckLinksInside(tree);
             var record = new Record { Tag = tag, Kind = ListKind.Linux };
             record.Parts.Add(new RecordPart { Sha = file.Sha256, Size = file.Size, Dest = ".", Url = file.Url });
+            var lockFile = Path.Combine(tree, Native(LinuxToolsLock));
+            if (File.Exists(lockFile) && new FileInfo(lockFile).LinkTarget == null)
+            {
+                var parts = ToolsLock.Parse(await File.ReadAllTextAsync(lockFile, cancel), ReleaseManifest.PlatformKey(Platform.Linux));
+                await InstallTools(tag, parts, tree, Path.Combine(root, Downloads), record, builderShare, progress, cancel);
+                CheckLinksInside(tree);
+            }
             using (var f = new FileStream(Path.Combine(tree, RecordName), FileMode.CreateNew, FileAccess.Write))
                 JsonSerializer.Serialize(f, record, CoreJson.Default.Record);
             cancel.ThrowIfCancellationRequested();
@@ -266,6 +278,57 @@ public sealed class Toolchains
         }
         progress?.Invoke(new ToolchainProgress(1, 1, 1, "The builder is ready"));
         return new Toolchain(tag, dest, ListKind.Linux, null);
+    }
+
+    /// The tools.lock a Linux builder carries (builder/linux/AppRun, scripts/linux/appimage.sh)
+    public const string LinuxToolsLock = "usr/share/longshot/tools.lock";
+
+    /// Each part into tree (a Linux builder's), kept from another installed version when one has it, else downloaded and
+    /// unpacked; recorded for the next version's reuse. The bar goes from start to 1 by the parts' bytes
+    async Task InstallTools(string tag, IReadOnlyList<Part> parts, string tree, string downloads, Record record, double start,
+                            Action<ToolchainProgress>? progress, CancellationToken cancel)
+    {
+        var sources = Others(tag);
+        var total = Math.Max(1, parts.Sum(p => p.Size));
+        long done = 0;
+        double At(long bytes) => start + (1 - start) * Math.Min(bytes, total) / total;
+        for (var i = 0; i < parts.Count; i++)
+        {
+            cancel.ThrowIfCancellationRequested();
+            var part = parts[i];
+            var entries = new List<Entry>();
+            var where = part.To == null ? part.Dest : part.Dest + "/" + part.To;
+            if (Directory.Exists(Path.Combine(tree, Native(where)))) { done += part.Size; continue; }   // (a builder that carries it still)
+            if (Reuse(part, sources, tree, entries))
+                progress?.Invoke(new ToolchainProgress(At(done += part.Size), i + 1, parts.Count,
+                                                       $"Build tool {i + 1} of {parts.Count} unchanged: kept from an installed version"));
+            else
+            {
+                Directory.CreateDirectory(downloads);
+                var zip = Path.Combine(downloads, part.Sha + ".zip.part");
+                var before = done;
+                try
+                {
+                    progress?.Invoke(new ToolchainProgress(At(done), i + 1, parts.Count,
+                                                           $"Downloading build tool {i + 1} of {parts.Count} ({part.Size >> 20} MB)"));
+                    await Download(part, zip, have => progress?.Invoke(new ToolchainProgress(At(before + Math.Min(have, part.Size)), i + 1,
+                        parts.Count, $"Downloading build tool {i + 1} of {parts.Count} ({have >> 20} of {part.Size >> 20} MB)")), cancel);
+                    cancel.ThrowIfCancellationRequested();
+                    Unpack(zip, part, tree, entries);
+                }
+                finally
+                {
+                    File.Delete(zip);
+                }
+                done += part.Size;
+            }
+            record.Parts.Add(new RecordPart
+            {
+                Sha = part.Sha, Size = part.Size, Dest = part.Dest, From = part.From, To = part.To, Url = part.Url,
+                Files = part.Files?.ToList(), Entries = entries,
+            });
+        }
+        TryDeleteEmpty(downloads);
     }
 
     static async Task ExtractAppImage(string image, string folder, CancellationToken cancel)

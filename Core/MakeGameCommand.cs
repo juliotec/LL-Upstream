@@ -90,7 +90,9 @@ public sealed record MakeGameCommand(
             env["EMSDK"] = Path.Combine(lib, "emsdk");
             env["LONGSHOT_SYSROOT"] = Path.Combine(lib, "sysroot");
             env["LONGSHOT_FFMPEG"] = Path.Combine(lib, "ffmpeg");
-            env["LONGSHOT_SDL2"] = Path.Combine(lib, "libSDL2-2.0.so.0");
+            // (tools.lock's sdl2, unpacked beside the builder; a builder that carried its tools has it in lib itself)
+            env["LONGSHOT_SDL2"] = directoryExists(Path.Combine(lib, "sdl2"))
+                ? Path.Combine(lib, "sdl2", "libSDL2-2.0.so.0") : Path.Combine(lib, "libSDL2-2.0.so.0");
             // (DLSS: longshot_vk.so built here with NGX, not the prebuilt one; longshot_builder.make_game_env)
             env["LONGSHOT_VK_PREBUILT"] = dlss ? null : Path.Combine(lib, "longshot_vk.so");
         }

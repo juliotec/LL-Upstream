@@ -176,15 +176,15 @@ A failure is an issue, and blocks the stable as any other would.
 
 ## Bump a tool (Longshot)
 
-The Windows builder's tools are in `tools.lock` (docs/releases.md, "tools.lock"). A bump is a pull request that changes
-its line:
+The builders' tools are in `tools.lock` (docs/releases.md, "tools.lock"): `windows-x64` lines for Windows, `linux-x64`
+for Linux. A bump is a pull request that changes its line:
 
 - **An upstream archive** (e.g. a new llvm-mingw):
   1. Edit the line: version, `sha256` and `size` (from the upstream release page, or download it and run `sha256sum`),
      `prefix` (the folder in the archive), and the upstream URL.
   2. `RELEASE_TOKEN=<your token> python -I scripts/tools.py mirror llvm-mingw`: it downloads the archive, checks it against the
-     line, uploads the copy to the `tools` release, and makes its URL the line's first (the upstream URL stays as the
-     fallback).
+     line, uploads the copy as a new package version (`llvm-mingw-windows-x64`, version `20261201`), and makes its URL the
+     line's first (the upstream URL stays as the fallback).
   3. For llvm-mingw, the same release's Linux build too: `LINUX_LLVM_MINGW` in `scripts/builder_package.py` (version,
      folder, `sha256`, size, URL), which CI builds the Windows files with (`tests/test_windows_on_linux.py` checks that
      the two versions match).
@@ -198,11 +198,30 @@ its line:
   python -I scripts/tools.py assemble profile --work work --out profile.zip
   RELEASE_TOKEN=<your token> python -I scripts/tools.py add python 3.14.2-1 python.zip --dest LongshotBuilder/tools/python --prefix python
   ```
-  `add` uploads the archive as `<sha256>-<name>.zip` to the `tools` release and writes the line. Check that nothing made
+  `add` publishes the archive as a new package version (`<name>-<system>/<version>/<sha256>-<name>.zip`, under the
+  organization's *Packages*) and writes the line. A version's files never change: new bytes are a new version. Check that nothing made
   from the game is in it (CONTRIBUTING.md): the profile is addresses and counts, never game code.
+- **A Linux tool** (LLVM, FFmpeg or dav1d, SDL2, the Vulkan headers, the sysroot): they are all ours, made from
+  `scripts/linux/deps.sh`'s pinned downloads, on the system the AppImage is for (Ubuntu 22.04: the sysroot is its C library).
+  1. Change the version and its `sha256` pin in `scripts/linux/deps.sh` (a tag archive's pin is what it unpacks to: the
+     script prints the new one when it stops).
+  2. `scripts/linux/docker.sh tools` (or `scripts/linux/deps.sh tools` in CI's container). It builds the tools into
+     `build-linux/docker-deps` and packs each as `tools/<name>.zip`, writing the `tools.py add` lines into
+     `tools/add.sh`.
+  3. Run the lines of the tools you changed, with your token: `RELEASE_TOKEN=<your token> python -I scripts/tools.py add
+     emsdk 23.1.5 build-linux/docker-deps/tools/emsdk.zip --system linux-x64 --dest usr/lib/longshot/emsdk --prefix emsdk`.
+     An archive over 100 MB (emsdk) goes through the address without Cloudflare: `FORGEJO_UPLOAD_API=<it>` (One-time
+     setup, the upload address).
+  4. `scripts/linux/docker.sh` builds the AppImage with the new lines (`appimage.sh` installs them into
+     `build-linux/tools`, and `check_player_build.sh` starts a build from the image with them), then the pull request
+     (`build(linux): LLVM 23.1.6`).
 
-The next release uses the new line; installed versions keep theirs. The `tools` release is never pruned, so older
-versions' tools stay downloadable.
+  The AppImage itself carries Python with `requirements.txt`'s packages and Tk (`deps.sh` without `tools`); a change to
+  those is an ordinary pull request.
+
+Uploads over 100 MB (llvm-mingw, both emsdk) go to the address without Cloudflare: `FORGEJO_UPLOAD_API=<it>/api/v1` (One-time
+setup, the upload address), from a machine that reaches it. The next release uses the new line; installed versions keep
+theirs. Packages are never pruned, so older versions' tools stay downloadable.
 
 ## Rotate the key
 
@@ -244,13 +263,11 @@ None of this is done yet. In order (the org secret is shared by both repositorie
 5. **Actions and runners.** Enable Actions on both repositories (*Settings* > *Units*), and register the runners in
    [docs/forgejo-runners.md](https://git.magicbean.dev/MagicBeanDev/Longshot/src/branch/main/docs/forgejo-runners.md)
    (Linux only, for both: Longshot's Windows files are cross-built on Linux).
-6. **Longshot's `tools` release and `tools.lock`.** Assemble and add the three tools the lock lacks: `cpm` with dav1d (from
-   build-windows.yml's dav1d artifact), `third-party` (the prebuilt files, from Hookshot v2.1.0's third_party part or a
-   Windows build), and `profile` (the play profile). Then `tools.py mirror` each of the others (llvm-mingw, python, emsdk,
-   wgpu-native), so its first URL, the `tools` release, exists; its upstream or NotRexed/Hookshot URL stays the fallback.
-   The first `mirror` or `add` creates the `tools` release. **The `tools` release must be filled before the first
-   release:** `python -I scripts/tools.py check --require` must pass, and `release.yml` stops in its first job, before
-   any build, until it does ("the tools release is missing: …").
+6. **The tools' packages and `tools.lock`.** Done (2026-11-13): `cpm` with dav1d and `third-party` assembled and added,
+   llvm-mingw, python, emsdk and wgpu-native mirrored, the Linux tools added, each a generic package of the organization
+   (docs/releases.md, "tools.lock"). The play profile is optional and there is none yet (`tools.py assemble profile`,
+   then `add`, when there is). `python -I scripts/tools.py check --require` must pass: `release.yml` stops in its first
+   job, before any build, until it does.
 7. **Try it** on a fork, or with a throwaway key first: `LONGSHOT_LAUNCHER_TRUST=<test .pub.pem>` makes a launcher accept a
    release signed with it.
 8. **The first releases.** The launcher `v1.0.0-rc.1` and Longshot `v3.0.0-rc.1`, then their stables.
@@ -265,11 +282,11 @@ None of this is done yet. In order (the org secret is shared by both repositorie
 | *Publish* fails with HTTP 400/422 on an upload | the attachment size or type limits | One-time setup, step 4 |
 | *Publish* fails with HTTP 401/403 | the job's token is read-only: the run is not a push to this repository (a pull request from a fork, or another repository's workflow) | release from a push or a tag here only |
 | "is already published" | a run for a version that is out (a re-run of an old run) | nothing: a version's files never change |
-| *The version* fails: "the tools release is missing: …" | `tools.lock` lacks a tool the builder needs | One-time setup, step 6 |
+| *The version* fails: "tools.lock is missing: …" or "not in Longshot's store …" | `tools.lock` lacks a tool a builder needs, or names a package file that was not uploaded | Bump a tool (`tools.py add` or `mirror`) |
 | A draft is left after a failed run | the run stopped before *Publish* | re-run it (the draft is reused), or delete the draft |
 | The launcher: "not signed by a key this launcher trusts" | a release signed with a key the launcher does not have (a new key, or a test key) | release the launcher with the key first (Rotate the key) |
 | The launcher offers nothing on a channel | no published release on it, or its newest was refused (the home says why) | `release.py channels`, then check that release's files |
 | A launcher does not see a new release | it checks at start and on Retry; a draft is not seen | publish finished? Retry in the launcher |
 | `next` or `notes`: "git-cliff is needed" | git-cliff is not on PATH | `export GIT_CLIFF=$(python -I scripts/release.py git-cliff <folder>)` |
-| A Windows install fails at a tool | its upstream URL is gone and it has no mirror, or the archive changed | `tools.py mirror <name>` (the copy in the tools release), or bump it |
+| A Windows install fails at a tool | its upstream URL is gone and it has no mirror, or the archive changed | `tools.py mirror <name>` (its copy in Packages), or bump it |
 | Too many nightlies | the prune step failed (HTTP 422: a protected `nightly-*` tag) | unprotect `nightly-*` (step 2), or `RELEASE_TOKEN=<your token> python -I scripts/release.py prune` by hand |

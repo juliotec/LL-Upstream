@@ -238,6 +238,65 @@ static partial class Program
                                                                                "v3.0.1", null, null, default, Extract),
                                                 "An AppImage that is not the one its signed SHA256SUMS names was installed.");
 
+        // (Linux, a builder without its tools: the tools.lock inside the AppImage names them, linux-x64 lines, unpacked beside it
+        // at their dests as on Windows; the Windows lines are not taken. The next version keeps the ones it shares)
+        var clang = Zip(("emsdk/upstream/bin/clang-23", "#!/bin/sh\n", null, 0x1ED), ("emsdk/upstream/bin/clang", null, "clang-23", 0x1FF));
+        var sdl = Zip(("sdl2/libSDL2-2.0.so.0", "\x7fELF sdl", null, 0x1A4));
+        var lnx = new FakeForgejo(Product.Longshot);
+        lnx.Server.Files["https://tools/clang.zip"] = clang;
+        lnx.Server.Files["https://tools/sdl2.zip"] = sdl;
+        string LinuxLock(byte[] c) =>
+            $"tool emsdk 23 linux-x64 {ShaOf(c)} {c.Length} usr/lib/longshot/emsdk emsdk https://tools-gone/c.zip https://tools/clang.zip\n" +
+            $"tool sdl2 2 linux-x64 {ShaOf(sdl)} {sdl.Length} usr/lib/longshot/sdl2 sdl2 https://tools/sdl2.zip\n" +
+            $"tool python 3 windows-x64 {new string('a', 64)} 10 LongshotBuilder/tools/python python https://tools/windows.zip\n";
+        var lockInside = LinuxLock(clang);
+        Task ExtractWithLock(string appImage, string folder, CancellationToken cancel)
+        {
+            var tree = Path.Combine(folder, "squashfs-root");
+            Directory.CreateDirectory(Path.Combine(tree, "usr", "share", "longshot", "nx2"));
+            File.WriteAllText(Path.Combine(tree, "AppRun"), "#!/bin/sh\n");
+            File.WriteAllText(Path.Combine(tree, "usr", "share", "longshot", "nx2", "make_game.py"), "print('authored')\n");
+            File.WriteAllText(Path.Combine(tree, "usr", "share", "longshot", "tools.lock"), lockInside);
+            return Task.CompletedTask;
+        }
+        lnx.Add("v3.4.0", key, files: new() { [ReleaseManifest.BuilderFile("v3.4.0", "linux-x64")] = image });
+        var lnxChains = new Toolchains(Path.Combine(root, "toolchains-linux-tools"), lnx.Server);
+        var lnxReleases = new Releases(lnx.Server, Platform.Linux, keys, NoWait);
+        seen.Clear();
+        var lt4 = await ToolsSource.EnsureAsync(lnxChains, lnxReleases, "v3.4.0", null, seen.Add, default, ExtractWithLock);
+        var lib = lt4.LibRoot;
+        Require(File.ReadAllText(Path.Combine(lib, "emsdk", "upstream", "bin", "clang")) == "#!/bin/sh\n"
+                && new FileInfo(Path.Combine(lib, "emsdk", "upstream", "bin", "clang")).LinkTarget == "clang-23"
+                && File.ReadAllText(Path.Combine(lib, "sdl2", "libSDL2-2.0.so.0")) == "\x7fELF sdl"
+                && !lnx.Server.Asked.Contains("https://tools/windows.zip") && !Directory.Exists(Path.Combine(lt4.Folder, "LongshotBuilder"))
+                && Math.Abs(seen[^1].Fraction - 1) < 1e-9 && seen.Zip(seen.Skip(1)).All(p => p.Second.Fraction >= p.First.Fraction - 1e-9),
+                "Linux: the AppImage's tools.lock tools unpacked beside it, from the mirror when the first link is gone.");
+        if (!OperatingSystem.IsWindows())
+            Require((File.GetUnixFileMode(Path.Combine(lib, "emsdk", "upstream", "bin", "clang-23")) & UnixFileMode.UserExecute) != 0,
+                    "A tool's executable keeps its mode.");
+        var l4 = MakeGameCommand.For(lt4, new BuildRequest(new BuildSource.Nup("/g.nup"), "/o"), Platform.Linux,
+                                     new LauncherHome(Path.Combine(root, "home-linux")), "/L/Longshot.AppImage");
+        Require(l4.Environment["LONGSHOT_SDL2"] == Path.Combine(lib, "sdl2", "libSDL2-2.0.so.0") && l4.Environment["EMSDK"] == Path.Combine(lib, "emsdk"),
+                "Linux: make_game.py is given tools.lock's tools.");
+        // (the next version: SDL2 the same archive, kept; a new clang downloaded)
+        var clang2 = Zip(("emsdk/upstream/bin/clang-23", "#!/bin/sh\n# 2\n", null, 0x1ED));
+        lnx.Server.Files["https://tools/clang.zip"] = clang2;
+        lockInside = LinuxLock(clang2);
+        lnx.Add("v3.4.1", key, files: new() { [ReleaseManifest.BuilderFile("v3.4.1", "linux-x64")] = image });
+        lnx.Server.Asked.Clear();
+        var lt5 = await ToolsSource.EnsureAsync(lnxChains, lnxReleases, "v3.4.1", null, null, default, ExtractWithLock);
+        Require(!lnx.Server.Asked.Contains("https://tools/sdl2.zip") && lnx.Server.Asked.Contains("https://tools/clang.zip")
+                && File.ReadAllText(Path.Combine(lt5.LibRoot, "sdl2", "libSDL2-2.0.so.0")) == "\x7fELF sdl"
+                && File.ReadAllText(Path.Combine(lt5.LibRoot, "emsdk", "upstream", "bin", "clang-23")) == "#!/bin/sh\n# 2\n",
+                "Linux: a tool another version has is kept, a changed one downloaded.");
+        // (a tool whose bytes differ from its line: nothing is installed)
+        lockInside = LinuxLock(Zip(("emsdk/upstream/bin/clang-23", "#!/bin/sh\n# 3\n", null, 0x1ED)));
+        lnx.Add("v3.4.2", key, files: new() { [ReleaseManifest.BuilderFile("v3.4.2", "linux-x64")] = image });
+        await ThrowsAsync<InvalidDataException>(() => ToolsSource.EnsureAsync(lnxChains, lnxReleases, "v3.4.2", null, null, default, ExtractWithLock),
+                                                "A build tool that is not the one the AppImage's tools.lock names was installed.");
+        Require(lnxChains.Find("v3.4.2") == null && !Directory.Exists(Path.Combine(root, "toolchains-linux-tools", "v3.4.2.part")),
+                "A failed install leaves nothing that looks installed.");
+
         // (Windows: the builder's zip as it is, then tools.lock's tools: a prefix becomes the dest, a mirror stands in for upstream)
         var zip = Zip(("LongshotBuilder.exe", "MZ setup", null, 0x1A4), ("LongshotBuilder/LongshotBuilder.exe", "MZ builder", null, 0x1A4),
                       ("LongshotBuilder/tools/nx2/make_game.py", "print('authored')\n", null, 0x1A4));
