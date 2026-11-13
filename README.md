@@ -188,7 +188,7 @@ how to make one: [RELEASING.md](RELEASING.md).
 The [.NET 10 SDK](https://dotnet.microsoft.com/download), on Windows or Linux:
 
 ```sh
-git clone https://git.magicbean.dev/MagicBeanDev/LongshotLauncher.git
+git clone --depth 1 https://git.magicbean.dev/MagicBeanDev/LongshotLauncher.git
 cd LongshotLauncher
 dotnet build LongshotLauncher.slnx
 dotnet run --project App

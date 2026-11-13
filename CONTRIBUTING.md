@@ -16,13 +16,16 @@ launcher is fine.
 ## Get started
 
 ```
-git clone https://git.magicbean.dev/MagicBeanDev/LongshotLauncher.git      (jj: jj git clone --colocate ...)
+git clone --depth 1 https://git.magicbean.dev/MagicBeanDev/LongshotLauncher.git   (jj: jj git clone --colocate --depth 1 ...)
 cd LongshotLauncher
 dotnet build LongshotLauncher.slnx                     (the .NET 10 SDK, Windows or Linux)
 dotnet run --project App
 python -I tests/test_launcher_core.py                  (the core's tests: no game, no network, no window)
 python -I tests/test_release.py                        (scripts/release.py; needs the openssl command line)
 ```
+
+`--depth 1` fetches the newest commit only. Pulling, branches and pull requests work as usual; `git log` past it, and cutting a
+release (`scripts/release.py` counts and checks commits), need the history: `git fetch --unshallow --tags` once.
 
 Sign in to git.magicbean.dev as for Longshot
 (`python -I scripts/forge.py login` in a Longshot checkout: one sign-in covers both).
