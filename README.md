@@ -14,6 +14,7 @@
 
 
 <p align="center">
+  <a href="https://longshot.magicbean.dev/"><b>Website</b></a> |
   <a href="#what-it-does">What it does</a> |
   <a href="#download">Download</a> |
   <a href="#installing">Installing</a> |
