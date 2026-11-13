@@ -91,8 +91,8 @@ public sealed class BuildStage
     }
 }
 
-/// One overall 0..1 for the whole build, from the stages' weights of the Windows Builder (MainWindow.xaml.cs: WithShaders,
-/// WithoutShaders): the tools' download first when the version's tools are not installed, then make_game.py's stages. Only the
+/// One overall 0..1 for the whole build, from the stages' measured weights (the same as the Windows Builder's MainWindow.xaml.cs:
+/// WithShaders, WithoutShaders): the tools' download first when the version's tools are not installed, then make_game.py's stages. Only the
 /// stages this build has count, scaled to fill the bar; the bar never goes back (make_game may run a stage again), and it is 1
 /// once make_game says @@done.
 public sealed class BuildProgress
@@ -108,11 +108,13 @@ public sealed class BuildProgress
     };
     static readonly Dictionary<string, double> WithShaders = new()
     {
-        ["download"] = 0.04, ["read"] = 0.04, ["lift"] = 0.14, ["compile"] = 0.68, ["finish"] = 0.02, [MakeGameProtocol.ShadersStage] = 0.08,
+        // (each step's share of a player's first build of nightly-56, measured on a Ryzen 9 7900X and an RTX 3090: Longshot's
+        // docs/development.md, "Build times". The shaders on Most are about a third, more on some GPUs)
+        ["download"] = 0.02, ["read"] = 0.09, ["lift"] = 0.07, ["compile"] = 0.37, ["finish"] = 0.08, [MakeGameProtocol.ShadersStage] = 0.37,
     };
     static readonly Dictionary<string, double> WithoutShaders = new()
     {
-        ["download"] = 0.04, ["read"] = 0.04, ["lift"] = 0.14, ["compile"] = 0.74, ["finish"] = 0.04,
+        ["download"] = 0.02, ["read"] = 0.15, ["lift"] = 0.11, ["compile"] = 0.59, ["finish"] = 0.13,
     };
 
     readonly List<BuildStage> stages = new();

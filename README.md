@@ -131,7 +131,7 @@ next time it starts. If `LongshotLauncher.exe` itself is missing, rename `Longsh
 2. **Game files**: the launcher looks for your dump on this PC; point it at the folder if it doesn't find it.
 3. **Settings**: where the game goes, the language, DLSS or FSR 4 (their licences are shown first), and whether to copy
    your saves from another build.
-4. **Build**: about 45 minutes the first time, shaders included. An update compiles only what changed.
+4. **Build**: about 15 to 30 minutes the first time, shaders included. An update compiles only what changed.
 5. **Play**. Ready can also make desktop and menu shortcuts, which start the default version.
 
 The cog on the home opens the launcher's settings: the channel for new builds, the **launcher's own channel**, where builds
@@ -273,8 +273,12 @@ Calls made here, most of them the design mockup's; each can be changed:
   but not yet through `play-diagnostics.sh` or its own systemd scope as the 2.x Linux Builder does.
 - **Closing the window during a build** asks first, as Cancel does; stopping kills make_game and everything it started.
 - **Copy from another build** is Windows only (Linux builds share one save folder).
-- **Time estimates**: step 2's "About 45 min, shaders included" (37 without) is the 2.x Builders' figure, not measured
-  on this PC; step 3's time left is make_game's `@@eta` in the compile, else the pace so far.
+- **Time estimates**: step 2's "About 15–30 min, shaders included" (10–20 without) and step 3's step weights
+  (`BuildProgress` in `Core/MakeGameProtocol.cs`) come from two player builds of nightly-56 on a Ryzen 9 7900X (12 cores)
+  and an RTX 3090: 13 min 30 s and 14 min 7 s, the shaders 5-5.5 min of it (Longshot's `docs/development.md`, "Build
+  times"). The top of each range is an estimate for slower PCs, not a measurement. Step 3's time left is make_game's
+  `@@eta` in the compile, else the pace so far. **Measure again** and update these after a change to the lift, the compile
+  flags, the shader preparation or the toolchain, and before each release, the way that section describes.
 - **Disk space**: step 2 wants 45 GB free where the game goes (the 2.x Builders' figure), and stops Build below it.
 - **Slots are shown as "Slot N"** with the time they were saved: the place a slot was saved at (caption.sav) is not read.
 - **"Your GPU"** comes from `/sys/class/drm` on Linux; on Windows the chip is not shown yet.

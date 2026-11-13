@@ -296,8 +296,13 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
 
     public bool ShowEstimate => !Short;
     public string SpaceWarning => $"{Drive} is too full for the build. Change the game folder.";
-    // (the 2.x Builders' "about 45 minutes", the shaders' share of it about 8)
-    public string Estimate => s.PrepareShaders ? "About 45 min, shaders included" : "About 37 min";
+    // (this PC's estimate from its CPU threads: BuildForecast, measured on nightly-56; the build step then corrects it as it goes)
+    public string Estimate => Durations.About(BuildForecast.Total(download: true, s.PrepareShaders, BuildThreads(s)))
+        + (s.PrepareShaders ? " on this PC, shaders included" : " on this PC");
+
+    /// The threads a build may use: the Build workers setting, else the PC's
+    public static int BuildThreads(LauncherSettings settings) =>
+        settings.BuildWorkers is int w and > 0 ? Math.Min(w, SystemInfo.Threads()) : SystemInfo.Threads();
     public string StartText => Job.Verb + Job.Shown;
     public bool IsUpdate => Job.Kind == JobKind.Update;
 

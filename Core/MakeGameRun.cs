@@ -92,15 +92,49 @@ public static class MakeGameRun
     }
 }
 
+/// What a build should take on this PC before it starts, by stage. Measured on one PC (two player builds of nightly-56 on a
+/// Ryzen 9 7900X, 24 threads, and an RTX 3090: Longshot's docs/development.md, "Build times"; measure again when the build
+/// changes) and scaled by this PC's threads for the stages that use every thread (the lift, the compile, the shaders). The
+/// others read and write files and keep the measured time. A thread past the cores is worth less than a core, so the scale
+/// goes as (24 / threads)^0.85 rather than in step: 8 threads about 2.5 times as long, 32 about 0.8
+public static class BuildForecast
+{
+    public const int ReferenceThreads = 24;
+    static readonly Dictionary<string, (double Seconds, bool Parallel)> Reference = new()
+    {
+        ["download"] = (10, false), ["read"] = (76, false), ["lift"] = (57, true), ["compile"] = (305, true), ["finish"] = (66, false),
+        [MakeGameProtocol.ShadersStage] = (311, true),
+    };
+
+    /// A stage's seconds on a PC with this many threads (0 for a stage it does not know)
+    public static double Seconds(string stage, int threads)
+    {
+        if (!Reference.TryGetValue(stage, out var r)) return 0;
+        return r.Parallel ? r.Seconds * Math.Pow(ReferenceThreads / (double)Math.Clamp(threads, 1, 256), 0.85) : r.Seconds;
+    }
+
+    /// The whole build's seconds: download, the tools' download first; shaders, the shaders prepared now
+    public static double Total(bool download, bool shaders, int threads) =>
+        new[] { "download", "read", "lift", "compile", "finish", MakeGameProtocol.ShadersStage }
+            .Where(id => (download || id != "download") && (shaders || id != MakeGameProtocol.ShadersStage))
+            .Sum(id => Seconds(id, threads));
+}
+
 /// A build's times: how long each stage took (or has run), and how long the whole build has left, from BuildProgress and a clock.
-/// The time left is make_game's own estimate in the compile (@@eta, from what earlier builds measured on this PC) plus the stages
-/// after it at the pace so far; elsewhere the pace so far over what is left of the bar
+/// Before the build has gone far, the time left is BuildForecast's for this PC. As stages end, it learns this PC's pace: the
+/// stages still to come are the forecast scaled by how long the finished stages took against theirs. A running stage counts
+/// down from its own progress once that says enough, and the compile uses make_game's own estimate (@@eta, from what earlier
+/// builds measured on this PC)
 public sealed class BuildClock
 {
     readonly Dictionary<string, TimeSpan> started = new();
     readonly Dictionary<string, TimeSpan> took = new();
+    readonly int threads;
     TimeSpan begun = TimeSpan.MinValue;
     TimeSpan last;
+
+    /// threads: the CPU threads the build may use (0: this PC's)
+    public BuildClock(int threads = 0) => this.threads = threads > 0 ? threads : SystemInfo.Threads();
 
     /// The progress seen at now (a monotonic time: a Stopwatch's elapsed)
     public void Observe(BuildProgress p, TimeSpan now)
@@ -121,28 +155,46 @@ public sealed class BuildClock
 
     public TimeSpan Elapsed => begun == TimeSpan.MinValue ? TimeSpan.Zero : last - begun;
 
-    /// The seconds left, or null while there is too little to go by (the first percent and the first 20 seconds)
+    /// This PC's pace against the forecast: the finished stages' time over their forecast (the download is the network's, not
+    /// the PC's, and is left out). 1 until 30 forecast seconds have finished; kept within 0.25..4
+    public double Pace(BuildProgress p)
+    {
+        double actual = 0, forecast = 0;
+        foreach (var s in p.Stages)
+        {
+            if (s.State != StageState.Done || s.Id == "download" || !took.TryGetValue(s.Id, out var t)) continue;
+            actual += t.TotalSeconds;
+            forecast += BuildForecast.Seconds(s.Id, threads);
+        }
+        return forecast >= 30 ? Math.Clamp(actual / forecast, 0.25, 4) : 1;
+    }
+
+    /// The seconds left
     public double? SecondsLeft(BuildProgress p)
     {
         if (p.Finished) return 0;
-        var elapsed = Elapsed.TotalSeconds;
-        if (p.Current == "compile" && p.Eta is double eta && p.Stages.FirstOrDefault(s => s.Id == "compile") is { } compile)
+        var pace = Pace(p);
+        double left = 0;
+        foreach (var s in p.Stages)
         {
-            var after = p.Stages.SkipWhile(s => s != compile).Skip(1).Where(s => s.State != StageState.Skipped).Sum(s => s.Weight);
-            var pace = p.Overall > 0.01 ? elapsed / p.Overall : 0;
-            return eta + after * pace;
+            if (s.State is StageState.Done or StageState.Skipped) continue;
+            var expected = BuildForecast.Seconds(s.Id, threads) * pace;
+            if (s.State != StageState.Running)
+            {
+                left += expected;
+                continue;
+            }
+            var ran = Of(s.Id)?.TotalSeconds ?? 0;
+            var fraction = s.Weight > 0 ? Math.Clamp((p.Overall - s.Start) / s.Weight, 0, 1) : 0;
+            if (s.Id == "compile" && p.Eta is double eta) left += eta;
+            else if (fraction >= 0.1 && ran >= 10) left += ran / fraction * (1 - fraction);
+            else left += Math.Max(expected - ran, expected * 0.1);
         }
-        if (p.Overall < 0.01 || elapsed < 20) return null;
-        return elapsed / p.Overall * (1 - p.Overall);
+        return left;
     }
 
-    /// A stage that has not started: about how long it takes at the pace so far; null while there is too little to go by
-    public double? Estimate(BuildProgress p, BuildStage stage)
-    {
-        var elapsed = Elapsed.TotalSeconds;
-        if (p.Overall < 0.01 || elapsed < 20) return null;
-        return elapsed / p.Overall * stage.Weight;
-    }
+    /// A stage that has not started, or is running: about how long it takes in all on this PC, at the pace so far
+    public double? Estimate(BuildProgress p, BuildStage stage) => BuildForecast.Seconds(stage.Id, threads) * Pace(p);
 }
 
 /// Times and sizes as the window writes them

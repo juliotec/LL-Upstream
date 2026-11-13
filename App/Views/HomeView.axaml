@@ -84,7 +84,7 @@
         </Panel>
         <TextBlock Classes="heading" Text="Build your game" HorizontalAlignment="Center" Margin="0,2,0,0"/>
         <TextBlock Classes="sub" MaxWidth="470" TextAlignment="Center" HorizontalAlignment="Center"
-                   Text="Longshot turns your own copy of Ocarina of Time into a PC game. It takes about 45 minutes, once per version."/>
+                   Text="Longshot turns your own copy of Ocarina of Time into a PC game. It takes about 15 to 30 minutes, once per version."/>
         <Button Classes="primary tall" HorizontalAlignment="Center" Margin="0,26,0,0" MinWidth="190" FontSize="16" Command="{Binding BuildCommand}">
           <StackPanel Orientation="Horizontal" Spacing="8">
             <c:Icon Kind="download" Width="16" Height="16"/>

@@ -173,26 +173,37 @@ static partial class Program
         Require(Durations.Day(new DateTime(2026, 11, 3), now) == "3 Nov" && Durations.Day(now, now) == "today", "The day a build was made.");
         Require(Durations.Size(41231686042) == "38.4 GB" && Durations.Size(340L << 20) == "340 MB", "Sizes.");
 
+        // (the forecast: the reference PC's measured times; half the threads, about 1.8 times as long for the threaded stages)
+        Require(Math.Abs(BuildForecast.Total(true, true, 24) - 825) < 1e-6 && Math.Abs(BuildForecast.Total(false, false, 24) - 504) < 1e-6,
+                "The forecast on the measured PC: its stages' times.");
+        Require(Math.Abs(BuildForecast.Seconds("compile", 12) - 305 * Math.Pow(2, 0.85)) < 1e-6 && BuildForecast.Seconds("read", 4) == 76
+                && BuildForecast.Seconds("compile", 32) < 305 && BuildForecast.Seconds("nothing", 8) == 0, "Threaded stages scale with the threads, the rest don't.");
+
         var p = new BuildProgress(download: true, shaders: true);
-        var clock = new BuildClock();
+        var clock = new BuildClock(threads: 24);
         p.Download(0.5);
         clock.Observe(p, TimeSpan.FromSeconds(0));
-        Require(clock.SecondsLeft(p) == null && clock.Of("download") == TimeSpan.Zero && clock.Of("read") == null, "Too early to say.");
+        Require(Math.Abs(clock.SecondsLeft(p)!.Value - 825) < 1e-6 && clock.Of("download") == TimeSpan.Zero && clock.Of("read") == null,
+                "At the start: this PC's forecast.");
         p.Feed("@@stage read Reading");
         clock.Observe(p, TimeSpan.FromSeconds(30));
-        p.Feed("@@progress 1");
-        clock.Observe(p, TimeSpan.FromSeconds(60));
-        Require(clock.Of("download") == TimeSpan.FromSeconds(30) && clock.Of("read") == TimeSpan.FromSeconds(30), "Each stage's time: done and running.");
-        var left = clock.SecondsLeft(p)!.Value;
-        Require(Math.Abs(left - (60 / p.Overall * (1 - p.Overall))) < 1e-6, "Time left at the pace so far.");
+        p.Feed("@@stage lift Translating");
+        clock.Observe(p, TimeSpan.FromSeconds(182));   // (the read took 152 s, twice the forecast's 76)
+        Require(clock.Of("download") == TimeSpan.FromSeconds(30) && clock.Of("read") == TimeSpan.FromSeconds(152), "Each stage's time.");
+        Require(Math.Abs(clock.Pace(p) - 2) < 1e-9, "The pace: the finished stages' time over their forecast.");
         var lift = p.Stages.First(s => s.Id == "lift");
-        Require(Math.Abs(clock.Estimate(p, lift)!.Value - 60 / p.Overall * lift.Weight) < 1e-6 && Math.Abs(p.Stages.Sum(s => s.Weight) - 1) < 1e-9,
-                "A stage to come: its share at the pace so far.");
+        Require(Math.Abs(clock.Estimate(p, lift)!.Value - 57 * 2) < 1e-6 && Math.Abs(p.Stages.Sum(s => s.Weight) - 1) < 1e-9,
+                "A stage: its forecast at this PC's pace.");
+        Require(Math.Abs(clock.SecondsLeft(p)!.Value - (57 + 305 + 66 + 311) * 2) < 1e-6, "The rest at this PC's pace.");
         p.Feed("@@stage compile Compiling");
         p.Feed("@@eta 600");
-        clock.Observe(p, TimeSpan.FromSeconds(100));
-        var after = p.Stages.SkipWhile(s => s.Id != "compile").Skip(1).Sum(s => s.Weight);
-        Require(Math.Abs(clock.SecondsLeft(p)!.Value - (600 + after * 100 / p.Overall)) < 1e-6, "In the compile: make_game's eta, then the rest.");
+        clock.Observe(p, TimeSpan.FromSeconds(300));
+        Require(Math.Abs(clock.SecondsLeft(p)!.Value - (600 + (66 + 311) * clock.Pace(p))) < 1e-6, "In the compile: make_game's eta, then the rest.");
+        p.Feed("@@stage finish Finishing");
+        clock.Observe(p, TimeSpan.FromSeconds(900));
+        p.Feed("@@progress 0.5");
+        clock.Observe(p, TimeSpan.FromSeconds(940));
+        Require(Math.Abs(clock.SecondsLeft(p)!.Value - (40 + 311 * clock.Pace(p))) < 1e-6, "A running stage counts down from its own progress.");
         p.Feed("@@done /g");
         clock.Observe(p, TimeSpan.FromSeconds(200));
         Require(clock.SecondsLeft(p) == 0 && clock.Elapsed == TimeSpan.FromSeconds(200), "Done.");

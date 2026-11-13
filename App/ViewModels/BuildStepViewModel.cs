@@ -51,7 +51,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
     };
 
     readonly BuildProgress progress;
-    readonly BuildClock clock = new();
+    readonly BuildClock clock;
     readonly Stopwatch watch = new();
     readonly List<string> log = new();
     readonly CancellationTokenSource cancel = new();
@@ -66,6 +66,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
         Job = job;
         var s = job.Service.Settings;
         progress = new BuildProgress(download: true, shaders: s.PrepareShaders);
+        clock = new BuildClock(SettingsStepViewModel.BuildThreads(s));
         progress.Download(1);
         Rows = progress.Stages.Select(st => new StageRowViewModel(st.Id, Names.GetValueOrDefault(st.Id, st.Title))).ToList();
         Notches = progress.Stages.Skip(1).Select(st => st.Start).ToList();

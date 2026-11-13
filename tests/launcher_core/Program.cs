@@ -712,7 +712,7 @@ static partial class Program
             p.Download(i / 10.0);
             bars.Add(p.Overall);
         }
-        Require(Math.Abs(p.Overall - 0.04) < 1e-9, "The tools' download fills its weight.");
+        Require(Math.Abs(p.Overall - 0.02) < 1e-9, "The tools' download fills its weight.");
         foreach (var line in transcript)
         {
             p.Feed(line);
@@ -722,13 +722,13 @@ static partial class Program
         }
         Require(bars.Zip(bars.Skip(1)).All(x => x.Second >= x.First), "The bar went back: " + string.Join(" ", bars.Select(b => b.ToString("0.000"))));
         Require(bars[^1] == 1 && p.Finished && p.Folder == "/authored/game" && p.Stages.All(s => s.State == StageState.Done), "The bar ends full.");
-        Require(Math.Abs(bars[bars.Count - 3] - 0.96) < 1e-9, "The shaders' half: 0.92 + 0.08 / 2.");
+        Require(Math.Abs(bars[bars.Count - 3] - 0.815) < 1e-9, "The shaders' half: 0.63 + 0.37 / 2.");
 
         var q = new BuildProgress(download: false, shaders: true);
         q.Feed("@@stage read x");
         Require(q.Overall == 0 && q.Current == "read", "With no download, the read starts at 0.");
         q.Feed("@@stage compile x");
-        Require(Math.Abs(q.Overall - (0.22 - 0.04) / 0.96) < 1e-9, "The weights scale to the stages a build has.");
+        Require(Math.Abs(q.Overall - (0.18 - 0.02) / 0.98) < 1e-9, "The weights scale to the stages a build has.");
         q.Feed("the shaders were not prepared now (\"Prepare shaders now\" is unticked): the game prepares them at its first start");
         q.Feed("@@done /g");
         var shaders = q.Stages.First(s => s.Id == "shaders");
