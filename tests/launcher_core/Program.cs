@@ -71,6 +71,7 @@ static partial class Program
         Utf8Checks();
         await ScreenChecks();
         await BusyChecks(Path.GetFullPath(Path.Combine(fixtures, "..", "..")));
+        IconChecks(Path.GetFullPath(Path.Combine(fixtures, "..", "..")));
         checks += SavesChecks.Count;
         Console.WriteLine($"launcher core: {checks} checks passed");
         return 0;

@@ -3,6 +3,7 @@ using Avalonia.Animation;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Input.Platform;
+using Avalonia.Platform;
 using Avalonia.Platform.Storage;
 using LongshotLauncher.ViewModels;
 
@@ -15,6 +16,8 @@ public sealed partial class MainWindow : Window, IWindowHost
     public MainWindow()
     {
         InitializeComponent();
+        // (Windows: the .ico, so the title bar, taskbar and Alt-Tab each take their size, not the 512 pixel logo scaled down)
+        if (OperatingSystem.IsWindows()) Icon = new WindowIcon(AssetLoader.Open(new Uri("avares://LongshotLauncher/Assets/longshot.ico")));
         // (pages cross-fade quickly; with less motion asked for, they change at once and nothing in the window animates)
         if (Motion.Reduced) Classes.Add("still");
         Pages.PageTransition = Motion.Reduced ? null : new CrossFade(TimeSpan.FromMilliseconds(140));

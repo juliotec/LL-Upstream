@@ -202,6 +202,7 @@ static partial class Program
         Require(menuEntry == Path.Combine(data, "applications", "longshot-launcher.desktop") && File.Exists(menuIcon)
                 && desktopText.Contains("Exec=" + Shortcuts.Quote(image) + "\n") && desktopText.Contains("Icon=" + menuIcon + "\n")
                 && Shortcuts.LauncherInMenu(xdg) == image, "Add to applications menu: the entry starts the AppImage where it is, with its icon.");
+        Require(desktopText.Contains("\nStartupWMClass=longshot-launcher\n"), "The menu entry names the window's class (its app_id and WM_CLASS).");
         Shortcuts.RemoveLauncherFromMenu(xdg);
         Require(!File.Exists(menuEntry) && !File.Exists(menuIcon) && Shortcuts.LauncherInMenu(xdg) == null, "Removed from the menu.");
 

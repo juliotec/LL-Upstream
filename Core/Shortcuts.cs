@@ -72,6 +72,7 @@ public static class Shortcuts
 
     // ---- the launcher itself in the Linux applications menu (Settings, "Add to applications menu") ----
 
+    /// (also the window's Wayland app_id and X11 WM_CLASS, Program, and the entries' StartupWMClass: a taskbar finds the entry's icon)
     public const string LauncherEntryName = "longshot-launcher";
 
     /// Where the launcher's own menu entry and its icon go: $XDG_DATA_HOME/applications/longshot-launcher.desktop and
@@ -90,7 +91,7 @@ public static class Shortcuts
         "Comment=Install Longshot's builder, build the game from your own copy, and play\n" +
         "Exec=" + Quote(appImage) + "\n" +
         "TryExec=" + appImage + "\n" +
-        "Icon=" + icon + "\nTerminal=false\nCategories=Game;\nStartupWMClass=LongshotLauncher\n";
+        "Icon=" + icon + "\nTerminal=false\nCategories=Game;\nStartupWMClass=" + LauncherEntryName + "\n";
 
     /// Whether the launcher is in the applications menu, and the AppImage its entry starts (null when it is not there)
     public static string? LauncherInMenu(Func<string, string?>? getenv = null)

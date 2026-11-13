@@ -82,6 +82,7 @@ Exec=LongshotLauncher
 Icon=longshot-launcher
 Categories=Game;
 Terminal=false
+StartupWMClass=longshot-launcher
 EOF
 cat > "$app/AppRun" <<'EOF'
 #!/bin/sh

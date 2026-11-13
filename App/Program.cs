@@ -142,6 +142,9 @@ static class Program
 
     public static AppBuilder BuildAvaloniaApp() => AppBuilder.Configure<App>().UsePlatformDetect()
         .UseWaylandWithFallback()   // (native Wayland when there is a compositor: through XWayland, a scaled desktop draws the window blurry)
+        // (the window's app_id and WM_CLASS: the name of the launcher's .desktop entries, so that a taskbar or dock shows their icon)
+        .With(new WaylandPlatformOptions { AppId = Shortcuts.LauncherEntryName })
+        .With(new X11PlatformOptions { WmClass = Shortcuts.LauncherEntryName })
         .LogToTrace();
 
     static int Rollback()

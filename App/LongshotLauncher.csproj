@@ -7,7 +7,7 @@
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <BuiltInComInteropSupport>false</BuiltInComInteropSupport>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <!-- (the Windows program's icon: the Longshot logo, Assets/longshot.ico) -->
+    <!-- (the Windows program's icon: the Longshot logo, Assets/longshot.ico, made from Assets/longshot.png by scripts/make_icon.py) -->
     <ApplicationIcon>Assets/longshot.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
@@ -25,8 +25,9 @@
     <ProjectReference Include="../Core/LongshotLauncher.Core.csproj"/>
   </ItemGroup>
   <ItemGroup>
-    <!-- (Inter, under its own licence, Assets/Fonts/Inter-LICENSE.txt, and the Longshot logo) -->
+    <!-- (Inter, under its own licence, Assets/Fonts/Inter-LICENSE.txt, and the Longshot logo, and its icon for the Windows window) -->
     <AvaloniaResource Include="Assets/Fonts/Inter-*.ttf"/>
     <AvaloniaResource Include="Assets/longshot.png"/>
+    <AvaloniaResource Include="Assets/longshot.ico"/>
   </ItemGroup>
 </Project>
