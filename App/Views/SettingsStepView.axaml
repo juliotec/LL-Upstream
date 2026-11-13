@@ -147,7 +147,7 @@
                       <Border Classes="chip quiet small" IsVisible="{Binding FsrYourGpu}"><TextBlock Text="Your GPU"/></Border>
                     </StackPanel>
                     <WrapPanel>
-                      <TextBlock Classes="rdesc" Text="For Radeon RX 9000 cards. " TextWrapping="NoWrap"/>
+                      <TextBlock Classes="rdesc" Text="For Radeon RX 6000 and newer, fastest on RX 9000. " TextWrapping="NoWrap"/>
                       <StackPanel Orientation="Horizontal" Spacing="4" IsVisible="{Binding FsrAccepted}">
                         <c:Icon Kind="check" Width="12" Height="12" Foreground="{StaticResource Go}" VerticalAlignment="Center"/>
                         <TextBlock FontSize="12" Foreground="{StaticResource Go}" Text="AMD's licence accepted"/>
