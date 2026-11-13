@@ -127,7 +127,7 @@ jobs:
     name: Sign and publish
     needs: [version, build]
     if: needs.version.outputs.tag != ''
-    runs-on: ubuntu-latest
+    runs-on: quick  # (a short job: it starts as the builds end, never behind them; the same machine and secrets)
     timeout-minutes: 30
     permissions:
       contents: write
@@ -175,7 +175,8 @@ jobs:
           cat files/SHA256SUMS
       - name: The notes
         run: |
-          export GIT_CLIFF=$(python3 -I scripts/release.py git-cliff "$RUNNER_TEMP/cliff")
+          GIT_CLIFF=$(python3 -I scripts/release.py git-cliff "$RUNNER_TEMP/cliff")
+          export GIT_CLIFF
           python3 -I scripts/release.py notes "$TAG" --out notes.md
           cat notes.md
       - name: Publish
