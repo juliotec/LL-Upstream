@@ -26,8 +26,18 @@
         <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
           <TextBlock Text="{Binding LauncherUpdateHeading}" FontWeight="SemiBold"/>
           <TextBlock Classes="note" Text="{Binding LauncherUpdateText}" TextWrapping="Wrap"/>
+          <!-- while it updates: each step, the download's percentage and bar, and Cancel while it downloads -->
+          <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,4,0,0" IsVisible="{Binding UpdateLauncherCommand.IsBusy}">
+            <TextBlock Classes="note tnum" Foreground="{StaticResource InfoInk}" Text="{Binding UpdateLauncherCommand.Status}" VerticalAlignment="Center"/>
+            <Button Classes="link smaller" Content="Cancel" Command="{Binding CancelLauncherUpdateCommand}"
+                    IsVisible="{Binding UpdateLauncherCommand.CanCancel}" VerticalAlignment="Center"/>
+          </StackPanel>
+          <c:Bar Height="4" Margin="0,6,0,2" Fill="{StaticResource Brand}"
+                 Value="{Binding UpdateLauncherCommand.Progress}" IsVisible="{Binding UpdateLauncherCommand.HasFraction}"/>
         </StackPanel>
-        <Button Grid.Column="2" Classes="small" Content="{Binding LauncherUpdateButton}" Command="{Binding UpdateLauncherCommand}" VerticalAlignment="Center"/>
+        <Button Grid.Column="2" Classes="small" Command="{Binding UpdateLauncherCommand}" VerticalAlignment="Center">
+          <c:BusyContent Content="{Binding LauncherUpdateButton}" IsBusy="{Binding UpdateLauncherCommand.IsBusy}" BusyText="Updating…"/>
+        </Button>
       </Grid>
     </Border>
     <!-- Hookshot's saves found, offered once -->
@@ -92,6 +102,10 @@
         <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center" Margin="0,16,0,0" IsVisible="{Binding Checking}">
           <c:Spinner VerticalAlignment="Center"/>
           <TextBlock Classes="note" Text="Asking git.magicbean.dev for the newest version…"/>
+        </StackPanel>
+        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center" Margin="0,8,0,0" IsVisible="{Binding ShowCheckLine}">
+          <c:Spinner VerticalAlignment="Center"/>
+          <TextBlock Classes="note" Text="{Binding CheckCommand.Status}"/>
         </StackPanel>
         <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center" Margin="0,16,0,0" IsVisible="{Binding CheckFailed}">
           <TextBlock Classes="note" Text="git.magicbean.dev did not answer, so the version to build is not known."/>
@@ -163,7 +177,11 @@
                               <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                 <TextBlock Text="{Binding Version}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
                                 <TextBlock Classes="faint" Text="{Binding Meta}" IsVisible="{Binding ShowMeta}" TextTrimming="CharacterEllipsis"/>
-                                <StackPanel Orientation="Horizontal" Spacing="4" IsVisible="{Binding HasUpdate}">
+                                <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding IsDeleting}">
+                                  <c:Spinner Width="12" Height="12" VerticalAlignment="Center"/>
+                                  <TextBlock Classes="faint" Text="{Binding DeletingText}"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Spacing="4" IsVisible="{Binding ShowUpdateLine}">
                                   <c:Icon Kind="arrowUp" Width="12" Height="12" Foreground="{StaticResource BrandInk}" VerticalAlignment="Center"/>
                                   <TextBlock FontSize="12" FontWeight="Medium" Foreground="{StaticResource BrandInk}" Text="{Binding UpdateLine}"/>
                                 </StackPanel>
@@ -217,7 +235,11 @@
             </ScrollViewer>
           </Border>
           <TextBlock Classes="faint" Text="{Binding Footer}" Margin="0,10,0,0" TextTrimming="CharacterEllipsis"/>
-          <TextBlock Classes="faint" Text="{Binding Status}" Margin="0,4,0,0" IsVisible="{Binding Status, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+          <TextBlock Classes="faint" Text="{Binding Status}" Margin="0,4,0,0" IsVisible="{Binding ShowStatus}"/>
+          <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,4,0,0" IsVisible="{Binding CheckCommand.IsBusy}">
+            <c:Spinner Width="12" Height="12" VerticalAlignment="Center"/>
+            <TextBlock Classes="faint" Text="{Binding CheckCommand.Status}"/>
+          </StackPanel>
         </StackPanel>
       </Grid>
     </Panel>

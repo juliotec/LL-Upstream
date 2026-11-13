@@ -191,3 +191,15 @@ public sealed class Spinner : Control
         context.DrawGeometry(null, Arc, g);
     }
 }
+
+/// A button's label that becomes the spinner and what the button is doing while its work runs (BusyCommand.IsBusy): the button
+/// keeps its place and its size grows only to the busy text. App.axaml draws it
+public sealed class BusyContent : ContentControl
+{
+    public static readonly StyledProperty<bool> IsBusyProperty = AvaloniaProperty.Register<BusyContent, bool>(nameof(IsBusy));
+    public static readonly StyledProperty<string?> BusyTextProperty = AvaloniaProperty.Register<BusyContent, string?>(nameof(BusyText));
+
+    public bool IsBusy { get => GetValue(IsBusyProperty); set => SetValue(IsBusyProperty, value); }
+    /// "Updating…": short, the button's own words
+    public string? BusyText { get => GetValue(BusyTextProperty); set => SetValue(BusyTextProperty, value); }
+}

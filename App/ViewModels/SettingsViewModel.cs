@@ -8,6 +8,7 @@ public sealed class SettingsViewModel : ViewModelBase
 {
     readonly LauncherSettings s;
     long? workBytes;
+    bool measuring;
 
     public sealed class ChannelOption(SettingsViewModel owner, string id, string name, string about, string? version) : ViewModelBase
     {
@@ -56,7 +57,8 @@ public sealed class SettingsViewModel : ViewModelBase
         ChangeBuildsCommand = new Command(() => _ = ChangeBuildsAsync());
         ChangeWorkCommand = new Command(() => _ = ChangeWorkAsync());
         DefaultWorkCommand = new Command(() => { s.Work = null; Save(); RaiseAll(nameof(Work)); MeasureWork(); });
-        FreeSpaceCommand = new Command(FreeSpace, () => workBytes > 0);
+        FreeSpaceCommand = new BusyCommand(FreeSpaceAsync, () => workBytes > 0 && !measuring,
+                                           e => Main.ShowToast("The build files could not all be deleted: " + e.Message));
         ReleaseNotesCommand = new Command(() => Main.Host?.Open(Releases.Repo + "/releases"));
         AddToMenuCommand = new Command(AddToMenu, () => Program.Layout.File != null);
         RemoveFromMenuCommand = new Command(RemoveFromMenu);
@@ -179,7 +181,12 @@ public sealed class SettingsViewModel : ViewModelBase
         }
     }
 
-    public string WorkNote => workBytes is long b && b > 0 ? $"{Durations.Size(b)} kept to make updates quicker." : "Nothing kept yet.";
+    public string WorkNote => FreeSpaceCommand.IsBusy ? "Deleting the build files…"
+        : measuring ? "Measuring the build files…"
+        : workBytes is long b && b > 0 ? $"{Durations.Size(b)} kept to make updates quicker." : "Nothing kept yet.";
+
+    /// The update check that a change of the launcher's channel starts (HomeViewModel.CheckCommand): a spinner beside the channels
+    public BusyCommand CheckCommand => Main.Home.CheckCommand;
 
     public bool CheckUpdates
     {
@@ -198,18 +205,22 @@ public sealed class SettingsViewModel : ViewModelBase
     public Command ChangeBuildsCommand { get; }
     public Command ChangeWorkCommand { get; }
     public Command DefaultWorkCommand { get; }
-    public Command FreeSpaceCommand { get; }
+    public BusyCommand FreeSpaceCommand { get; }
     public Command ReleaseNotesCommand { get; }
 
     void MeasureWork()
     {
         var folder = Main.Service.Work;
+        measuring = true;
+        Raise(nameof(WorkNote));
+        FreeSpaceCommand.Changed();
         Task.Run(() =>
         {
             var bytes = Disk.WorkBytes(folder);
             Ui.Post(() =>
             {
                 workBytes = bytes;
+                measuring = false;
                 Raise(nameof(WorkNote));
                 FreeSpaceCommand.Changed();
             });
@@ -217,21 +228,21 @@ public sealed class SettingsViewModel : ViewModelBase
     }
 
     /// The build files deleted: the next build or update makes them again. Only what make_game made there (Disk.WorkParts): the
-    /// folder may be one the player chose, holding other things
-    void FreeSpace()
+    /// folder may be one the player chose, holding other things. Gigabytes: off the window's thread, the link off meanwhile
+    async Task FreeSpaceAsync(BusyCommand busy, CancellationToken cancel)
     {
         var folder = Main.Service.Work;
         var freed = workBytes ?? 0;
+        Raise(nameof(WorkNote));
         try
         {
-            Disk.FreeWork(folder);
+            await Task.Run(() => Disk.FreeWork(folder));
             Main.ShowToast($"Freed {Durations.Size(freed)} of build files. The next update makes them again.");
         }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        finally
         {
-            Main.ShowToast("The build files could not all be deleted: " + e.Message);
+            MeasureWork();
         }
-        MeasureWork();
     }
 
     async Task ChangeBuildsAsync()

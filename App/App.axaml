@@ -329,6 +329,27 @@
       <Setter Property="Height" Value="50"/>
       <Setter Property="Padding" Value="26,0"/>
     </Style>
+    <!-- a button's label while its work runs (Controls.BusyContent, Core/BusyCommand.cs): the spinner and what it is doing -->
+    <Style Selector="c|BusyContent">
+      <Setter Property="Template">
+        <ControlTemplate>
+          <Panel>
+            <ContentPresenter Name="Idle" Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
+                              VerticalAlignment="Center" HorizontalAlignment="Center"/>
+            <StackPanel Name="Busy" Orientation="Horizontal" Spacing="8" IsVisible="False" VerticalAlignment="Center" HorizontalAlignment="Center">
+              <c:Spinner VerticalAlignment="Center"/>
+              <TextBlock Text="{TemplateBinding BusyText}" VerticalAlignment="Center"/>
+            </StackPanel>
+          </Panel>
+        </ControlTemplate>
+      </Setter>
+    </Style>
+    <Style Selector="c|BusyContent[IsBusy=true] /template/ ContentPresenter#Idle">
+      <Setter Property="IsVisible" Value="False"/>
+    </Style>
+    <Style Selector="c|BusyContent[IsBusy=true] /template/ StackPanel#Busy">
+      <Setter Property="IsVisible" Value="True"/>
+    </Style>
     <Style Selector="Button.small">
       <Setter Property="Height" Value="32"/>
       <Setter Property="Padding" Value="12,0"/>
@@ -397,6 +418,11 @@
     </Style>
     <Style Selector="Button.link.smaller">
       <Setter Property="FontSize" Value="12"/>
+    </Style>
+    <!-- a link that cannot be pressed now (its work, or another, runs: BusyCommand) reads as off, as the other buttons do -->
+    <Style Selector="Button.link:disabled">
+      <Setter Property="Foreground" Value="{StaticResource InkFaint}"/>
+      <Setter Property="Background" Value="Transparent"/>
     </Style>
     <!-- the title bar's buttons: on Windows flush in the corner, 46 wide, close in Windows' red; on Linux round and inset, as
          GNOME and KDE draw them (MainWindow's StackPanel.linux) -->

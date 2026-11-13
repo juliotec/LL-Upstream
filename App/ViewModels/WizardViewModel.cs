@@ -138,7 +138,8 @@ public sealed class FilesStepViewModel : ViewModelBase, IWizardPage
         NextCommand = new Command(Next, () => CanNext);
         BrowseCommand = new Command(() => _ = BrowseAsync());
         FoldersCommand = new Command(() => _ = FoldersAsync());
-        RetryCommand = new Command(StartTools);
+        // (only after a failure: a second click while it downloads again starts nothing)
+        RetryCommand = new Command(StartTools, () => toolsFailed);
         if (tools) StartTools();
         StartSearch();
     }
@@ -162,6 +163,9 @@ public sealed class FilesStepViewModel : ViewModelBase, IWizardPage
     public bool ToolsDone => toolsDone;
     public bool ToolsFailed => toolsFailed;
     public bool ToolsBusy => !toolsDone && !toolsFailed;
+    /// Downloading with its size known: a bar; before that (finding the version's tools) a spinner, not a bar that does not move
+    public bool ToolsMeasured => ToolsBusy && toolsTotal > 0;
+    public bool ToolsLooking => ToolsBusy && toolsTotal == 0;
 
     public string ToolsNote
     {
@@ -188,6 +192,8 @@ public sealed class FilesStepViewModel : ViewModelBase, IWizardPage
     {
         toolsFailed = false;
         toolsProblem = null;
+        toolsTotal = 0;
+        ToolsFraction = 0;
         RaiseTools();
         toolsClock.Restart();
         var token = Job.Cancel.Token;
@@ -221,7 +227,7 @@ public sealed class FilesStepViewModel : ViewModelBase, IWizardPage
             Job.ToolsDownloaded = true;
         }
         ToolsFraction = p.Fraction;
-        Raise(nameof(ToolsNote));
+        RaiseAll(nameof(ToolsNote), nameof(ToolsMeasured), nameof(ToolsLooking));
     }
 
     void ToolsReady(Toolchain t)
@@ -236,7 +242,8 @@ public sealed class FilesStepViewModel : ViewModelBase, IWizardPage
 
     void RaiseTools()
     {
-        RaiseAll(nameof(ToolsDone), nameof(ToolsFailed), nameof(ToolsBusy), nameof(ToolsNote));
+        RaiseAll(nameof(ToolsDone), nameof(ToolsFailed), nameof(ToolsBusy), nameof(ToolsMeasured), nameof(ToolsLooking), nameof(ToolsNote));
+        RetryCommand.Changed();
         RaiseNext();
     }
 

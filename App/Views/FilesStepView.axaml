@@ -41,7 +41,8 @@
                          TextTrimming="CharacterEllipsis"/>
             </StackPanel>
             <Panel Grid.Column="2" VerticalAlignment="Center">
-              <c:Bar Value="{Binding ToolsFraction}" Fill="{StaticResource Brand}" IsVisible="{Binding ToolsBusy}"/>
+              <c:Bar Value="{Binding ToolsFraction}" Fill="{StaticResource Brand}" IsVisible="{Binding ToolsMeasured}"/>
+              <c:Spinner HorizontalAlignment="Right" IsVisible="{Binding ToolsLooking}"/>
               <c:Bar Value="1" Fill="{StaticResource Go}" IsVisible="{Binding ToolsDone}"/>
               <Button Classes="small" Content="Try again" Command="{Binding RetryCommand}" IsVisible="{Binding ToolsFailed}" HorizontalAlignment="Right"/>
             </Panel>

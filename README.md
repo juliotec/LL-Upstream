@@ -189,6 +189,7 @@ dotnet run --project App
 
 | | |
 |---|---|
+| `LONGSHOT_LAUNCHER_DEBUG_SLOW=<ms>` | A Debug build only: waits that long before each answer from git.magicbean.dev and a tenth of it after each MB downloaded, to see the busy states (the launcher's update, the check, the tools' download) |
 | `LONGSHOT_LAUNCHER_HOME=<folder>` | The launcher's home (`builds.json`, `settings.json`, `toolchains/`) somewhere else, for trying it out |
 | `LONGSHOT_LAUNCHER_OFFLINE=1` | No update check |
 | `LONGSHOT_LAUNCHER_PARTS=<list>` | Build from a parts list on this PC instead of a release's (`file://` parts allowed): every channel offers that list's tag |

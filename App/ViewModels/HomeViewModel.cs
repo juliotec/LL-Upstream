@@ -9,21 +9,26 @@ public sealed class BuildItemViewModel : ViewModelBase
     readonly HomeViewModel home;
     bool selected;
 
-    public BuildItemViewModel(HomeViewModel home, BuildEntry entry, bool built, string? update, IReadOnlyList<SaveSlot> saves)
+    public BuildItemViewModel(HomeViewModel home, BuildEntry entry, bool built, string? update, IReadOnlyList<SaveSlot> saves, bool deleting = false)
     {
         this.home = home;
         Entry = entry;
         IsBuilt = built;
         Update = update;
         Saves = saves;
+        IsDeleting = deleting;
         SelectCommand = new Command(() => home.Select(this));
-        PlayCommand = new Command(() => home.Play(this), () => IsBuilt);
-        SetDefaultCommand = new Command(() => home.SetDefault(this));
-        DeleteCommand = new Command(() => home.AskDelete(this));
-        UpdateCommand = new Command(() => home.UpdateBuild(this));
-        SavesCommand = new Command(() => home.Main.ShowSaves(Entry));
+        // (a build being deleted: nothing more starts on it, and its delete does not start twice)
+        PlayCommand = new Command(() => home.Play(this), () => IsBuilt && !IsDeleting);
+        SetDefaultCommand = new Command(() => home.SetDefault(this), () => !IsDeleting);
+        DeleteCommand = new Command(() => home.AskDelete(this), () => !IsDeleting);
+        UpdateCommand = new Command(() => home.UpdateBuild(this), () => !IsDeleting && home.CanStartBuild);
+        SavesCommand = new Command(() => home.Main.ShowSaves(Entry), () => !IsDeleting);
         FolderCommand = new Command(() => home.Main.Host?.Open(Entry.Folder));
     }
+
+    /// Its folder is being deleted (DeleteViewModel): the row says so with a spinner until it goes
+    public bool IsDeleting { get; }
 
     public BuildEntry Entry { get; }
     public IReadOnlyList<SaveSlot> Saves { get; }
@@ -65,11 +70,16 @@ public sealed class BuildItemViewModel : ViewModelBase
     public bool ShowOtherActions => selected && !IsDefault;
     public bool ShowDefaultNote => selected && IsDefault;
     public bool ShowRing => !IsDefault;
-    public bool ShowMeta => !HasUpdate;
+    public bool ShowMeta => !HasUpdate && !IsDeleting;
+    public bool ShowUpdateLine => HasUpdate && !IsDeleting;
+    public string DeletingText => "Deleting " + Version + "…";
     public bool IsFirst { get; set; }
     public Avalonia.Thickness Separator => IsFirst ? default : new Avalonia.Thickness(0, 1, 0, 0);
 
     public void RaiseMeta() => Raise(nameof(Meta));
+
+    /// Whether a build can start from it now (the home's checks and the launcher's update)
+    public void RaiseCommands() => UpdateCommand.Changed();
 
     public Command SelectCommand { get; }
     public Command PlayCommand { get; }
@@ -87,19 +97,25 @@ public sealed class HomeViewModel : ViewModelBase
     string? notice;
     string status = "";
     BuildEntry? pendingUpdate;
-    bool updatingLauncher;
+    bool checkAgain;
+    readonly HashSet<string> deleting = new();
 
     public HomeViewModel(MainViewModel main)
     {
         Main = main;
-        BuildCommand = new Command(() => StartBuild(Service.DefaultChannel), () => NewestDefault != null);
-        ChannelCommand = new Command(() => Main.Modal = new ChannelPickerViewModel(Main, Service.DefaultChannel));
+        // (the update check and the launcher's update are BusyCommands: off while they run, with what they are doing on screen)
+        CheckCommand = new BusyCommand(CheckAsync);
+        UpdateLauncherCommand = new BusyCommand(UpdateLauncherAsync, () => HasLauncherUpdate,
+                                                e => Notice = "The launcher could not update itself: " + e.Message);
+        CheckCommand.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(BusyCommand.IsBusy)) BusyChanged(); };
+        UpdateLauncherCommand.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(BusyCommand.IsBusy)) BusyChanged(); };
+        BuildCommand = new Command(() => StartBuild(Service.DefaultChannel), () => NewestDefault != null && CanStartBuild);
+        ChannelCommand = new Command(() => Main.Modal = new ChannelPickerViewModel(Main, Service.DefaultChannel), () => CanStartBuild);
         DismissProblemCommand = new Command(() => Notice = null);
-        RetryCheckCommand = new Command(() => _ = CheckReleasesAsync());
-        PlayDefaultCommand = new Command(() => { if (Default is { } d) Play(d); }, () => Default?.IsBuilt == true);
-        UpdateDefaultCommand = new Command(() => { if (Default is { } d) UpdateBuild(d); });
+        PlayDefaultCommand = new Command(() => { if (Default is { } d) Play(d); }, () => Default is { IsBuilt: true, IsDeleting: false });
+        UpdateDefaultCommand = new Command(() => { if (Default is { } d) UpdateBuild(d); }, () => CanStartBuild && Default?.IsDeleting != true);
         SavesDefaultCommand = new Command(() => Main.ShowSaves(Default?.Entry));
-        UpdateLauncherCommand = new Command(() => _ = UpdateLauncherAsync(), () => !updatingLauncher);
+        CancelLauncherUpdateCommand = new Command(() => UpdateLauncherCommand.Cancel());
         ImportHookshotCommand = new Command(() => Main.Modal = new HookshotImportViewModel(Main, Default?.Entry));
         NotNowHookshotCommand = new Command(() =>
         {
@@ -192,17 +208,40 @@ public sealed class HomeViewModel : ViewModelBase
     public string Status
     {
         get => status;
-        set => Set(ref status, value);
+        set { if (Set(ref status, value)) Raise(nameof(ShowStatus)); }
     }
 
     public Command BuildCommand { get; }
     public Command ChannelCommand { get; }
     public Command DismissProblemCommand { get; }
-    public Command RetryCheckCommand { get; }
+    /// The update check: at start, from Try again, and after the launcher's channel changed in Settings
+    public BusyCommand CheckCommand { get; }
+    /// Try again, on the empty home when the check got no answer: the check itself
+    public BusyCommand RetryCheckCommand => CheckCommand;
     public Command PlayDefaultCommand { get; }
     public Command UpdateDefaultCommand { get; }
     public Command SavesDefaultCommand { get; }
-    public Command UpdateLauncherCommand { get; }
+    public BusyCommand UpdateLauncherCommand { get; }
+    /// Stops the launcher's download (only while it downloads: BusyCommand.CanCancel)
+    public Command CancelLauncherUpdateCommand { get; }
+    /// The check running with a version already known (Try again after an answer, a channel switch): a line with a spinner; the
+    /// empty home's first check has its own (Checking)
+    public bool ShowCheckLine => CheckCommand.IsBusy && !Checking;
+    /// The check's last answer, when no check runs
+    public bool ShowStatus => !CheckCommand.IsBusy && !string.IsNullOrEmpty(status);
+
+    /// A build may start: not while the check may still change what is newest, nor while the launcher replaces itself (it closes
+    /// at the end, and a build would stop with it)
+    public bool CanStartBuild => !CheckCommand.IsBusy && !UpdateLauncherCommand.IsBusy;
+
+    void BusyChanged()
+    {
+        BuildCommand.Changed();
+        ChannelCommand.Changed();
+        UpdateDefaultCommand.Changed();
+        foreach (var b in Builds) b.RaiseCommands();
+        RaiseAll(nameof(CanStartBuild), nameof(ShowCheckLine), nameof(ShowStatus));
+    }
     public Command ImportHookshotCommand { get; }
     public Command NotNowHookshotCommand { get; }
 
@@ -251,28 +290,17 @@ public sealed class HomeViewModel : ViewModelBase
         }
         : "";
 
-    /// Downloads the new launcher, checks it, puts it in place and starts it; this one closes. A failure leaves this one as it is
-    async Task UpdateLauncherAsync()
+    /// Downloads the new launcher, checks it, puts it in place and starts it; this one closes. On the banner meanwhile: the button
+    /// off ("Updating…"), the download's percentage and bar, then each step; Cancel while it downloads. A failure leaves this one as
+    /// it is, says why (Notice) and the button is on again
+    async Task UpdateLauncherAsync(BusyCommand busy, CancellationToken cancel)
     {
-        updatingLauncher = true;
-        UpdateLauncherCommand.Changed();
-        try
-        {
-            Status = "Downloading the new launcher…";
-            await Task.Run(() => Service.UpdateLauncherAsync(p => Ui.Post(() => Status = $"Downloading the new launcher… {p:P0}")));
-            Main.Host?.Close();
-        }
-        catch (Exception e) when (e is FetchException or IOException or InvalidDataException or InvalidOperationException
-                                      or UnauthorizedAccessException or System.ComponentModel.Win32Exception)
-        {
-            Status = "";
-            Notice = "The launcher could not update itself: " + e.Message;
-        }
-        finally
-        {
-            updatingLauncher = false;
-            UpdateLauncherCommand.Changed();
-        }
+        busy.Report("Downloading the new launcher…", 0, canCancel: true);
+        await Task.Run(() => Service.UpdateLauncherAsync(
+            p => Ui.Post(() => busy.Report(p >= 1 ? "Checking the download…" : $"Downloading the new launcher… {p:P0}", p, canCancel: p < 1)),
+            cancel,
+            step => Ui.Post(() => busy.Report(step, canCancel: false))), CancellationToken.None);
+        Main.Host?.Close();
     }
 
     /// The start's own request: --launch and --update name a build (listed if it was not)
@@ -300,7 +328,7 @@ public sealed class HomeViewModel : ViewModelBase
         Builds.Clear();
         foreach (var b in Service.Registry.Builds)
         {
-            var item = new BuildItemViewModel(this, b, Service.IsBuilt(b), Service.UpdateFor(b), Service.SavesOf(b));
+            var item = new BuildItemViewModel(this, b, Service.IsBuilt(b), Service.UpdateFor(b), Service.SavesOf(b), deleting.Contains(b.Id));
             item.IsSelected = b.Id == selected;
             item.IsFirst = Builds.Count == 0;
             Builds.Add(item);
@@ -308,16 +336,34 @@ public sealed class HomeViewModel : ViewModelBase
         RaiseAll(nameof(HasBuilds), nameof(NoBuilds), nameof(Default), nameof(ShowLeftPanel), nameof(HeroVersion), nameof(HeroChannel),
                  nameof(HeroIsRelease), nameof(HeroIsCandidate), nameof(HeroIsNightly), nameof(HeroNote), nameof(HeroSaves), nameof(HeroHasUpdate),
                  nameof(HeroUpdate), nameof(Footer), nameof(NewestDefault), nameof(NewestDefaultText), nameof(DefaultChannel), nameof(DefaultIsRelease), nameof(DefaultIsCandidate),
-                 nameof(DefaultIsNightly), nameof(KnowsNewest), nameof(CheckFailed), nameof(Checking), nameof(HasLauncherUpdate),
+                 nameof(DefaultIsNightly), nameof(KnowsNewest), nameof(CheckFailed), nameof(Checking), nameof(ShowCheckLine), nameof(HasLauncherUpdate),
                  nameof(LauncherUpdateText), nameof(LauncherUpdateHeading), nameof(LauncherUpdateButton));
         BuildCommand.Changed();
         PlayDefaultCommand.Changed();
+        UpdateDefaultCommand.Changed();
+        UpdateLauncherCommand.Changed();
         Service.Measure(() => { foreach (var b in Builds) b.RaiseMeta(); Raise(nameof(Footer)); });
     }
 
-    /// The update check, in the background: a failure is one quiet line, never a stop
+    /// The update check, in the background: a failure is one quiet line, never a stop. Asked while one runs (the launcher's channel
+    /// changed in Settings), it runs once more after it, for the new channel
     public async Task CheckReleasesAsync()
     {
+        if (CheckCommand.IsBusy)
+        {
+            checkAgain = true;
+            return;
+        }
+        do
+        {
+            checkAgain = false;
+            await CheckCommand.RunAsync();
+        } while (checkAgain);
+    }
+
+    async Task CheckAsync(BusyCommand busy, CancellationToken cancel)
+    {
+        busy.Report("Checking for updates…");
         Service.Checked = false;
         Refresh();
         try
@@ -370,6 +416,12 @@ public sealed class HomeViewModel : ViewModelBase
     }
 
     public void AskDelete(BuildItemViewModel b) => Main.Modal = new DeleteViewModel(Main, b);
+
+    /// A build's folder being deleted (tens of GB: seconds to minutes): its row shows it, and nothing starts on it meanwhile
+    public void Deleting(BuildEntry b, bool on)
+    {
+        if (on ? deleting.Add(b.Id) : deleting.Remove(b.Id)) Refresh();
+    }
 
     public void UpdateBuild(BuildItemViewModel b)
     {
@@ -518,7 +570,9 @@ public sealed class DeleteViewModel : ViewModelBase
                 // (tens of GB: off the window's thread, the folder first and the row once it is gone)
                 var keep = service.KeepOf(entry);
                 Main.ShowToast($"Deleting {build.Version}…");
-                await Task.Run(() => BuildRegistry.DeleteFolder(entry.Folder, service.Platform, keep));
+                Main.Home.Deleting(entry, true);
+                try { await Task.Run(() => BuildRegistry.DeleteFolder(entry.Folder, service.Platform, keep)); }
+                finally { Main.Home.Deleting(entry, false); }
             }
             // (the default goes to a release when there is one left, as the mockup: Registry.Remove takes the first otherwise)
             var wasDefault = build.IsDefault;

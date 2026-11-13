@@ -42,10 +42,10 @@ public sealed class LauncherService
         Registry = BuildRegistry.Load(home.Builds);
         Settings = LauncherSettings.Load(home.Settings);
         LocalList = ToolsSource.LocalList();
-        Fetcher = new LocalFileFetcher(new HttpFetcher(TimeSpan.FromSeconds(60)));
+        Fetcher = Slow(new LocalFileFetcher(new HttpFetcher(TimeSpan.FromSeconds(60))));
         Tools = new Toolchains(home.Toolchains, Fetcher);
         // (its own timeout, shorter: the check at start should not keep the window waiting on a server that does not answer)
-        var check = new LocalFileFetcher(new HttpFetcher(TimeSpan.FromSeconds(20)));
+        var check = Slow(new LocalFileFetcher(new HttpFetcher(TimeSpan.FromSeconds(20))));
         var keys = ReleaseKeys.Current();
         Releases = new Releases(check, platform, keys, product: Product.Longshot);
         // (the launcher's own releases: its own versions on its own three channels, chosen apart from the builds' in Settings)
@@ -63,6 +63,40 @@ public sealed class LauncherService
             catch (Exception e) when (e is IOException or UnauthorizedAccessException or FormatException) { }
         }
     }
+
+    /// A Debug build only: LONGSHOT_LAUNCHER_DEBUG_SLOW=<ms> waits that long before each answer and after each MB of a download, to
+    /// see the screens' busy states (a release build never reads it)
+    static IFetcher Slow(IFetcher fetcher)
+    {
+#if DEBUG
+        if (int.TryParse(Environment.GetEnvironmentVariable("LONGSHOT_LAUNCHER_DEBUG_SLOW"), out var ms) && ms > 0)
+            return new SlowFetcher(fetcher, TimeSpan.FromMilliseconds(ms));
+#endif
+        return fetcher;
+    }
+
+#if DEBUG
+    sealed class SlowFetcher(IFetcher inner, TimeSpan wait) : IFetcher
+    {
+        public async Task<string> GetTextAsync(string url, string? accept, CancellationToken cancel)
+        {
+            await Task.Delay(wait, cancel).ConfigureAwait(false);
+            return await inner.GetTextAsync(url, accept, cancel).ConfigureAwait(false);
+        }
+
+        public async Task DownloadAsync(string url, Stream to, Action<long>? progress, CancellationToken cancel)
+        {
+            await Task.Delay(wait, cancel).ConfigureAwait(false);
+            long mb = 0;
+            await inner.DownloadAsync(url, to, have =>
+            {
+                for (; mb < have >> 20; mb++) Thread.Sleep(wait / 10);
+                cancel.ThrowIfCancellationRequested();
+                progress?.Invoke(have);
+            }, cancel).ConfigureAwait(false);
+        }
+    }
+#endif
 
     /// The launcher's home (Program.Home: a portable launcher's is beside it), opened
     public static LauncherService Open() => Open(Platforms.Current, Program.Home);
@@ -123,8 +157,10 @@ public sealed class LauncherService
 
     /// The launcher's update, downloaded, checked and put in place; then the new launcher is started and this one should close.
     /// The update keeps the launcher's kind and name (Program.Layout): an installed one stays the installed program, a portable one
-    /// takes the program out of the portable zip and stays beside its "portable" file. Throws with a reason a player can read
-    public async Task UpdateLauncherAsync(Action<double>? progress = null, CancellationToken cancel = default)
+    /// takes the program out of the portable zip and stays beside its "portable" file. Throws with a reason a player can read.
+    /// progress: the download (0..1); step: each step after it, for the screen ("Checking the new launcher…"). cancel stops the
+    /// download and its check, never the swap
+    public async Task UpdateLauncherAsync(Action<double>? progress = null, CancellationToken cancel = default, Action<string>? step = null)
     {
         var release = LauncherUpdate ?? throw new InvalidOperationException("There is no launcher update.");
         var layout = Program.Layout;
@@ -136,8 +172,10 @@ public sealed class LauncherService
         var staged = await SelfUpdate.DownloadAsync(Fetcher, file, current, progress, cancel, entry);
         try
         {
+            step?.Invoke("Checking that the new launcher starts…");
             if (!await SelfUpdate.SelfCheckAsync(staged, release.Version, TimeSpan.FromSeconds(60)))
                 throw new InvalidDataException($"The new launcher ({release.Version}) did not start on this PC, so it was not put in place.");
+            step?.Invoke("Putting the new launcher in place…");
             SelfUpdate.Swap(current, staged, Platform);
         }
         finally
@@ -145,6 +183,7 @@ public sealed class LauncherService
             File.Delete(staged);
         }
         // (this one lets go of the home first: the new one takes it as it starts)
+        step?.Invoke("Starting the new launcher…");
         Program.ReleaseLock();
         using var _ = Process.Start(new ProcessStartInfo(current) { UseShellExecute = false });
     }
