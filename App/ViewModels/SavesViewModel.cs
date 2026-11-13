@@ -92,7 +92,15 @@ public sealed class SavesViewModel : ViewModelBase
         }
     }
 
-    public string Sub => Linux ? "On Linux every build plays from the same saves." : "Each build keeps its own saves, in its game folder.";
+    public string Sub => Linux ? "All your Longshot versions share these saves." : "Pick a version to view its saves or transfer your progress.";
+    public string EmptyHint => Linux ? "Import saves from an emulator or Hookshot. They will be available to every Longshot version."
+        : "Import saves from an emulator, Hookshot or another Longshot version. Your saves will appear here.";
+    public string SlotCount => Slots.Count == 1 ? "1 save slot" : $"{Slots.Count} save slots";
+    public IReadOnlyList<SaveRowViewModel> OtherSaves => Rows.Where(r => r.IsRow && !r.IsThis && !r.Dim).ToList();
+    public bool HasOtherSaves => OtherSaves.Count > 0;
+    public string OtherSavesLabel => $"Other save locations ({OtherSaves.Count})";
+    public string CopyHint => OthersHaveSaves ? "Copy from another Longshot version" : "No other version has saves to copy";
+    public string ExportHint => HasSlots ? "Send to an emulator or a folder" : "Play or import saves to enable export";
     /// (the build is named by "Saves of" above it: a version upper-cased would read badly, a nightly's commit most of all)
     public string ThisLabel => Linux ? "EVERY BUILD'S SLOTS" : "SLOTS";
     public bool OthersHaveSaves => Windows && Builds.Any(b => b.Id != target.Id && Service.SavesOf(b).Count > 0);
@@ -150,7 +158,8 @@ public sealed class SavesViewModel : ViewModelBase
         for (var i = 1; i < rows.Count; i++) rows[i].AfterGroup = rows[i - 1].IsGroup;
         Rows = rows;
         Slots = SaveViews.Slots(Service.SavesOf(target));
-        RaiseAll(nameof(Rows), nameof(Slots), nameof(HasSlots), nameof(NoSlots), nameof(ThisLabel), nameof(OthersHaveSaves));
+        RaiseAll(nameof(Rows), nameof(Slots), nameof(HasSlots), nameof(NoSlots), nameof(ThisLabel), nameof(OthersHaveSaves),
+                 nameof(SlotCount), nameof(OtherSaves), nameof(HasOtherSaves), nameof(OtherSavesLabel), nameof(CopyHint), nameof(ExportHint));
         CopyCommand.Changed();
         ExportCommand.Changed();
     }
