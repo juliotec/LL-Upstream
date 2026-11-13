@@ -12,11 +12,11 @@ public sealed record FileRef(string Url, string Sha256, long Size);
 /// of MagicBeanDev/LongshotLauncher). Each has its own versions and its own three channels (docs/releases.md)
 public sealed record Product(string Name, string Display, string Repo, int FirstMajor)
 {
-    public const string Server = "https://git.magicbean.dev";
-    public static readonly Product Longshot = new("longshot", "Longshot", "MagicBeanDev/Longshot", Versions.FirstMajor);
-    public static readonly Product Launcher = new("launcher", "Longshot Launcher", "MagicBeanDev/LongshotLauncher", Versions.LauncherFirstMajor);
+    public const string Server = "https://github.com";
+    public static readonly Product Longshot = new("longshot", "Longshot", "juliotec/Longshot-Upstream", Versions.FirstMajor);
+    public static readonly Product Launcher = new("launcher", "Longshot Launcher", "juliotec/LongshotLauncher-Upstream", Versions.LauncherFirstMajor);
 
-    public string Api => Server + "/api/v1/repos/" + Repo;
+    public string Api => "https://api.github.com/repos/" + Repo;
 }
 
 /// One version's release, its files checked against its signed SHA256SUMS: for each system ("windows-x64", "linux-x64"),
