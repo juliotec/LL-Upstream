@@ -96,7 +96,18 @@ jobs:
           out=$("$wine" "dist/LongshotLauncher-$TAG-windows-x64-setup.exe" --self-check | tr -d '\r')
           echo "$out"
           grep -qxF "LongshotLauncher $TAG" <<<"$out" || { echo "::error::the Windows launcher does not answer --self-check with $TAG"; exit 1; }
-      - uses: https://data.forgejo.org/forgejo/upload-artifact@16871d9e8cfcf27ff31822cac382bbb5450f1e1e # v4 (Forgejo's: GitHub's v4 and later refuse a server that is not github.com)
+      # (an artifact goes to Forgejo by its public address, ROOT_URL, behind Cloudflare, whatever address the runner has: a
+      # request there can fail once, and the action does not send a block again (2026-11-13, the launcher's nightly: one
+      # 8 MB block, "SSL alert bad record mac"). Sent once more when it failed: Forgejo takes the same name again)
+      - id: upload_1
+        continue-on-error: true
+        uses: https://data.forgejo.org/forgejo/upload-artifact@16871d9e8cfcf27ff31822cac382bbb5450f1e1e # v4 (Forgejo's: GitHub's v4 and later refuse a server that is not github.com)
+        with:
+          name: LongshotLauncher
+          path: dist/LongshotLauncher-*
+          if-no-files-found: error
+      - if: steps.upload_1.outcome == 'failure'
+        uses: https://data.forgejo.org/forgejo/upload-artifact@16871d9e8cfcf27ff31822cac382bbb5450f1e1e # v4 (Forgejo's: GitHub's v4 and later refuse a server that is not github.com)
         with:
           name: LongshotLauncher
           path: dist/LongshotLauncher-*
@@ -120,7 +131,15 @@ jobs:
           ref: ${{ needs.version.outputs.ref }}
           fetch-depth: 0
           persist-credentials: false
-      - uses: https://data.forgejo.org/forgejo/download-artifact@d8d0a99033603453ad2255e58720b460a0555e1e # v4
+      # (from Forgejo's public address behind Cloudflare, as the build jobs' upload: fetched once more when it failed)
+      - id: download_2
+        continue-on-error: true
+        uses: https://data.forgejo.org/forgejo/download-artifact@d8d0a99033603453ad2255e58720b460a0555e1e # v4
+        with:
+          name: LongshotLauncher
+          path: files
+      - if: steps.download_2.outcome == 'failure'
+        uses: https://data.forgejo.org/forgejo/download-artifact@d8d0a99033603453ad2255e58720b460a0555e1e # v4
         with:
           name: LongshotLauncher
           path: files
