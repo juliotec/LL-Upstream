@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The Longshot Launcher's window (Avalonia): Windows and Linux. Its logic is Core/ -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <AssemblyName>LongshotLauncher</AssemblyName>
+    <RootNamespace>LongshotLauncher</RootNamespace>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <BuiltInComInteropSupport>false</BuiltInComInteropSupport>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- (the Windows program's icon: the Longshot logo, Assets/longshot.ico) -->
+    <ApplicationIcon>Assets/longshot.ico</ApplicationIcon>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia"/>
+    <PackageReference Include="Avalonia.Desktop"/>
+    <PackageReference Include="Avalonia.Themes.Fluent"/>
+    <PackageReference Include="Avalonia.Wayland"/>
+  </ItemGroup>
+  <ItemGroup>
+    <!-- (the release's version, which the launcher compares with its channel's newest: -p:LongshotTag=v3.0.0 or nightly-<count>-<commit>,
+         set by the release workflow. Unset, a build from a checkout is "dev" and never updates itself. Core/SelfUpdate.cs) -->
+    <AssemblyMetadata Include="LongshotTag" Value="$(LongshotTag)" Condition="'$(LongshotTag)' != ''"/>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Core/LongshotLauncher.Core.csproj"/>
+  </ItemGroup>
+  <ItemGroup>
+    <!-- (Inter, under its own licence, Assets/Fonts/Inter-LICENSE.txt, and the Longshot logo) -->
+    <AvaloniaResource Include="Assets/Fonts/Inter-*.ttf"/>
+    <AvaloniaResource Include="Assets/longshot.png"/>
+  </ItemGroup>
+</Project>

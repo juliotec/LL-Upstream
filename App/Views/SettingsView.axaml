@@ -1,0 +1,84 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:LongshotLauncher.ViewModels"
+             x:Class="LongshotLauncher.Views.SettingsView"
+             x:DataType="vm:SettingsViewModel">
+  <DockPanel>
+    <Grid DockPanel.Dock="Bottom" ColumnDefinitions="*,Auto" Margin="0,14,0,0">
+      <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+        <TextBlock Classes="faint" Text="{Binding Version}" VerticalAlignment="Center"/>
+        <Ellipse Width="3" Height="3" Fill="{StaticResource InkFaint}" Margin="12,0" VerticalAlignment="Center"/>
+        <Button Classes="link soft" Content="Release notes" Command="{Binding ReleaseNotesCommand}"/>
+      </StackPanel>
+      <Button Grid.Column="1" Classes="primary" Content="Done" Command="{Binding DoneCommand}"/>
+    </Grid>
+    <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="-8,0" Padding="8,0,8,4">
+      <StackPanel>
+        <TextBlock Classes="heading" Text="Settings"/>
+        <TextBlock Classes="sub" Text="For the launcher. Each version keeps its own build settings."/>
+        <TextBlock Classes="label" Text="CHANNEL FOR NEW BUILDS"/>
+        <ItemsControl ItemsSource="{Binding Channels}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate><UniformGrid Columns="3" ColumnSpacing="8"/></ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:SettingsViewModel+ChannelOption">
+              <RadioButton Classes="seg" GroupName="defchan" IsChecked="{Binding IsPicked}">
+                <StackPanel>
+                  <TextBlock Text="{Binding Name}" FontWeight="SemiBold"/>
+                  <TextBlock FontSize="12" Foreground="{StaticResource InkFaintText}" Text="{Binding Version}"/>
+                </StackPanel>
+              </RadioButton>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <TextBlock Classes="hint" Text="{Binding ChannelHint}"/>
+        <TextBlock Classes="label" Text="LAUNCHER UPDATES"/>
+        <ItemsControl ItemsSource="{Binding LauncherChannels}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate><UniformGrid Columns="3" ColumnSpacing="8"/></ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:SettingsViewModel+LauncherChannelOption">
+              <RadioButton Classes="seg" GroupName="launchchan" IsChecked="{Binding IsPicked}">
+                <TextBlock Text="{Binding Name}" FontWeight="SemiBold"/>
+              </RadioButton>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <TextBlock Classes="hint" Text="{Binding LauncherHint}"/>
+        <StackPanel IsVisible="{Binding ShowMenu}">
+          <TextBlock Classes="label" Text="APPLICATIONS MENU"/>
+          <StackPanel Orientation="Horizontal" Spacing="10">
+            <Button Content="{Binding AddToMenuText}" Command="{Binding AddToMenuCommand}"/>
+            <Button Content="Remove" Command="{Binding RemoveFromMenuCommand}" IsVisible="{Binding InMenu}"/>
+          </StackPanel>
+          <TextBlock Classes="hint" Text="{Binding MenuHint}"/>
+        </StackPanel>
+        <Grid ColumnDefinitions="*,*" ColumnSpacing="20" Margin="0,0,0,22">
+          <StackPanel>
+            <TextBlock Classes="label" Text="WHERE BUILDS GO"/>
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+              <TextBox Classes="path" Text="{Binding BuildsFolder}"/>
+              <Button Grid.Column="1" Content="Change" Command="{Binding ChangeBuildsCommand}"/>
+            </Grid>
+            <TextBlock Classes="hint" Text="Each version gets its own folder in here."/>
+          </StackPanel>
+          <StackPanel Grid.Column="1">
+            <TextBlock Classes="label" Text="BUILD FILES"/>
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+              <TextBox Classes="path" Text="{Binding Work}"/>
+              <Button Grid.Column="1" Content="Change" Command="{Binding ChangeWorkCommand}"/>
+            </Grid>
+            <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,8,0,0">
+              <TextBlock FontSize="12" Foreground="{StaticResource InkSoft}" Text="{Binding WorkNote}" VerticalAlignment="Center"/>
+              <Button Classes="link smaller" Content="Free up space" Command="{Binding FreeSpaceCommand}"/>
+              <Button Classes="link smaller" Content="Default" Command="{Binding DefaultWorkCommand}"/>
+            </StackPanel>
+          </StackPanel>
+        </Grid>
+        <CheckBox Classes="tick" Content="Check for updates when the launcher starts" IsChecked="{Binding CheckUpdates}"/>
+      </StackPanel>
+    </ScrollViewer>
+  </DockPanel>
+</UserControl>

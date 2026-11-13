@@ -1,0 +1,111 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:LongshotLauncher.ViewModels"
+             xmlns:core="using:LongshotLauncher.Core"
+             xmlns:c="using:LongshotLauncher.Controls"
+             x:Class="LongshotLauncher.Views.SavesView"
+             x:DataType="vm:SavesViewModel">
+  <UserControl.Styles>
+    <Style Selector="Button.action">
+      <Setter Property="HorizontalAlignment" Value="Stretch"/>
+      <Setter Property="HorizontalContentAlignment" Value="Left"/>
+    </Style>
+    <Style Selector="TextBlock.rowname.dim">
+      <Setter Property="Foreground" Value="{StaticResource InkFaintText}"/>
+    </Style>
+  </UserControl.Styles>
+  <DockPanel>
+    <Grid DockPanel.Dock="Bottom" ColumnDefinitions="*,Auto" Margin="0,14,0,0">
+      <TextBlock Classes="faint" Text="Every copy backs up the saves it replaces first." VerticalAlignment="Center"/>
+      <Button Grid.Column="1" Classes="primary" Content="Done" Command="{Binding DoneCommand}"/>
+    </Grid>
+    <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" ColumnSpacing="20">
+      <StackPanel VerticalAlignment="Bottom">
+        <TextBlock Classes="heading" Text="Saves"/>
+        <TextBlock Classes="sub" Text="{Binding Sub}"/>
+      </StackPanel>
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Bottom" IsVisible="{Binding Windows}">
+        <TextBlock Classes="note" Text="Saves of" VerticalAlignment="Center"/>
+        <ComboBox Width="230" ItemsSource="{Binding Builds}" SelectedItem="{Binding Target}">
+          <ComboBox.ItemTemplate>
+            <DataTemplate x:DataType="core:BuildEntry"><TextBlock Text="{Binding Version, Converter={x:Static c:Converters.ShownVersion}}"/></DataTemplate>
+          </ComboBox.ItemTemplate>
+        </ComboBox>
+      </StackPanel>
+    </Grid>
+    <Grid ColumnDefinitions="*,290" ColumnSpacing="24">
+      <DockPanel>
+        <TextBlock DockPanel.Dock="Top" Classes="label" Text="FOUND ON THIS PC" Margin="0,18,0,8"/>
+        <Border Classes="card" VerticalAlignment="Top">
+          <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <ItemsControl ItemsSource="{Binding Rows}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:SaveRowViewModel">
+                  <Panel>
+                    <TextBlock IsVisible="{Binding IsGroup}" Text="{Binding Name}" FontSize="12" FontWeight="SemiBold"
+                               Foreground="{StaticResource InkFaintText}" Margin="16,12,16,4"/>
+                    <Border IsVisible="{Binding IsRow}" BorderBrush="{StaticResource GlassLine}" BorderThickness="{Binding Line}" Padding="16,7"
+                            Background="{Binding IsThis, Converter={x:Static c:Converters.ThisRow}}">
+                      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                        <StackPanel>
+                          <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBlock Classes="rowname" Classes.dim="{Binding Dim}" Text="{Binding Name}" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                            <Border Classes="tag" Classes.rc="{Binding IsCandidate}" Classes.nightly="{Binding IsNightly}" IsVisible="{Binding HasChannel}">
+                              <TextBlock Text="{Binding Channel}"/>
+                            </Border>
+                            <Border Classes="chip quiet" IsVisible="{Binding Shared}"><TextBlock Text="Shared"/></Border>
+                            <Border Classes="chip quiet" IsVisible="{Binding HasProfiles}"><TextBlock Text="{Binding Profiles}"/></Border>
+                            <Border Classes="chip warn small" IsVisible="{Binding Waiting}"><TextBlock Text="Save waiting"/></Border>
+                          </StackPanel>
+                          <TextBlock Classes="faint path" Text="{Binding Where}"/>
+                        </StackPanel>
+                        <TextBlock Grid.Column="1" Classes="tnum" FontSize="12" Foreground="{StaticResource InkSoft}" Text="{Binding Summary}" VerticalAlignment="Center"/>
+                      </Grid>
+                    </Border>
+                  </Panel>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </Border>
+      </DockPanel>
+      <StackPanel Grid.Column="1">
+        <TextBlock Classes="label" Text="{Binding ThisLabel}" Margin="0,18,0,8"/>
+        <Border Classes="card" Padding="14,6">
+          <Panel>
+            <TextBlock Classes="note" Margin="0,8" TextWrapping="Wrap" IsVisible="{Binding NoSlots}"
+                       Text="No saves yet. Copy them from another build, or import them from an emulator."/>
+            <ItemsControl ItemsSource="{Binding Slots}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:SlotViewModel">
+                  <Grid ColumnDefinitions="20,*,Auto" ColumnSpacing="8" Margin="0,6">
+                    <Border Width="20" Height="20" CornerRadius="10" Background="{StaticResource SoftNum}">
+                      <TextBlock Text="{Binding Number}" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource InkSoft}"
+                                 HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <TextBlock Grid.Column="1" FontSize="13" Text="{Binding Name}" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="2" Classes="faint tnum" Text="{Binding Saved}" VerticalAlignment="Center"/>
+                  </Grid>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </Panel>
+        </Border>
+        <StackPanel Spacing="8" Margin="0,12,0,0">
+          <Button Classes="action" Command="{Binding CopyCommand}" IsVisible="{Binding Windows}">
+            <StackPanel Orientation="Horizontal" Spacing="8"><c:Icon Kind="swap" Width="16" Height="16"/><TextBlock Text="Copy saves from another build"/></StackPanel>
+          </Button>
+          <Button Classes="action" Command="{Binding ImportCommand}">
+            <StackPanel Orientation="Horizontal" Spacing="8"><c:Icon Kind="download" Width="16" Height="16"/><TextBlock Text="Import from emulator…"/></StackPanel>
+          </Button>
+          <Button Classes="action" Command="{Binding HookshotCommand}">
+            <StackPanel Orientation="Horizontal" Spacing="8"><c:Icon Kind="download" Width="16" Height="16"/><TextBlock Text="Import from Hookshot…"/></StackPanel>
+          </Button>
+          <Button Classes="action" Command="{Binding ExportCommand}">
+            <StackPanel Orientation="Horizontal" Spacing="8"><c:Icon Kind="upload" Width="16" Height="16"/><TextBlock Text="Export to emulator…"/></StackPanel>
+          </Button>
+        </StackPanel>
+      </StackPanel>
+    </Grid>
+  </DockPanel>
+</UserControl>
