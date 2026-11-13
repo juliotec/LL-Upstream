@@ -9,12 +9,13 @@
   <br>
 </h1>
 
-<h4 align="center">Installs, builds, updates and starts <a href="https://git.magicbean.dev/MagicBeanDev/Longshot">Longshot</a>, the native PC version of The Legend of Zelda: Ocarina of Time (Nintendo Switch 2), on Windows & Linux.
+<h4 align="center">Installs, builds, updates and starts <a href="https://git.magicbean.dev/MagicBeanDev/Longshot">Longshot</a>, which runs a supported console game natively on Windows & Linux.
 </h4>
 
 
 <p align="center">
   <a href="https://longshot.magicbean.dev/"><b>Website</b></a> |
+  <a href="https://discord.gg/KX99srmQTe"><b>Discord</b></a> |
   <a href="#what-it-does">What it does</a> |
   <a href="#download">Download</a> |
   <a href="#installing">Installing</a> |
@@ -25,6 +26,8 @@
   <a href="#credits">Credits</a> |
   <a href="#license">License</a>
 </p>
+
+<p align="center">This website is our Git hosting, similar to GitHub.</p>
 
 The Longshot Launcher is the one program players download to get [Longshot](https://git.magicbean.dev/MagicBeanDev/Longshot).
 It installs Longshot's builder, builds the game **on your PC, from your own copy of the game**, starts it, and keeps
