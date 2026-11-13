@@ -40,7 +40,7 @@ permissions:
 jobs:
   version:
     name: The version
-    runs-on: ubuntu-latest
+    runs-on: quick  # (a quick job: the runner kept free for these takes it, or any runner with room)
     timeout-minutes: 10
     outputs:
       tag: ${{ steps.name.outputs.tag }}
