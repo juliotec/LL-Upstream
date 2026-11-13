@@ -53,14 +53,32 @@ Discord: https://discord.gg/KX99srmQTe
 
 ## Download
 
-The launcher's first release will be **v1.0.0**, on
-[its releases page](https://git.magicbean.dev/MagicBeanDev/LongshotLauncher/releases):
+# ⬇️ Download Longshot Launcher
 
-| System | File |
-|---|---|
-| Windows 10 and 11 (x64) | `LongshotLauncher-<version>-windows-x64-setup.exe`: start it, then choose *Install* or *Run portable* ([Installing](#installing)) |
-| Windows, portable | `LongshotLauncher-<version>-windows-x64-portable.zip`: unzip it anywhere (a USB stick) and start `LongshotLauncher.exe` |
-| Linux and Steam Deck (x86-64) | `LongshotLauncher-<version>-x86_64.AppImage`: make it executable (`chmod +x`) and start it |
+### [🪟 &nbsp;Download for Windows](https://longshot.magicbean.dev/download/launcher/windows)
+
+### [🐧 &nbsp;Download for Linux (AppImage)](https://longshot.magicbean.dev/download/launcher/linux)
+
+Windows without installing: [portable zip](https://longshot.magicbean.dev/download/launcher/windows-portable) · Not sure? [longshot.magicbean.dev/download](https://longshot.magicbean.dev/download) picks for your computer.
+
+These links always give the newest launcher: the stable one, or until there is one, the release candidate, then the
+nightly. To pick a channel:
+
+- **Stable** (for playing): [Windows](https://longshot.magicbean.dev/download/launcher/stable/windows) · [portable zip](https://longshot.magicbean.dev/download/launcher/stable/windows-portable) · [Linux](https://longshot.magicbean.dev/download/launcher/stable/linux) · [release page](https://longshot.magicbean.dev/download/launcher/stable)
+- **Release candidate** (the next version, before it is stable): [Windows](https://longshot.magicbean.dev/download/launcher/rc/windows) · [portable zip](https://longshot.magicbean.dev/download/launcher/rc/windows-portable) · [Linux](https://longshot.magicbean.dev/download/launcher/rc/linux) · [release page](https://longshot.magicbean.dev/download/launcher/rc)
+- **Nightly** (every change, untested): [Windows](https://longshot.magicbean.dev/download/launcher/nightly/windows) · [portable zip](https://longshot.magicbean.dev/download/launcher/nightly/windows-portable) · [Linux](https://longshot.magicbean.dev/download/launcher/nightly/linux) · [release page](https://longshot.magicbean.dev/download/launcher/nightly)
+
+Every release is on [the releases page](https://git.magicbean.dev/MagicBeanDev/LongshotLauncher/releases). The files:
+
+- **Windows 10 and 11 (x64):** `LongshotLauncher-<version>-windows-x64-setup.exe`. Start it, then choose *Install* or
+  *Run portable* ([Installing](#installing)).
+- **Windows, portable:** `LongshotLauncher-<version>-windows-x64-portable.zip`. Unzip it anywhere (a USB stick) and start
+  `LongshotLauncher.exe`.
+- **Linux and Steam Deck (x86-64):** `LongshotLauncher-<version>-x86_64.AppImage`. Make it executable (`chmod +x`) and
+  start it.
+
+This is the one download: the launcher installs Longshot's builder for you. The builder files on
+[Longshot's releases](https://git.magicbean.dev/MagicBeanDev/Longshot/releases) are for the launcher, not for you.
 
 All of them are in the release's signed `SHA256SUMS`. After that the launcher updates itself. Its numbers are its own:
 Longshot's start at v3.0.0, the launcher's at v1.0.0.

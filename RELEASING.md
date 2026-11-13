@@ -87,6 +87,8 @@ Players on the nightly channel keep the last good nightly until then.
 3. **What CI does** (`release.yml`): it checks the tag (`check-tag`: its form, on `main`, above every release, as high as the
    commits call for). It builds both systems' files, writes and signs `SHA256SUMS`, checks the signature with the key the
    launcher trusts, writes the notes with git-cliff, uploads everything to a draft, and publishes it as a pre-release.
+   The page has a header above the notes: the launcher's links its own files; Longshot's sends players to the launcher
+   of the same channel ([docs/releases.md](docs/releases.md#release-notes)).
    For Longshot, when the commit's nightly is still published (CI keeps the newest 5), `release.py released-as` finds it
    and checks its signed `SHA256SUMS`: the build checks that ship no file (the Windows Vulkan back end, AMD FSR 4) passed
    in its run and are not run again. The files are built again: each carries its version.
@@ -96,6 +98,8 @@ Players on the nightly channel keep the last good nightly until then.
    - Download `SHA256SUMS`, `SHA256SUMS.sig` and the files, and run
      `python -I scripts/release.py verify SHA256SUMS --files <folder>`.
    - In a launcher set to the rc channel (Settings), Retry offers it.
+   - For the launcher: within a minute, `https://longshot.magicbean.dev/download/launcher/rc` goes to it (and, for a stable,
+     `/download/launcher/stable`).
 5. Ask testers on the rc channel to try it, and for Longshot one on Windows for what CI can't check
    ([Needs a Windows tester](#needs-a-windows-tester-longshot)). Fixes go in as pull requests; each round is a new rc tag
    (`-rc.2`).
