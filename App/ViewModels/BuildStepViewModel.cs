@@ -408,7 +408,7 @@ public sealed class ReadyViewModel : ViewModelBase, IWizardPage
             {
                 Main.Service.Play(Entry);
                 Main.ShowHome();
-                Main.ShowToast($"Starting Ocarina of Time, {Version}…");
+                Main.ShowToast($"Starting Longshot, {Version}…");
             }
             catch (Exception e) when (e is System.ComponentModel.Win32Exception or IOException or InvalidOperationException)
             {

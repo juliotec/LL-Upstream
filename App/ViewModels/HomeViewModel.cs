@@ -388,7 +388,7 @@ public sealed class HomeViewModel : ViewModelBase
         try
         {
             Service.Play(b.Entry);
-            Main.ShowToast($"Starting Ocarina of Time, {b.Version}…");
+            Main.ShowToast($"Starting Longshot, {b.Version}…");
         }
         catch (Exception e) when (e is System.ComponentModel.Win32Exception or IOException or InvalidOperationException)
         {

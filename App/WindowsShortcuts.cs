@@ -51,7 +51,7 @@ public static class WindowsShortcuts
                 continue;
             }
             Directory.CreateDirectory(Path.GetDirectoryName(link)!);
-            lines.Add(Line(link, launcher, "--play", launcher, "The Legend of Zelda: Ocarina of Time, built by Longshot"));
+            lines.Add(Line(link, launcher, "--play", launcher, "Longshot"));
         }
         Run(lines);
     }

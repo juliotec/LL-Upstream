@@ -126,8 +126,7 @@
       <!-- the default version, and every version -->
       <Grid IsVisible="{Binding HasBuilds}" ColumnDefinitions="300,*" ColumnSpacing="44">
         <StackPanel VerticalAlignment="Center" Margin="0,0,0,12">
-          <TextBlock Classes="label" Text="THE LEGEND OF ZELDA" Margin="0,0,0,4"/>
-          <TextBlock Classes="title" Text="Ocarina of Time"/>
+          <TextBlock Classes="title" Text="Longshot"/>
           <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,18,0,0">
             <TextBlock Text="{Binding HeroVersion}" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center"/>
             <Border Classes="tag" Classes.rc="{Binding HeroIsCandidate}" Classes.nightly="{Binding HeroIsNightly}">

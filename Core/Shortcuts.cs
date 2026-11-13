@@ -15,7 +15,7 @@ public static class Shortcuts
     {
         var sb = new StringBuilder();
         sb.Append("[Desktop Entry]\nType=Application\nName=").Append(Name).Append('\n');
-        sb.Append("Comment=The Legend of Zelda: Ocarina of Time, built by Longshot\n");
+        sb.Append("Comment=Longshot\n");
         sb.Append("Exec=").Append(Quote(launcher)).Append(" --play");
         if (folder != null) sb.Append(' ').Append(Quote(folder));
         sb.Append('\n');
