@@ -830,16 +830,12 @@ static partial class Program
         StartRequest P(params string[] a) => StartRequest.Parse(a);
         Require(P() is { Kind: StartKind.Window, Folder: null, Problem: null }, "No arguments: the window.");
         Require(P("--launch", "/g") is { Kind: StartKind.Launch, Folder: "/g" }, "--launch");
-        Require(P("--update", "/g", "--tag", "v3.3.0", "--fetched") is { Kind: StartKind.Update, Folder: "/g", Tag: "v3.3.0", Fetched: true, Problem: null },
-                "--update --tag --fetched");
-        Require(P("--update", "C:\\Games\\Longshot é") is { Kind: StartKind.Update, Tag: null, Fetched: false }, "--update alone");
         Require(P("--play") is { Kind: StartKind.Play, Folder: null }, "--play: the default build");
         Require(P("--play", "/g") is { Kind: StartKind.Play, Folder: "/g" }, "--play <folder>");
         Require(P("--launch") is { Kind: StartKind.Window, Problem: not null }, "--launch with no folder");
-        Require(P("--update", "--tag", "v1") is { Problem: not null }, "--update with no folder");
-        Require(P("--tag", "../x", "--update", "/g") is { Tag: null, Problem: not null }, "A tag that is no version name");
-        Require(P("--play", "/g", "--update", "/h") is { Problem: not null }, "Two at once");
-        Require(P("--launch", "/g", "--tag", "v1") is { Problem: not null }, "--tag with --launch");
+        Require(P("--play", "/g", "--launch", "/h") is { Problem: not null }, "Two at once");
+        Require(P("--update", "/g") is { Kind: StartKind.Window, Folder: null, Problem: null } u && u.Ignored.SequenceEqual(new[] { "--update", "/g" }),
+                "--update is no start mode: an unknown argument, the window opens.");
         Require(P("--some-avalonia-flag", "--launch", "/g").Ignored.SequenceEqual(new[] { "--some-avalonia-flag" }), "Unknown arguments are kept aside.");
     }
 

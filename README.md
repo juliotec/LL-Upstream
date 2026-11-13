@@ -213,7 +213,6 @@ dotnet run --project App
 | `LONGSHOT_LAUNCHER_OFFLINE=1` | No update check |
 | `LONGSHOT_LAUNCHER_TRUST=<public key .pem>` | Trust one more release key, for a release signed with a test key |
 | `--launch <folder>` | Opens on that build |
-| `--update <folder> [--tag <tag>] [--fetched]` | Opens the wizard on that update (with no `--tag`, the build's channel's newest) |
 | `--play [<folder>]` | Starts the game with no window (the shortcuts use it) |
 | `--self-check` | Prints `LongshotLauncher <version>` (a new launcher answers it before it is put in place) |
 | `--rollback` | Puts back the launcher the last update replaced |

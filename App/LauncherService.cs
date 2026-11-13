@@ -109,7 +109,7 @@ public sealed class LauncherService
     public string BuildsFolder => string.IsNullOrWhiteSpace(Settings.BuildsFolder) && Home.Portable ? Home.PortableBuilds : Settings.BuildsFolderOrDefault();
     public string Work => string.IsNullOrWhiteSpace(Settings.Work) ? Home.Work : Settings.Work;
 
-    /// A folder the command line named (--launch, --update), listed if it is not yet (the game's update offer passes its folder)
+    /// A folder the command line named (--launch), listed if it is not yet
     public BuildEntry Ensure(string folder)
     {
         var full = Path.GetFullPath(folder);

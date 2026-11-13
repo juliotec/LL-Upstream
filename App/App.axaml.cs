@@ -48,9 +48,9 @@ public sealed class App : Application
         }
         catch (Exception e) when (e is IOException or ArgumentException or PlatformNotSupportedException) { }
         // (the update check: at start unless turned off in the settings or offline; with nothing built it is needed to know what to
-        // build, and --update with no --tag needs it to know what to update to)
+        // build)
         var offline = Environment.GetEnvironmentVariable("LONGSHOT_LAUNCHER_OFFLINE") == "1";
-        if (!offline && (service.Settings.CheckUpdates || service.Registry.Builds.Count == 0 || Program.Start.Kind == StartKind.Update))
+        if (!offline && (service.Settings.CheckUpdates || service.Registry.Builds.Count == 0))
             _ = main.Home.CheckReleasesAsync();
         else service.Checked = true;
     }

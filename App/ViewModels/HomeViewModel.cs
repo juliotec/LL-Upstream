@@ -96,7 +96,6 @@ public sealed class HomeViewModel : ViewModelBase
 {
     string? notice;
     string status = "";
-    BuildEntry? pendingUpdate;
     bool checkAgain;
     readonly HashSet<string> deleting = new();
 
@@ -303,19 +302,15 @@ public sealed class HomeViewModel : ViewModelBase
         Main.Host?.Close();
     }
 
-    /// The start's own request: --launch and --update name a build (listed if it was not)
+    /// The start's own request: --launch names a build (listed if it was not)
     public void Open(StartRequest start)
     {
         var notes = new List<string>();
         if (Service.Registry.Problem is { } broken) notes.Add("The list of builds could not be read (kept as builds.json.broken): " + broken);
         if (start.Problem != null) notes.Add(start.Problem);
-        if (start.Folder != null && start.Kind is StartKind.Launch or StartKind.Update)
+        if (start.Folder != null && start.Kind == StartKind.Launch)
         {
-            var entry = Service.Ensure(start.Folder);
-            if (start.Kind == StartKind.Update && start.Tag != null && Versions.IsTagName(start.Tag))
-                Ui.Post(() => Main.StartWizard(JobKind.Update, UpdatePolicy.ChannelOf(entry.Channel, entry.Version), start.Tag, entry));
-            // (no --tag: its channel's newest, once the update check has answered)
-            else if (start.Kind == StartKind.Update) pendingUpdate = entry;
+            Service.Ensure(start.Folder);
         }
         Notice = notes.Count > 0 ? string.Join("\n", notes) : null;
         OfferHookshot();
@@ -379,13 +374,6 @@ public sealed class HomeViewModel : ViewModelBase
             Status = "Could not check for updates: " + e.Message;
         }
         Refresh();
-        if (pendingUpdate is { } p && Main.Page == this)
-        {
-            pendingUpdate = null;
-            var version = p.Version is { } v ? Versions.Shown(v) : p.Name;
-            if (Service.UpdateFor(p) is { } to) Main.StartWizard(JobKind.Update, UpdatePolicy.ChannelOf(p.Channel, p.Version), to, p);
-            else if (Service.NewestOf(UpdatePolicy.ChannelOf(p.Channel, p.Version)) != null) Main.ShowToast($"{version} is up to date.");
-        }
     }
 
     public void Select(BuildItemViewModel b)
