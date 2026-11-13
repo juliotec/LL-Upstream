@@ -23,6 +23,7 @@ Contents:
 - [A hotfix](#a-hotfix)
 - [Pulling a bad release](#pulling-a-bad-release)
 - [When CI refuses a tag](#when-ci-refuses-a-tag)
+- [Needs a Windows tester (Longshot)](#needs-a-windows-tester-longshot)
 - [Bump a tool (Longshot)](#bump-a-tool-longshot)
 - [Rotate the key](#rotate-the-key)
 - [One-time setup](#one-time-setup)
@@ -92,7 +93,9 @@ Players on the nightly channel keep the last good nightly until then.
    - Download `SHA256SUMS`, `SHA256SUMS.sig` and the files, and run
      `python -I scripts/release.py verify SHA256SUMS --files <folder>`.
    - In a launcher set to the rc channel (Settings), Retry offers it.
-5. Ask testers on the rc channel to try it. Fixes go in as pull requests; each round is a new rc tag (`-rc.2`).
+5. Ask testers on the rc channel to try it, and for Longshot one on Windows for what CI can't check
+   ([Needs a Windows tester](#needs-a-windows-tester-longshot)). Fixes go in as pull requests; each round is a new rc tag
+   (`-rc.2`).
 
 ## A stable from a tested release candidate
 
@@ -149,6 +152,28 @@ The *version* step of `release.yml` says why. Nothing was built. Delete the tag 
 
 To check before pushing: `python -I scripts/release.py check-tag <tag>` (it reads the release list; tag it locally first).
 
+## Needs a Windows tester (Longshot)
+
+There is no Windows runner: every job runs on Linux, and Longshot's Windows files are cross-built there (the setup and the
+Vulkan back end with llvm-mingw's Linux build of `tools.lock`'s release, the WPF builder with `dotnet publish -r win-x64
+-p:EnableWindowsTargeting=true`). CI checks them as Windows files (PE headers, imports, resources, the .NET runtime:
+`scripts/check_windows_files.py`) and starts the setup and the builder under Wine, which only shows that they load. For each
+release candidate, before its stable, a tester on Windows 10 or 11:
+
+- **Builds and plays.** Unzip `LongshotBuilder-<v>-windows-x64.zip` and run `LongshotBuilder.exe`: the setup installs the
+  builder and downloads the tools; build the game from your own copy and play to the title screen. The setup shows its
+  icon, the builder its fonts and image.
+- **Notes what Windows says.** Nothing is signed: what SmartScreen and the antivirus do with the zip and the setup.
+- **Runs the checks only Windows can** (they were `ci.yml`'s `windows-2022` jobs, which nothing could run): the suite on
+  Windows' Python, `python -I -B tests/run_all.py --strict` (the 15 checks Linux skips, their `RUN_ALL_SKIP` naming why: the setup's Win32
+  file and path handling, the portable homes, structured exceptions; and the `os.name == "nt"` paths of the others, among
+  them `tests/test_control.py`'s named pipe), and from a Visual Studio
+  2022 developer prompt the MSVC compile of the native checks, `cl /nologo /std:c++17 /W4 /WX /EHsc
+  gpu\vk\tests\present_rect_test.cpp && present_rect_test.exe` and `python -I -B tests/test_invalidate_vcore.py --cxx cl`
+  (Linux CI compiles both with GCC and Clang).
+
+A failure is an issue, and blocks the stable as any other would.
+
 ## Bump a tool (Longshot)
 
 The Windows builder's tools are in `tools.lock` (docs/releases.md, "tools.lock"). A bump is a pull request that changes
@@ -160,7 +185,10 @@ its line:
   2. `RELEASE_TOKEN=<your token> python -I scripts/tools.py mirror llvm-mingw`: it downloads the archive, checks it against the
      line, uploads the copy to the `tools` release, and makes its URL the line's first (the upstream URL stays as the
      fallback).
-  3. `python -I scripts/tools.py check --require`, and open the pull request (`build(windows): llvm-mingw 20261201`).
+  3. For llvm-mingw, the same release's Linux build too: `LINUX_LLVM_MINGW` in `scripts/builder_package.py` (version,
+     folder, `sha256`, size, URL), which CI builds the Windows files with (`tests/test_windows_on_linux.py` checks that
+     the two versions match).
+  4. `python -I scripts/tools.py check --require`, and open the pull request (`build(windows): llvm-mingw 20261201`).
 - **An archive Longshot makes** (Python with new pins, the CPM cache with a new package, the `third_party` prebuilt files,
   the profile):
   ```sh
@@ -215,7 +243,7 @@ None of this is done yet. In order (the org secret is shared by both repositorie
    `.lock` and `SHA256SUMS` are accepted.
 5. **Actions and runners.** Enable Actions on both repositories (*Settings* > *Units*), and register the runners in
    [docs/forgejo-runners.md](https://git.magicbean.dev/MagicBeanDev/Longshot/src/branch/main/docs/forgejo-runners.md)
-   (Longshot needs Linux and Windows, the launcher Linux only).
+   (Linux only, for both: Longshot's Windows files are cross-built on Linux).
 6. **Longshot's `tools` release and `tools.lock`.** Assemble and add the three tools the lock lacks: `cpm` with dav1d (from
    build-windows.yml's dav1d artifact), `third-party` (the prebuilt files, from Hookshot v2.1.0's third_party part or a
    Windows build), and `profile` (the play profile). Then `tools.py mirror` each of the others (llvm-mingw, python, emsdk,
