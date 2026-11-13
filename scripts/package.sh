@@ -48,8 +48,10 @@ publish() {
         -p:LongshotTag="$TAG" "${version[@]}" -o "$WORK/$rid" -nologo
 }
 
-# (compressed inside: about half the download. The AppImage is compressed already, so the Linux program is not)
-publish win-x64 -p:EnableCompressionInSingleFile=true
+# (not compressed inside: a compressed single file unpacks its code into memory when it starts, which antivirus programs'
+# machine-learning checks take for a packed dropper: Windows flagged the launcher as a virus. The setup is about twice the size,
+# 106 MB rather than 51; the portable zip is the same, 45 MB. The AppImage is compressed by its own format)
+publish win-x64
 cp "$WORK/win-x64/LongshotLauncher.exe" "$OUT/LongshotLauncher-$TAG-windows-x64-setup.exe"
 # (the portable zip: the program under its own name and the "portable" file beside it; the same dates in every build)
 mkdir -p "$WORK/portable"

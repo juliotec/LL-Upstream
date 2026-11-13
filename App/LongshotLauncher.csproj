@@ -9,6 +9,13 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <!-- (the Windows program's icon: the Longshot logo, Assets/longshot.ico, made from Assets/longshot.png by scripts/make_icon.py) -->
     <ApplicationIcon>Assets/longshot.ico</ApplicationIcon>
+    <!-- (the Windows program's details, as Properties > Details and the antivirus programs show them: a program with only its file
+         name there looks more like malware) -->
+    <Product>Longshot Launcher</Product>
+    <AssemblyTitle>Longshot Launcher</AssemblyTitle>
+    <Description>Installs, builds, updates and starts Longshot</Description>
+    <Company>MagicBeanDev</Company>
+    <Copyright>Copyright © the Longshot Launcher contributors. GPL-3.0-or-later</Copyright>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Avalonia"/>
