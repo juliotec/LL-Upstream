@@ -13,8 +13,8 @@ namespace LongshotLauncher.Core;
 /// lacks it, is refused, with the reason in Problem.
 public sealed class Releases
 {
-    public const string Repo = Product.Server + "/MagicBeanDev/Longshot";
-    public const string LauncherRepo = Product.Server + "/MagicBeanDev/LongshotLauncher";
+    public const string Repo = Product.Server + "/juliotec/Longshot-Upstream";
+    public const string LauncherRepo = Product.Server + "/juliotec/LongshotLauncher-Upstream";
     const long MaxSmall = 4 << 20;
 
     readonly IReadOnlyList<ReleaseKey> keys;
@@ -38,7 +38,7 @@ public sealed class Releases
         this.delay = delay ?? Task.Delay;
     }
 
-    public string ListUrl(int page) => $"{Product.Api}/releases?limit=50&page={page}";
+    public string ListUrl(int page) => $"{Product.Api}/releases?limit=50&per_page=50&page={page}";
 
     public string VersionUrl(string tag) =>
         Versions.IsTagName(tag) ? $"{Product.Api}/releases/tags/{tag}" : throw new ArgumentException("Not a version name: " + tag, nameof(tag));

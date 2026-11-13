@@ -37,8 +37,8 @@ public static class ReleaseKeys
     /// it here. Until then this launcher takes no release from the server, and says so.
     public static readonly IReadOnlyList<ReleaseKey> BuiltIn = new ReleaseKey[]
     {
-        // the release key, id 5e18330371d7f5aa (scripts/release.py keygen, 2026-11-13, RELEASING.md One-time setup)
-        ReleaseKey.FromSpki("MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE5PKAyo4V9MLugswS3bMuUstnNAeNqaQBHbrDfpyhHu58osA/N8hEFI7WXqMwFh1oUFYfLaCe+AkTQ5IlTWirCQ=="),
+        // the fork's release key, id 386ade8a6b385860 (juliotec/Longshot-Upstream and juliotec/LongshotLauncher-Upstream)
+        ReleaseKey.FromSpki("MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEw1ZLH6cC4636ValkadzKOq6F82U9hKxWq0ZhGz9srf7WCwn+C94KweWPVcBz9EEUBoP9NTAs7FKi7jdZ2peNGg=="),
     };
 
     /// A PEM public key file trusted too, for trying out a release signed with a test key (scripts/release.py keygen); never
