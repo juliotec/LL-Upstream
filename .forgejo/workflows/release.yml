@@ -60,6 +60,15 @@ jobs:
             tag=${GITHUB_REF#refs/tags/}
             python3 -I scripts/release.py check-tag "$tag" --main origin/main
           else
+            # (a nightly whose commit is no longer main's skips itself: the release runs queue one at a time, and of a few
+            # merges in a row only the newest one builds; the one already running goes on)
+            head=$(git rev-parse origin/main)
+            if [[ $GITHUB_EVENT_NAME == push && $head != "$ref" ]]; then
+              echo "::notice::main has moved on to ${head:0:8}: this nightly skips, the newer one builds"
+              echo "tag=" >> "$GITHUB_OUTPUT"
+              echo "ref=$ref" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
             tag=$(python3 -I scripts/release.py nightly-name)
           fi
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
@@ -69,6 +78,7 @@ jobs:
   build:
     name: The launcher, both systems
     needs: version
+    if: needs.version.outputs.tag != ''
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -116,6 +126,7 @@ jobs:
   publish:
     name: Sign and publish
     needs: [version, build]
+    if: needs.version.outputs.tag != ''
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
