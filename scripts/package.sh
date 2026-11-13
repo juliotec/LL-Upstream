@@ -11,6 +11,10 @@
 #
 # The AppImage is packed with the appimagetool and runtime pinned below (downloaded and checked by their SHA-256 into
 # <out folder>/../.appimagetool), or APPIMAGETOOL and APPIMAGE_RUNTIME. Nothing of a game is involved.
+#
+# WINE_CHECK_EXE=<path> also writes there the Windows program built to unpack all of itself to disk when it starts, for CI to start
+# under Wine (release.yml): Wine cannot load the shipped program, whose code .NET maps straight from the uncompressed file
+# ("Failed to load System.Private.CoreLib.dll ... Incorrect alignment (0x8007046C)"). It is the same code; it is not released.
 set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 TAG=${1:?usage: package.sh <tag> <out folder>}
@@ -41,18 +45,23 @@ version=()
 if [[ $TAG =~ ^v([0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?)$ ]]; then version=(-p:Version="${BASH_REMATCH[1]}"); fi
 
 publish() {
-    local rid=$1
-    shift
+    local rid=$1 dir=$2
+    shift 2
     "$DOTNET" publish "$ROOT/App/LongshotLauncher.csproj" -c Release -r "$rid" --self-contained "$@" \
         -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=none \
-        -p:LongshotTag="$TAG" "${version[@]}" -o "$WORK/$rid" -nologo
+        -p:LongshotTag="$TAG" "${version[@]}" -o "$dir" -nologo
 }
 
 # (not compressed inside: a compressed single file unpacks its code into memory when it starts, which antivirus programs'
 # machine-learning checks take for a packed dropper: Windows flagged the launcher as a virus. The setup is about twice the size,
 # 106 MB rather than 51; the portable zip is the same, 45 MB. The AppImage is compressed by its own format)
-publish win-x64
+publish win-x64 "$WORK/win-x64"
 cp "$WORK/win-x64/LongshotLauncher.exe" "$OUT/LongshotLauncher-$TAG-windows-x64-setup.exe"
+if [ -n "${WINE_CHECK_EXE:-}" ]; then
+    publish win-x64 "$WORK/win-x64-wine" -p:IncludeAllContentForSelfExtract=true
+    mkdir -p "$(dirname "$WINE_CHECK_EXE")"
+    cp "$WORK/win-x64-wine/LongshotLauncher.exe" "$WINE_CHECK_EXE"
+fi
 # (the portable zip: the program under its own name and the "portable" file beside it; the same dates in every build)
 mkdir -p "$WORK/portable"
 cp "$WORK/win-x64/LongshotLauncher.exe" "$WORK/portable/LongshotLauncher.exe"
@@ -70,7 +79,7 @@ with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
             z.writestr(info, f.read())
 PY
 
-publish linux-x64
+publish linux-x64 "$WORK/linux-x64"
 app="$WORK/AppDir"
 mkdir -p "$app/usr/bin"
 cp "$WORK/linux-x64/LongshotLauncher" "$app/usr/bin/LongshotLauncher"

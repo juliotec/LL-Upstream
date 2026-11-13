@@ -10,7 +10,8 @@
 # 2. build: LongshotLauncher-<v>-windows-x64-setup.exe (the program, which offers to install itself), LongshotLauncher-<v>-
 #    windows-x64-portable.zip (the same program and its "portable" file) and LongshotLauncher-<v>-x86_64.AppImage
 #    (scripts/package.sh, on Linux). Each program is started with --self-check before it is kept: the AppImage's by package.sh,
-#    the Windows program's under Wine (there is no Windows runner).
+#    the Windows program's under Wine (there is no Windows runner): a build of it that unpacks itself to disk, since Wine cannot
+#    load the shipped one, which .NET maps from the uncompressed file. Whether the shipped file starts is a Windows tester's.
 # 3. publish: SHA256SUMS over them, SHA256SUMS.sig (the release key), the notes (git-cliff, cliff.toml), then a draft
 #    release with every file, published last: until then no launcher sees it. A nightly also prunes the nightlies past the
 #    newest 5. Nothing is committed back to the repository.
@@ -90,7 +91,11 @@ jobs:
         with:
           dotnet-version: '10.0.x'
       - name: The Windows setup, the portable zip and the AppImage
+        env:
+          WINE_CHECK_EXE: ${{ runner.temp }}/wine-check/LongshotLauncher.exe
         run: scripts/package.sh "${{ needs.version.outputs.tag }}" dist
+      # (the same code built to unpack itself to disk: Wine cannot load the shipped program, whose code .NET maps from the
+      # uncompressed file, "Incorrect alignment (0x8007046C)". The shipped file is not started here: RELEASING.md)
       - name: The Windows program starts (--self-check, under Wine)
         env:
           TAG: ${{ needs.version.outputs.tag }}
@@ -103,7 +108,7 @@ jobs:
           wine=$(command -v wine64 || command -v wine)
           export WINEDEBUG=-all WINEPREFIX="$RUNNER_TEMP/wine"
           "$wine" wineboot --init >/dev/null 2>&1 || true
-          out=$("$wine" "dist/LongshotLauncher-$TAG-windows-x64-setup.exe" --self-check | tr -d '\r')
+          out=$("$wine" "$RUNNER_TEMP/wine-check/LongshotLauncher.exe" --self-check | tr -d '\r')
           echo "$out"
           grep -qxF "LongshotLauncher $TAG" <<<"$out" || { echo "::error::the Windows launcher does not answer --self-check with $TAG"; exit 1; }
       # (an artifact goes to Forgejo by its public address, ROOT_URL, behind Cloudflare, whatever address the runner has: a
