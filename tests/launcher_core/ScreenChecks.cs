@@ -298,13 +298,19 @@ static partial class Program
                 "A failed install leaves nothing that looks installed.");
 
         // (Windows: the builder's zip as it is, then tools.lock's tools: a prefix becomes the dest, a mirror stands in for upstream)
+        // (the zip has LongshotBuilder/tools/third_party, the repository's sources: the third-party tool's prebuilt files go among them)
         var zip = Zip(("LongshotBuilder.exe", "MZ setup", null, 0x1A4), ("LongshotBuilder/LongshotBuilder.exe", "MZ builder", null, 0x1A4),
-                      ("LongshotBuilder/tools/nx2/make_game.py", "print('authored')\n", null, 0x1A4));
+                      ("LongshotBuilder/tools/nx2/make_game.py", "print('authored')\n", null, 0x1A4),
+                      ("LongshotBuilder/tools/third_party/a64-kit/lift/a64emit.cpp", "// source\n", null, 0x1A4));
         var py = Zip(("HookshotBuilder/tools/python/python.exe", "MZ python", null, 0x1A4), ("HookshotBuilder/HookshotBuilder.exe", "not taken", null, 0x1A4));
+        var tp = Zip(("third_party/a64-kit/lift/a64emit.dll", "MZ a64emit", null, 0x1A4), ("third_party/sdl2/SDL3.dll", "MZ SDL3", null, 0x1A4));
         var win = new FakeForgejo(Product.Longshot);
         win.Server.Files["https://mirror/p.zip"] = py;
+        win.Server.Files["https://packages/tp.zip"] = tp;
         var lockText = $"tool python 3.14 windows-x64 {ShaOf(py)} {py.Length} LongshotBuilder/tools/python HookshotBuilder/tools/python " +
-                       "https://upstream-gone/p.zip https://mirror/p.zip\n";
+                       "https://upstream-gone/p.zip https://mirror/p.zip\n" +
+                       $"tool third-party hookshot-v2.1.0 windows-x64 {ShaOf(tp)} {tp.Length} LongshotBuilder/tools/third_party third_party " +
+                       "https://packages/tp.zip\n";
         win.Add("v3.2.0", key, files: new() { [ReleaseManifest.BuilderFile("v3.2.0", "windows-x64")] = zip, ["tools.lock"] = Encoding.UTF8.GetBytes(lockText) });
         var winChains = new Toolchains(Path.Combine(root, "toolchains-win"), win.Server);
         var wt = await ToolsSource.EnsureAsync(winChains, new Releases(win.Server, Platform.Windows, keys, NoWait), "v3.2.0");
@@ -312,11 +318,21 @@ static partial class Program
                 && File.ReadAllText(Path.Combine(wt.ToolsRoot, "python", "python.exe")) == "MZ python"
                 && !File.Exists(Path.Combine(wt.Folder, "LongshotBuilder", "tools", "HookshotBuilder", "HookshotBuilder.exe")),
                 "Windows: the builder's zip and its tools.lock's tools, from the mirror when upstream is gone.");
+        var thirdParty = Path.Combine(wt.ToolsRoot, "third_party");
+        Require(File.ReadAllText(Path.Combine(thirdParty, "a64-kit", "lift", "a64emit.cpp")) == "// source\n"
+                && File.ReadAllText(Path.Combine(thirdParty, "a64-kit", "lift", "a64emit.dll")) == "MZ a64emit"
+                && File.ReadAllText(Path.Combine(thirdParty, "sdl2", "SDL3.dll")) == "MZ SDL3",
+                "Windows: the third-party tool's files merged into the zip's third_party, its sources kept.");
         // (the next version with the same tool: kept from the installed one, not downloaded again)
         win.Add("v3.2.1", key, files: new() { [ReleaseManifest.BuilderFile("v3.2.1", "windows-x64")] = zip, ["tools.lock"] = Encoding.UTF8.GetBytes(lockText) });
         win.Server.Asked.Clear();
         await ToolsSource.EnsureAsync(winChains, new Releases(win.Server, Platform.Windows, keys, NoWait), "v3.2.1");
-        Require(!win.Server.Asked.Contains("https://mirror/p.zip"), "A tool another version has was downloaded again.");
+        Require(!win.Server.Asked.Contains("https://mirror/p.zip") && !win.Server.Asked.Contains("https://packages/tp.zip"),
+                "A tool another version has was downloaded again.");
+        var tp2 = Path.Combine(winChains.Find("v3.2.1")!.ToolsRoot, "third_party");
+        Require(File.ReadAllText(Path.Combine(tp2, "a64-kit", "lift", "a64emit.cpp")) == "// source\n"
+                && File.ReadAllText(Path.Combine(tp2, "sdl2", "SDL3.dll")) == "MZ SDL3",
+                "Windows: the kept third-party files merged into the next version's third_party, its sources kept.");
 
         // (a list on this PC with file:// parts: LONGSHOT_LAUNCHER_PARTS)
         var parts = Path.Combine(root, "parts ゲーム");

@@ -36,7 +36,8 @@ public sealed record ListedRelease(string Tag, bool Draft, bool Prerelease, Date
 ///   rc       the newest vX.Y.Z-rc.N or vX.Y.Z that is not a draft
 ///   nightly  the newest nightly-&lt;count&gt;-&lt;commit&gt; that is not a draft, by its count
 /// A draft is a release CI is still making; a version pulled back to a draft, or deleted, is gone from its channel, which then
-/// offers the one before. Anything else in the list (the "tools" release, a 2.x tag) is on no channel.
+/// offers the one before. Anything else in the list (a 2.x tag) is on no channel. (The build tools are generic packages, not
+/// releases.)
 public static class ReleaseManifest
 {
     public const long MaxFile = 16L << 30;
