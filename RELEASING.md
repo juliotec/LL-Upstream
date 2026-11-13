@@ -207,7 +207,7 @@ None of this is done yet. In order (the org secret is shared by both repositorie
    can't delete a protected tag, so the prune would fail. `tools.py` and `release.py` run by hand (`mirror`, `add`,
    `prune`) take your own token as `RELEASE_TOKEN`.
 3. **The upload address.** Uploads through Cloudflare are cut at 100 MB, and the builders are larger. Set the variable
-   `FORGEJO_UPLOAD_API` (organization *Actions* > *Variables*) to the API without Cloudflare, e.g.
+   `RELEASE_UPLOAD_API` (organization *Actions* > *Variables*; Forgejo refuses variable names that start with `FORGEJO_`, so the workflow passes it to `release.py` as `FORGEJO_UPLOAD_API`) to the API without Cloudflare, e.g.
    `http://forgejo:3000/api/v1` as the runners reach it on the server's network. Unset, uploads go to
    `https://git.magicbean.dev/api/v1`.
 4. **The attachment limits** (Forgejo's `app.ini`): `[attachment] MAX_SIZE` in MB, at least the largest file (2048 now;
@@ -233,7 +233,7 @@ None of this is done yet. In order (the org secret is shared by both repositorie
 |---|---|---|
 | `release.yml` fails at *SHA256SUMS, signed*: "no RELEASE_SIGNING_KEY" | the secret is not set or not visible to the repository | One-time setup, step 2 |
 | ... "not signed by a trusted key" at `verify` | the secret's key is not the one in `ReleaseTrust.cs` / `release_keys.json` | put the matching key in the secret, or rotate (above) |
-| *Publish* fails with HTTP 413 or a cut connection | an upload over Cloudflare's 100 MB limit | set `FORGEJO_UPLOAD_API` (One-time setup, step 3) |
+| *Publish* fails with HTTP 413 or a cut connection | an upload over Cloudflare's 100 MB limit | set `RELEASE_UPLOAD_API` (One-time setup, step 3) |
 | *Publish* fails with HTTP 400/422 on an upload | the attachment size or type limits | One-time setup, step 4 |
 | *Publish* fails with HTTP 401/403 | the job's token is read-only: the run is not a push to this repository (a pull request from a fork, or another repository's workflow) | release from a push or a tag here only |
 | "is already published" | a run for a version that is out (a re-run of an old run) | nothing: a version's files never change |

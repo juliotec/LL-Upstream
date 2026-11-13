@@ -18,7 +18,7 @@
 # The release is made with the job's own token (forgejo.token, passed to scripts/release.py as RELEASE_TOKEN): no bot account,
 # no token secret. Only the publish job may write (contents: write: this repository's releases and tags); the others read.
 # Secret (RELEASING.md, One-time setup; an organization secret, shared with Longshot): RELEASE_SIGNING_KEY (the release key's
-# private PEM). Variable: FORGEJO_UPLOAD_API, the API's address without Cloudflare in front, when a file is larger than its
+# private PEM). Variable: RELEASE_UPLOAD_API (passed to release.py as FORGEJO_UPLOAD_API; Forgejo reserves the FORGEJO_ prefix for variables), the API's address without Cloudflare in front, when a file is larger than its
 # 100 MB upload limit.
 name: Release
 on:
@@ -113,7 +113,7 @@ jobs:
       TAG: ${{ needs.version.outputs.tag }}
       REF: ${{ needs.version.outputs.ref }}
       RELEASE_TOKEN: ${{ forgejo.token }}
-      FORGEJO_UPLOAD_API: ${{ vars.FORGEJO_UPLOAD_API }}
+      FORGEJO_UPLOAD_API: ${{ vars.RELEASE_UPLOAD_API }}
     steps:
       - uses: https://github.com/actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
