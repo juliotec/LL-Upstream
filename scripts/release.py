@@ -265,6 +265,8 @@ def notes(tag, product, root=ROOT):
 # (longshot.magicbean.dev's permanent download links, the Longshot website, website/ in MagicBeanDev/Longshot: /download/launcher/<channel>[/<os>] goes to that channel's
 # newest launcher, by the rules of newest() above)
 SITE = "https://longshot.magicbean.dev"
+# (the same release files from Cloudflare's edge: git-cdn serves git.magicbean.dev's release paths from its R2 store, cached)
+CDN = "https://git-cdn.magicbean.dev"
 LAUNCHER_FILES = {"setup": "-windows-x64-setup.exe", "portable": "-windows-x64-portable.zip", "appimage": "-x86_64.AppImage"}
 CHANNEL_SAYS = {"stable": "This is a stable release: it builds Longshot's stable versions by default.",
                 "rc": "This is a release candidate: it builds Longshot's rc versions by default.",
@@ -278,7 +280,7 @@ def page_header(tag, product, names, repo=None):
     below" (above the builder files)"""
     channel = channel_of(tag, PRODUCTS[product]["first_major"]) or "nightly"
     if product == "launcher":
-        base = "%s/%s/releases/download/%s/" % (SERVER, repo or repo_of(product), urllib.parse.quote(tag))
+        base = "%s/%s/releases/download/%s/" % (CDN, repo or repo_of(product), urllib.parse.quote(tag))
         url = {k: base + urllib.parse.quote(n) for k, suffix in LAUNCHER_FILES.items() for n in sorted(names)
                if n.startswith("LongshotLauncher-") and n.endswith(suffix)}
         lines = ["# ⬇️ Download Longshot Launcher", ""]
