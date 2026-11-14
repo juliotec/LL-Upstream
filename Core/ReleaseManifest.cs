@@ -13,8 +13,8 @@ public sealed record FileRef(string Url, string Sha256, long Size);
 public sealed record Product(string Name, string Display, string Repo, int FirstMajor)
 {
     public const string Server = "https://github.com";
-    public static readonly Product Longshot = new("longshot", "Longshot", "juliotec/Longshot-Upstream", Versions.FirstMajor);
-    public static readonly Product Launcher = new("launcher", "Longshot Launcher", "juliotec/LongshotLauncher-Upstream", Versions.LauncherFirstMajor);
+    public static readonly Product Longshot = new("longshot", "Longshot", "juliotec/L-Upstream", Versions.FirstMajor);
+    public static readonly Product Launcher = new("launcher", "Longshot Launcher", "juliotec/LL-Upstream", Versions.LauncherFirstMajor);
 
     public string Api => "https://api.github.com/repos/" + Repo;
 }
