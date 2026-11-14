@@ -18,6 +18,7 @@ public sealed class App : Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             desktop.ShutdownMode = ShutdownMode.OnLastWindowClose;
+            Tr.Use(LauncherSettings.Load(Program.Home.Settings).UiLanguageOr(Controls.SystemLanguage.Name()));
             // (--uninstall: its own small window; the Windows download's first start: Install or Run portable, then the launcher)
             if (Program.Uninstalling) desktop.MainWindow = SetupWindows.Uninstall(desktop);
             else if (Program.Layout.OffersInstall(SelfUpdate.OwnTag(), Environment.GetEnvironmentVariable))

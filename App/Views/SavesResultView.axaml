@@ -18,13 +18,13 @@
     <TextBlock Classes="faint" Text="{Binding Faint}" HorizontalAlignment="Center" Margin="0,8,0,0"/>
     <StackPanel Orientation="Horizontal" Spacing="12" HorizontalAlignment="Center" Margin="0,28,0,0" IsVisible="{Binding Done}">
       <Button Command="{Binding BackupCommand}" IsVisible="{Binding HasBackup}">
-        <StackPanel Orientation="Horizontal" Spacing="8"><c:Icon Kind="folder" Width="16" Height="16"/><TextBlock Text="Open backup folder"/></StackPanel>
+        <StackPanel Orientation="Horizontal" Spacing="8"><c:Icon Kind="folder" Width="16" Height="16"/><TextBlock Text="{c:T 'Open backup folder'}"/></StackPanel>
       </Button>
-      <Button Classes="primary" Content="Back to saves" Command="{Binding BackCommand}"/>
+      <Button Classes="primary" Content="{c:T 'Back to saves'}" Command="{Binding BackCommand}"/>
     </StackPanel>
     <StackPanel Orientation="Horizontal" Spacing="12" HorizontalAlignment="Center" Margin="0,28,0,0" IsVisible="{Binding Refused}">
-      <Button Content="Back to saves" Command="{Binding BackCommand}"/>
-      <Button Classes="primary" Content="Try again" Command="{Binding RetryCommand}"/>
+      <Button Content="{c:T 'Back to saves'}" Command="{Binding BackCommand}"/>
+      <Button Classes="primary" Content="{c:T 'Try again'}" Command="{Binding RetryCommand}"/>
     </StackPanel>
   </StackPanel>
 </UserControl>

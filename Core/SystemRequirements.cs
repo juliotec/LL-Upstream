@@ -17,17 +17,17 @@ public static class SystemRequirements
         var failures = new List<string>();
         var warnings = new List<string>();
         var unknown = new List<string>();
-        if (!supportedOs) failures.Add("Requires 64-bit Windows 10/11 or Linux with glibc 2.35+");
-        if (memoryGb > 0) observed.Add($"{memoryGb} GB RAM");
-        if (memoryGb <= 0) unknown.Add("RAM could not be checked");
-        else if (memoryGb < 16) warnings.Add("16 GB RAM minimum");
-        if (threads <= 0) unknown.Add("CPU thread count could not be checked");
-        else if (threads < 6) warnings.Add($"{threads} CPU threads; a 6-core CPU is suggested");
-        if (linux && !avx2) failures.Add("The Linux AppImage requires AVX2");
-        if (freeBytes is null) unknown.Add("Free disk space could not be checked");
-        else if (freeBytes < 60L << 30) warnings.Add(FormattableString.Invariant($"{freeBytes.Value / (double)(1L << 30):0.#} GB free; about 60 GB needed for building"));
-        if (gpus is null) unknown.Add("GPU support could not be checked; requires Vulkan 1.3 and 4 GB VRAM");
-        else if (!gpus.Any(g => g.Vulkan13)) failures.Add("No Vulkan 1.3 GPU found; check your graphics driver");
+        if (!supportedOs) failures.Add(Tr.T("Requires 64-bit Windows 10/11 or Linux with glibc 2.35+"));
+        if (memoryGb > 0) observed.Add(Tr.F("{0} GB RAM", memoryGb));
+        if (memoryGb <= 0) unknown.Add(Tr.T("RAM could not be checked"));
+        else if (memoryGb < 16) warnings.Add(Tr.T("16 GB RAM minimum"));
+        if (threads <= 0) unknown.Add(Tr.T("CPU thread count could not be checked"));
+        else if (threads < 6) warnings.Add(Tr.F("{0} CPU threads; a 6-core CPU is suggested", threads));
+        if (linux && !avx2) failures.Add(Tr.T("The Linux AppImage requires AVX2"));
+        if (freeBytes is null) unknown.Add(Tr.T("Free disk space could not be checked"));
+        else if (freeBytes < 60L << 30) warnings.Add(Tr.F("{0} GB free; about 60 GB needed for building", FormattableString.Invariant($"{freeBytes.Value / (double)(1L << 30):0.#}")));
+        if (gpus is null) unknown.Add(Tr.T("GPU support could not be checked; requires Vulkan 1.3 and 4 GB VRAM"));
+        else if (!gpus.Any(g => g.Vulkan13)) failures.Add(Tr.T("No Vulkan 1.3 GPU found; check your graphics driver"));
         else
         {
             // Check the GPU the game will use (Longshot's pick_device in gpu/vk/vk_main.cpp): a discrete GPU over an
@@ -36,25 +36,25 @@ public static class SystemRequirements
             var gpu = gpus.Where(g => g.Vulkan13)
                 .OrderByDescending(g => g.Kind).ThenByDescending(g => g.DriverVersion).First();
             observed.Add("Vulkan 1.3");
-            if (gpu.MemoryBytes > 0) observed.Add(FormattableString.Invariant($"{gpu.MemoryBytes / (double)(1UL << 30):0.#} GB VRAM"));
-            if (gpu.MeshShaders == true) observed.Add("Mesh shaders available");
-            if (gpu.MemoryBytes == 0) unknown.Add("GPU memory could not be checked");
-            else if (!AtLeastGb(gpu.MemoryBytes, 4)) warnings.Add("4 GB VRAM minimum; shared memory may differ");
-            else if (!AtLeastGb(gpu.MemoryBytes, 8)) warnings.Add("8 GB VRAM recommended");
-            if (gpu.MeshShaders == false) warnings.Add("No mesh shaders; using the slower compute fallback");
-            else if (gpu.MeshShaders is null) unknown.Add("Mesh shader support could not be checked");
+            if (gpu.MemoryBytes > 0) observed.Add(Tr.F("{0} GB VRAM", FormattableString.Invariant($"{gpu.MemoryBytes / (double)(1UL << 30):0.#}")));
+            if (gpu.MeshShaders == true) observed.Add(Tr.T("Mesh shaders available"));
+            if (gpu.MemoryBytes == 0) unknown.Add(Tr.T("GPU memory could not be checked"));
+            else if (!AtLeastGb(gpu.MemoryBytes, 4)) warnings.Add(Tr.T("4 GB VRAM minimum; shared memory may differ"));
+            else if (!AtLeastGb(gpu.MemoryBytes, 8)) warnings.Add(Tr.T("8 GB VRAM recommended"));
+            if (gpu.MeshShaders == false) warnings.Add(Tr.T("No mesh shaders; using the slower compute fallback"));
+            else if (gpu.MeshShaders is null) unknown.Add(Tr.T("Mesh shader support could not be checked"));
         }
         var status = failures.Count > 0 ? RequirementStatus.Red : warnings.Count > 0 ? RequirementStatus.Yellow
             : unknown.Count > 0 ? RequirementStatus.Gray : RequirementStatus.Green;
         var summary = status switch
         {
-            RequirementStatus.Red => "Compatibility issue found",
-            RequirementStatus.Yellow => "Limited hardware",
-            RequirementStatus.Gray => "Some requirements are unknown",
-            _ => "Checked requirements met",
+            RequirementStatus.Red => Tr.T("Compatibility issue found"),
+            RequirementStatus.Yellow => Tr.T("Limited hardware"),
+            RequirementStatus.Gray => Tr.T("Some requirements are unknown"),
+            _ => Tr.T("Checked requirements met"),
         };
         var detail = string.Join(" · ", observed.Concat(failures).Concat(warnings).Concat(unknown));
-        return new(status, summary, detail + (detail.EndsWith('.') ? "" : "."));
+        return new(status, summary, detail + (detail.EndsWith('.') || detail.EndsWith('。') ? "" : Tr.T(".")));
     }
 
     // A card sold as 8 GB reports a little less as its memory heap (an RTX 4070 Laptop GPU: 8188 MiB), so the thresholds

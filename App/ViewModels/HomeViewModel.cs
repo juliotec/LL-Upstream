@@ -42,17 +42,17 @@ public sealed class BuildItemViewModel : ViewModelBase
     public bool IsBuilt { get; }
     public string? Update { get; }
     public bool HasUpdate => Update != null;
-    public string UpdateLine => Update == null ? "" : Versions.Shown(Update) + " is out";
+    public string UpdateLine => Update == null ? "" : Tr.F("{0} is out", Versions.Shown(Update));
 
     /// "Built 3 Nov, 38.4 GB" (no saves count: every build shares them)
     public string Meta
     {
         get
         {
-            var bits = new List<string> { "Built " + Durations.Day(Entry.Updated.LocalDateTime, DateTime.Now) };
-            if (!IsBuilt) bits.Add("not built");
+            var bits = new List<string> { Tr.F("Built {0}", Durations.Day(Entry.Updated.LocalDateTime, DateTime.Now)) };
+            if (!IsBuilt) bits.Add(Tr.T("not built"));
             if (Entry.Bytes is long b) bits.Add(Durations.Size(b));
-            return string.Join(", ", bits);
+            return string.Join(Tr.T(", "), bits);
         }
     }
 
@@ -71,7 +71,7 @@ public sealed class BuildItemViewModel : ViewModelBase
     public bool ShowRing => !IsDefault;
     public bool ShowMeta => !HasUpdate && !IsDeleting;
     public bool ShowUpdateLine => HasUpdate && !IsDeleting;
-    public string DeletingText => "Deleting " + Version + "…";
+    public string DeletingText => Tr.F("Deleting {0}…", Version);
     public bool IsFirst { get; set; }
     public Avalonia.Thickness Separator => IsFirst ? default : new Avalonia.Thickness(0, 1, 0, 0);
 
@@ -104,7 +104,7 @@ public sealed class HomeViewModel : ViewModelBase
         // (the update check and the launcher's update are BusyCommands: off while they run, with what they are doing on screen)
         CheckCommand = new BusyCommand(CheckAsync);
         UpdateLauncherCommand = new BusyCommand(UpdateLauncherAsync, () => HasLauncherUpdate,
-                                                e => Notice = "The launcher could not update itself: " + e.Message);
+                                                e => Notice = Tr.F("The launcher could not update itself: {0}", e.Message));
         CheckCommand.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(BusyCommand.IsBusy)) BusyChanged(); };
         UpdateLauncherCommand.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(BusyCommand.IsBusy)) BusyChanged(); };
         BuildCommand = new Command(() => StartBuild(Service.DefaultChannel), () => NewestDefault != null && CanStartBuild);
@@ -179,19 +179,19 @@ public sealed class HomeViewModel : ViewModelBase
             var e = d.Entry;
             var bits = new List<string>
             {
-                "Built " + Durations.Day(e.Updated.LocalDateTime, DateTime.Now),
+                Tr.F("Built {0}", Durations.Day(e.Updated.LocalDateTime, DateTime.Now)),
             };
-            if (GameFolder.Language(e.Folder) is { } lang) bits.Add(Languages.NameOf(lang));
+            if (GameFolder.Language(e.Folder) is { } lang) bits.Add(Tr.T(Languages.NameOf(lang)));
             if (e.Dlss ?? GameFolder.HasDlss(e.Folder)) bits.Add("NVIDIA DLSS");
             if (e.Fsr == true) bits.Add("AMD FSR 4");
-            if (!d.IsBuilt) bits.Add("not built: its game is missing");
-            return "Your default version. " + string.Join(", ", bits) + ".";
+            if (!d.IsBuilt) bits.Add(Tr.T("not built: its game is missing"));
+            return Tr.F("Your default version. {0}.", string.Join(Tr.T(", "), bits));
         }
     }
 
     public string HeroSaves => Default is { } d ? SaveText.Short(d.Saves, DateTime.Now) : "";
     public bool HeroHasUpdate => Default?.HasUpdate == true;
-    public string HeroUpdate => Default is { Update: { } u } d ? $"{u} is out on the {d.Channel} channel." : "";
+    public string HeroUpdate => Default is { Update: { } u } d ? Tr.F("{0} is out on the {1} channel.", u, ChannelPickerViewModel.NameOf(d.Channel)) : "";
 
     /// "3 versions use 116.7 GB in D:\Games\Longshot."
     public string Footer
@@ -200,8 +200,9 @@ public sealed class HomeViewModel : ViewModelBase
         {
             var n = Builds.Count;
             var known = Builds.Where(b => b.Entry.Bytes != null).Sum(b => b.Entry.Bytes!.Value);
-            var what = n == 1 ? "1 version" : n + " versions";
-            return known > 0 ? $"{what} {(n == 1 ? "uses" : "use")} {Durations.Size(known)} in {ShownPath.Of(Service.BuildsFolder)}." : $"{what} in {ShownPath.Of(Service.BuildsFolder)}.";
+            var folder = ShownPath.Of(Service.BuildsFolder);
+            return known > 0 ? Tr.P(n, "1 version uses {1} in {2}.", "{0} versions use {1} in {2}.", Durations.Size(known), folder)
+                : Tr.P(n, "1 version in {1}.", "{0} versions in {1}.", folder);
         }
     }
 
@@ -286,8 +287,12 @@ public sealed class HomeViewModel : ViewModelBase
             var profiles = found.Profiles.Select(p => Saves.Describe(p.Path)).Where(s => s.Count > 0).ToList();
             if (profiles.Count > 0)
             {
-                var summary = profiles.Count > 1 ? $"{profiles.Count} profiles" : SaveText.Long(profiles[0], DateTime.Now).ToLowerInvariant();
-                Nx2naviOffer = $"Found {summary} in {ShownPath.Of(found.Folder)}. Copy them into Longshot? The originals stay where they are.";
+                var folder = ShownPath.Of(found.Folder);
+                Nx2naviOffer = profiles.Count > 1
+                    ? Tr.P(profiles.Count, "Found saves in 1 profile in {1}. Copy them into Longshot? The originals stay where they are.",
+                           "Found saves in {0} profiles in {1}. Copy them into Longshot? The originals stay where they are.", folder)
+                    : Tr.F("Found {0} in {1}. Copy them into Longshot? The originals stay where they are.",
+                           SaveText.Long(profiles[0], DateTime.Now), folder);
             }
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or SaveFailure) { }
@@ -311,8 +316,8 @@ public sealed class HomeViewModel : ViewModelBase
         {
             var found = HookshotSaves.Find(Service.SaveEnv).Where(s => s.Valid).ToList();
             if (found.Count > 0)
-                HookshotOffer = $"Found {SaveText.Long(found[0].Slots, DateTime.Now).ToLowerInvariant()} in Hookshot. Copy them into Longshot? " +
-                                "Hookshot keeps its own.";
+                HookshotOffer = Tr.F("Found {0} in Hookshot. Copy them into Longshot? Hookshot keeps its own.",
+                                     SaveText.Long(found[0].Slots, DateTime.Now));
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or SaveFailure) { }
     }
@@ -324,17 +329,19 @@ public sealed class HomeViewModel : ViewModelBase
     /// nightly that has no order against a release
     int LauncherUpdateOrder => Service.LauncherUpdate is { } r ? SelfUpdate.Compare(r.Version, Service.OwnTag) : 0;
 
-    public string LauncherUpdateHeading => LauncherUpdateOrder > 0 ? "A new launcher is out" : $"Another launcher on the {Service.LauncherChannel} channel";
+    public string LauncherUpdateHeading => LauncherUpdateOrder > 0 ? Tr.T("A new launcher is out")
+        : Tr.F("Another launcher on the {0} channel", ChannelPickerViewModel.NameOf(Service.LauncherChannel));
 
-    public string LauncherUpdateButton => LauncherUpdateOrder > 0 ? "Update the launcher" : "Switch to it";
+    public string LauncherUpdateButton => LauncherUpdateOrder > 0 ? Tr.T("Update the launcher") : Tr.T("Switch to it");
 
     public string LauncherUpdateText => Service.LauncherUpdate is { } r
         ? LauncherUpdateOrder switch
         {
-            > 0 => $"Longshot Launcher {Versions.Shown(r.Version)} is out (you have {Versions.Shown(Service.OwnTag)}).",
-            < 0 => $"Longshot Launcher {Versions.Shown(r.Version)} is available on {Service.LauncherChannel}. It is older than yours " +
-                   $"({Versions.Shown(Service.OwnTag)}).",
-            _ => $"Longshot Launcher {Versions.Shown(r.Version)} is available on {Service.LauncherChannel} (you have {Versions.Shown(Service.OwnTag)}).",
+            > 0 => Tr.F("Longshot Launcher {0} is out (you have {1}).", Versions.Shown(r.Version), Versions.Shown(Service.OwnTag)),
+            < 0 => Tr.F("Longshot Launcher {0} is available on {1}. It is older than yours ({2}).", Versions.Shown(r.Version),
+                        ChannelPickerViewModel.NameOf(Service.LauncherChannel), Versions.Shown(Service.OwnTag)),
+            _ => Tr.F("Longshot Launcher {0} is available on {1} (you have {2}).", Versions.Shown(r.Version),
+                      ChannelPickerViewModel.NameOf(Service.LauncherChannel), Versions.Shown(Service.OwnTag)),
         }
         : "";
 
@@ -343,9 +350,9 @@ public sealed class HomeViewModel : ViewModelBase
     /// it is, says why (Notice) and the button is on again
     async Task UpdateLauncherAsync(BusyCommand busy, CancellationToken cancel)
     {
-        busy.Report("Downloading the new launcher…", 0, canCancel: true);
+        busy.Report(Tr.T("Downloading the new launcher…"), 0, canCancel: true);
         await Task.Run(() => Service.UpdateLauncherAsync(
-            p => Ui.Post(() => busy.Report(p >= 1 ? "Checking the download…" : $"Downloading the new launcher… {p:P0}", p, canCancel: p < 1)),
+            p => Ui.Post(() => busy.Report(p >= 1 ? Tr.T("Checking the download…") : Tr.F("Downloading the new launcher… {0}%", (int)Math.Round(p * 100)), p, canCancel: p < 1)),
             cancel,
             step => Ui.Post(() => busy.Report(step, canCancel: false))), CancellationToken.None);
         Main.Host?.Close();
@@ -355,7 +362,7 @@ public sealed class HomeViewModel : ViewModelBase
     public void Open(StartRequest start)
     {
         var notes = new List<string>();
-        if (Service.Registry.Problem is { } broken) notes.Add("The list of builds could not be read (kept as builds.json.broken): " + broken);
+        if (Service.Registry.Problem is { } broken) notes.Add(Tr.F("The list of builds could not be read (kept as builds.json.broken): {0}", broken));
         if (start.Problem != null) notes.Add(start.Problem);
         if (start.Folder != null && start.Kind == StartKind.Launch)
         {
@@ -409,7 +416,7 @@ public sealed class HomeViewModel : ViewModelBase
 
     async Task CheckAsync(BusyCommand busy, CancellationToken cancel)
     {
-        busy.Report("Checking for updates…");
+        busy.Report(Tr.T("Checking for updates…"));
         var wasAsked = asked;
         asked = false;
         Service.Checked = false;
@@ -419,18 +426,18 @@ public sealed class HomeViewModel : ViewModelBase
         {
             any = await Service.CheckReleasesAsync();
             Status = any ? "" : Service.Releases.Problem is { } problem
-                ? "Updates were not checked: " + problem
-                : "Could not reach git.magicbean.dev: updates were not checked.";
+                ? Tr.F("Updates were not checked: {0}", problem)
+                : Tr.T("Could not reach git.magicbean.dev: updates were not checked.");
         }
         catch (Exception e)
         {
             Service.Checked = true;
-            Status = "Could not check for updates: " + e.Message;
+            Status = Tr.F("Could not check for updates: {0}", e.Message);
         }
         Refresh();
         // (a check someone asked for answers even when nothing is new; an update shows itself: the banner, the Update buttons)
         if (wasAsked && any && !HasLauncherUpdate && !Builds.Any(b => b.HasUpdate))
-            Status = $"Everything is up to date, the launcher too. Checked at {DateTime.Now:t}.";
+            Status = Tr.F("Everything is up to date, the launcher too. Checked at {0}.", DateTime.Now.ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture));
     }
 
     public void Select(BuildItemViewModel b)
@@ -449,11 +456,11 @@ public sealed class HomeViewModel : ViewModelBase
                 Notice = said;
                 Refresh();
             }
-            Main.ShowToast($"Starting Longshot, {b.Version}…");
+            Main.ShowToast(Tr.F("Starting Longshot, {0}…", b.Version));
         }
         catch (Exception e) when (e is System.ComponentModel.Win32Exception or IOException or InvalidOperationException)
         {
-            Notice = $"{b.Version} could not start: {e.Message}";
+            Notice = Tr.F("{0} could not start: {1}", b.Version, e.Message);
         }
     }
 
@@ -461,7 +468,7 @@ public sealed class HomeViewModel : ViewModelBase
     {
         Service.SetDefault(b.Entry);
         Refresh();
-        Main.ShowToast($"Play now starts {b.Version}.");
+        Main.ShowToast(Tr.F("Play now starts {0}.", b.Version));
     }
 
     public void AskDelete(BuildItemViewModel b) => Main.Modal = new DeleteViewModel(Main, b);
@@ -494,9 +501,9 @@ public sealed class ChannelPickerViewModel : ViewModelBase
     public sealed class Row(ChannelPickerViewModel owner, string id, string name, string about, string? version, bool have) : ViewModelBase
     {
         public string Id => id;
-        public string Name => name;
+        public string Name => Tr.T(name);
         public string About => about;
-        public string Version => version == null ? "Not found" : Versions.Shown(version);
+        public string Version => version == null ? Tr.T("Not found") : Versions.Shown(version);
         public bool Known => version != null;
         public bool Have => have;
         public bool IsRelease => id == Versions.Stable;
@@ -518,14 +525,19 @@ public sealed class ChannelPickerViewModel : ViewModelBase
 
     /// A channel's line; the one new builds start on while the player has not picked one says it follows the launcher
     public static string AboutOf(LauncherService service, string id, string about) =>
-        service.Settings.DefaultChannel == null && service.DefaultChannel == id ? about + " It follows the launcher until you pick one in Settings." : about;
+        service.Settings.DefaultChannel == null && service.DefaultChannel == id
+            ? Tr.Sentences(Tr.T(about), Tr.T("It follows the launcher until you pick one in Settings.")) : Tr.T(about);
 
+    /// The channels, in English (Tr.T where shown)
     public static readonly (string Id, string Name, string About)[] All =
     {
-        (Versions.Stable, "Stable", "The tested version. Best for playing."),
-        (Versions.Candidate, "Release candidate", "The next version, to try before it is released."),
-        (Versions.Nightly, "Nightly", "The newest development build, with every change of the day."),
+        (Versions.Stable, Tr.N("Stable"), Tr.N("The tested version. Best for playing.")),
+        (Versions.Candidate, Tr.N("Release candidate"), Tr.N("The next version, to try before it is released.")),
+        (Versions.Nightly, Tr.N("Nightly"), Tr.N("The newest development build, with every change of the day.")),
     };
+
+    /// A channel's name in the language in use (stable: Stable); an unknown one as it is
+    public static string NameOf(string id) => All.FirstOrDefault(c => c.Id == id).Name is { } name ? Tr.T(name) : id;
 
     public ChannelPickerViewModel(MainViewModel main, string start)
     {
@@ -557,7 +569,7 @@ public sealed class ChannelPickerViewModel : ViewModelBase
 
     string? Version => Main.Service.NewestOf(pick);
     public bool Again => Has(Version);
-    public string GoText => Version == null ? "Continue" : (Again ? "Rebuild " : "Continue with ") + Versions.Shown(Version);
+    public string GoText => Version == null ? Tr.T("Continue") : Tr.F(Again ? "Rebuild {0}" : "Continue with {0}", Versions.Shown(Version));
 
     void Go()
     {
@@ -580,18 +592,18 @@ public sealed class DeleteViewModel : ViewModelBase
     }
 
     public MainViewModel Main { get; }
-    public string Title => $"Delete {build.Version}?";
+    public string Title => Tr.F("Delete {0}?", build.Version);
     bool GameFolderHere => GameFolder.IsGameFolder(build.Entry.Folder, Main.Platform);
 
     public string Sub => GameFolderHere
-        ? "This deletes its folder" + (build.Entry.Bytes is long b ? $" and frees {Durations.Size(b)}:" : ":")
-        : "This takes it off your versions. Its folder is not a Longshot game folder, so it stays on the disk:";
+        ? build.Entry.Bytes is long b ? Tr.F("This deletes its folder and frees {0}:", Durations.Size(b)) : Tr.T("This deletes its folder:")
+        : Tr.T("This takes it off your versions. Its folder is not a Longshot game folder, so it stays on the disk:");
     public string Folder => ShownPath.Of(build.Entry.Folder);
     public string FolderFull => build.Entry.Folder;
 
     BuildEntry? Next => Main.Service.Registry.Builds.FirstOrDefault(b => b.Id != build.Entry.Id);
     public bool DefaultNote => build.IsDefault && Next != null;
-    public string DefaultText => Next is { } n ? $"It is your default: Play will start {(n.Version is { } v ? Versions.Shown(v) : n.Name)} instead." : "";
+    public string DefaultText => Next is { } n ? Tr.F("It is your default: Play will start {0} instead.", n.Version is { } v ? Versions.Shown(v) : n.Name) : "";
 
     public Command KeepCommand { get; }
     public Command DeleteCommand { get; }
@@ -605,7 +617,7 @@ public sealed class DeleteViewModel : ViewModelBase
         // (a running game holds its files: on Windows the delete would stop half-way through the folder)
         if (files && Saves.Running(service.Platform).Contains(Saves.Longshot.Display))
         {
-            Main.Home.Notice = $"Close Longshot first: {build.Version} is not deleted while a game runs.";
+            Main.Home.Notice = Tr.F("Close Longshot first: {0} is not deleted while a game runs.", build.Version);
             return;
         }
         try
@@ -614,7 +626,7 @@ public sealed class DeleteViewModel : ViewModelBase
             {
                 // (tens of GB: off the window's thread, the folder first and the row once it is gone)
                 var keep = service.KeepOf(entry);
-                Main.ShowToast($"Deleting {build.Version}…");
+                Main.ShowToast(Tr.F("Deleting {0}…", build.Version));
                 Main.Home.Deleting(entry, true);
                 try { await Task.Run(() => BuildRegistry.DeleteFolder(entry.Folder, service.Platform, keep)); }
                 finally { Main.Home.Deleting(entry, false); }
@@ -624,11 +636,11 @@ public sealed class DeleteViewModel : ViewModelBase
             service.Remove(entry, deleteFiles: false);
             if (wasDefault && service.Registry.Builds.FirstOrDefault(b => UpdatePolicy.ChannelOf(b.Channel, b.Version) == Versions.Stable) is { } rel)
                 service.SetDefault(rel);
-            Main.ShowToast($"Deleted {build.Version}" + (entry.Bytes is long b && files ? $", {Durations.Size(b)} freed." : "."));
+            Main.ShowToast(entry.Bytes is long b && files ? Tr.F("Deleted {0}, {1} freed.", build.Version, Durations.Size(b)) : Tr.F("Deleted {0}.", build.Version));
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
-            Main.Home.Notice = $"{entry.Folder} could not be deleted: {e.Message}";
+            Main.Home.Notice = Tr.F("{0} could not be deleted: {1}", entry.Folder, e.Message);
         }
         Main.Home.Refresh();
     }

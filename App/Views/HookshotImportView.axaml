@@ -7,7 +7,7 @@
   <Border Classes="dialog wide" MaxHeight="560">
     <ScrollViewer VerticalScrollBarVisibility="Auto">
       <StackPanel>
-        <TextBlock Classes="modaltitle" Text="Import saves from Hookshot"/>
+        <TextBlock Classes="modaltitle" Text="{c:T 'Import saves from Hookshot'}"/>
         <TextBlock Classes="sub" Text="{Binding Sub}"/>
         <!-- the saves found: one row each, with its slots -->
         <StackPanel IsVisible="{Binding Listing}">
@@ -24,7 +24,7 @@
                       <TextBlock Classes="mono path" Text="{Binding Where}" ToolTip.Tip="{Binding WhereFull}" TextTrimming="CharacterEllipsis"/>
                       <TextBlock FontSize="12" Foreground="{StaticResource InkFaintText}" Text="{Binding Summary}" TextWrapping="Wrap"/>
                     </StackPanel>
-                    <Button Grid.Column="2" Classes="small" Content="Import" Command="{Binding ImportCommand}" IsVisible="{Binding Valid}"
+                    <Button Grid.Column="2" Classes="small" Content="{c:T 'Import'}" Command="{Binding ImportCommand}" IsVisible="{Binding Valid}"
                             VerticalAlignment="Center"/>
                   </Grid>
                 </Border>
@@ -44,13 +44,13 @@
           <TextBlock Text="{Binding Problem}" TextWrapping="Wrap"/>
         </Border>
         <StackPanel Classes="buttons" Margin="0,16,0,0" IsVisible="{Binding Listing}">
-          <Button Content="Import graphics and controls…" Command="{Binding SettingsCommand}"/>
-          <Button Content="Choose a folder…" Command="{Binding PickFolderCommand}"/>
-          <Button Content="Close" Command="{Binding CloseCommand}"/>
+          <Button Content="{c:T 'Import graphics and controls…'}" Command="{Binding SettingsCommand}"/>
+          <Button Content="{c:T 'Choose a folder…'}" Command="{Binding PickFolderCommand}"/>
+          <Button Content="{c:T 'Close'}" Command="{Binding CloseCommand}"/>
         </StackPanel>
         <StackPanel Classes="buttons" Margin="0,16,0,0" IsVisible="{Binding Asking}">
-          <Button Content="Keep Longshot's save" Command="{Binding KeepCommand}"/>
-          <Button Classes="bad" Content="Back it up and replace it" Command="{Binding ReplaceCommand}"/>
+          <Button Content="{c:T 'Keep Longshot\'s save'}" Command="{Binding KeepCommand}"/>
+          <Button Classes="bad" Content="{c:T 'Back it up and replace it'}" Command="{Binding ReplaceCommand}"/>
         </StackPanel>
       </StackPanel>
     </ScrollViewer>

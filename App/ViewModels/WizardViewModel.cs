@@ -46,6 +46,8 @@ public sealed class BuildJob
     public SettingsStepViewModel? Settings { get; set; }
 
     public string Verb => Kind switch { JobKind.Update => "Update to ", JobKind.Rebuild => "Rebuild ", _ => "Build " };
+    /// The start button's words: Build, Rebuild or Update to, then the version
+    public string StartText => Tr.F(Kind switch { JobKind.Update => "Update to {0}", JobKind.Rebuild => "Rebuild {0}", _ => "Build {0}" }, Shown);
 
     /// Everything of step 1 stops (the download, the checks): the wizard was left
     public void Stop()
@@ -68,8 +70,8 @@ public sealed class GameFileViewModel : ViewModelBase
     }
 
     public FoundGameFile File { get; }
-    public string Name => File.Folders ? File.Name + " (romfs and exefs)" : File.Name;
-    public string Where => File.Where == "Dropped on the window" ? File.Where : ShownPath.Of(Path.GetDirectoryName(File.Path) ?? File.Path);
+    public string Name => File.Folders ? Tr.F("{0} (romfs and exefs)", File.Name) : File.Name;
+    public string Where => File.Where == "Dropped on the window" ? Tr.T("Dropped on the window") : ShownPath.Of(Path.GetDirectoryName(File.Path) ?? File.Path);
     public string? WhereFull => File.Where == "Dropped on the window" ? null : File.Path;
 
     public GameCheck? Check
@@ -88,10 +90,10 @@ public sealed class GameFileViewModel : ViewModelBase
     public bool Bad => check?.Status == GameCheckStatus.Unreadable;
     public string ChipText => check?.Status switch
     {
-        GameCheckStatus.Supported => "Supported version",
-        GameCheckStatus.OtherVersion => "Not the supported version",
-        GameCheckStatus.Unreadable => "Can't be read",
-        _ => "Checking…",
+        GameCheckStatus.Supported => Tr.T("Supported version"),
+        GameCheckStatus.OtherVersion => Tr.T("Not the supported version"),
+        GameCheckStatus.Unreadable => Tr.T("Can't be read"),
+        _ => Tr.T("Checking…"),
     };
     public string? Tip => check?.Text;
     public bool Dim => check != null && !Ok;
@@ -137,14 +139,14 @@ public sealed class FilesStepViewModel : ViewModelBase, IWizardPage
         _ = Task.Run(() => SystemRequirements.Check(job.InstallDir)).ContinueWith(task => Ui.Post(() =>
         {
             if (task.IsCompletedSuccessfully) requirements = task.Result;
-            else requirements = new(RequirementStatus.Gray, "This PC could not be checked", "See the system requirements before building.");
+            else requirements = new(RequirementStatus.Gray, Tr.T("This PC could not be checked"), Tr.T("See the system requirements before building."));
             RaiseAll(nameof(RequirementsSummary), nameof(RequirementsDetail), nameof(RequirementsGreen), nameof(RequirementsYellow), nameof(RequirementsRed), nameof(RequirementsGray));
         }));
         if (tools) StartTools();
         StartSearch();
     }
 
-    RequirementResult requirements = new(RequirementStatus.Gray, "Checking this PC…", "Checking OS, memory, storage and Vulkan support.");
+    RequirementResult requirements = new(RequirementStatus.Gray, Tr.T("Checking this PC…"), Tr.T("Checking OS, memory, storage and Vulkan support."));
     public string RequirementsSummary => requirements.Summary;
     public string RequirementsDetail => requirements.Detail;
     public bool RequirementsGray => requirements.Status == RequirementStatus.Gray;
@@ -162,12 +164,12 @@ public sealed class FilesStepViewModel : ViewModelBase, IWizardPage
     public ObservableCollection<GameFileViewModel> Files { get; } = new();
 
     public string Sub => Job.Kind == JobKind.Update
-        ? $"Updating {Job.ShownFrom} to {Job.Shown}. The file you built it from is picked; pick another if it moved."
-        : "Pick your dump of the game. Longshot reads it on this PC; nothing is uploaded.";
+        ? Tr.F("Updating {0} to {1}. The file you built it from is picked; pick another if it moved.", Job.ShownFrom, Job.Shown)
+        : Tr.T("Pick your dump of the game. Longshot reads it on this PC; nothing is uploaded.");
 
     // ---- the tools ----
 
-    public string ToolsTitle => "Builder tools for " + Job.Shown;
+    public string ToolsTitle => Tr.F("Builder tools for {0}", Job.Shown);
     public double ToolsFraction { get => toolsFraction; private set => Set(ref toolsFraction, value); }
     public bool ToolsDone => toolsDone;
     public bool ToolsFailed => toolsFailed;
@@ -180,18 +182,18 @@ public sealed class FilesStepViewModel : ViewModelBase, IWizardPage
     {
         get
         {
-            if (toolsFailed) return "The download stopped: " + toolsProblem;
+            if (toolsFailed) return Tr.F("The download stopped: {0}", toolsProblem);
             if (toolsDone)
-                return Job.ToolsDownloaded ? $"Downloaded, {Durations.Size(toolsTotal)}. Kept for this version's updates."
-                    : "Already on this PC. Kept for this version's updates.";
-            if (toolsTotal == 0) return "Looking for this version's tools…";
+                return Job.ToolsDownloaded ? Tr.F("Downloaded, {0}. Kept for this version's updates.", Durations.Size(toolsTotal))
+                    : Tr.T("Already on this PC. Kept for this version's updates.");
+            if (toolsTotal == 0) return Tr.T("Looking for this version's tools…");
             var have = (long)(toolsFraction * toolsTotal);
-            var text = $"{have >> 20} of {Durations.Size(toolsTotal)}";
+            var text = Tr.F("{0} of {1}", have >> 20, Durations.Size(toolsTotal));
             var secs = toolsClock.Elapsed.TotalSeconds;
             if (toolsFraction > 0.02 && secs > 2)
             {
                 var left = secs / toolsFraction * (1 - toolsFraction);
-                text += left < 90 ? $", about {Math.Max(1, (int)Math.Round(left))} s left" : $", about {(int)Math.Round(left / 60)} min left";
+                text += left < 90 ? Tr.F(", about {0} s left", Math.Max(1, (int)Math.Round(left))) : Tr.F(", about {0} min left", (int)Math.Round(left / 60));
             }
             return text;
         }
@@ -356,27 +358,27 @@ public sealed class FilesStepViewModel : ViewModelBase, IWizardPage
     async Task BrowseAsync()
     {
         if (Main.Host is not { } host) return;
-        var path = await host.PickFileAsync("Your game file (.nup)", "*.nup");
+        var path = await host.PickFileAsync(Tr.T("Your game file (.nup)"), "*.nup");
         if (path == null) return;
         if (GameFiles.FromPath(path, "Browsed") is { } f) Picked = Add(f, pick: true, first: true);
-        else Main.ShowToast("That is not a .nup file.");
+        else Main.ShowToast(Tr.T("That is not a .nup file."));
         _ = CheckAllAsync();
     }
 
     async Task FoldersAsync()
     {
         if (Main.Host is not { } host) return;
-        var first = await host.PickFolderAsync("The game's romfs folder, or the folder holding romfs and exefs", null);
+        var first = await host.PickFolderAsync(Tr.T("The game's romfs folder, or the folder holding romfs and exefs"), null);
         if (first == null) return;
         var f = GameFiles.FromPath(first, "Picked");
         if (f == null)
         {
-            var exefs = await host.PickFolderAsync("The game's exefs folder", Path.GetDirectoryName(first));
+            var exefs = await host.PickFolderAsync(Tr.T("The game's exefs folder"), Path.GetDirectoryName(first));
             if (exefs == null) return;
             f = GameFiles.FromFolders(first, exefs, "Picked");
         }
         if (f != null) Add(f, pick: true, first: true);
-        else Main.ShowToast("Those are not the game's romfs and exefs folders.");
+        else Main.ShowToast(Tr.T("Those are not the game's romfs and exefs folders."));
         _ = CheckAllAsync();
     }
 
@@ -389,7 +391,7 @@ public sealed class FilesStepViewModel : ViewModelBase, IWizardPage
                 Add(f, pick: true, first: true);
                 any = true;
             }
-        if (!any) Main.ShowToast("Drop a .nup file, or the folder holding romfs and exefs.");
+        if (!any) Main.ShowToast(Tr.T("Drop a .nup file, or the folder holding romfs and exefs."));
         _ = CheckAllAsync();
     }
 
@@ -397,10 +399,10 @@ public sealed class FilesStepViewModel : ViewModelBase, IWizardPage
 
     public bool CanNext => toolsDone && picked?.Ok == true;
 
-    public string Hint => CanNext ? "Ready for the settings."
-        : !toolsDone && picked?.Ok != true ? "Next waits for the tools download and a supported game file."
-        : !toolsDone ? "Next waits for the tools download."
-        : "Pick a supported game file to go on.";
+    public string Hint => CanNext ? Tr.T("Ready for the settings.")
+        : !toolsDone && picked?.Ok != true ? Tr.T("Next waits for the tools download and a supported game file.")
+        : !toolsDone ? Tr.T("Next waits for the tools download.")
+        : Tr.T("Pick a supported game file to go on.");
 
     void RaiseNext()
     {

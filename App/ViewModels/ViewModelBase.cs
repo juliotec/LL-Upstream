@@ -1,11 +1,31 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
+using LongshotLauncher.Core;
 
 namespace LongshotLauncher.ViewModels;
 
 public abstract class ViewModelBase : INotifyPropertyChanged
 {
+    // (a change of language asks every live view model's texts again: Tr.Changed)
+    static readonly List<WeakReference<ViewModelBase>> live = new();
+
+    static ViewModelBase() => Tr.Changed += () => Ui.Post(() =>
+    {
+        ViewModelBase?[] each;
+        lock (live) each = live.Select(w => w.TryGetTarget(out var vm) ? vm : null).ToArray();
+        foreach (var vm in each) vm?.Raise(string.Empty);
+    });
+
+    protected ViewModelBase()
+    {
+        lock (live)
+        {
+            if (live.Count >= 256 && live.Count % 256 == 0) live.RemoveAll(w => !w.TryGetTarget(out _));
+            live.Add(new WeakReference<ViewModelBase>(this));
+        }
+    }
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
     protected void Raise([CallerMemberName] string? name = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));

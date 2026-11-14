@@ -12,7 +12,7 @@ public sealed class HookshotImportViewModel : ViewModelBase
         public HookshotSource Value => source;
         public string Where => ShownPath.Of(source.Path);
         public string WhereFull => source.Path;
-        public string Summary => source.Valid ? SaveText.Long(source.Slots, DateTime.Now) : "Cannot be imported: " + string.Join("; ", source.Problems);
+        public string Summary => source.Valid ? SaveText.Long(source.Slots, DateTime.Now) : Tr.F("Cannot be imported: {0}", string.Join("; ", source.Problems));
         public bool Valid => source.Valid;
         public Command ImportCommand { get; } = new(() => owner.Choose(source), () => source.Valid);
     }
@@ -40,16 +40,16 @@ public sealed class HookshotImportViewModel : ViewModelBase
     public bool HasSources => Sources.Count > 0;
     public bool NoSources => Sources.Count == 0;
     public string NoneText => Main.Linux
-        ? "No Hookshot save in ~/.local/share/hookshot. If yours are somewhere else, choose the folder."
-        : "No Hookshot save in Games\\Hookshot in your user folder. If your Hookshot game folder is somewhere else, choose it.";
-    public string Sub => "Your Hookshot saves are copied into Longshot. They stay in Hookshot as they are.";
+        ? Tr.T("No Hookshot save in ~/.local/share/hookshot. If yours are somewhere else, choose the folder.")
+        : Tr.T("No Hookshot save in Games\\Hookshot in your user folder. If your Hookshot game folder is somewhere else, choose it.");
+    public string Sub => Tr.T("Your Hookshot saves are copied into Longshot. They stay in Hookshot as they are.");
 
     /// Asking: the chosen save would replace a Longshot save
     public bool Asking => chosen != null && target != null;
     public bool Listing => !Asking;
     public string AskText => chosen == null || target == null ? ""
-        : $"Longshot already has a save in {ShownPath.Of(target)}. Replace it with Hookshot's ({SaveText.Long(chosen.Slots, DateTime.Now)})? " +
-          "Longshot's save is backed up first.";
+        : Tr.F("Longshot already has a save in {0}. Replace it with Hookshot's ({1})? Longshot's save is backed up first.",
+               ShownPath.Of(target), SaveText.Long(chosen.Slots, DateTime.Now));
 
     public string? Problem
     {
@@ -68,14 +68,14 @@ public sealed class HookshotImportViewModel : ViewModelBase
     {
         Sources.Clear();
         Sources.AddRange(HookshotSaves.Find(Env, folder).Select(s => new Source(this, s)));
-        if (folder != null && Sources.Count == 0) Problem = $"No Hookshot save in {ShownPath.Of(folder)}: choose the folder that holds account.sav and the slot folders, or a Hookshot game folder.";
+        if (folder != null && Sources.Count == 0) Problem = Tr.F("No Hookshot save in {0}: choose the folder that holds account.sav and the slot folders, or a Hookshot game folder.", ShownPath.Of(folder));
         RaiseAll(nameof(Sources), nameof(HasSources), nameof(NoSources));
     }
 
     async Task PickFolderAsync()
     {
         if (Main.Host is not { } host) return;
-        var folder = await host.PickFolderAsync("Your Hookshot saves, or your Hookshot game folder", null);
+        var folder = await host.PickFolderAsync(Tr.T("Your Hookshot saves, or your Hookshot game folder"), null);
         if (folder == null) return;
         Problem = null;
         Load(folder);
@@ -107,14 +107,16 @@ public sealed class HookshotImportViewModel : ViewModelBase
         try
         {
             if (Saves.ImportTarget(Env) != target)
-                throw new SaveFailure("Longshot's save location changed. Choose the Hookshot save again and review the import.");
+                throw new SaveFailure(Tr.T("Longshot's save location changed. Choose the Hookshot save again and review the import."));
             var done = HookshotSaves.Import(chosen, target, Env.BackupRoot, overwrite);
             Main.Service.Settings.HookshotSavesAsked = true;
             Main.Home.HookshotOffer = null;
             try { Main.Service.SaveSettings(); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
             Main.Modal = null;
-            Main.ShowToast($"Imported {done.Slots.Count} save slot{(done.Slots.Count == 1 ? "" : "s")} from Hookshot" +
-                           (done.Backup != null ? ". Longshot's earlier save is in " + ShownPath.Of(done.Backup) : "."));
+            Main.ShowToast(done.Backup != null
+                ? Tr.P(done.Slots.Count, "Imported 1 save slot from Hookshot. Longshot's earlier save is in {1}",
+                       "Imported {0} save slots from Hookshot. Longshot's earlier save is in {1}", ShownPath.Of(done.Backup))
+                : Tr.P(done.Slots.Count, "Imported 1 save slot from Hookshot.", "Imported {0} save slots from Hookshot."));
             Main.Home.Refresh();
             if (Main.Page is SavesViewModel saves) saves.Reload();   // (opened from Saves: its slots are the imported ones now)
         }

@@ -59,14 +59,14 @@ public static class SetupWindows
             problem.Text = e.Message;
             problem.IsVisible = true;
         }
-        body.Children.Add(Text("Install the Longshot Launcher?", 20, "Ink", FontWeight.SemiBold));
-        body.Children.Add(Text($"Install puts it in {folder}, with a Start menu shortcut and an entry in Apps & features to uninstall it. " +
-                               "It is for you alone: no administrator rights are needed."));
-        body.Children.Add(Text("Run portable keeps it where it is: everything it saves goes in a LongshotLauncher-data folder beside it, and " +
-                               "nothing is written anywhere else (no shortcut, no registry). A file named portable beside it remembers the choice.", 12, "InkFaintText"));
+        body.Children.Add(Text(Tr.T("Install the Longshot Launcher?"), 20, "Ink", FontWeight.SemiBold));
+        body.Children.Add(Text(Tr.F("Install puts it in {0}, with a Start menu shortcut and an entry in Apps & features to uninstall it. " +
+                                    "It is for you alone: no administrator rights are needed.", folder)));
+        body.Children.Add(Text(Tr.T("Run portable keeps it where it is: everything it saves goes in a LongshotLauncher-data folder beside it, and " +
+                                    "nothing is written anywhere else (no shortcut, no registry). A file named portable beside it remembers the choice."), 12, "InkFaintText"));
         body.Children.Add(problem);
         body.Children.Add(Buttons(
-            Button("Run portable", null, () =>
+            Button(Tr.T("Run portable"), null, () =>
             {
                 try
                 {
@@ -80,7 +80,7 @@ public static class SetupWindows
                 }
                 catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidOperationException) { Failed(e); }
             }),
-            Button("Install", "primary", () =>
+            Button(Tr.T("Install"), "primary", () =>
             {
                 try
                 {
@@ -101,17 +101,17 @@ public static class SetupWindows
         var window = Frame(body);
         var data = new CheckBox
         {
-            Content = Text($"Also delete the launcher's data in {at.Home}: its list of builds, its settings, the downloaded builder tools and the " +
-                           "build files. Builds inside it are kept.", 12),
+            Content = Text(Tr.F("Also delete the launcher's data in {0}: its list of builds, its settings, the downloaded builder tools and the " +
+                                "build files. Builds inside it are kept.", at.Home), 12),
         };
         data.Classes.Add("tick");
-        var heading = Text("Uninstall the Longshot Launcher?", 20, "Ink", FontWeight.SemiBold);
-        var about = Text("This removes the launcher, its Start menu shortcut, the Longshot shortcuts it made, and its entry in Apps & features. " +
-                         "Your builds (the game folders) and your saves stay where they are.");
+        var heading = Text(Tr.T("Uninstall the Longshot Launcher?"), 20, "Ink", FontWeight.SemiBold);
+        var about = Text(Tr.T("This removes the launcher, its Start menu shortcut, the Longshot shortcuts it made, and its entry in Apps & features. " +
+                              "Your builds (the game folders) and your saves stay where they are."));
         var problem = Text("", 12, "Bad");
         problem.IsVisible = false;
         Button? go = null, cancel = null;
-        go = Button("Uninstall", "bad", () =>
+        go = Button(Tr.T("Uninstall"), "bad", () =>
         {
             try
             {
@@ -122,23 +122,23 @@ public static class SetupWindows
                 WindowsShortcuts.RemoveGame();
                 Program.ReleaseLock();
                 if (removed.Pending != null) WindowsInstall.DeleteAfterExit(removed.Pending);
-                heading.Text = "The Longshot Launcher is uninstalled";
+                heading.Text = Tr.T("The Longshot Launcher is uninstalled");
                 about.Text = removed.Kept.Count > 0
-                    ? "Kept, because they hold builds or saves: " + string.Join(", ", removed.Kept) + "."
-                    : data.IsChecked == true ? "Its data is deleted too. Your builds and saves are where they were." : $"Its data is still in {at.Home}.";
+                    ? Tr.F("Kept, because they hold builds or saves: {0}.", string.Join(", ", removed.Kept))
+                    : data.IsChecked == true ? Tr.T("Its data is deleted too. Your builds and saves are where they were.") : Tr.F("Its data is still in {0}.", at.Home);
                 data.IsVisible = false;
                 problem.IsVisible = false;
                 go!.IsVisible = false;
-                cancel!.Content = "Close";
+                cancel!.Content = Tr.T("Close");
             }
             catch (Exception e) when (e is IOException or UnauthorizedAccessException or PlatformNotSupportedException or System.Security.SecurityException
                                           or System.ComponentModel.Win32Exception)
             {
-                problem.Text = "The launcher could not be uninstalled: " + e.Message;
+                problem.Text = Tr.F("The launcher could not be uninstalled: {0}", e.Message);
                 problem.IsVisible = true;
             }
         });
-        cancel = Button("Cancel", null, () => desktop.Shutdown());
+        cancel = Button(Tr.T("Cancel"), null, () => desktop.Shutdown());
         body.Children.Add(heading);
         body.Children.Add(about);
         body.Children.Add(data);

@@ -30,7 +30,7 @@ public sealed record GameCheck(GameCheckStatus Status, string Text)
                     break;
             }
         return answer ?? new GameCheck(GameCheckStatus.Unreadable,
-            string.IsNullOrWhiteSpace(lastError) ? $"The build tools stopped without saying why (exit code {exitCode})." : lastError.Trim());
+            string.IsNullOrWhiteSpace(lastError) ? Tr.F("The build tools stopped without saying why (exit code {0}).", exitCode) : lastError.Trim());
     }
 }
 
@@ -87,7 +87,7 @@ public static class MakeGameRun
         }
         catch (Exception e) when (e is System.ComponentModel.Win32Exception or IOException or InvalidOperationException)
         {
-            return new GameCheck(GameCheckStatus.Unreadable, "The build tools could not start: " + e.Message);
+            return new GameCheck(GameCheckStatus.Unreadable, Tr.F("The build tools could not start: {0}", e.Message));
         }
     }
 }
@@ -233,32 +233,43 @@ public static class Durations
     /// "Under a minute", "About 12 min", "About 1 h 20 min"
     public static string About(double seconds)
     {
-        if (seconds < 60) return "Under a minute";
+        if (seconds < 60) return Tr.T("Under a minute");
         var m = (long)Math.Round(seconds / 60);
-        if (m < 60) return string.Create(CultureInfo.InvariantCulture, $"About {m} min");
-        return m % 60 == 0 ? string.Create(CultureInfo.InvariantCulture, $"About {m / 60} h")
-            : string.Create(CultureInfo.InvariantCulture, $"About {m / 60} h {m % 60} min");
+        if (m < 60) return Tr.F("About {0} min", m);
+        return m % 60 == 0 ? Tr.F("About {0} h", m / 60) : Tr.F("About {0} h {1} min", m / 60, m % 60);
     }
 
     /// "~4 min" for a stage still to come
-    public static string Roughly(double seconds) =>
-        string.Create(CultureInfo.InvariantCulture, $"~{Math.Max(1, (long)Math.Round(seconds / 60))} min");
+    public static string Roughly(double seconds) => Tr.F("~{0} min", Math.Max(1, (long)Math.Round(seconds / 60)));
 
     /// When something was saved or built, as the home writes it: "today 18:02", "yesterday 22:14", "6 Nov", "6 Nov 2025"
     public static string When(DateTime t, DateTime now)
     {
         var day = t.Date;
-        if (day == now.Date) return "today " + t.ToString("HH:mm", CultureInfo.InvariantCulture);
-        if (day == now.Date.AddDays(-1)) return "yesterday " + t.ToString("HH:mm", CultureInfo.InvariantCulture);
-        return t.ToString(t.Year == now.Year ? "d MMM" : "d MMM yyyy", CultureInfo.InvariantCulture);
+        if (day == now.Date) return Tr.F("today {0}", t.ToString("HH:mm", CultureInfo.InvariantCulture));
+        if (day == now.Date.AddDays(-1)) return Tr.F("yesterday {0}", t.ToString("HH:mm", CultureInfo.InvariantCulture));
+        return Date(t, now);
+    }
+
+    static readonly string[] Months =
+    {
+        Tr.N("Jan"), Tr.N("Feb"), Tr.N("Mar"), Tr.N("Apr"), Tr.N("May"), Tr.N("Jun"),
+        Tr.N("Jul"), Tr.N("Aug"), Tr.N("Sep"), Tr.N("Oct"), Tr.N("Nov"), Tr.N("Dec"),
+    };
+
+    /// "6 Nov", or "6 Nov 2025" in another year, in the language in use (its order and its month's name)
+    static string Date(DateTime t, DateTime now)
+    {
+        var month = Tr.T(Months[t.Month - 1]);
+        return t.Year == now.Year ? Tr.F("{0} {1}", t.Day, month) : Tr.F("{0} {1} {2}", t.Day, month, t.Year);
     }
 
     /// The day only: "today", "yesterday", "3 Nov"
     public static string Day(DateTime t, DateTime now)
     {
-        if (t.Date == now.Date) return "today";
-        if (t.Date == now.Date.AddDays(-1)) return "yesterday";
-        return t.ToString(t.Year == now.Year ? "d MMM" : "d MMM yyyy", CultureInfo.InvariantCulture);
+        if (t.Date == now.Date) return Tr.T("today");
+        if (t.Date == now.Date.AddDays(-1)) return Tr.T("yesterday");
+        return Date(t, now);
     }
 
     /// "38.4 GB", "340 MB"

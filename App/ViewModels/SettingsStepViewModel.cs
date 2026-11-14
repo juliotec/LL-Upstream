@@ -24,11 +24,11 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
         MemoryGb = memory;
         Threads = threads;
         // (the 2.x Builder's choices: Automatic, then every 4 GB of the PC's, every CPU thread)
-        MemoryChoices = new[] { new Choice(null, "Automatic") }
-            .Concat(Enumerable.Range(1, Math.Max(1, (memory + 3) / 4)).Select(i => new Choice(i * 4, $"{i * 4} GB"))).ToList();
-        WorkerChoices = new[] { new Choice(null, "Automatic") }
-            .Concat(Enumerable.Range(1, Math.Max(1, threads)).Select(i => new Choice(i, $"{i} at once"))).ToList();
-        LanguageChoices = Languages.All.Select(l => new LanguageChoice(l.Code, l.Name)).ToList();
+        MemoryChoices = new[] { new Choice(null, Tr.T("Automatic")) }
+            .Concat(Enumerable.Range(1, Math.Max(1, (memory + 3) / 4)).Select(i => new Choice(i * 4, Tr.F("{0} GB", i * 4)))).ToList();
+        WorkerChoices = new[] { new Choice(null, Tr.T("Automatic")) }
+            .Concat(Enumerable.Range(1, Math.Max(1, threads)).Select(i => new Choice(i, Tr.F("{0} at once", i)))).ToList();
+        LanguageChoices = Languages.All.Select(l => new LanguageChoice(l.Code, Tr.T(l.Name))).ToList();
         BackCommand = new Command(() => job.Main.Navigate(job.Files ?? new FilesStepViewModel(job)));
         StartCommand = new Command(Start, () => !Short);
         ChangeInstallCommand = new Command(() => _ = ChangeInstallAsync());
@@ -57,7 +57,7 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
     /// (every build uses the same saves: said once there is a build, so nobody looks for a way to move them; not for a rebuild)
     public bool ShowSharedSaves => Job.Kind != JobKind.Rebuild && Job.Service.Registry.Builds.Count > 0;
 
-    public string SharedDesc => "Every version uses the same saves: " + SaveText.Long(Job.Service.SaveSlots(), DateTime.Now) + ".";
+    public string SharedDesc => Tr.F("Every version uses the same saves: {0}.", SaveText.Long(Job.Service.SaveSlots(), DateTime.Now));
 
     // ---- upscaling ----
 
@@ -116,13 +116,13 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
     }
 
     public bool DlssAccepted => s.Dlss;
-    public string DlssLine => s.Dlss ? "" : s.DlssLicense ? "Licence accepted earlier." : "Shows NVIDIA's licence first.";
+    public string DlssLine => s.Dlss ? "" : s.DlssLicense ? Tr.T("Licence accepted earlier.") : Tr.T("Shows NVIDIA's licence first.");
     // (Linux: nothing of AMD's is downloaded, so there is no licence to accept; the player's own library goes beside the game)
     public bool FsrAccepted => s.Fsr && Windows;
     public string FsrLine => Linux
-        ? (!FsrBuildable ? "This version can't build it on Linux yet." :
-           Fsr ? "Put amd_fidelityfx_upscaler_vk.so beside the game." : "Needs your own Vulkan FSR 4 library.")
-        : Fsr ? "" : s.FsrLicense ? "Licence accepted earlier." : "Shows AMD's licence first.";
+        ? (!FsrBuildable ? Tr.T("This version can't build it on Linux yet.") :
+           Fsr ? Tr.T("Put amd_fidelityfx_upscaler_vk.so beside the game.") : Tr.T("Needs your own Vulkan FSR 4 library."))
+        : Fsr ? "" : s.FsrLicense ? Tr.T("Licence accepted earlier.") : Tr.T("Shows AMD's licence first.");
 
     void RaiseUpscalers() =>
         RaiseAll(nameof(Dlss), nameof(Fsr), nameof(DlssAccepted), nameof(DlssLine), nameof(FsrAccepted), nameof(FsrLine), nameof(FsrBuildable),
@@ -136,7 +136,7 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
     async Task ChangeInstallAsync()
     {
         if (Main.Host is not { } host) return;
-        var picked = await host.PickFolderAsync("Where to install " + Job.Shown, Path.GetDirectoryName(Job.InstallDir));
+        var picked = await host.PickFolderAsync(Tr.F("Where to install {0}", Job.Shown), Path.GetDirectoryName(Job.InstallDir));
         if (picked == null) return;
         // (a folder that holds other things gets the version's own folder in it; an empty one, or a game folder, is used as it is)
         var full = Path.GetFullPath(picked);
@@ -164,9 +164,9 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
 
     public bool Short => free is long f && f < Disk.BuildBytes;
     public double MeterFraction => free is long f && f > 0 ? Math.Min(1, Disk.BuildBytes / (double)f) : 0;
-    public string MeterText => free is not long f ? $"Needs {Disk.BuildBytes >> 30} GB"
-        : Short ? $"Needs {Disk.BuildBytes >> 30} GB, only {f >> 30} GB free on {Drive}"
-        : $"Needs {Disk.BuildBytes >> 30} GB, {f >> 30} GB free on {Drive}";
+    public string MeterText => free is not long f ? Tr.F("Needs {0} GB", Disk.BuildBytes >> 30)
+        : Short ? Tr.F("Needs {0} GB, only {1} GB free on {2}", Disk.BuildBytes >> 30, f >> 30, Drive)
+        : Tr.F("Needs {0} GB, {1} GB free on {2}", Disk.BuildBytes >> 30, f >> 30, Drive);
 
     // ---- the game ----
 
@@ -195,7 +195,7 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
         }
     }
 
-    public string PrepareDesc => s.PrepareShaders ? "Adds about 8 min here, so the game starts smoothly." : "The game prepares them at its first start.";
+    public string PrepareDesc => s.PrepareShaders ? Tr.T("Adds about 8 min here, so the game starts smoothly.") : Tr.T("The game prepares them at its first start.");
 
     // ---- advanced ----
 
@@ -237,21 +237,23 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
     }
 
     // (make_game's automatic: the compilers take what memory is free (nx2/build.py MemoryGate); one per CPU thread, as it allows)
-    public string MemoryDesc => s.MemoryGb == null ? $"Whatever is free of {MemoryGb} GB, leaving room for your other programs."
-        : "The compilers may use this much, even if other programs need it.";
-    public string WorkersDesc => s.BuildWorkers == null ? $"{Threads} of {Threads} at once, as the memory allows."
-        : "Compilers running at once. Each needs about 2 GB.";
+    public string MemoryDesc => s.MemoryGb == null ? Tr.F("Whatever is free of {0} GB, leaving room for your other programs.", MemoryGb)
+        : Tr.T("The compilers may use this much, even if other programs need it.");
+    public string WorkersDesc => s.BuildWorkers == null ? Tr.F("{0} of {1} at once, as the memory allows.", Threads, Threads)
+        : Tr.T("Compilers running at once. Each needs about 2 GB.");
     public string Work => ShownPath.Of(Job.Service.Work);
     public string WorkFull => Job.Service.Work;
 
-    public string AdvancedDesc => AdvancedOpen ? "For a PC that slows down or runs out of memory while building."
-        : "Memory " + (s.MemoryGb is int m ? $"{m} GB" : $"automatic of {MemoryGb} GB") + ", " +
-          (s.BuildWorkers is int w ? $"{w} workers" : $"{Threads} of {Threads} workers (automatic)") + ", build files on " + Disk.DriveName(WorkFull);
+    public string AdvancedDesc => AdvancedOpen ? Tr.T("For a PC that slows down or runs out of memory while building.")
+        : Tr.F("Memory {0}, {1}, build files on {2}",
+               s.MemoryGb is int m ? Tr.F("{0} GB", m) : Tr.F("automatic of {0} GB", MemoryGb),
+               s.BuildWorkers is int w ? Tr.P(w, "1 worker", "{0} workers") : Tr.F("{0} of {1} workers (automatic)", Threads, Threads),
+               Disk.DriveName(WorkFull));
 
     async Task ChangeWorkAsync()
     {
         if (Main.Host is not { } host) return;
-        var picked = await host.PickFolderAsync("Where the build files go", WorkFull);
+        var picked = await host.PickFolderAsync(Tr.T("Where the build files go"), WorkFull);
         if (picked == null) return;
         s.Work = Path.GetFullPath(picked);
         Save();
@@ -261,15 +263,15 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
     // ---- the footer ----
 
     public bool ShowEstimate => !Short;
-    public string SpaceWarning => $"{Drive} is too full for the build. Change the game folder.";
+    public string SpaceWarning => Tr.F("{0} is too full for the build. Change the game folder.", Drive);
     // (this PC's estimate from its CPU threads: BuildForecast, measured on nightly-56; the build step then corrects it as it goes)
-    public string Estimate => Durations.About(BuildForecast.Total(download: true, s.PrepareShaders, BuildThreads(s)))
-        + (s.PrepareShaders ? " on this PC, shaders included" : " on this PC");
+    public string Estimate => Tr.F(s.PrepareShaders ? "{0} on this PC, shaders included" : "{0} on this PC",
+                                   Durations.About(BuildForecast.Total(download: true, s.PrepareShaders, BuildThreads(s))));
 
     /// The threads a build may use: the Build workers setting, else the PC's
     public static int BuildThreads(LauncherSettings settings) =>
         settings.BuildWorkers is int w and > 0 ? Math.Min(w, SystemInfo.Threads()) : SystemInfo.Threads();
-    public string StartText => Job.Verb + Job.Shown;
+    public string StartText => Job.StartText;
     public bool IsUpdate => Job.Kind == JobKind.Update;
 
     public Command BackCommand { get; }
@@ -319,38 +321,39 @@ public sealed class LicenceViewModel : ViewModelBase
     public MainViewModel Main { get; }
     public bool Nvidia { get; }
     public bool Linux { get; }
-    public string AcceptText => !Nvidia && Linux ? "Turn on" : "Accept";
-    public string Title => Nvidia ? "NVIDIA's licence for DLSS" : Linux ? "AMD FSR 4 on Linux" : "AMD's licence for FSR 4";
+    public string AcceptText => !Nvidia && Linux ? Tr.T("Turn on") : Tr.T("Accept");
+    public string Title => Nvidia ? Tr.T("NVIDIA's licence for DLSS") : Linux ? Tr.T("AMD FSR 4 on Linux") : Tr.T("AMD's licence for FSR 4");
     public string Sub => !Nvidia && Linux
-        ? "Nothing is downloaded: AMD publishes no FSR 4 runtime for Linux. Nothing of AMD's comes with Longshot."
-        : (Nvidia ? "The build downloads NVIDIA's DLSS SDK" : "The build downloads AMD's FSR 4 runtime") + " under this licence. Nothing of " +
-          (Nvidia ? "NVIDIA's" : "AMD's") + " comes with Longshot.";
+        ? Tr.T("Nothing is downloaded: AMD publishes no FSR 4 runtime for Linux. Nothing of AMD's comes with Longshot.")
+        : Nvidia ? Tr.T("The build downloads NVIDIA's DLSS SDK under this licence. Nothing of NVIDIA's comes with Longshot.")
+        : Tr.T("The build downloads AMD's FSR 4 runtime under this licence. Nothing of AMD's comes with Longshot.");
     public string Text { get; }
     public Command AcceptCommand { get; }
     public Command DeclineCommand { get; }
 
     // (the 2.x Builders' texts: builder/LongshotBuilder/MainWindow.xaml.cs DlssLicense and FsrLicense, builder/linux DLSS_LICENSE)
+    // (the licences' addresses and the files' names stay as they are in every language)
     static string DlssText(bool linux) =>
-        "NVIDIA DLSS is NVIDIA's, not Longshot's. With it on, the build downloads NVIDIA's DLSS SDK (release v310.9.16) from " +
-        "github.com/NVIDIA/DLSS, under NVIDIA's own license, the NVIDIA RTX SDKs license:\n\n" +
+        Tr.F("NVIDIA DLSS is NVIDIA's, not Longshot's. With it on, the build downloads NVIDIA's DLSS SDK (release {0}) from " +
+             "{1}, under NVIDIA's own license, the NVIDIA RTX SDKs license:", "v310.9.16", "github.com/NVIDIA/DLSS") + "\n\n" +
         "https://github.com/NVIDIA/DLSS/blob/9981c6350dc58c0ce21f024fd65e31e851c31689/LICENSE.txt\n\n" +
-        "Its files stay on this PC (in the launcher's ngx-sdk folder, and " +
-        (linux ? "libnvidia-ngx-dlss.so and libnvidia-ngx-dlssg.so" : "nvngx_dlss.dll and nvngx_dlssg.dll") + " in the game folder's ngx folder). " +
-        "Longshot never includes or shares them: never share a game folder built with them.";
+        Tr.F("Its files stay on this PC (in the launcher's {0} folder, and {1} in the game folder's {2} folder). " +
+             "Longshot never includes or shares them: never share a game folder built with them.", "ngx-sdk",
+             linux ? "libnvidia-ngx-dlss.so, libnvidia-ngx-dlssg.so" : "nvngx_dlss.dll, nvngx_dlssg.dll", "ngx");
 
-    const string FsrText =
-        "AMD FSR 4 is AMD's, not Longshot's. With it on, the build downloads AMD's FSR runtime for Vulkan (FidelityFX SDK " +
-        "v2.4.0: amd_fidelityfx_loader_vk.dll and amd_fidelityfx_upscaler_vk.dll, signed by AMD) from " +
-        "github.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK, each file checked against its SHA-256, under AMD's FSR SDK license:\n\n" +
+    static string FsrText =>
+        Tr.F("AMD FSR 4 is AMD's, not Longshot's. With it on, the build downloads AMD's FSR runtime for Vulkan ({0}: {1}, signed by AMD) " +
+             "from {2}, each file checked against its SHA-256, under AMD's FSR SDK license:", "FidelityFX SDK v2.4.0",
+             "amd_fidelityfx_loader_vk.dll, amd_fidelityfx_upscaler_vk.dll", "github.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK") + "\n\n" +
         "https://github.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK/blob/7539ae8b6568ad29ed78a753404351daf3b5cca7/Kits/FidelityFX/docs/license.md\n\n" +
-        "Its files stay on this PC (in the launcher's ffx-sdk folder, and the two DLLs with LICENSE-AMD-FSR-SDK.md in the game folder).";
+        Tr.F("Its files stay on this PC (in the launcher's {0} folder, and the two DLLs with {1} in the game folder).", "ffx-sdk", "LICENSE-AMD-FSR-SDK.md");
 
     // (Linux: Longshot's README, AMD FSR 4. The build compiles the Vulkan back end with AMD's MIT FSR API headers; the library
     // is the player's, loaded by the game at its start)
-    const string FsrLinuxText =
-        "AMD FSR 4 is AMD's, not Longshot's. AMD publishes its FSR 4 runtime for Windows only, so on Linux the build downloads " +
-        "nothing: it compiles the game's Vulkan renderer with FSR 4 in it (a few minutes longer), and FSR 4 runs once you put a " +
-        "Vulkan FSR 4 library, amd_fidelityfx_upscaler_vk.so, beside the game (in its folder or its bin folder). Where you get " +
-        "it and under which terms is yours to check.\n\n" +
-        "Without it, the game's Upscaler row says AMD's files were not found and offers the other upscalers.";
+    static string FsrLinuxText =>
+        Tr.F("AMD FSR 4 is AMD's, not Longshot's. AMD publishes its FSR 4 runtime for Windows only, so on Linux the build downloads " +
+             "nothing: it compiles the game's Vulkan renderer with FSR 4 in it (a few minutes longer), and FSR 4 runs once you put a " +
+             "Vulkan FSR 4 library, {0}, beside the game (in its folder or its bin folder). Where you get " +
+             "it and under which terms is yours to check.", "amd_fidelityfx_upscaler_vk.so") + "\n\n" +
+        Tr.T("Without it, the game's Upscaler row says AMD's files were not found and offers the other upscalers.");
 }

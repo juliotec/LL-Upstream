@@ -17,13 +17,13 @@
         <TextBlock Classes="faint" Classes.ok="{Binding CanNext}" Text="{Binding Hint}" VerticalAlignment="Center"/>
       </StackPanel>
       <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
-        <Button Content="Back" Command="{Binding BackCommand}"/>
-        <Button Classes="primary" Content="Next" Command="{Binding NextCommand}"/>
+        <Button Content="{c:T 'Back'}" Command="{Binding BackCommand}"/>
+        <Button Classes="primary" Content="{c:T 'Next'}" Command="{Binding NextCommand}"/>
       </StackPanel>
     </Grid>
     <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="-8,0" Padding="8,0,8,4">
       <StackPanel>
-        <TextBlock Classes="heading" Text="Your game files"/>
+        <TextBlock Classes="heading" Text="{c:T 'Your game files'}"/>
         <TextBlock Classes="sub" Text="{Binding Sub}"/>
 
         <Border Classes="card" Margin="0,16,0,0" Padding="16,10" ToolTip.Tip="{Binding RequirementsDetail}"
@@ -36,7 +36,7 @@
               <Ellipse Width="10" Height="10" Fill="{StaticResource Bad}" IsVisible="{Binding RequirementsRed}"/>
             </Panel>
             <TextBlock Grid.Column="1" Text="{Binding RequirementsSummary}" FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
-            <Button Grid.Column="2" Classes="link" Content="System requirements ↗" Command="{Binding RequirementsCommand}"/>
+            <Button Grid.Column="2" Classes="link" Content="{c:T 'System requirements ↗'}" Command="{Binding RequirementsCommand}"/>
             <TextBlock Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Classes="note"
                        Text="{Binding RequirementsDetail}" TextWrapping="Wrap"/>
           </Grid>
@@ -60,20 +60,20 @@
               <c:Bar Value="{Binding ToolsFraction}" Fill="{StaticResource Brand}" IsVisible="{Binding ToolsMeasured}"/>
               <c:Spinner HorizontalAlignment="Right" IsVisible="{Binding ToolsLooking}"/>
               <c:Bar Value="1" Fill="{StaticResource Go}" IsVisible="{Binding ToolsDone}"/>
-              <Button Classes="small" Content="Try again" Command="{Binding RetryCommand}" IsVisible="{Binding ToolsFailed}" HorizontalAlignment="Right"/>
+              <Button Classes="small" Content="{c:T 'Try again'}" Command="{Binding RetryCommand}" IsVisible="{Binding ToolsFailed}" HorizontalAlignment="Right"/>
             </Panel>
           </Grid>
         </Border>
 
-        <TextBlock Classes="label" Text="FOUND ON THIS PC" Margin="0,18,0,10"/>
+        <TextBlock Classes="label" Text="{c:T 'FOUND ON THIS PC'}" Margin="0,18,0,10"/>
         <Border Classes="card">
           <Panel>
             <StackPanel Orientation="Horizontal" Spacing="10" Margin="16,14" IsVisible="{Binding Searching}">
               <c:Spinner VerticalAlignment="Center"/>
-              <TextBlock Classes="note" Text="Looking for your game files…"/>
+              <TextBlock Classes="note" Text="{c:T 'Looking for your game files…'}"/>
             </StackPanel>
             <TextBlock Classes="note" Margin="16,14" IsVisible="{Binding NothingFound}"
-                       Text="No game file in Downloads, Desktop, Documents or the top of your drives. Browse for it, or drop it here."/>
+                       Text="{c:T 'No game file in Downloads, Desktop, Documents or the top of your drives. Browse for it, or drop it here.'}"/>
             <ItemsControl ItemsSource="{Binding Files}">
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:GameFileViewModel">
@@ -110,10 +110,10 @@
           </Panel>
         </Border>
         <WrapPanel Margin="0,10,0,0">
-          <TextBlock Classes="note" Text="Not listed?" VerticalAlignment="Center" Margin="0,0,4,0"/>
-          <Button Classes="link" Content="Browse…" Command="{Binding BrowseCommand}"/>
-          <TextBlock Classes="note" Text=", drop the file on this window, or pick its" VerticalAlignment="Center" Margin="4,0"/>
-          <Button Classes="link soft" Content="romfs and exefs folders" Command="{Binding FoldersCommand}"/>
+          <TextBlock Classes="note" Text="{c:T 'Not listed?'}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+          <Button Classes="link" Content="{c:T 'Browse…'}" Command="{Binding BrowseCommand}"/>
+          <TextBlock Classes="note" Text="{c:T ', drop the file on this window, or pick its'}" VerticalAlignment="Center" Margin="4,0"/>
+          <Button Classes="link soft" Content="{c:T 'romfs and exefs folders'}" Command="{Binding FoldersCommand}"/>
         </WrapPanel>
       </StackPanel>
     </ScrollViewer>

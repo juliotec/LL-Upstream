@@ -124,13 +124,13 @@
             </ItemsControl>
           </Border>
           <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" Classes.linux="{Binding Linux}">
-            <Button Classes="caption gear" Command="{Binding SettingsCommand}" IsVisible="{Binding IsHome}" ToolTip.Tip="Settings">
+            <Button Classes="caption gear" Command="{Binding SettingsCommand}" IsVisible="{Binding IsHome}" ToolTip.Tip="{c:T 'Settings'}">
               <c:Icon Kind="gear"/>
             </Button>
-            <Button Classes="caption" Command="{Binding MinimizeCommand}" ToolTip.Tip="Minimize">
+            <Button Classes="caption" Command="{Binding MinimizeCommand}" ToolTip.Tip="{c:T 'Minimize'}">
               <c:Icon Kind="min"/>
             </Button>
-            <Button Classes="caption close" Command="{Binding CloseCommand}" ToolTip.Tip="Close">
+            <Button Classes="caption close" Command="{Binding CloseCommand}" ToolTip.Tip="{c:T 'Close'}">
               <c:Icon Kind="close"/>
             </Button>
           </StackPanel>
@@ -171,7 +171,7 @@
       <!-- a file dragged over step 1 -->
       <Border IsVisible="{Binding Dropping}" Margin="10" CornerRadius="14" BorderBrush="{StaticResource Brand}" BorderThickness="2"
               Background="#1F3D63E6" IsHitTestVisible="False">
-        <TextBlock Text="Drop your game file to check it" FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource BrandInk}"
+        <TextBlock Text="{c:T 'Drop your game file to check it'}" FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource BrandInk}"
                    HorizontalAlignment="Center" VerticalAlignment="Center"/>
       </Border>
 

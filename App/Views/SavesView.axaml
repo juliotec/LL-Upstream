@@ -24,7 +24,7 @@
   <Grid RowDefinitions="Auto,*,Auto" RowSpacing="18">
     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="20">
       <StackPanel>
-        <TextBlock Classes="heading" Text="Saves"/>
+        <TextBlock Classes="heading" Text="{c:T 'Saves'}"/>
         <TextBlock Classes="sub" Text="{Binding Sub}"/>
       </StackPanel>
     </Grid>
@@ -32,7 +32,7 @@
     <Grid Grid.Row="1" ColumnDefinitions="*,290" ColumnSpacing="24">
       <Grid RowDefinitions="Auto,*" RowSpacing="10">
         <Grid ColumnDefinitions="*,Auto">
-          <TextBlock Classes="label" Text="YOUR LONGSHOT SAVES" Margin="0" VerticalAlignment="Center"/>
+          <TextBlock Classes="label" Text="{c:T 'YOUR LONGSHOT SAVES'}" Margin="0" VerticalAlignment="Center"/>
           <TextBlock Grid.Column="1" Classes="faint" Text="{Binding SlotCount}" VerticalAlignment="Center"/>
         </Grid>
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" ClipToBounds="True">
@@ -40,7 +40,7 @@
             <Border Classes="card" Padding="16,8">
               <Panel>
                 <StackPanel IsVisible="{Binding NoSlots}" Spacing="6" Margin="0,18">
-                  <TextBlock Text="Start where you left off" FontWeight="SemiBold"/>
+                  <TextBlock Text="{c:T 'Start where you left off'}" FontWeight="SemiBold"/>
                   <TextBlock Classes="note" Text="{Binding EmptyHint}" TextWrapping="Wrap"/>
                 </StackPanel>
                 <ItemsControl ItemsSource="{Binding Slots}">
@@ -78,13 +78,13 @@
 
       <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" ClipToBounds="True">
         <StackPanel Spacing="8">
-          <TextBlock Classes="label" Text="BRING SAVES INTO LONGSHOT" Margin="0,0,0,2"/>
+          <TextBlock Classes="label" Text="{c:T 'BRING SAVES INTO LONGSHOT'}" Margin="0,0,0,2"/>
           <Button Classes="transfer" Command="{Binding ImportCommand}">
             <Grid ColumnDefinitions="20,*" ColumnSpacing="10">
               <c:Icon Kind="download" Width="18" Height="18" VerticalAlignment="Center" Foreground="{StaticResource Brand}"/>
               <StackPanel Grid.Column="1" Spacing="3">
-                <TextBlock Classes="transferTitle" Text="From an emulator…"/>
-                <TextBlock Classes="faint" FontSize="11.5" Text="Choose an emulator or a save folder" TextWrapping="Wrap"/>
+                <TextBlock Classes="transferTitle" Text="{c:T 'From an emulator…'}"/>
+                <TextBlock Classes="faint" FontSize="11.5" Text="{c:T 'Choose an emulator or a save folder'}" TextWrapping="Wrap"/>
               </StackPanel>
             </Grid>
           </Button>
@@ -92,17 +92,17 @@
             <Grid ColumnDefinitions="20,*" ColumnSpacing="10">
               <c:Icon Kind="download" Width="18" Height="18" VerticalAlignment="Center"/>
               <StackPanel Grid.Column="1" Spacing="3">
-                <TextBlock Classes="transferTitle" Text="From Hookshot…"/>
-                <TextBlock Classes="faint" FontSize="11.5" Text="Bring over your Hookshot progress"/>
+                <TextBlock Classes="transferTitle" Text="{c:T 'From Hookshot…'}"/>
+                <TextBlock Classes="faint" FontSize="11.5" Text="{c:T 'Bring over your Hookshot progress'}"/>
               </StackPanel>
             </Grid>
           </Button>
-          <TextBlock Classes="label" Text="TAKE YOUR SAVES WITH YOU" Margin="0,10,0,2"/>
+          <TextBlock Classes="label" Text="{c:T 'TAKE YOUR SAVES WITH YOU'}" Margin="0,10,0,2"/>
           <Button Classes="transfer" Command="{Binding ExportCommand}" ToolTip.Tip="{Binding ExportHint}" ToolTip.ShowOnDisabled="True">
             <Grid ColumnDefinitions="20,*" ColumnSpacing="10">
               <c:Icon Kind="upload" Width="18" Height="18" VerticalAlignment="Center"/>
               <StackPanel Grid.Column="1" Spacing="3">
-                <TextBlock Classes="transferTitle" Text="Export saves…"/>
+                <TextBlock Classes="transferTitle" Text="{c:T 'Export saves…'}"/>
                 <TextBlock Classes="faint" FontSize="11.5" Text="{Binding ExportHint}" TextWrapping="Wrap"/>
               </StackPanel>
             </Grid>
@@ -114,9 +114,9 @@
     <Grid Grid.Row="2" ColumnDefinitions="*,Auto" ColumnSpacing="20">
       <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
         <c:Icon Kind="check" Width="14" Height="14" Foreground="{StaticResource Go}" VerticalAlignment="Center"/>
-        <TextBlock Classes="faint" Text="Existing saves are backed up before every transfer." VerticalAlignment="Center"/>
+        <TextBlock Classes="faint" Text="{c:T 'Existing saves are backed up before every transfer.'}" VerticalAlignment="Center"/>
       </StackPanel>
-      <Button Grid.Column="1" Classes="primary" Content="Done" Command="{Binding DoneCommand}"/>
+      <Button Grid.Column="1" Classes="primary" Content="{c:T 'Done'}" Command="{Binding DoneCommand}"/>
     </Grid>
   </Grid>
 </UserControl>

@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:c="using:LongshotLauncher.Controls"
              xmlns:vm="using:LongshotLauncher.ViewModels"
              x:Class="LongshotLauncher.Views.LicenceView"
              x:DataType="vm:LicenceViewModel">
@@ -14,7 +15,7 @@
         </ScrollViewer>
       </Border>
       <StackPanel Classes="buttons">
-        <Button Content="Decline" Command="{Binding DeclineCommand}"/>
+        <Button Content="{c:T 'Decline'}" Command="{Binding DeclineCommand}"/>
         <Button Classes="primary" Content="{Binding AcceptText}" Command="{Binding AcceptCommand}"/>
       </StackPanel>
     </StackPanel>

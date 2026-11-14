@@ -15,11 +15,11 @@
                      VerticalAlignment="Center"/>
         </Grid>
       </Border>
-      <TextBlock Classes="hint" Margin="0,12,0,0" Text="Your saves stay: every version shares them."/>
+      <TextBlock Classes="hint" Margin="0,12,0,0" Text="{c:T 'Your saves stay: every version shares them.'}"/>
       <TextBlock Classes="hint" Margin="0,12,0,0" IsVisible="{Binding DefaultNote}" Text="{Binding DefaultText}"/>
       <StackPanel Classes="buttons">
-        <Button Content="Keep it" Command="{Binding KeepCommand}"/>
-        <Button Classes="bad" Content="Delete" Command="{Binding DeleteCommand}"/>
+        <Button Content="{c:T 'Keep it'}" Command="{Binding KeepCommand}"/>
+        <Button Classes="bad" Content="{c:T 'Delete'}" Command="{Binding DeleteCommand}"/>
       </StackPanel>
     </StackPanel>
   </Border>

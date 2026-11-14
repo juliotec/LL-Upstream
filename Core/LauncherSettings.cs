@@ -13,6 +13,8 @@ public sealed class LauncherSettings
     public string? Romfs { get; set; }
     public string? Exefs { get; set; }
     public string? Language { get; set; }
+    /// The launcher's own language (Tr.All's code), apart from the game's (Language); null: the system's, else English
+    public string? UiLanguage { get; set; }
     public bool Dlss { get; set; }
     public bool DlssLicense { get; set; }
     public bool Fsr { get; set; }
@@ -68,6 +70,9 @@ public sealed class LauncherSettings
         return path;
     }
 
+    /// The launcher's language: the one picked, else the system's (its name for it: de-DE, pt_BR.UTF-8), else English
+    public string UiLanguageOr(string? system) => UiLanguage ?? Tr.Pick(system) ?? Tr.English;
+
     /// The saved settings, or the defaults when there are none or they cannot be read
     public static LauncherSettings Load(string path)
     {
@@ -92,6 +97,7 @@ public sealed class LauncherSettings
     {
         if (DefaultChannel != null && !Versions.IsChannel(DefaultChannel)) DefaultChannel = null;
         if (LauncherChannel != null && !Versions.IsChannel(LauncherChannel)) LauncherChannel = null;
+        UiLanguage = Tr.Pick(UiLanguage);
         if (MemoryGb is <= 0) MemoryGb = null;
         if (BuildWorkers is <= 0) BuildWorkers = null;
         if (!DlssLicense) Dlss = false;   // (a tick saved before its license was accepted is not one)

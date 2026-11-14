@@ -4,4 +4,8 @@
     <RootNamespace>LongshotLauncher.Core</RootNamespace>
     <AssemblyName>LongshotLauncher.Core</AssemblyName>
   </PropertyGroup>
+  <ItemGroup>
+    <!-- (the launcher's words in each language, Tr.cs: Lang/<code>.json, English to translation) -->
+    <EmbeddedResource Include="Lang/*.json" LogicalName="Lang.%(Filename).json"/>
+  </ItemGroup>
 </Project>

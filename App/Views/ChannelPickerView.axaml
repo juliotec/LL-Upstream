@@ -1,12 +1,13 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:c="using:LongshotLauncher.Controls"
              xmlns:vm="using:LongshotLauncher.ViewModels"
              x:Class="LongshotLauncher.Views.ChannelPickerView"
              x:DataType="vm:ChannelPickerViewModel">
   <Border Classes="dialog wide">
     <StackPanel>
-      <TextBlock Classes="modaltitle" Text="Which version?"/>
-      <TextBlock Classes="sub" Text="Each version you build follows its channel, and offers that channel's updates."/>
+      <TextBlock Classes="modaltitle" Text="{c:T 'Which version?'}"/>
+      <TextBlock Classes="sub" Text="{c:T 'Each version you build follows its channel, and offers that channel\'s updates.'}"/>
       <ItemsControl ItemsSource="{Binding Rows}" Margin="0,16,0,0">
         <ItemsControl.ItemsPanel>
           <ItemsPanelTemplate><StackPanel Spacing="8"/></ItemsPanelTemplate>
@@ -26,7 +27,7 @@
                 </StackPanel>
                 <StackPanel Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center">
                   <TextBlock FontSize="13" Text="{Binding Version}" HorizontalAlignment="Right"/>
-                  <TextBlock FontSize="12" Foreground="{StaticResource Go}" Text="You have it" IsVisible="{Binding Have}" HorizontalAlignment="Right"/>
+                  <TextBlock FontSize="12" Foreground="{StaticResource Go}" Text="{c:T 'You have it'}" IsVisible="{Binding Have}" HorizontalAlignment="Right"/>
                 </StackPanel>
               </Grid>
             </RadioButton>
@@ -34,9 +35,9 @@
         </ItemsControl.ItemTemplate>
       </ItemsControl>
       <TextBlock Classes="hint" Margin="0,12,0,0" IsVisible="{Binding Again}"
-                 Text="Building it again replaces that build, with the settings you choose next. Your saves stay."/>
+                 Text="{c:T 'Building it again replaces that build, with the settings you choose next. Your saves stay.'}"/>
       <StackPanel Classes="buttons">
-        <Button Content="Cancel" Command="{Binding CancelCommand}"/>
+        <Button Content="{c:T 'Cancel'}" Command="{Binding CancelCommand}"/>
         <Button Classes="primary" Content="{Binding GoText}" Command="{Binding GoCommand}"/>
       </StackPanel>
     </StackPanel>

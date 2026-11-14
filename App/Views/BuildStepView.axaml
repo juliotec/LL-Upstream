@@ -22,12 +22,12 @@
   <DockPanel>
     <Grid DockPanel.Dock="Bottom" ColumnDefinitions="*,Auto" Margin="0,14,0,0">
       <Button Classes="link soft" Content="{Binding LogButton}" Command="{Binding ToggleLogCommand}"/>
-      <Button Grid.Column="1" Content="Cancel" Command="{Binding CancelCommand}"/>
+      <Button Grid.Column="1" Content="{c:T 'Cancel'}" Command="{Binding CancelCommand}"/>
     </Grid>
     <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" ColumnSpacing="24">
       <StackPanel VerticalAlignment="Bottom">
         <TextBlock Classes="heading" Text="{Binding Title}"/>
-        <TextBlock Classes="sub" Text="You can keep using your PC. Closing the launcher stops the build."/>
+        <TextBlock Classes="sub" Text="{c:T 'You can keep using your PC. Closing the launcher stops the build.'}"/>
       </StackPanel>
       <StackPanel Grid.Column="1" VerticalAlignment="Bottom">
         <TextBlock Classes="tnum" Text="{Binding Percent}" FontSize="40" FontWeight="Bold" LetterSpacing="-0.8" HorizontalAlignment="Right" LineHeight="44"/>
@@ -76,13 +76,13 @@
       <DockPanel IsVisible="{Binding ShowLog}">
         <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*" ColumnSpacing="10" Margin="0,0,0,10">
           <ComboBox Classes="dd" ItemsSource="{Binding Levels}" SelectedItem="{Binding Level}" VerticalAlignment="Center"
-                    AutomationProperties.Name="Log level shown">
+                    AutomationProperties.Name="{c:T 'Log level shown'}">
             <ComboBox.ItemTemplate>
               <DataTemplate x:DataType="vm:LogLevelChoice"><TextBlock Text="{Binding Name}"/></DataTemplate>
             </ComboBox.ItemTemplate>
           </ComboBox>
-          <TextBox Grid.Column="1" Classes="path" Text="{Binding Search}" Watermark="Search the log" Height="32" MinHeight="32" VerticalAlignment="Center"
-                   AutomationProperties.Name="Search the log"/>
+          <TextBox Grid.Column="1" Classes="path" Text="{Binding Search}" PlaceholderText="{c:T 'Search the log'}" Height="32" MinHeight="32" VerticalAlignment="Center"
+                   AutomationProperties.Name="{c:T 'Search the log'}"/>
         </Grid>
         <Border CornerRadius="10" BorderBrush="{StaticResource GlassLine}" BorderThickness="1" Background="#33000000">
           <!-- (follows the log's new lines while it is scrolled to the bottom; scrolled up, it stays put: BuildStepView in Views.cs) -->

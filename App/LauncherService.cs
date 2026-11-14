@@ -165,10 +165,10 @@ public sealed class LauncherService
         var staged = await SelfUpdate.DownloadAsync(Fetcher, file, current, progress, cancel, entry);
         try
         {
-            step?.Invoke("Checking that the new launcher starts…");
+            step?.Invoke(Tr.T("Checking that the new launcher starts…"));
             if (!await SelfUpdate.SelfCheckAsync(staged, release.Version, TimeSpan.FromSeconds(60)))
-                throw new InvalidDataException($"The new launcher ({release.Version}) did not start on this PC, so it was not put in place.");
-            step?.Invoke("Putting the new launcher in place…");
+                throw new InvalidDataException(Tr.F("The new launcher ({0}) did not start on this PC, so it was not put in place.", release.Version));
+            step?.Invoke(Tr.T("Putting the new launcher in place…"));
             SelfUpdate.Swap(current, staged, Platform);
         }
         finally
@@ -176,7 +176,7 @@ public sealed class LauncherService
             File.Delete(staged);
         }
         // (this one lets go of the home first: the new one takes it as it starts)
-        step?.Invoke("Starting the new launcher…");
+        step?.Invoke(Tr.T("Starting the new launcher…"));
         Program.ReleaseLock();
         using var _ = Process.Start(new ProcessStartInfo(current) { UseShellExecute = false });
     }
@@ -213,7 +213,7 @@ public sealed class LauncherService
     /// What the window says of a gather (GatherSaves): which save every version uses now and where the backup is, or why it
     /// could not; null when there was nothing to do
     public static string? GatherSaid((SaveGathered? Done, string? Problem) g) =>
-        g.Done != null ? SaveText.Gathered(g.Done) : g.Problem != null ? "Your saves were not brought together: " + g.Problem : null;
+        g.Done != null ? SaveText.Gathered(g.Done) : g.Problem != null ? Tr.F("Your saves were not brought together: {0}", g.Problem) : null;
 
     /// (Windows) The saves the builds kept in their own folders brought into the shared one (Saves.Gather): when the window opens
     /// and before a game starts. The folders: every build's, every Longshot game folder in the builds folder (a version an update

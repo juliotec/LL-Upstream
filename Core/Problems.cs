@@ -25,13 +25,14 @@ public enum FixKind { None, PickOtherFiles, ChooseOtherFolder, LowerBuildMemory,
 
 public sealed record Fix(FixKind Kind, string Label, string? Link = null);
 
-/// A problem as the screens show it. Signature: what identifies the same crash on another PC (the exception and where it
-/// happened, never a path), for grouping reports; null for a build problem
+/// A problem as the screens show it. Headline, Detail and each Fix's Label are the English, marked for the catalogs (Tr.N): a
+/// screen shows them in the player's language (Tr.T). Signature: what identifies the same crash on another PC (the exception and
+/// where it happened, never a path), for grouping reports; null for a build problem
 public sealed record Problem(ProblemKind Kind, string Headline, string Detail, IReadOnlyList<Fix> Fixes, string? Signature = null);
 
 public static partial class Problems
 {
-    static readonly Fix BuildAgain = new(FixKind.BuildAgain, "Build again");
+    static readonly Fix BuildAgain = new(FixKind.BuildAgain, Tr.N("Build again"));
 
     /// The driver download page for a maker (SystemInfo's names); null for another
     public static string? DriverPage(string? vendor) => vendor switch
@@ -43,8 +44,8 @@ public static partial class Problems
     };
 
     static Fix DriverFix(string? vendor) =>
-        DriverPage(vendor) is { } link ? new Fix(FixKind.DriverPage, "Get the latest graphics driver", link)
-                                       : new Fix(FixKind.None, "Update your graphics driver");
+        DriverPage(vendor) is { } link ? new Fix(FixKind.DriverPage, Tr.N("Get the latest graphics driver"), link)
+                                       : new Fix(FixKind.None, Tr.N("Update your graphics driver"));
 
     /// A build that stopped: why, make_game.py's last message (or the launcher's own). Only the messages that mean one thing
     /// are matched: make_game.py's "Could not clear ... wait for your antivirus to finish" (a folder in use), "came out cut short
@@ -56,30 +57,30 @@ public static partial class Problems
         bool Has(string s) => w.Contains(s, StringComparison.OrdinalIgnoreCase);
         // (make_game.py check_cpu: the compiler's files are gone; check_mingw: the compiler is not there or can't build)
         if (Has("antivirus most likely removed") || Has("a folder your antivirus allows"))
-            return new Problem(ProblemKind.Antivirus, "Your antivirus removed some of Longshot's files",
-                "This is a false alarm: Longshot's build tools aren't signed, so some antivirus programs flag them. Restore the " +
+            return new Problem(ProblemKind.Antivirus, Tr.N("Your antivirus removed some of Longshot's files"),
+                Tr.N("This is a false alarm: Longshot's build tools aren't signed, so some antivirus programs flag them. Restore the " +
                 "files from your antivirus's quarantine (Windows Security: Protection history) and allow Longshot's folder, then " +
-                "build again.", [BuildAgain]);
+                "build again."), [BuildAgain]);
         // (make_game.py check_supported_build and --check: "This is build 1a2b3c4d. Longshot supports build e0f3ccfa.")
         if (Has("Longshot supports build"))
-            return new Problem(ProblemKind.WrongGameVersion, "These game files are a different version",
-                "Longshot needs Ocarina of Time with update 2.0.0 installed (program 0400486024DEC000, update v131072). Pick " +
-                "the files of that version, or dump your game again with the update.", [new Fix(FixKind.PickOtherFiles, "Pick other game files")]);
+            return new Problem(ProblemKind.WrongGameVersion, Tr.N("These game files are a different version"),
+                Tr.N("Longshot needs Ocarina of Time with update 2.0.0 installed (program 0400486024DEC000, update v131072). Pick " +
+                "the files of that version, or dump your game again with the update."), [new Fix(FixKind.PickOtherFiles, Tr.N("Pick other game files"))]);
         if (Has("dump is incomplete") || Has("still has") && Has("damaged file"))
-            return new Problem(ProblemKind.IncompleteDump, "Your game dump is incomplete",
-                "Some of the game's files are damaged or missing (a complete dump is about 23.8 GB). Dump the game again and " +
-                "build from the new dump.", [new Fix(FixKind.PickOtherFiles, "Pick other game files")]);
+            return new Problem(ProblemKind.IncompleteDump, Tr.N("Your game dump is incomplete"),
+                Tr.N("Some of the game's files are damaged or missing (a complete dump is about 23.8 GB). Dump the game again and " +
+                "build from the new dump."), [new Fix(FixKind.PickOtherFiles, Tr.N("Pick other game files"))]);
         // (the system's own words: Linux's ENOSPC, Windows' ERROR_DISK_FULL)
         if (Has("No space left") || Has("not enough space") || Has("disk full"))
-            return new Problem(ProblemKind.DiskFull, "The drive is full",
-                "The build needs about 45 GB free while it runs. Free up space on that drive, or build to another drive.",
-                [new Fix(FixKind.ChooseOtherFolder, "Build to another folder"), BuildAgain]);
+            return new Problem(ProblemKind.DiskFull, Tr.N("The drive is full"),
+                Tr.N("The build needs about 45 GB free while it runs. Free up space on that drive, or build to another drive."),
+                [new Fix(FixKind.ChooseOtherFolder, Tr.N("Build to another folder")), BuildAgain]);
         if (Has("ran out of memory") || Has("MemoryError") || Has("out of memory"))
-            return new Problem(ProblemKind.BuildMemory, "Your PC ran out of memory while building",
-                "Close other programs, or set Build memory lower in step 2's Advanced, then build again: what was built so far " +
-                "is kept.", [new Fix(FixKind.LowerBuildMemory, "Use less memory"), BuildAgain]);
-        return new Problem(ProblemKind.Unknown, "The build stopped",
-            "Something went wrong that Longshot doesn't recognise yet.", [BuildAgain]);
+            return new Problem(ProblemKind.BuildMemory, Tr.N("Your PC ran out of memory while building"),
+                Tr.N("Close other programs, or set Build memory lower in step 2's Advanced, then build again: what was built so far " +
+                "is kept."), [new Fix(FixKind.LowerBuildMemory, Tr.N("Use less memory")), BuildAgain]);
+        return new Problem(ProblemKind.Unknown, Tr.N("The build stopped"),
+            Tr.N("Something went wrong that Longshot doesn't recognise yet."), [BuildAgain]);
     }
 
     [GeneratedRegex(@"CRASH: exception (0x[0-9a-fA-F]+) \((read|write)[^)]*\) at (\S+)")]
@@ -114,15 +115,15 @@ public static partial class Problems
         // only of a run that then crashed or lost the device)
         if (!lost && crash == null) return null;
         if (noMesh)
-            return new Problem(ProblemKind.NoMeshShaders, "Your graphics card can't draw this game",
-                "It, or its driver, has no mesh shaders, which the game needs. An NVIDIA RTX 20 series or newer, an AMD Radeon " +
-                "RX 6000 or newer, or an Intel Arc card can. If your card is one of those, update its driver.", [DriverFix(vendor)],
+            return new Problem(ProblemKind.NoMeshShaders, Tr.N("Your graphics card can't draw this game"),
+                Tr.N("It, or its driver, has no mesh shaders, which the game needs. An NVIDIA RTX 20 series or newer, an AMD Radeon " +
+                "RX 6000 or newer, or an Intel Arc card can. If your card is one of those, update its driver."), [DriverFix(vendor)],
                 Signature(crash, module, lost ? "device lost" : null));
         if (lost)
-            return new Problem(ProblemKind.GpuLost, "The graphics driver stopped responding",
-                "This is often fixed by the latest graphics driver.", [DriverFix(vendor)], Signature(crash, module, "device lost"));
-        return new Problem(ProblemKind.GameCrashed, "The game closed unexpectedly",
-            "If it happens again at the same place, the latest graphics driver is worth a try.", [DriverFix(vendor)],
+            return new Problem(ProblemKind.GpuLost, Tr.N("The graphics driver stopped responding"),
+                Tr.N("This is often fixed by the latest graphics driver."), [DriverFix(vendor)], Signature(crash, module, "device lost"));
+        return new Problem(ProblemKind.GameCrashed, Tr.N("The game closed unexpectedly"),
+            Tr.N("If it happens again at the same place, the latest graphics driver is worth a try."), [DriverFix(vendor)],
             Signature(crash, module, null));
     }
 

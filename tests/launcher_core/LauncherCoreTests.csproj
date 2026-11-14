@@ -13,5 +13,6 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../../Core/**/*.cs" Exclude="../../Core/obj/**;../../Core/bin/**" LinkBase="Core"/>
+    <EmbeddedResource Include="../../Core/Lang/*.json" LogicalName="Lang.%(Filename).json"/>
   </ItemGroup>
 </Project>

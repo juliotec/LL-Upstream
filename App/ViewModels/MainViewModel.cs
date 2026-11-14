@@ -15,7 +15,7 @@ public sealed class StepItem(int number, string title) : ViewModelBase
     bool done, now;
 
     public int Number => number;
-    public string Title => title;
+    public string Title => Tr.T(title);
     public bool IsDone { get => done; set { if (Set(ref done, value)) Raise(nameof(IsTodo)); } }
     public bool IsNow { get => now; set { if (Set(ref now, value)) Raise(nameof(IsTodo)); } }
     public bool IsTodo => !done && !now;
@@ -92,7 +92,7 @@ public sealed class MainViewModel : ViewModelBase
     public Command CloseCommand { get; }
     public Command SettingsCommand { get; }
 
-    public IReadOnlyList<StepItem> Steps { get; } = new[] { new StepItem(1, "Game files"), new StepItem(2, "Settings"), new StepItem(3, "Build") };
+    public IReadOnlyList<StepItem> Steps { get; } = new[] { new StepItem(1, Tr.N("Game files")), new StepItem(2, Tr.N("Settings")), new StepItem(3, Tr.N("Build")) };
 
     public object Page
     {

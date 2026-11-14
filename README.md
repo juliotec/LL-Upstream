@@ -139,9 +139,13 @@ next time it starts. If `LongshotLauncher.exe` itself is missing, rename `Longsh
 4. **Build**: about 15 to 30 minutes the first time, shaders included. An update compiles only what changed.
 5. **Play**. Ready can also make desktop and menu shortcuts, which start the default version.
 
-The cog on the home opens the launcher's settings: the channel for new builds, the **launcher's own channel**, where builds
-go, the build files folder (and *Free up space*), the update check at start, and on Linux the launcher's entry in the
-applications menu.
+The cog on the home opens the launcher's settings: the **launcher's language**, the channel for new builds, the
+**launcher's own channel**, where builds go, the build files folder (and *Free up space*), the update check at start, and on
+Linux the launcher's entry in the applications menu.
+
+The launcher speaks the game's sixteen languages. It starts in the system's (Windows' display language; on Linux `LANGUAGE`,
+`LC_ALL`, `LC_MESSAGES` or `LANG`), else English, until one is picked in Settings, and a pick changes the window at once. The
+game's own language is apart from it: a build setting (step 2), as before.
 
 <p align="center">
   <img src="docs/images/settings.png" alt="The launcher's settings: the channel for new builds, the launcher's own channel, where builds go" width="720">
@@ -210,9 +214,10 @@ dotnet run --project App
 | | |
 |---|---|
 | `Core/` | `LongshotLauncher.Core`: the logic, no UI and no package. Versions and channels (`Versions`), the signed releases of Longshot and of the launcher (`Releases`, `ReleaseTrust`, `ReleaseManifest`), its own update (`SelfUpdate`), each version's builder and its tools.lock (`Toolchains`, `ToolsSource`, `ToolsLock`), game folders, `builds.json` (`BuildRegistry`), remembered settings, make_game.py's command line, `@@` lines, run and check (`MakeGameCommand`, `MakeGameProtocol`, `MakeGameRun`), the game files found on this PC (`GameFiles`), update offers (`UpdatePolicy`), saves (`Saves`, a port of Longshot's `scripts/oot_saves.py`; `SaveText`) and Hookshot's (`HookshotSaves`), disk space (`Disk`), this PC (`SystemInfo`), shortcuts (`Shortcuts`), installed or portable (`LauncherLayout`, `Installer`), one launcher per home (`InstanceLock`), the launcher's home and command line |
+| `Core/Lang/` | The launcher's translations, one catalog per language (`Tr`, [Translations](#translations)) |
 | `App/` | `LongshotLauncher`: the Avalonia window. `ViewModels/` (one per page and dialog), `Views/` (one .axaml each, compiled bindings), `Controls/` (icons, bars and spinner), `App.axaml` (the palette and the styles), `Assets/` (the Longshot logo and icon, the Inter font with its licence) |
 | `tests/` | `test_launcher_core.py` (builds `launcher_core/`, which compiles `Core/` and checks it), `test_release.py` (`scripts/release.py`), `fixtures/` (signed test releases, fake Hookshot saves) |
-| `scripts/` | `package.sh` (both release programs, from Linux), `make_icon.py` (`App/Assets/longshot.ico` from the logo), `release.py` (the signed release files, the keys, the uploads; the same file as Longshot's) |
+| `scripts/` | `package.sh` (both release programs, from Linux), `make_icon.py` (`App/Assets/longshot.ico` from the logo), `release.py` (the signed release files, the keys, the uploads; the same file as Longshot's), `translations.py` (the window's texts against each catalog) |
 | `.forgejo/workflows/` | `ci.yml` (compile and test, every pull request), `release.yml` (the nightly from `main`, a release from a `v*` tag) |
 | `docs/` | [releases.md](docs/releases.md), [saves.md](docs/saves.md), and the screenshots in this README |
 
@@ -249,6 +254,23 @@ saves against Longshot's `tests/test_oot_saves.py` cases, the Hookshot import ag
 temporary folders. With `--longshot`, it also checks the languages and the DLSS and FSR 4 licence texts against Longshot's
 `make_game.py`, `ngx_sdk.py` and `ffx_sdk.py`. The second checks `scripts/release.py` with keys it makes (it needs the
 `openssl` command line). CI runs both and compiles with warnings as errors. Contributing: [CONTRIBUTING.md](CONTRIBUTING.md).
+
+### Translations
+
+Every text the window shows is written in English in the sources, as `Tr.T("...")` (with parts, `Tr.F("... {0}", x)`; a
+count, `Tr.P(n, "1 slot", "{0} slots")`) in the C# and `{c:T '...'}` in the views. `Core/Lang/<code>.json` maps each English
+text to its translation, a count's entry to its forms by CLDR plural category (`one`, `few`, `many`, `other`: the categories
+the language has). A text missing from a catalog shows in English. `en-GB`, `fr-CA` and `es-419` hold only what differs from
+English, French and Spanish; the others hold every text.
+
+```sh
+python -I scripts/translations.py                 # what each catalog lacks or has left over, and broken placeholders
+python -I scripts/translations.py --missing de    # the texts de.json lacks, as JSON to fill in
+```
+
+`tests/test_launcher_core.py` runs the same check: a broken placeholder, a wrong set of plural forms or a catalog entry no
+source has any more (a changed English text) fails it; a text a catalog lacks is only said. A native speaker's fix to a
+catalog is welcome as a pull request. Logs and *Copy for a bug report* stay in English.
 
 ### Planned next
 

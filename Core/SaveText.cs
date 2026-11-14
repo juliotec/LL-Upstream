@@ -7,27 +7,29 @@ public static class SaveText
 
     public static string Long(IReadOnlyList<SaveSlot> slots, DateTime now)
     {
-        if (slots.Count == 0) return "No saves yet";
-        var text = slots.Count + (slots.Count == 1 ? " slot" : " slots");
-        return Last(slots) is { } t ? text + ", saved " + Durations.When(t, now) : text;
+        if (slots.Count == 0) return Tr.T("No saves yet");
+        return Last(slots) is { } t ? Tr.P(slots.Count, "1 slot, saved {1}", "{0} slots, saved {1}", Durations.When(t, now))
+            : Tr.P(slots.Count, "1 slot", "{0} slots");
     }
 
     public static string Short(IReadOnlyList<SaveSlot> slots, DateTime now)
     {
-        if (slots.Count == 0) return "No saves yet";
-        var text = slots.Count + (slots.Count == 1 ? " save" : " saves");
-        return Last(slots) is { } t ? text + ", last " + Durations.When(t, now) : text;
+        if (slots.Count == 0) return Tr.T("No saves yet");
+        return Last(slots) is { } t ? Tr.P(slots.Count, "1 save, last {1}", "{0} saves, last {1}", Durations.When(t, now))
+            : Tr.P(slots.Count, "1 save", "{0} saves");
     }
 
     /// "3 save slots", "1 save slot", "no saves" (a row of the home's list)
-    public static string Count(int slots) => slots == 0 ? "no saves" : slots + (slots == 1 ? " save slot" : " save slots");
+    public static string Count(int slots) => slots == 0 ? Tr.T("no saves") : Tr.P(slots, "1 save slot", "{0} save slots");
 
     /// What the home says once Saves.Gather brought the builds' own saves together: which one every version plays now, and where
     /// the backup of them all is
     public static string Gathered(SaveGathered g)
     {
-        var which = g.WasShared ? "the shared ones, which were the newest" : "the newest, from " + System.IO.Path.GetDirectoryName(g.From);
-        return $"Every Longshot version now uses the same saves: {which}. All of them are backed up in {g.Backup}.";
+        return g.WasShared
+            ? Tr.F("Every Longshot version now uses the same saves: the shared ones, which were the newest. All of them are backed up in {0}.", g.Backup)
+            : Tr.F("Every Longshot version now uses the same saves: the newest, from {0}. All of them are backed up in {1}.",
+                   System.IO.Path.GetDirectoryName(g.From), g.Backup);
     }
 
     /// A slot's number from its folder's name: slot_00 is 1

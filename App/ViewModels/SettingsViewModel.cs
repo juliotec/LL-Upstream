@@ -13,9 +13,9 @@ public sealed class SettingsViewModel : ViewModelBase
     public sealed class ChannelOption(SettingsViewModel owner, string id, string name, string about, string? version) : ViewModelBase
     {
         public string Id => id;
-        public string Name => name;
-        public string About => about;
-        public string Version => version == null ? "Not checked yet" : Versions.Shown(version);
+        public string Name => Tr.T(name);
+        public string About => Tr.T(about);
+        public string Version => version == null ? Tr.T("Not checked yet") : Versions.Shown(version);
 
         public bool IsPicked
         {
@@ -33,7 +33,7 @@ public sealed class SettingsViewModel : ViewModelBase
     public sealed class LauncherChannelOption(SettingsViewModel owner, string id, string name) : ViewModelBase
     {
         public string Id => id;
-        public string Name => name;
+        public string Name => Tr.T(name);
 
         public bool IsPicked
         {
@@ -58,33 +58,56 @@ public sealed class SettingsViewModel : ViewModelBase
         ChangeWorkCommand = new Command(() => _ = ChangeWorkAsync());
         DefaultWorkCommand = new Command(() => { s.Work = null; Save(); RaiseAll(nameof(Work)); MeasureWork(); });
         FreeSpaceCommand = new BusyCommand(FreeSpaceAsync, () => workBytes > 0 && !measuring,
-                                           e => Main.ShowToast("The build files could not all be deleted: " + e.Message));
+                                           e => Main.ShowToast(Tr.F("The build files could not all be deleted: {0}", e.Message)));
         ReleaseNotesCommand = new Command(() => Main.Host?.Open(Releases.Repo + "/releases"));
         AddToMenuCommand = new Command(AddToMenu, () => Program.Layout.File != null);
         RemoveFromMenuCommand = new Command(RemoveFromMenu);
+        Languages = new[] { new UiLanguageChoice(null, Tr.T("System language")) }
+            .Concat(Tr.All.Select(l => new UiLanguageChoice(l.Code, l.Name))).ToList();
         MeasureWork();
+    }
+
+    // ---- the launcher's language: the system's until one is picked; a pick changes the window at once ----
+
+    public sealed record UiLanguageChoice(string? Code, string Name)
+    {
+        public override string ToString() => Name;
+    }
+
+    public IReadOnlyList<UiLanguageChoice> Languages { get; }
+
+    public UiLanguageChoice Language
+    {
+        get => Languages.FirstOrDefault(l => l.Code == s.UiLanguage) ?? Languages[0];
+        set
+        {
+            if (value == null || value.Code == s.UiLanguage) return;
+            s.UiLanguage = value.Code;
+            Save();
+            Tr.Use(s.UiLanguageOr(Controls.SystemLanguage.Name()));
+        }
     }
 
     // ---- the launcher itself: how it is kept, and on Linux its entry in the applications menu ----
 
     /// Where this launcher is and how (installed, portable), under the launcher's channels
-    public string LauncherHint => "The channel the launcher updates itself from. Its releases are its own, apart from Longshot's. " + Program.Layout.Kind switch
+    public string LauncherHint => Tr.Sentences(Tr.T("The channel the launcher updates itself from. Its releases are its own, apart from Longshot's."), Program.Layout.Kind switch
     {
-        LauncherKind.Installed => "Installed for you in " + ShownPath.Of(Path.GetDirectoryName(Program.Layout.File)) + "; uninstall it from Apps & features.",
-        LauncherKind.Portable => "Portable: everything it keeps is in " + ShownPath.Of(Main.Service.Home.Root) + ".",
+        LauncherKind.Installed => Tr.F("Installed for you in {0}; uninstall it from Apps & features.", ShownPath.Of(Path.GetDirectoryName(Program.Layout.File))),
+        LauncherKind.Portable => Tr.F("Portable: everything it keeps is in {0}.", ShownPath.Of(Main.Service.Home.Root)),
         _ => "",
-    };
+    });
 
     /// The AppImage's own entry in the applications menu (Linux): added, moved along when the AppImage moved, removed
     public bool ShowMenu => Main.Linux;
     string? MenuTarget => Shortcuts.LauncherInMenu();
     public bool InMenu => MenuTarget != null;
-    public string AddToMenuText => MenuTarget == null ? "Add to applications menu"
-        : MenuTarget != Program.Layout.File ? "Point the menu entry here" : "Write the menu entry again";
-    public string MenuHint => Program.Layout.File == null ? "Only the AppImage can be added to the menu."
-        : MenuTarget == null ? "Adds Longshot Launcher to your desktop's applications menu, starting this AppImage where it is now."
-        : MenuTarget != Program.Layout.File ? $"The menu entry starts {ShownPath.Of(MenuTarget)}, not this AppImage."
-        : "Longshot Launcher is in the applications menu. Moved the AppImage? Add it again from its new place.";
+    public string AddToMenuText => MenuTarget == null ? Tr.T("Add to applications menu")
+        : MenuTarget != Program.Layout.File ? Tr.T("Point the menu entry here") : Tr.T("Write the menu entry again");
+    public string MenuHint => Program.Layout.File == null ? Tr.T("Only the AppImage can be added to the menu.")
+        : MenuTarget == null ? Tr.T("Adds Longshot Launcher to your desktop's applications menu, starting this AppImage where it is now.")
+        : MenuTarget != Program.Layout.File ? Tr.F("The menu entry starts {0}, not this AppImage.", ShownPath.Of(MenuTarget))
+        : Tr.T("Longshot Launcher is in the applications menu. Moved the AppImage? Add it again from its new place.");
     public Command AddToMenuCommand { get; }
     public Command RemoveFromMenuCommand { get; }
 
@@ -97,9 +120,9 @@ public sealed class SettingsViewModel : ViewModelBase
             using var bytes = new MemoryStream();
             icon.CopyTo(bytes);
             Shortcuts.AddLauncherToMenu(appImage, bytes.ToArray());
-            Main.ShowToast("Longshot Launcher is in the applications menu.");
+            Main.ShowToast(Tr.T("Longshot Launcher is in the applications menu."));
         }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { Main.ShowToast("The menu entry could not be written: " + e.Message); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { Main.ShowToast(Tr.F("The menu entry could not be written: {0}", e.Message)); }
         RaiseAll(nameof(InMenu), nameof(AddToMenuText), nameof(MenuHint));
     }
 
@@ -108,9 +131,9 @@ public sealed class SettingsViewModel : ViewModelBase
         try
         {
             Shortcuts.RemoveLauncherFromMenu();
-            Main.ShowToast("Longshot Launcher is out of the applications menu.");
+            Main.ShowToast(Tr.T("Longshot Launcher is out of the applications menu."));
         }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { Main.ShowToast("The menu entry could not be removed: " + e.Message); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { Main.ShowToast(Tr.F("The menu entry could not be removed: {0}", e.Message)); }
         RaiseAll(nameof(InMenu), nameof(AddToMenuText), nameof(MenuHint));
     }
 
@@ -138,7 +161,7 @@ public sealed class SettingsViewModel : ViewModelBase
     void Save()
     {
         try { Main.Service.SaveSettings(); }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { Main.ShowToast("The settings could not be saved: " + e.Message); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { Main.ShowToast(Tr.F("The settings could not be saved: {0}", e.Message)); }
     }
 
     public string Channel
@@ -155,8 +178,8 @@ public sealed class SettingsViewModel : ViewModelBase
     }
 
     public string ChannelHint =>
-        ChannelPickerViewModel.AboutOf(Main.Service, Channel, ChannelPickerViewModel.All.FirstOrDefault(c => c.Id == Channel).About ?? "") +
-        " Builds you have keep their own channel.";
+        Tr.Sentences(ChannelPickerViewModel.AboutOf(Main.Service, Channel, ChannelPickerViewModel.All.FirstOrDefault(c => c.Id == Channel).About ?? ""),
+                     Tr.T("Builds you have keep their own channel."));
 
     public string BuildsFolder
     {
@@ -181,9 +204,9 @@ public sealed class SettingsViewModel : ViewModelBase
         }
     }
 
-    public string WorkNote => FreeSpaceCommand.IsBusy ? "Deleting the build files…"
-        : measuring ? "Measuring the build files…"
-        : workBytes is long b && b > 0 ? $"{Durations.Size(b)} kept to make updates quicker." : "Nothing kept yet.";
+    public string WorkNote => FreeSpaceCommand.IsBusy ? Tr.T("Deleting the build files…")
+        : measuring ? Tr.T("Measuring the build files…")
+        : workBytes is long b && b > 0 ? Tr.F("{0} kept to make updates quicker.", Durations.Size(b)) : Tr.T("Nothing kept yet.");
 
     /// The update check that a change of the launcher's channel starts (HomeViewModel.CheckCommand): a spinner beside the channels
     public BusyCommand CheckCommand => Main.Home.CheckCommand;
@@ -237,7 +260,7 @@ public sealed class SettingsViewModel : ViewModelBase
         try
         {
             await Task.Run(() => Disk.FreeWork(folder));
-            Main.ShowToast($"Freed {Durations.Size(freed)} of build files. The next update makes them again.");
+            Main.ShowToast(Tr.F("Freed {0} of build files. The next update makes them again.", Durations.Size(freed)));
         }
         finally
         {
@@ -248,13 +271,13 @@ public sealed class SettingsViewModel : ViewModelBase
     async Task ChangeBuildsAsync()
     {
         if (Main.Host is not { } host) return;
-        if (await host.PickFolderAsync("Where builds go", Main.Service.BuildsFolder) is { } picked) BuildsFolder = Path.GetFullPath(picked);
+        if (await host.PickFolderAsync(Tr.T("Where builds go"), Main.Service.BuildsFolder) is { } picked) BuildsFolder = Path.GetFullPath(picked);
     }
 
     async Task ChangeWorkAsync()
     {
         if (Main.Host is not { } host) return;
-        if (await host.PickFolderAsync("Where the build files go", Main.Service.Work) is { } picked) Work = Path.GetFullPath(picked);
+        if (await host.PickFolderAsync(Tr.T("Where the build files go"), Main.Service.Work) is { } picked) Work = Path.GetFullPath(picked);
     }
 
     void Done()

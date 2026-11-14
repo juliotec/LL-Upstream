@@ -96,7 +96,7 @@ public sealed partial class MainWindow : Window, IWindowHost
         }
         catch (Exception e) when (e is System.ComponentModel.Win32Exception or InvalidOperationException or IOException)
         {
-            if (DataContext is MainViewModel vm) vm.ShowToast("Could not open " + path + ": " + e.Message);
+            if (DataContext is MainViewModel vm) vm.ShowToast(Core.Tr.F("Could not open {0}: {1}", path, e.Message));
         }
     }
 

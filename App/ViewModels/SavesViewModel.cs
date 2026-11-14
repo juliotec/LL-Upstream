@@ -44,7 +44,7 @@ static class SaveViews
     }
 
     public static IReadOnlyList<SlotViewModel> Slots(IReadOnlyList<SaveSlot> slots) =>
-        slots.Select(s => new SlotViewModel(SaveText.Number(s.Name), "Slot " + SaveText.Number(s.Name),
+        slots.Select(s => new SlotViewModel(SaveText.Number(s.Name), Tr.F("Slot {0}", SaveText.Number(s.Name)),
                                             s.Saved is { } t ? Durations.When(t, DateTime.Now) : "")).ToList();
 
     public static IReadOnlyList<SaveSlot> Describe(SaveProfile? p) => p == null ? Array.Empty<SaveSlot>() : Saves.Describe(p.Path);
@@ -74,13 +74,13 @@ public sealed class SavesViewModel : ViewModelBase
     public bool HasSlots => Slots.Count > 0;
     public bool NoSlots => Slots.Count == 0;
 
-    public string Sub => "All your Longshot versions share these saves.";
-    public string EmptyHint => "Import saves from an emulator or Hookshot. They will be available to every Longshot version.";
-    public string SlotCount => Slots.Count == 1 ? "1 save slot" : $"{Slots.Count} save slots";
+    public string Sub => Tr.T("All your Longshot versions share these saves.");
+    public string EmptyHint => Tr.T("Import saves from an emulator or Hookshot. They will be available to every Longshot version.");
+    public string SlotCount => Tr.P(Slots.Count, "1 save slot", "{0} save slots");
     public IReadOnlyList<SaveRowViewModel> OtherSaves => Rows.Where(r => r.IsRow && !r.IsThis && !r.Dim).ToList();
     public bool HasOtherSaves => OtherSaves.Count > 0;
-    public string OtherSavesLabel => $"Other save locations ({OtherSaves.Count})";
-    public string ExportHint => HasSlots ? "Send to an emulator or a folder" : "Play or import saves to enable export";
+    public string OtherSavesLabel => Tr.F("Other save locations ({0})", OtherSaves.Count);
+    public string ExportHint => HasSlots ? Tr.T("Send to an emulator or a folder") : Tr.T("Play or import saves to enable export");
     public Command ImportCommand { get; }
     public Command ExportCommand { get; }
     public Command DoneCommand { get; }
@@ -93,24 +93,24 @@ public sealed class SavesViewModel : ViewModelBase
         var slots = Service.SaveSlots();
         rows.Add(new SaveRowViewModel
         {
-            Name = "Every build", Shared = true, IsThis = true,
+            Name = Tr.T("Every build"), Shared = true, IsThis = true,
             Where = SaveViews.Short(set.Found ? set.Profiles[0].Path : Path.Combine(Env.LongshotUser, "save")),
             Summary = SaveText.Long(slots, now),
         });
-        rows.Add(new SaveRowViewModel { IsGroup = true, Name = "Emulators and ports" });
+        rows.Add(new SaveRowViewModel { IsGroup = true, Name = Tr.T("Emulators and ports") });
         Emulators = Saves.Emulator(Env);
         foreach (var e in Emulators)
         {
             if (!e.Found)
             {
-                rows.Add(new SaveRowViewModel { Name = e.Display.Replace(" / ", ", "), Where = "Not found on this PC", Dim = true });
+                rows.Add(new SaveRowViewModel { Name = e.Display.Replace(" / ", ", "), Where = Tr.T("Not found on this PC"), Dim = true });
                 continue;
             }
             rows.Add(new SaveRowViewModel
             {
                 Name = e.Display.Replace(" / ", ", "),
                 Where = SaveViews.Short(e.Folder ?? ""),
-                Profiles = e.Profiles.Count > 1 ? $"{e.Profiles.Count} profiles" : null,
+                Profiles = e.Profiles.Count > 1 ? Tr.P(e.Profiles.Count, "1 profile", "{0} profiles") : null,
                 Waiting = e.Profiles.Any(p => Saves.PendingCommit(p.Path) != null),
                 Summary = SaveText.Long(SaveViews.Describe(e.Profiles[0]), now),
             });
@@ -135,9 +135,9 @@ public sealed class SaveOp
     public string? Folder { get; set; }
     public string? Profile { get; set; }
     public bool KeepSettings { get; set; }
-    public string Verb => Mode == SaveMode.Import ? "Import" : "Export";
+    public string Verb => Mode == SaveMode.Import ? Tr.T("Import") : Tr.T("Export");
     public SaveProgram Program => Set != null ? Saves.Named(Set.Owner) : Saves.Folder;
-    public string OtherName => Set != null ? Set.Display.Replace(" / ", ", ") : "the folder";
+    public string OtherName => Set != null ? Set.Display.Replace(" / ", ", ") : Tr.T("the folder");
 }
 
 /// Import or export: which emulator (or another folder), and which profile when it has several
@@ -175,7 +175,7 @@ public sealed class SavePickViewModel : ViewModelBase
     public sealed class ProfileOption(SavePickViewModel owner, SaveProfile p, string summary) : ViewModelBase
     {
         public string Id => p.Id;
-        public string Name => "Profile " + (p.Id.Length > 16 ? p.Id[..8] + "…" + p.Id[^4..] : p.Id);
+        public string Name => Tr.F("Profile {0}", p.Id.Length > 16 ? p.Id[..8] + "…" + p.Id[^4..] : p.Id);
         public string Summary => summary;
 
         public bool IsPicked
@@ -199,12 +199,12 @@ public sealed class SavePickViewModel : ViewModelBase
         Mode = mode;
         var now = DateTime.Now;
         var main = page.Main;
-        Options = page.Emulators.Select(e => new Option(this, e.Owner, e.Display.Replace(" / ", ", "), e.Found ? "" : "Not found on this PC",
-                !e.Found ? "" : e.Profiles.Count > 1 ? $"{e.Profiles.Count} profiles" : SaveText.Long(SaveViews.Describe(e.Profiles[0]), now), e.Found,
+        Options = page.Emulators.Select(e => new Option(this, e.Owner, e.Display.Replace(" / ", ", "), e.Found ? "" : Tr.T("Not found on this PC"),
+                !e.Found ? "" : e.Profiles.Count > 1 ? Tr.P(e.Profiles.Count, "1 profile", "{0} profiles") : SaveText.Long(SaveViews.Describe(e.Profiles[0]), now), e.Found,
                 waiting: e.Profiles.Any(p => Saves.PendingCommit(p.Path) != null)))
-            .Append(new Option(this, "folder", "Another folder…",
-                               mode == SaveMode.Import ? "A folder holding account.sav and slot folders, or one above it"
-                                   : "A portable emulator's user folder, or any folder", "", true))
+            .Append(new Option(this, "folder", Tr.T("Another folder…"),
+                               mode == SaveMode.Import ? Tr.T("A folder holding account.sav and slot folders, or one above it")
+                                   : Tr.T("A portable emulator's user folder, or any folder"), "", true))
             .ToList();
         GoCommand = new Command(() => _ = GoAsync(), () => CanGo);
         Pick = Options.FirstOrDefault(o => o.Enabled)?.Key;
@@ -217,11 +217,11 @@ public sealed class SavePickViewModel : ViewModelBase
     public Command GoCommand { get; }
     public Command CancelCommand { get; }
 
-    public string Title => Mode == SaveMode.Import ? "Import from which emulator?" : "Export to which emulator?";
+    public string Title => Mode == SaveMode.Import ? Tr.T("Import from which emulator?") : Tr.T("Export to which emulator?");
 
     public string Sub => Mode == SaveMode.Export
-        ? "The saves every build uses replace the ones there, after a backup."
-        : "Its saves replace the ones every build uses, after a backup.";
+        ? Tr.T("The saves every build uses replace the ones there, after a backup.")
+        : Tr.T("Its saves replace the ones every build uses, after a backup.");
 
     SaveSet? PickedSet => Page.Emulators.FirstOrDefault(e => e.Owner == pick);
 
@@ -253,7 +253,8 @@ public sealed class SavePickViewModel : ViewModelBase
     }
 
     public bool HasProfiles => profiles.Count > 0;
-    public string ProfileHint => PickedSet is { } s ? $"{s.Display.Replace(" / ", ", ")} has saves in {s.Profiles.Count} profiles. Pick the one you play on." : "";
+    public string ProfileHint => PickedSet is { } s ? Tr.P(s.Profiles.Count, "{1} has saves in 1 profile. Pick the one you play on.",
+                                                           "{1} has saves in {0} profiles. Pick the one you play on.", s.Display.Replace(" / ", ", ")) : "";
 
     public string? Profile
     {
@@ -276,7 +277,7 @@ public sealed class SavePickViewModel : ViewModelBase
         if (pick == "folder")
         {
             if (main.Host is not { } host) return;
-            var folder = await host.PickFolderAsync(Mode == SaveMode.Import ? "The folder with the saves" : "The folder to export to", null);
+            var folder = await host.PickFolderAsync(Mode == SaveMode.Import ? Tr.T("The folder with the saves") : Tr.T("The folder to export to"), null);
             if (folder == null) return;
             op.Folder = folder;
         }
@@ -317,16 +318,16 @@ public sealed class SavesConfirmViewModel : ViewModelBase
     public string? Backup { get; private set; }
     public string? Problem { get; private set; }
 
-    public string Title => Op.Mode == SaveMode.Import ? "Import saves from " + From.Name : "Export saves to " + To.Name;
+    public string Title => Op.Mode == SaveMode.Import ? Tr.F("Import saves from {0}", From.Name) : Tr.F("Export saves to {0}", To.Name);
 
-    public string Sub => $"Check what gets replaced. Nothing changes until you choose {Op.Verb}.";
+    public string Sub => Tr.F("Check what gets replaced. Nothing changes until you choose {0}.", Op.Verb);
     public string Verb => Op.Verb;
 
-    public string Replaced => $"Replaced in {To.Name}: " + (To.Slots.Count == 0 ? "nothing saved yet" : SaveText.Long(To.Slots, DateTime.Now)) +
-                              ", its account.sav" + (Op.KeepSettings ? "" : ", and its game settings (option.sav)") + ".";
+    public string Replaced => Tr.F(Op.KeepSettings ? "Replaced in {0}: {1}, its account.sav." : "Replaced in {0}: {1}, its account.sav, and its game settings (option.sav).",
+                                   To.Name, To.Slots.Count == 0 ? Tr.T("nothing saved yet") : SaveText.Long(To.Slots, DateTime.Now));
 
-    public string KeepLabel => "Keep " + (Op.Mode == SaveMode.Export ? To.Name + "'s" : "Longshot's") +
-                               " game settings (option.sav)";
+    public string KeepLabel => Op.Mode == SaveMode.Export ? Tr.F("Keep {0}'s game settings (option.sav)", To.Name)
+        : Tr.T("Keep Longshot's game settings (option.sav)");
 
     public bool KeepSettings
     {
@@ -338,8 +339,9 @@ public sealed class SavesConfirmViewModel : ViewModelBase
         }
     }
 
-    public string BackupLine => Backup != null ? "Backup first, to " + ShownPath.Of(Backup) : Problem ?? "Nothing there yet to back up.";
-    public string CloseFirst => "Close the game" + (Op.Set != null ? " and " + (Op.Set.Display.Contains('/') ? "the emulator" : Op.OtherName) : "") + " first.";
+    public string BackupLine => Backup != null ? Tr.F("Backup first, to {0}", ShownPath.Of(Backup)) : Problem ?? Tr.T("Nothing there yet to back up.");
+    public string CloseFirst => Op.Set == null ? Tr.T("Close the game first.")
+        : Op.Set.Display.Contains('/') ? Tr.T("Close the game and the emulator first.") : Tr.F("Close the game and {0} first.", Op.OtherName);
 
     public Command BackCommand { get; }
     public Command RunCommand { get; }
@@ -359,7 +361,7 @@ public sealed class SavesConfirmViewModel : ViewModelBase
         {
             var (_, found) = Saves.Locate(Op.Program, Op.Folder, Page.Env);
             var p = Saves.Pick(found, Op.OtherName, Op.Profile);
-            other = new SaveSide(Op.OtherName, p.Path + (found.Count > 1 ? $" (profile {p.Id[..Math.Min(8, p.Id.Length)]}…)" : ""), Saves.Describe(p.Path), p.Path, true);
+            other = new SaveSide(Op.OtherName, p.Path + (found.Count > 1 ? Tr.F(" (profile {0}…)", p.Id[..Math.Min(8, p.Id.Length)]) : ""), Saves.Describe(p.Path), p.Path, true);
         }
         catch (SaveFailure e)
         {
@@ -392,7 +394,7 @@ public sealed class SavesConfirmViewModel : ViewModelBase
         try
         {
             if (Op.Mode == SaveMode.Import && Saves.ImportTarget(Page.Env) != To.Path)
-                throw new SaveFailure("Longshot's save location changed. Go back and review the import again.");
+                throw new SaveFailure(Tr.T("Longshot's save location changed. Go back and review the import again."));
             var done = Saves.ImportExport(Op.Mode == SaveMode.Import, Op.Program, Op.Folder, Page.Env, Op.Profile, Op.KeepSettings);
             if (Op.Mode == SaveMode.Import && Op.Program.Name == "nx2navi")
             {
@@ -454,20 +456,20 @@ public sealed class SavesResultViewModel : ViewModelBase
 
     public string Heading => Kind switch
     {
-        SaveResult.Done => Confirm.Op.Mode == SaveMode.Import ? "Saves imported from " + Confirm.From.Name : "Saves exported to " + Confirm.To.Name,
-        SaveResult.Running => "Close the game first",
-        SaveResult.Waiting => "NX2navi has a save waiting",
-        _ => "The saves were not copied",
+        SaveResult.Done => Confirm.Op.Mode == SaveMode.Import ? Tr.F("Saves imported from {0}", Confirm.From.Name) : Tr.F("Saves exported to {0}", Confirm.To.Name),
+        SaveResult.Running => Tr.T("Close the game first"),
+        SaveResult.Waiting => Tr.T("NX2navi has a save waiting"),
+        _ => Tr.T("The saves were not copied"),
     };
 
     public string Sub => Kind switch
     {
-        SaveResult.Done => $"{Confirm.To.Name} now has {SaveText.Long(Confirm.TargetSlotsNow(), DateTime.Now)}" +
-                           (Confirm.Op.KeepSettings ? ", with its own game settings kept." : "."),
-        SaveResult.Running => $"{(Who.Count > 0 ? string.Join(" and ", Who) : "A game")} is running. A running game can write its save again when it quits, " +
-                              "and undo the copy. Close it, then try again.",
-        SaveResult.Waiting => "NX2navi writes a save to profile/save-tx first and moves it into place at its next start; until then that is the save it " +
-                              "loads. Start NX2navi and quit it, then try again.",
+        SaveResult.Done => Tr.F(Confirm.Op.KeepSettings ? "{0} now has {1}, with its own game settings kept." : "{0} now has {1}.",
+                                Confirm.To.Name, SaveText.Long(Confirm.TargetSlotsNow(), DateTime.Now)),
+        SaveResult.Running => Tr.F("{0} is running. A running game can write its save again when it quits, and undo the copy. Close it, then try again.",
+                                   Who.Count > 0 ? string.Join(Tr.T(" and "), Who) : Tr.T("A game")),
+        SaveResult.Waiting => Tr.T("NX2navi writes a save to profile/save-tx first and moves it into place at its next start; until then that is the save it " +
+                                   "loads. Start NX2navi and quit it, then try again."),
         _ => Message ?? "",
     };
 
@@ -477,13 +479,14 @@ public sealed class SavesResultViewModel : ViewModelBase
         get
         {
             var n = Confirm.TargetSlotsNow().Count;
-            var slots = $"{n} save slot{(n == 1 ? "" : "s")}";
-            return Confirm.Op.Mode == SaveMode.Import ? $"Imported {slots} from {Confirm.From.Name}." : $"Exported {slots} to {Confirm.To.Name}.";
+            return Confirm.Op.Mode == SaveMode.Import
+                ? Tr.P(n, "Imported 1 save slot from {1}.", "Imported {0} save slots from {1}.", Confirm.From.Name)
+                : Tr.P(n, "Exported 1 save slot to {1}.", "Exported {0} save slots to {1}.", Confirm.To.Name);
         }
     }
 
-    public string Faint => Done ? (HasBackup ? "The saves it replaced are backed up, in " + ShownPath.Of(Backup) + "." : "There was nothing there to back up.")
-        : HasBackup ? "Nothing was changed. The backup made first is in " + ShownPath.Of(Backup) + "." : "Nothing was changed.";
+    public string Faint => Done ? (HasBackup ? Tr.F("The saves it replaced are backed up, in {0}.", ShownPath.Of(Backup)) : Tr.T("There was nothing there to back up."))
+        : HasBackup ? Tr.F("Nothing was changed. The backup made first is in {0}.", ShownPath.Of(Backup)) : Tr.T("Nothing was changed.");
 
     public Command BackCommand { get; }
     public Command RetryCommand { get; }

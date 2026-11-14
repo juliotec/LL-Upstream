@@ -165,7 +165,7 @@ static partial class Program
                 && Regex.IsMatch(home, @"void BusyChanged\(\)\s*\{\s*BuildCommand\.Changed\(\);"),
                 "Build is asked again whenever the check or the launcher update starts or ends.");
         var view = File.ReadAllText(Path.Combine(repo, "App", "Views", "HomeView.axaml"));
-        Require(view.Contains("IsBusy=\"{Binding UpdateLauncherCommand.IsBusy}\" BusyText=\"Updating…\"")
+        Require(view.Contains("IsBusy=\"{Binding UpdateLauncherCommand.IsBusy}\" BusyText=\"{c:T 'Updating…'}\"")
                 && view.Contains("Text=\"{Binding UpdateLauncherCommand.Status}\"") && view.Contains("Value=\"{Binding UpdateLauncherCommand.Progress}\"")
                 && view.Contains("Command=\"{Binding CancelLauncherUpdateCommand}\""),
                 "The launcher's banner shows its update running: the button's spinner, each step, the download's bar, Cancel.");

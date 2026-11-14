@@ -92,12 +92,26 @@ def check_save_user(longshot):
         raise SystemExit("Core/Saves.cs's UserId differs from Longshot's player: " + expected)
 
 
+def check_translations():
+    """The catalogs' texts are the window's, with their placeholders and plural forms (scripts/translations.py). A text a catalog
+    lacks shows in English: said, not a failure"""
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import translations
+    _, faults, lacking = translations.check()
+    for code, texts in lacking.items():
+        if texts:
+            print("translations: Core/Lang/%s.json lacks %d texts (they show in English)" % (code, len(texts)))
+    if faults:
+        raise SystemExit("translations (python -I scripts/translations.py):\n" + "\n".join(faults[:40]))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dotnet", default=None)
     parser.add_argument("--strict", action="store_true")
     parser.add_argument("--longshot", type=Path, default=None)
     args = parser.parse_args()
+    check_translations()
     if args.longshot:
         check_languages(args.longshot)
         check_licences(args.longshot)

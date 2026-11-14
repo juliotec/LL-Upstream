@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:c="using:LongshotLauncher.Controls"
              xmlns:vm="using:LongshotLauncher.ViewModels"
              x:Class="LongshotLauncher.Views.SavePickView"
              x:DataType="vm:SavePickViewModel">
@@ -22,7 +23,7 @@
                       <Border Classes="tag" Classes.rc="{Binding IsCandidate}" Classes.nightly="{Binding IsNightly}" IsVisible="{Binding HasChannel}">
                         <TextBlock Text="{Binding Channel}"/>
                       </Border>
-                      <Border Classes="chip warn small" IsVisible="{Binding Waiting}"><TextBlock Text="Save waiting"/></Border>
+                      <Border Classes="chip warn small" IsVisible="{Binding Waiting}"><TextBlock Text="{c:T 'Save waiting'}"/></Border>
                     </StackPanel>
                     <TextBlock Classes="chanabout" Classes.dim="{Binding Dim}" FontSize="11.5" Text="{Binding About}" IsVisible="{Binding HasAbout}"
                                TextTrimming="CharacterEllipsis"/>
@@ -34,7 +35,7 @@
           </ItemsControl.ItemTemplate>
         </ItemsControl>
         <StackPanel IsVisible="{Binding HasProfiles}">
-          <TextBlock Classes="label" Text="PROFILE" Margin="0,16,0,0"/>
+          <TextBlock Classes="label" Text="{c:T 'PROFILE'}" Margin="0,16,0,0"/>
           <TextBlock Classes="hint" Text="{Binding ProfileHint}" Margin="0,2,0,0"/>
           <ItemsControl ItemsSource="{Binding Profiles}" Margin="0,14,0,0">
             <ItemsControl.ItemsPanel>
@@ -53,8 +54,8 @@
           </ItemsControl>
         </StackPanel>
         <StackPanel Classes="buttons" Margin="0,16,0,0">
-          <Button Content="Cancel" Command="{Binding CancelCommand}"/>
-          <Button Classes="primary" Content="Continue" Command="{Binding GoCommand}"/>
+          <Button Content="{c:T 'Cancel'}" Command="{Binding CancelCommand}"/>
+          <Button Classes="primary" Content="{c:T 'Continue'}" Command="{Binding GoCommand}"/>
         </StackPanel>
       </StackPanel>
     </ScrollViewer>

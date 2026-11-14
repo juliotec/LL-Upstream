@@ -17,16 +17,16 @@
       <Button Classes="go" Command="{Binding PlayCommand}">
         <StackPanel Orientation="Horizontal" Spacing="8">
           <c:Icon Kind="play" Width="18" Height="18"/>
-          <TextBlock Text="Play"/>
+          <TextBlock Text="{c:T 'Play'}"/>
         </StackPanel>
       </Button>
-      <Button Classes="tall" Content="Open folder" Command="{Binding FolderCommand}"/>
+      <Button Classes="tall" Content="{c:T 'Open folder'}" Command="{Binding FolderCommand}"/>
     </StackPanel>
     <StackPanel Orientation="Horizontal" Spacing="22" HorizontalAlignment="Center" Margin="0,24,0,0">
-      <CheckBox Classes="tick" Content="Desktop shortcut" IsChecked="{Binding Desktop}"/>
+      <CheckBox Classes="tick" Content="{c:T 'Desktop shortcut'}" IsChecked="{Binding Desktop}"/>
       <CheckBox Classes="tick" Content="{Binding MenuLabel}" IsChecked="{Binding Menu}"/>
-      <CheckBox Classes="tick" Content="Play starts this version" IsChecked="{Binding IsDefault}" IsVisible="{Binding ShowDefaultTick}"/>
+      <CheckBox Classes="tick" Content="{c:T 'Play starts this version'}" IsChecked="{Binding IsDefault}" IsVisible="{Binding ShowDefaultTick}"/>
     </StackPanel>
-    <Button Classes="link soft" Content="Back to your versions" Command="{Binding HomeCommand}" HorizontalAlignment="Center" Margin="0,22,0,0"/>
+    <Button Classes="link soft" Content="{c:T 'Back to your versions'}" Command="{Binding HomeCommand}" HorizontalAlignment="Center" Margin="0,22,0,0"/>
   </StackPanel>
 </UserControl>

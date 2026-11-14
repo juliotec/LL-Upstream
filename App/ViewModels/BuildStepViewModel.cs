@@ -11,14 +11,16 @@ public sealed class StageRowViewModel : ViewModelBase
 {
     string detail = "", time = "", timeFaint = "", state = "wait";
 
+    readonly string name;
+
     public StageRowViewModel(string id, string name)
     {
         Id = id;
-        Name = name;
+        this.name = name;
     }
 
     public string Id { get; }
-    public string Name { get; }
+    public string Name => Tr.T(name);
     public string Detail { get => detail; set => Set(ref detail, value); }
     public string Time { get => time; set => Set(ref time, value); }
     public string TimeFaint { get => timeFaint; set => Set(ref timeFaint, value); }
@@ -46,8 +48,8 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
 {
     static readonly Dictionary<string, string> Names = new()
     {
-        ["download"] = "Download tools", ["read"] = "Read the game files", ["lift"] = "Translate", ["compile"] = "Compile",
-        ["finish"] = "Finish", [MakeGameProtocol.ShadersStage] = "Prepare shaders",
+        ["download"] = Tr.N("Download tools"), ["read"] = Tr.N("Read the game files"), ["lift"] = Tr.N("Translate"), ["compile"] = Tr.N("Compile"),
+        ["finish"] = Tr.N("Finish"), [MakeGameProtocol.ShadersStage] = Tr.N("Prepare shaders"),
     };
 
     readonly BuildProgress progress;
@@ -97,14 +99,14 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
 
     public string Title => Job.Kind switch
     {
-        JobKind.Update => "Updating to " + Job.Shown,
-        JobKind.Rebuild => "Rebuilding " + Job.Shown,
-        _ => "Building " + Job.Shown,
+        JobKind.Update => Tr.F("Updating to {0}", Job.Shown),
+        JobKind.Rebuild => Tr.F("Rebuilding {0}", Job.Shown),
+        _ => Tr.F("Building {0}", Job.Shown),
     };
 
     public double Overall => progress.Overall;
     public string Percent => (int)Math.Floor(progress.Overall * 100) + "%";
-    public string Left => clock.SecondsLeft(progress) is double secs ? Durations.About(secs) + " left" : "Working out the time left";
+    public string Left => clock.SecondsLeft(progress) is double secs ? Tr.F("{0} left", Durations.About(secs)) : Tr.T("Working out the time left");
 
     public bool ShowLog
     {
@@ -116,7 +118,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
     }
 
     public bool ShowStages => !showLog;
-    public string LogButton => showLog ? "Hide details" : "Show details";
+    public string LogButton => showLog ? Tr.T("Hide details") : Tr.T("Show details");
     public string LogText
     {
         get
@@ -185,7 +187,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
             catch (OperationCanceledException) { return; }
             catch (Exception e) when (e is System.ComponentModel.Win32Exception or IOException or InvalidOperationException)
             {
-                Ui.Post(() => Fail("The build tools could not start: " + e.Message));
+                Ui.Post(() => Fail(Tr.F("The build tools could not start: {0}", e.Message)));
                 return;
             }
             Ui.Post(() => Exited(code));
@@ -229,7 +231,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
         ticker?.Stop();
         Update();
         if (progress.Finished && code == 0) Complete();
-        else Fail(progress.Error ?? lastError ?? $"make_game.py stopped with exit code {code} without saying why.");
+        else Fail(progress.Error ?? lastError ?? Tr.F("make_game.py stopped with exit code {0} without saying why.", code));
     }
 
     /// The rows, the bar and the time left from the progress and the clock
@@ -241,7 +243,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
             if (st.Id == "download")
             {
                 row.State = "done";
-                row.Detail = Job.ToolsDownloaded ? "Downloaded in step 1" : "Already on this PC";
+                row.Detail = Job.ToolsDownloaded ? Tr.T("Downloaded in step 1") : Tr.T("Already on this PC");
                 row.Time = Job.ToolsDownloaded ? Durations.Clock(Job.ToolsTime) : "";
                 row.TimeFaint = "";
                 continue;
@@ -251,22 +253,22 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
             {
                 case StageState.Done:
                     row.State = "done";
-                    row.Detail = st.Note ?? "Done";
+                    row.Detail = st.Note ?? Tr.T("Done");
                     row.Time = took is { } t ? Durations.Clock(t) : "";
                     row.TimeFaint = "";
                     break;
                 case StageState.Running:
                     row.State = "run";
                     var frac = st.Weight > 0 ? Math.Clamp((progress.Overall - st.Start) / st.Weight, 0, 1) : 0;
-                    row.Detail = st.Note ?? (st.Id == "finish" ? "Writing the game folder" : $"{(int)(frac * 100)}%");
+                    row.Detail = st.Note ?? (st.Id == "finish" ? Tr.T("Writing the game folder") : $"{(int)(frac * 100)}%");
                     row.Time = took is { } r ? Durations.Clock(r) : "";
                     row.TimeFaint = clock.Estimate(progress, st) is double est ? " / " + Durations.Roughly(est) : "";
                     break;
                 case StageState.Skipped:
                     row.State = "skip";
-                    row.Detail = st.Note ?? "At the game's first start";
+                    row.Detail = st.Note ?? Tr.T("At the game's first start");
                     row.Time = "";
-                    row.TimeFaint = "Skipped";
+                    row.TimeFaint = Tr.T("Skipped");
                     break;
                 default:
                     row.State = progress.Error != null && progress.Current == st.Id ? "fail" : "wait";
@@ -287,7 +289,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
         ticker?.Stop();
         cancel.Cancel();
         Job.Main.ShowHome();
-        Job.Main.ShowToast("Build stopped.");
+        Job.Main.ShowToast(Tr.T("Build stopped."));
     }
 
     void Fail(string why)
@@ -295,7 +297,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
         running = false;
         ticker?.Stop();
         var at = progress.Stages.FirstOrDefault(s => s.Id == progress.Current) ?? progress.Stages.LastOrDefault(s => s.State == StageState.Done);
-        var name = at != null ? Names.GetValueOrDefault(at.Id, at.Title) : "the build";
+        var name = at != null ? Tr.T(Names.GetValueOrDefault(at.Id, at.Title)) : Tr.T("the build");
         var pct = (int)Math.Floor(progress.Overall * 100);
         Job.Main.Navigate(new ProblemViewModel(this, why, name, pct));
     }
@@ -327,7 +329,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
         entry.Bytes = null;
         string? problem = null;
         try { registry.Save(); }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { problem = "The list of builds could not be saved: " + e.Message; }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { problem = Tr.F("The list of builds could not be saved: {0}", e.Message); }
         service.PruneTools();
 
         // (no saves to move: every build shares them, SaveEnvironment.LongshotUser)
@@ -368,7 +370,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
 /// "Stop the build?"
 public sealed class StopBuildViewModel(BuildStepViewModel build) : ViewModelBase
 {
-    public string Sub => $"The tools and the files read so far are kept, so building {build.Job.Shown} again starts faster.";
+    public string Sub => Tr.F("The tools and the files read so far are kept, so building {0} again starts faster.", build.Job.Shown);
     public Command KeepCommand { get; } = new(() => build.Job.Main.Modal = null);
     public Command StopCommand { get; } = new(() => { build.Job.Main.Modal = null; build.Stop(); });
 }
@@ -393,11 +395,11 @@ public sealed class ReadyViewModel : ViewModelBase, IWizardPage
                 var said = Main.Service.Play(Entry);
                 Main.ShowHome();
                 if (said != null) Main.Home.Notice = said;
-                Main.ShowToast($"Starting Longshot, {Version}…");
+                Main.ShowToast(Tr.F("Starting Longshot, {0}…", Version));
             }
             catch (Exception e) when (e is System.ComponentModel.Win32Exception or IOException or InvalidOperationException)
             {
-                Main.ShowToast($"{Version} could not start: {e.Message}");
+                Main.ShowToast(Tr.F("{0} could not start: {1}", Version, e.Message));
             }
         });
         FolderCommand = new Command(() => Main.Host?.Open(Entry.Folder));
@@ -415,11 +417,12 @@ public sealed class ReadyViewModel : ViewModelBase, IWizardPage
     public bool Finished => true;
 
     public string Version => Entry.Version ?? Entry.Name;
-    public string Heading => Version + " is ready";
-    public string Sub => (Kind == JobKind.Update && From != null ? "Updated from " + From : "Built") +
-                         $" in {Math.Max(1, (int)Math.Round(Took.TotalMinutes))} min, in {ShownPath.Of(Entry.Folder)}.";
+    public string Heading => Tr.F("{0} is ready", Version);
+    public string Sub => Kind == JobKind.Update && From != null
+        ? Tr.F("Updated from {0} in {1} min, in {2}.", From, Math.Max(1, (int)Math.Round(Took.TotalMinutes)), ShownPath.Of(Entry.Folder))
+        : Tr.F("Built in {0} min, in {1}.", Math.Max(1, (int)Math.Round(Took.TotalMinutes)), ShownPath.Of(Entry.Folder));
     public bool HasProblem => Problem != null;
-    public string MenuLabel => Main.Linux ? "Applications menu entry" : "Start menu entry";
+    public string MenuLabel => Main.Linux ? Tr.T("Applications menu entry") : Tr.T("Start menu entry");
     public bool ShowDefaultTick => Main.Service.Registry.Builds.Count > 1;
 
     public bool Desktop
@@ -448,12 +451,12 @@ public sealed class ReadyViewModel : ViewModelBase, IWizardPage
             if (value)
             {
                 Main.Service.SetDefault(Entry);
-                Main.ShowToast($"Play now starts {Version}.");
+                Main.ShowToast(Tr.F("Play now starts {0}.", Version));
             }
             else if (Main.Service.Registry.Builds.FirstOrDefault(b => b.Id != Entry.Id) is { } other)
             {
                 Main.Service.SetDefault(other);
-                Main.ShowToast($"Play now starts {other.Version ?? other.Name}.");
+                Main.ShowToast(Tr.F("Play now starts {0}.", other.Version ?? other.Name));
             }
             Raise();
         }
@@ -470,7 +473,7 @@ public sealed class ReadyViewModel : ViewModelBase, IWizardPage
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception or InvalidOperationException)
         {
-            Main.ShowToast("The shortcuts could not be made: " + e.Message);
+            Main.ShowToast(Tr.F("The shortcuts could not be made: {0}", e.Message));
         }
     }
 
@@ -516,12 +519,13 @@ public sealed class ProblemViewModel : ViewModelBase, IWizardPage
     /// The general advice, under a message the launcher doesn't know (a known one has its own)
     public bool Unknown => !Known;
     public bool Memory => Unknown && Why.Contains("memory", StringComparison.OrdinalIgnoreCase);
-    public string Head => Known ? Problem.Headline : "make_game.py stopped";
+    public string Head => Known ? Tr.T(Problem.Headline) : Tr.T("make_game.py stopped");
     /// What make_game.py said: the file, the folder, the build ids it names
-    public string Said => $"Building {build.Job.Shown} stopped in {Stage}, {Percent}% of the way through. It said: {Why}";
-    public string Body => Known ? Problem.Detail : Said;
+    public string Said => Tr.F("Building {0} stopped in {1}, {2}% of the way through. It said: {3}", build.Job.Shown, Stage, Percent, Why);
+    public string Body => Known ? Tr.T(Problem.Detail) : Said;
+    public string OfferLabel => Offer is { } offer ? Tr.T(offer.Label) : "";
     public bool ShowLog { get => showLog; set { if (Set(ref showLog, value)) RaiseAll(nameof(LogButton), nameof(LogTail)); } }
-    public string LogButton => showLog ? "Hide details" : "Show details";
+    public string LogButton => showLog ? Tr.T("Hide details") : Tr.T("Show details");
     public string LogTail => string.Join("\n", build.Log.Tail(LogLevel.Info, null, 6));
 
     public Command ToggleLogCommand { get; }
@@ -552,7 +556,7 @@ public sealed class ProblemViewModel : ViewModelBase, IWizardPage
     async Task Copy()
     {
         if (build.Job.Main.Host is { } host) await host.CopyAsync(build.Report(Why));
-        build.Job.Main.ShowToast("Copied: the version, this PC's memory and GPU, the settings and the log's last 200 lines.");
+        build.Job.Main.ShowToast(Tr.T("Copied: the version, this PC's memory and GPU, the settings and the log's last 200 lines."));
     }
 }
 
