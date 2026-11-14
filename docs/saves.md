@@ -8,7 +8,7 @@ an emulator is running, since a running game can write its save again and undo t
 The save files are the same in Longshot, Hookshot and the emulators and ports that run the game: `account.sav`,
 `option.sav` and one `slot_NN` folder per slot holding `progress.sav` and `caption.sav`. Longshot's own saves guide,
 [docs/saves.md in Longshot](https://git.magicbean.dev/MagicBeanDev/Longshot/src/branch/main/docs/saves.md), has the format,
-where every emulator keeps its saves, and `scripts/oot_saves.py import|export`, the command line that does what this page
+where every emulator keeps its saves, and `scripts/longshot_saves.py import|export`, the command line that does what this page
 does (for Lichii, Eden, NX2navi and the rest) without the launcher.
 
 ## Where Longshot keeps them
@@ -157,7 +157,7 @@ The launcher's tests use no real save and nothing from the game:
 
 - `tests/launcher_core/HookshotChecks.cs` runs on fake save folders in `tests/fixtures/hookshot-saves`, made of one-line
   text files.
-- The save checks in `tests/launcher_core` follow the cases of Longshot's `tests/test_oot_saves.py`.
+- The save checks in `tests/launcher_core` follow the cases of Longshot's `tests/test_longshot_saves.py`.
 - `HookshotSettingsChecks.cs` uses authored INI and language text, including the merge into an existing
   `longshot_options.ini`, replacement backups, failed writes, restoration, skipped values and linked paths.
 

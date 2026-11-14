@@ -174,7 +174,7 @@ compatible Hookshot game settings into the Longshot version you choose, with its
 
 All of it, with where every save lives: [docs/saves.md](docs/saves.md). Longshot's own
 [saves guide](https://git.magicbean.dev/MagicBeanDev/Longshot/src/branch/main/docs/saves.md) has the same from the command
-line (`scripts/oot_saves.py import|export`).
+line (`scripts/longshot_saves.py import|export`).
 
 ## Updates and channels
 
@@ -213,7 +213,7 @@ dotnet run --project App
 
 | | |
 |---|---|
-| `Core/` | `LongshotLauncher.Core`: the logic, no UI and no package. Versions and channels (`Versions`), the signed releases of Longshot and of the launcher (`Releases`, `ReleaseTrust`, `ReleaseManifest`), its own update (`SelfUpdate`), each version's builder and its tools.lock (`Toolchains`, `ToolsSource`, `ToolsLock`), game folders, `builds.json` (`BuildRegistry`), remembered settings, make_game.py's command line, `@@` lines, run and check (`MakeGameCommand`, `MakeGameProtocol`, `MakeGameRun`), the game files found on this PC (`GameFiles`), update offers (`UpdatePolicy`), saves (`Saves`, a port of Longshot's `scripts/oot_saves.py`; `SaveText`) and Hookshot's (`HookshotSaves`), disk space (`Disk`), this PC (`SystemInfo`), shortcuts (`Shortcuts`), installed or portable (`LauncherLayout`, `Installer`), one launcher per home (`InstanceLock`), the launcher's home and command line |
+| `Core/` | `LongshotLauncher.Core`: the logic, no UI and no package. Versions and channels (`Versions`), the signed releases of Longshot and of the launcher (`Releases`, `ReleaseTrust`, `ReleaseManifest`), its own update (`SelfUpdate`), each version's builder and its tools.lock (`Toolchains`, `ToolsSource`, `ToolsLock`), game folders, `builds.json` (`BuildRegistry`), remembered settings, make_game.py's command line, `@@` lines, run and check (`MakeGameCommand`, `MakeGameProtocol`, `MakeGameRun`), the game files found on this PC (`GameFiles`), update offers (`UpdatePolicy`), saves (`Saves`, a port of Longshot's `scripts/longshot_saves.py`; `SaveText`) and Hookshot's (`HookshotSaves`), disk space (`Disk`), this PC (`SystemInfo`), shortcuts (`Shortcuts`), installed or portable (`LauncherLayout`, `Installer`), one launcher per home (`InstanceLock`), the launcher's home and command line |
 | `Core/Lang/` | The launcher's translations, one catalog per language (`Tr`, [Translations](#translations)) |
 | `App/` | `LongshotLauncher`: the Avalonia window. `ViewModels/` (one per page and dialog), `Views/` (one .axaml each, compiled bindings), `Controls/` (icons, bars and spinner), `App.axaml` (the palette and the styles), `Assets/` (the Longshot logo and icon, the Inter font with its licence) |
 | `tests/` | `test_launcher_core.py` (builds `launcher_core/`, which compiles `Core/` and checks it), `test_release.py` (`scripts/release.py`), `fixtures/` (signed test releases, fake Hookshot saves) |
@@ -251,7 +251,7 @@ files `scripts/release.py` signed with a test key), the launcher's own update (d
 recovery from a swap cut short, the portable zip), install, uninstall and the portable layouts (with a fake registry and fake
 shortcuts: the tests never touch the real ones), one launcher per home, a download that stalls, a save copy that fails half
 way, the
-saves against Longshot's `tests/test_oot_saves.py` cases, the Hookshot import against fake saves, and the rest over
+saves against Longshot's `tests/test_longshot_saves.py` cases, the Hookshot import against fake saves, and the rest over
 temporary folders. With `--longshot`, it also checks the languages and the DLSS and FSR 4 licence texts against Longshot's
 `make_game.py`, `ngx_sdk.py` and `ffx_sdk.py`. The second checks `scripts/release.py` with keys it makes (it needs the
 `openssl` command line). CI runs both and compiles with warnings as errors. Contributing: [CONTRIBUTING.md](CONTRIBUTING.md).
@@ -328,7 +328,7 @@ The Longshot Launcher is for [Longshot](https://git.magicbean.dev/MagicBeanDev/L
 - **HumanBean** (hckrman101 on GitHub): wrote the launcher as Hookshot's 3.0 launcher, then ported it here and renamed it to
   Longshot.
 - **NotRexed and the Hookshot contributors**: [Hookshot](https://github.com/NotRexed/Hookshot) and its 2.x Builders, whose
-  palette, game file finder and save tool (`scripts/oot_saves.py`) the launcher carries on.
+  palette, game file finder and save tool (`scripts/oot_saves.py`, now Longshot's `scripts/longshot_saves.py`) the launcher carries on.
 - Everyone who sent fixes to the Builders and the save tool in Hookshot and Longshot.
 - **[Avalonia](https://avaloniaui.net)** (MIT): the window toolkit.
 - **[Inter](https://rsms.me/inter/)** by Rasmus Andersson (SIL Open Font License 1.1, `App/Assets/Fonts/Inter-LICENSE.txt`):

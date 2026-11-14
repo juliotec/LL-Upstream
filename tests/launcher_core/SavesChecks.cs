@@ -1,7 +1,7 @@
 using LongshotLauncher.Core;
 
-/// launcher/Core/Saves.cs over tests/test_oot_saves.py's vectors (the same folders, the same expectations), so the launcher and
-/// scripts/oot_saves.py agree. Fake saves made here only: HOME, XDG_DATA_HOME, APPDATA and LOCALAPPDATA all point into one folder.
+/// launcher/Core/Saves.cs over tests/test_longshot_saves.py's vectors (the same folders, the same expectations), so the launcher and
+/// scripts/longshot_saves.py agree. Fake saves made here only: HOME, XDG_DATA_HOME, APPDATA and LOCALAPPDATA all point into one folder.
 static class SavesChecks
 {
     public static int Count;
@@ -77,7 +77,7 @@ static class SavesChecks
         public IReadOnlyList<string> BackupDirs() =>
             Directory.Exists(Backups) ? Directory.EnumerateDirectories(Backups).Order(StringComparer.Ordinal).ToList() : Array.Empty<string>();
 
-        /// oot_saves.main import|export with the name or folder: Longshot's side on Linux
+        /// longshot_saves.main import|export with the name or folder: Longshot's side on Linux
         public SaveCopy Run(bool import, string? name, string? folder = null, string? profile = null, bool keep = false, bool dry = false, bool force = false)
         {
             var other = name == null ? Saves.Folder : Saves.Named(name);

@@ -4,7 +4,7 @@ using System.Text.RegularExpressions;
 
 namespace LongshotLauncher.Core;
 
-/// A program that runs the game and keeps its saves (scripts/oot_saves.py Program): where it keeps its data on each platform,
+/// A program that runs the game and keeps its saves (scripts/longshot_saves.py Program): where it keeps its data on each platform,
 /// in the order tried ({data}, {home}, {appdata}, {localappdata}), its process names (lower case, no .exe) and other names
 public sealed record SaveProgram(string Name, string Display, IReadOnlyDictionary<Platform, string[]> Folders, string[] Processes, string[] Aliases);
 
@@ -27,7 +27,7 @@ public sealed record SaveCopy(string Source, string Target, string? Backup, IRea
 /// already), the old user folders whose save was moved aside, and the backup of every one of them, the shared one's too
 public sealed record SaveGathered(string From, bool WasShared, IReadOnlyList<string> Moved, string Backup);
 
-/// A copy refused, and why (oot_saves.Fail)
+/// A copy refused, and why (longshot_saves.Fail)
 public sealed class SaveFailure(string message, SaveRefusal reason = SaveRefusal.Other, IReadOnlyList<string>? who = null, string? backup = null)
     : Exception(message)
 {
@@ -46,7 +46,7 @@ public sealed class SaveFailure(string message, SaveRefusal reason = SaveRefusal
 public enum SaveRefusal { Other, Running, Waiting, Exists }
 
 /// The environment the save folders are worked out from: the platform and its variables (HOME, XDG_DATA_HOME, APPDATA,
-/// LOCALAPPDATA), so the tests point them all into one temporary folder as tests/test_oot_saves.py does
+/// LOCALAPPDATA), so the tests point them all into one temporary folder as tests/test_longshot_saves.py does
 public sealed record SaveEnvironment(Platform Platform, Func<string, string?> Getenv)
 {
     public static SaveEnvironment Current() => new(Platforms.Current, Environment.GetEnvironmentVariable);
@@ -54,7 +54,7 @@ public sealed record SaveEnvironment(Platform Platform, Func<string, string?> Ge
     string Home => Getenv("HOME") is { Length: > 0 } h ? h : Getenv("USERPROFILE") is { Length: > 0 } u ? u
                    : Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 
-    /// oot_saves.data_home
+    /// longshot_saves.data_home
     public string Data => Getenv("XDG_DATA_HOME") is { Length: > 0 } x ? x : Path.Combine(Home, ".local", "share");
 
     string AppData => Getenv("APPDATA") is { Length: > 0 } a ? a : Path.Combine(Home, "AppData", "Roaming");
@@ -73,12 +73,12 @@ public sealed record SaveEnvironment(Platform Platform, Func<string, string?> Ge
         ? UserFolder ?? Path.Combine(AppData, "Longshot")
         : Path.Combine(Data, "longshot"));
 
-    /// oot_saves.default_backup_dir: the script's and the launcher's backups in one place
+    /// longshot_saves.default_backup_dir: the script's and the launcher's backups in one place
     public string BackupRoot => BackupFolder ?? (Platform == Platform.Windows
         ? Path.Combine(LocalAppData, "Longshot", "oot-save-backups")
         : Path.Combine(Data, "oot-save-backups"));
 
-    /// oot_saves.folders: a program's data folders on this platform, in the order they are tried
+    /// longshot_saves.folders: a program's data folders on this platform, in the order they are tried
     public IReadOnlyList<string> FoldersOf(SaveProgram program) =>
         program.Folders.TryGetValue(Platform, out var list)
             ? list.Select(t => Path.GetFullPath(t.Replace("{data}", Data).Replace("{home}", Home).Replace("{appdata}", AppData)
@@ -87,7 +87,7 @@ public sealed record SaveEnvironment(Platform Platform, Func<string, string?> Ge
 }
 
 /// The game's saves, the same files in Longshot and in the emulators and ports that run it (Longshot's docs/saves.md): found, summed up and
-/// copied one way after a backup. A port of scripts/oot_saves.py, rule for rule (each piece names the function it mirrors), so
+/// copied one way after a backup. A port of scripts/longshot_saves.py, rule for rule (each piece names the function it mirrors), so
 /// that the launcher needs no Python and no installed tools for it. Every build shares one save folder
 /// (SaveEnvironment.LongshotUser: save\&lt;user id&gt;\ in %APPDATA%\Longshot on Windows, $XDG_DATA_HOME/longshot on Linux). Windows
 /// builds kept their own in their game folder (&lt;folder&gt;\user) before: Gather brings those into the shared one.
@@ -100,7 +100,7 @@ public static class Saves
 
     static Dictionary<Platform, string[]> On(string[] linux, string[] windows) => new() { [Platform.Linux] = linux, [Platform.Windows] = windows };
 
-    // (oot_saves.EDEN, LICHII, EMULATORS, LONGSHOT, FOLDER; their sources are in Longshot's docs/saves.md)
+    // (longshot_saves.EDEN, LICHII, EMULATORS, LONGSHOT, FOLDER; their sources are in Longshot's docs/saves.md)
     static readonly string[] EdenLinux = { "{data}/eden" }, EdenWindows = { "{appdata}/eden" };
     public static readonly IReadOnlyList<SaveProgram> Emulators = new[]
     {
@@ -118,7 +118,7 @@ public static class Saves
     public static readonly SaveProgram Longshot = new("longshot", "Longshot", On(new[] { "{data}/longshot" }, new[] { "{appdata}/Longshot" }), new[] { "longshot" }, Array.Empty<string>());
     public static readonly SaveProgram Folder = new("folder", "the folder", On(Array.Empty<string>(), Array.Empty<string>()), Array.Empty<string>(), Array.Empty<string>());
 
-    // (oot_saves.LAYOUTS: where the save folders sit under a data folder; "<id>" is one folder per profile. A folder deeper down
+    // (longshot_saves.LAYOUTS: where the save folders sit under a data folder; "<id>" is one folder per profile. A folder deeper down
     // the same path is accepted too; the first layout that finds a profile wins)
     static readonly string[][] Layouts =
     {
@@ -131,24 +131,24 @@ public static class Saves
 
     // ---- finding them ----
 
-    /// oot_saves.subdirs: the folders in path, sorted; none when it cannot be read
+    /// longshot_saves.subdirs: the folders in path, sorted; none when it cannot be read
     static List<string> Subdirs(string path)
     {
         try { return Directory.EnumerateDirectories(path).Select(System.IO.Path.GetFileName).OfType<string>().OrderBy(n => n, StringComparer.Ordinal).ToList(); }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException) { return new List<string>(); }
     }
 
-    /// oot_saves.slots
+    /// longshot_saves.slots
     public static IReadOnlyList<string> SlotNames(string path) => Subdirs(path).Where(n => n.StartsWith("slot_", StringComparison.Ordinal)).ToList();
 
-    /// oot_saves.is_save_folder
+    /// longshot_saves.is_save_folder
     public static bool IsSaveFolder(string path) => File.Exists(System.IO.Path.Combine(path, "account.sav")) || SlotNames(path).Count > 0;
 
     static string Base(string path) => System.IO.Path.GetFileName(System.IO.Path.TrimEndingDirectorySeparator(path));
 
     static string Up(string path) => System.IO.Path.GetDirectoryName(System.IO.Path.TrimEndingDirectorySeparator(path)) ?? path;
 
-    /// oot_saves.walk
+    /// longshot_saves.walk
     static IEnumerable<(string? Key, string Path)> Walk(string root, ArraySegment<string> parts, string? key)
     {
         if (parts.Count == 0)
@@ -165,7 +165,7 @@ public static class Saves
         }
     }
 
-    /// oot_saves.find_saves: the game's save folders under root, one per profile id, in the order found; root may be the save
+    /// longshot_saves.find_saves: the game's save folders under root, one per profile id, in the order found; root may be the save
     /// folder itself
     public static IReadOnlyList<SaveProfile> Find(string root)
     {
@@ -204,7 +204,7 @@ public static class Saves
         return found;
     }
 
-    /// oot_saves.locate: (folder, profiles) for program: the override when given, else the first of its folders with saves
+    /// longshot_saves.locate: (folder, profiles) for program: the override when given, else the first of its folders with saves
     public static (string Folder, IReadOnlyList<SaveProfile> Profiles) Locate(SaveProgram program, string? folder, SaveEnvironment env)
     {
         if (folder != null)
@@ -223,7 +223,7 @@ public static class Saves
                               $"start the game in {program.Display} once and save, or choose its folder.");
     }
 
-    /// oot_saves.pick: the one profile, or the one asked for; several and none asked for is an error that lists them
+    /// longshot_saves.pick: the one profile, or the one asked for; several and none asked for is an error that lists them
     public static SaveProfile Pick(IReadOnlyList<SaveProfile> found, string name, string? wanted = null)
     {
         if (wanted != null)
@@ -235,12 +235,12 @@ public static class Saves
         return found.Count == 1 ? found[0] : throw new SaveFailure($"{name} has no save.");
     }
 
-    /// oot_saves.program_named: an emulator by its name or another name
+    /// longshot_saves.program_named: an emulator by its name or another name
     public static SaveProgram Named(string name) =>
         Emulators.FirstOrDefault(p => p.Name == name.ToLowerInvariant() || p.Aliases.Contains(name.ToLowerInvariant()))
         ?? throw new SaveFailure($"Unknown emulator {name}: use one of {string.Join(", ", Emulators.Select(p => p.Name))}, or choose a folder.");
 
-    /// oot_saves.pending_commit: NX2navi writes a save to profile/save-tx first and moves it into profile/save/&lt;account&gt; after;
+    /// longshot_saves.pending_commit: NX2navi writes a save to profile/save-tx first and moves it into profile/save/&lt;account&gt; after;
     /// while a finished commit waits there (save-tx/ready-&lt;n&gt;, n from 1), that is the save the game loads next. The rest of
     /// save-tx is not a save in waiting (NX2navi's runtime/fs_host.c, "save transactions"): work/ is the working copy, which a
     /// quit leaves behind (the exit waits for a commit but does not unmount the save) and the next start deletes; new/ is an unfinished
@@ -262,7 +262,7 @@ public static class Saves
         && ulong.TryParse(name[6..], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var n)
         && n is > 0 and <= uint.MaxValue;
 
-    /// oot_saves.describe: each slot and when its progress.sav was written (local time)
+    /// longshot_saves.describe: each slot and when its progress.sav was written (local time)
     public static IReadOnlyList<SaveSlot> Describe(string path) =>
         SlotNames(path).Select(s =>
         {
@@ -270,7 +270,7 @@ public static class Saves
             return new SaveSlot(s, File.Exists(p) ? File.GetLastWriteTime(p) : null);
         }).ToList();
 
-    // ---- by build, and everything at once (oot_saves.list_all) ----
+    // ---- by build, and everything at once (longshot_saves.list_all) ----
 
     /// Longshot's saves, the same for every build: in SaveEnvironment.LongshotUser (save\&lt;user id&gt;)
     public static SaveSet Shared(SaveEnvironment env)
@@ -312,7 +312,7 @@ public static class Saves
         }).ToList();
     }
 
-    // ---- is a game running (oot_saves.process_names, running_games) ----
+    // ---- is a game running (longshot_saves.process_names, running_games) ----
 
     /// {process name: what it belongs to}
     public static IReadOnlyDictionary<string, string> ProcessNames()
@@ -383,11 +383,11 @@ public static class Saves
         return RunningFrom(platform, candidates);
     }
 
-    // ---- the copy (oot_saves.run, copy_saves, refuse_links) ----
+    // ---- the copy (longshot_saves.run, copy_saves, refuse_links) ----
 
     static bool IsLink(FileSystemInfo info) => info.LinkTarget != null || info.Attributes.HasFlag(FileAttributes.ReparsePoint);
 
-    /// oot_saves.refuse_links: a save from someone else is only files and folders: a link in it would copy what it points to
+    /// longshot_saves.refuse_links: a save from someone else is only files and folders: a link in it would copy what it points to
     static void RefuseLinks(string path)
     {
         FileSystemInfo root = Directory.Exists(path) ? new DirectoryInfo(path) : new FileInfo(path);
@@ -458,7 +458,7 @@ public static class Saves
         return path.Equals(root, c) || path.StartsWith(root + System.IO.Path.DirectorySeparatorChar, c);
     }
 
-    /// oot_saves.run (after the two sides are picked) and copy_saves: src's slots, account.sav and option.sav (not with
+    /// longshot_saves.run (after the two sides are picked) and copy_saves: src's slots, account.sav and option.sav (not with
     /// keepSettings) into dst, which loses its own slots; dst is copied whole to &lt;backupRoot&gt;/&lt;command&gt;-&lt;name&gt;-&lt;yyyyMMdd-HHmmss&gt;
     /// first. Refused (SaveFailure) when the two are one folder, NX2navi still has a save waiting on either side, a game runs
     /// (running: the names; not asked on a dry run), the backup would go inside dst, src has no slot, or src holds a link.
@@ -567,7 +567,7 @@ public static class Saves
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return false; }
     }
 
-    /// Import (an emulator's save into Longshot) and export (Longshot's save into an emulator), as oot_saves.run picks the two sides:
+    /// Import (an emulator's save into Longshot) and export (Longshot's save into an emulator), as longshot_saves.run picks the two sides:
     /// Longshot's one profile, the emulator's (profile: when it has several); folder: the emulator's folder instead of where it is
     /// looked for (a portable user folder, NX2navi's game folder, any folder holding a save)
     public static SaveCopy ImportExport(bool import, SaveProgram other, string? folder, SaveEnvironment env, string? profile = null,

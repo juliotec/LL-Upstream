@@ -11,7 +11,8 @@ team's Forgejo, [git.magicbean.dev/MagicBeanDev/LongshotLauncher](https://git.ma
 [CONTRIBUTING.md](https://git.magicbean.dev/MagicBeanDev/Longshot/src/branch/main/CONTRIBUTING.md)): no `.nup`, `romfs`,
 `exefs`, `.nso`, `.nca`, `.nsp`, `.xci`, `.nsz`/`.xcz`, no title keys, no build of the game, and **no saves**. The save
 tests use fake save folders made of text files (`tests/fixtures/hookshot-saves`, [docs/saves.md](docs/saves.md)); keep it that way. A screenshot of the
-launcher is fine.
+launcher is fine. Longshot's one exception, its scrubbed saves in `assets/saves/` (one slot each, picture grey, date reset,
+added through a reviewed pull request), lives in Longshot's repository, never here.
 
 ## Get started
 
