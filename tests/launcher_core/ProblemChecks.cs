@@ -67,5 +67,21 @@ static partial class Program
         File.Move(log, Path.Combine(game, "longshot_log.1.txt"));
         File.WriteAllText(log, "vk: a clean run\n");
         Require(CrashCheck.Find(game, 0) == null, "played again since without a problem: the run before's crash is not offered");
+
+        // the game's logs/ folder (Longshot's game folder layout): its log found there, and the newer of the two places wins
+        var newer = Folder("problem-build-logs");
+        Directory.CreateDirectory(Path.Combine(newer, CrashCheck.LogsFolder));
+        var inLogs = Path.Combine(newer, CrashCheck.LogsFolder, "longshot_log.txt");
+        File.WriteAllText(inLogs, "vk: NVIDIA GeForce RTX 4070 Ti, Vulkan 1.4, driver 0x1; mesh shaders native, host memory import yes\n" +
+                                  "CRASH: exception 0xc0000005 (read 0x0, guest 0x1) at longshot+0x10\n");
+        var inFolder = CrashCheck.Find(newer, 0);
+        Require(inFolder != null && inFolder.Log == inLogs, "a crashed run's log in logs/: found");
+        var loose = Path.Combine(newer, "longshot_log.txt");
+        File.WriteAllText(loose, "vk: an older build's run\n");
+        File.SetLastWriteTimeUtc(loose, File.GetLastWriteTimeUtc(inLogs).AddMinutes(-5));
+        Require(CrashCheck.LogPath(newer) == inLogs, "logs/ and a loose log from before: the newer, logs/");
+        File.SetLastWriteTimeUtc(loose, File.GetLastWriteTimeUtc(inLogs).AddMinutes(5));
+        Require(CrashCheck.LogPath(newer) == loose && CrashCheck.Find(newer, 0) == null,
+                "a loose log newer than logs/ (a build from before ran since): that run's, and it went well");
     }
 }

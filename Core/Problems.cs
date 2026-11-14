@@ -137,8 +137,8 @@ public static partial class Problems
     }
 }
 
-/// Whether the last run of a build closed unexpectedly: its newest log (longshot_log.txt) shows a crash the launcher has not
-/// shown yet. Only the newest: a run since then went well (the player has played since), and a log the game rotated is not
+/// Whether the last run of a build closed unexpectedly: its newest log (logs/longshot_log.txt, or longshot_log.txt beside the
+/// game from a build before Longshot's game folder layout) shows a crash the launcher has not shown yet. Only the newest: a run since then went well (the player has played since), and a log the game rotated is not
 /// offered. The caller leaves it out while a game runs (that log is the live run's)
 public static class CrashCheck
 {
@@ -146,6 +146,25 @@ public static class CrashCheck
 
     /// The game's log, in its build's folder
     public const string LogName = "longshot_log.txt";
+
+    /// Where the game's logs are: logs/ in its build's folder (Longshot's host/game_layout.c, from nightly-127 on)
+    public const string LogsFolder = "logs";
+
+    /// The game's log of its last run: logs/longshot_log.txt, or longshot_log.txt beside the game where a build from before
+    /// the logs/ folder wrote it (the newer of the two, should both be there: the game moves the loose one into logs/ at
+    /// its first start, and keeps it where it is when one of that name is there already); null when there is none
+    public static string? LogPath(string buildFolder)
+    {
+        string? newest = null;
+        var newestTicks = long.MinValue;
+        foreach (var path in new[] { Path.Combine(buildFolder, LogsFolder, LogName), Path.Combine(buildFolder, LogName) })
+        {
+            if (!File.Exists(path)) continue;
+            var ticks = File.GetLastWriteTimeUtc(path).Ticks;
+            if (ticks > newestTicks) (newest, newestTicks) = (path, ticks);
+        }
+        return newest;
+    }
 
     /// The most of one log read (and a report carries): its end, where the problem is
     public const int LogTailBytes = 192 * 1024;
@@ -165,10 +184,9 @@ public static class CrashCheck
     /// offered (before the launcher first looked, or too long ago to be news)
     public static Found? Find(string buildFolder, long seenTicks, long notBeforeTicks = 0, string? vendor = null)
     {
-        var path = Path.Combine(buildFolder, LogName);
         try
         {
-            if (!File.Exists(path)) return null;
+            if (LogPath(buildFolder) is not { } path) return null;
             var ticks = File.GetLastWriteTimeUtc(path).Ticks;
             if (ticks <= seenTicks || ticks < notBeforeTicks) return null;
             return Problems.FromLog(Tail(path).Split('\n'), vendor) is { } p ? new Found(p, path, ticks) : null;
