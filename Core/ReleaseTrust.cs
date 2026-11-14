@@ -37,7 +37,7 @@ public static class ReleaseKeys
     /// it here. Until then this launcher takes no release from the server, and says so.
     public static readonly IReadOnlyList<ReleaseKey> BuiltIn = new ReleaseKey[]
     {
-        // the fork's release key, id 386ade8a6b385860 (juliotec/Longshot-Upstream and juliotec/LongshotLauncher-Upstream)
+        // the fork's release key, id 386ade8a6b385860 (juliotec/L-Upstream and juliotec/LL-Upstream)
         ReleaseKey.FromSpki("MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEw1ZLH6cC4636ValkadzKOq6F82U9hKxWq0ZhGz9srf7WCwn+C94KweWPVcBz9EEUBoP9NTAs7FKi7jdZ2peNGg=="),
     };
 

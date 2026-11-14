@@ -1,4 +1,4 @@
-# Fork only (juliotec/LongshotLauncher-Upstream): copies MagicBeanDev/LongshotLauncher's main, unchanged, to the branch launcher-main,
+# Fork only (juliotec/LL-Upstream): copies MagicBeanDev/LongshotLauncher's main, unchanged, to the branch launcher-main,
 # for machines that cannot reach git.magicbean.dev. It never touches main, so it starts no nightly.
 name: Mirror LongshotLauncher main
 on:
