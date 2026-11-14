@@ -1,4 +1,4 @@
-# Fork copy for GitHub Actions (juliotec/LongshotLauncher-Upstream): the .forgejo workflow with GitHub's token, runners and artifact actions.
+# Fork copy for GitHub Actions (juliotec/LL-Upstream): the .forgejo workflow with GitHub's token, runners and artifact actions.
 # The launcher's releases (docs/releases.md; how to make one: RELEASING.md). The same workflow as MagicBeanDev/Longshot's,
 # but for what is built: here the launcher itself, released apart from Longshot, on its own three channels.
 #
