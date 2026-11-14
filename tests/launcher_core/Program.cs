@@ -43,6 +43,7 @@ static partial class Program
 
     static async Task<int> Main(string[] args)
     {
+        if (args.Length > 0 && args[0].StartsWith("--atomic-", StringComparison.Ordinal)) return AtomicChild(args);
         if (args.Length != 3)
         {
             Console.Error.WriteLine("usage: LauncherCoreTests <vectors.json> <fixtures folder> <scratch folder>");
@@ -55,6 +56,7 @@ static partial class Program
 
         RequirementsChecks();
         GameFolderChecks();
+        AtomicChecks();
         VersionChecks(vectors.RootElement);
         await ReleaseChecks(Path.Combine(fixtures, "release"));
         await SelfUpdateChecks();
@@ -389,6 +391,9 @@ static partial class Program
                 && SelfUpdate.StartPath(k => k == "APPIMAGE" ? "/apps/Longshot.AppImage" : null, "/tmp/.mount/LongshotLauncher") == "/apps/Longshot.AppImage"
                 && SelfUpdate.StartPath(_ => null, @"C:\L\LongshotLauncher.exe") == @"C:\L\LongshotLauncher.exe",
                 "The path the shortcuts start: a package's LONGSHOT_LAUNCHER_EXE, else the AppImage, else the program.");
+        foreach (var path in new[] { "Longshot.AppImage", "./Longshot.AppImage", @"C:\Apps\Longshot.AppImage", @"\Apps\Longshot.AppImage", "" })
+            Require(SelfUpdate.CurrentFile(Platform.Linux, k => k == "APPIMAGE" ? path : null, "/tmp/LongshotLauncher") == null,
+                    "Linux AppImage validation uses Linux absolute paths on either test host: " + path);
         Require(SelfUpdate.Compare("v1.1.0", "v1.0.0") == 1 && SelfUpdate.Compare("v1.0.0", "v1.1.0-rc.1") == -1
                 && SelfUpdate.Compare("nightly-3-aaaaaaaa", "v1.0.0") == 0, "Newer, older, or no order (the banner's words).");
         var kinds = new Dictionary<string, FileRef> { ["windows-x64"] = both["windows-x64"], [ReleaseManifest.WindowsPortable] = both["windows-x64"] };
@@ -486,11 +491,11 @@ static partial class Program
         Require(File.ReadAllBytes(image).SequenceEqual(new byte[] { 0x7F, (byte)'E', (byte)'L', (byte)'F', 2, 1, 1, 0, 0, 0, 0, 0, 9 }),
                 "The AppImage magic cleared, nothing else.");
         var gh = new FakeFetcher();
-        var tools = Zip(("nx2/make_game.py", "print('authored')\n", null, 0x1ED), ("nx2/link.py", null, "make_game.py", 0),
+        var tools = Zip(("nx2/make_game.py", "print('authored')\n", null, 0x1ED), ("nx2/link.py", TestLinks.Available ? null : "authored link placeholder", TestLinks.Available ? "make_game.py" : null, 0),
                         ("README", "authored\n", null, 0x1A4));
         var python = Zip(("bin/python3", "#!/bin/sh\n", null, 0x1ED));
         var python2 = Zip(("bin/python3", "#!/bin/sh\n# 2\n", null, 0x1ED));
-        var sysroot = Zip(("lib/libc.so.6", "authored", null, 0x1A4), ("lib64/ld.so", null, "/lib/libc.so.6", 0));
+        var sysroot = Zip(("lib/libc.so.6", "authored", null, 0x1A4), ("lib64/ld.so", TestLinks.Available ? null : "authored link placeholder", TestLinks.Available ? "/lib/libc.so.6" : null, 0));
         var v1 = Linux("v3.3.0", PartAt(gh, "https://x/tools.zip", tools, "usr/share/longshot"),
                        PartAt(gh, "https://x/python.zip", python, "usr/python"),
                        PartAt(gh, "https://x/sysroot.zip", sysroot, Toolchains.SysrootPart));
@@ -501,9 +506,9 @@ static partial class Program
                 && File.Exists(t1.Python), "The tools are where make_game.py and Python are looked for.");
         Require(seen.Count > 3 && seen.Zip(seen.Skip(1)).All(p => p.Second >= p.First) && Math.Abs(seen[^1] - 1) < 1e-9,
                 "The install's progress goes up to 1.");
-        Require(new FileInfo(Path.Combine(t1.ToolsRoot, "nx2", "link.py")).LinkTarget == "make_game.py", "A part's relative link.");
+        if (TestLinks.Available) Require(new FileInfo(Path.Combine(t1.ToolsRoot, "nx2", "link.py")).LinkTarget == "make_game.py", "A part's relative link.");
         var rebased = new FileInfo(Path.Combine(root, "v3.3.0", "usr", "lib", "longshot", "sysroot", "lib64", "ld.so"));
-        Require(rebased.LinkTarget == "../lib/libc.so.6", "A sysroot's rooted link is rebased inside it: " + rebased.LinkTarget);
+        if (TestLinks.Available) Require(rebased.LinkTarget == "../lib/libc.so.6", "A sysroot's rooted link is rebased inside it: " + rebased.LinkTarget);
         if (!OperatingSystem.IsWindows())
             Require((File.GetUnixFileMode(t1.MakeGame) & UnixFileMode.UserExecute) != 0
                     && (File.GetUnixFileMode(Path.Combine(t1.ToolsRoot, "README")) & (UnixFileMode.UserExecute | UnixFileMode.OtherWrite)) == 0,
@@ -518,9 +523,12 @@ static partial class Program
         var t2 = await chains.InstallAsync(v2);
         Require(gh.Asked.SequenceEqual(new[] { "https://x/python2.zip" }), "Unchanged parts were downloaded again: " + string.Join(", ", gh.Asked));
         Require(File.ReadAllText(t2.MakeGame) == "print('authored')\n" && File.ReadAllText(t2.Python).Contains("# 2")
-                && new FileInfo(Path.Combine(t2.ToolsRoot, "nx2", "link.py")).LinkTarget == "make_game.py"
-                && new FileInfo(Path.Combine(root, "v3.3.1", "usr", "lib", "longshot", "sysroot", "lib64", "ld.so")).LinkTarget == "../lib/libc.so.6",
-                "A kept part is the same files, links included.");
+                && File.ReadAllText(Path.Combine(t2.ToolsRoot, "README")) == "authored\n",
+                "A kept part is the same files.");
+        if (TestLinks.Available)
+            Require(new FileInfo(Path.Combine(t2.ToolsRoot, "nx2", "link.py")).LinkTarget == "make_game.py"
+                    && new FileInfo(Path.Combine(root, "v3.3.1", "usr", "lib", "longshot", "sysroot", "lib64", "ld.so")).LinkTarget == "../lib/libc.so.6",
+                    "A kept part keeps both relative and rebased links.");
         Require(File.ReadAllText(t1.Python) == "#!/bin/sh\n", "The older version kept its own Python.");
 
         // (a part whose bytes differ from its list: nothing is left, the version is not installed)

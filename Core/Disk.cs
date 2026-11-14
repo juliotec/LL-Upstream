@@ -103,7 +103,9 @@ public static class Disk
     {
         var c = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
         var r = Path.TrimEndingDirectorySeparator(root);
-        return r.Length == 0 || path.Equals(r, c) || path.StartsWith(r + Path.DirectorySeparatorChar, c) || root == "/";
+        // (TrimEndingDirectorySeparator keeps a drive root's separator: C:\ must not become C:\\ for the prefix check)
+        var prefix = Path.EndsInDirectorySeparator(r) ? r : r + Path.DirectorySeparatorChar;
+        return r.Length == 0 || path.Equals(r, c) || path.StartsWith(prefix, c) || root == "/";
     }
 
     /// The drive a path is on, as the window names it: "D:" on Windows, the mount point on Linux ("/" , "/home", "/mnt/games")

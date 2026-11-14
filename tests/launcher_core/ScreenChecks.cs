@@ -285,7 +285,7 @@ static partial class Program
 
         // (Linux, a builder without its tools: the tools.lock inside the AppImage names them, linux-x64 lines, unpacked beside it
         // at their dests as on Windows; the Windows lines are not taken. The next version keeps the ones it shares)
-        var clang = Zip(("emsdk/upstream/bin/clang-23", "#!/bin/sh\n", null, 0x1ED), ("emsdk/upstream/bin/clang", null, "clang-23", 0x1FF));
+        var clang = Zip(("emsdk/upstream/bin/clang-23", "#!/bin/sh\n", null, 0x1ED), ("emsdk/upstream/bin/clang", TestLinks.Available ? null : "#!/bin/sh\n", TestLinks.Available ? "clang-23" : null, 0x1FF));
         var sdl = Zip(("sdl2/libSDL2-2.0.so.0", "\x7fELF sdl", null, 0x1A4));
         var lnx = new FakeForgejo(Product.Longshot);
         lnx.Server.Files["https://tools/clang.zip"] = clang;
@@ -311,11 +311,12 @@ static partial class Program
         var lt4 = await ToolsSource.EnsureAsync(lnxChains, lnxReleases, "v3.4.0", seen.Add, default, ExtractWithLock);
         var lib = lt4.LibRoot;
         Require(File.ReadAllText(Path.Combine(lib, "emsdk", "upstream", "bin", "clang")) == "#!/bin/sh\n"
-                && new FileInfo(Path.Combine(lib, "emsdk", "upstream", "bin", "clang")).LinkTarget == "clang-23"
                 && File.ReadAllText(Path.Combine(lib, "sdl2", "libSDL2-2.0.so.0")) == "\x7fELF sdl"
                 && !lnx.Server.Asked.Contains("https://tools/windows.zip") && !Directory.Exists(Path.Combine(lt4.Folder, "LongshotBuilder"))
                 && Math.Abs(seen[^1].Fraction - 1) < 1e-9 && seen.Zip(seen.Skip(1)).All(p => p.Second.Fraction >= p.First.Fraction - 1e-9),
                 "Linux: the AppImage's tools.lock tools unpacked beside it, from the mirror when the first link is gone.");
+        if (TestLinks.Available)
+            Require(new FileInfo(Path.Combine(lib, "emsdk", "upstream", "bin", "clang")).LinkTarget == "clang-23", "The Linux tool keeps its relative link.");
         if (!OperatingSystem.IsWindows())
             Require((File.GetUnixFileMode(Path.Combine(lib, "emsdk", "upstream", "bin", "clang-23")) & UnixFileMode.UserExecute) != 0,
                     "A tool's executable keeps its mode.");
@@ -549,7 +550,7 @@ static partial class Program
         var (d, m) = Shortcuts.LinuxPaths(env);
         Require(m == Path.Combine(root, "data", "applications", "longshot.desktop") && File.Exists(d) && File.Exists(m), "Both shortcuts made.");
         var text = File.ReadAllText(m);
-        Require(text.Contains("Exec=\"/apps/Longshot.AppImage\" --play \"" + game + "\"") && text.StartsWith("[Desktop Entry]\n"),
+        Require(text.Contains("Exec=\"/apps/Longshot.AppImage\" --play " + Shortcuts.Quote(game)) && text.StartsWith("[Desktop Entry]\n"),
                 "The entry starts the launcher's Play of that folder: " + text);
         Shortcuts.WriteLinux("/apps/Longshot.AppImage", null, desktop: false, menu: true, icon: "/i.png", getenv: env);
         Require(!File.Exists(d) && File.Exists(m), "Unticked: removed.");

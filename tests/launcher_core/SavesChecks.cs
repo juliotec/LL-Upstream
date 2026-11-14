@@ -583,10 +583,13 @@ static class SavesChecks
                 "A save with nothing played yet never replaces the shared one; it goes aside.");
 
         // (a user\save that is a link, the player's own arrangement or the shared folder itself, is left alone)
-        var linked = P(c.Tmp, "linked");
-        Directory.CreateDirectory(P(linked, "user"));
-        Directory.CreateSymbolicLink(P(linked, "user", "save"), sharedSave);
-        Require(Saves.Gather(c.Windows, new[] { P(linked, "user") }, () => c.Busy, () => when.AddHours(6)) == null
-                && Tree(sharedSave) == keptNow && Directory.Exists(P(linked, "user", "save")), "A linked save folder is never gathered nor renamed.");
+        if (TestLinks.Available)
+        {
+            var linked = P(c.Tmp, "linked");
+            Directory.CreateDirectory(P(linked, "user"));
+            Directory.CreateSymbolicLink(P(linked, "user", "save"), sharedSave);
+            Require(Saves.Gather(c.Windows, new[] { P(linked, "user") }, () => c.Busy, () => when.AddHours(6)) == null
+                    && Tree(sharedSave) == keptNow && Directory.Exists(P(linked, "user", "save")), "A linked save folder is never gathered nor renamed.");
+        }
     }
 }
