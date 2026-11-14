@@ -15,7 +15,7 @@
 
 <p align="center">
   <a href="https://longshot.magicbean.dev/"><b>Website</b></a> |
-  <a href="https://discord.gg/KX99srmQTe"><b>Discord</b></a> |
+  <a href="https://discord.gg/magicbean"><b>Discord</b></a> |
   <a href="#what-it-does">What it does</a> |
   <a href="#download">Download</a> |
   <a href="#installing">Installing</a> |
@@ -41,7 +41,7 @@ the game and itself up to date. It is a separate project from Longshot, with its
 > Nothing of the game is in the launcher or downloaded by it. It downloads Longshot's builder, which builds the game from
 > the copy you own. Don't ask where to get the game.
 
-Discord: https://discord.gg/KX99srmQTe
+Discord: https://discord.gg/magicbean
 
 ## What it does
 
