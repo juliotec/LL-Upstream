@@ -34,7 +34,11 @@
             <TextBlock Text="{Binding Head}" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center"/>
           </StackPanel>
           <TextBlock Text="{Binding Body}" Foreground="{StaticResource InkSoft}" TextWrapping="Wrap" MaxWidth="680" HorizontalAlignment="Left" Margin="0,12,0,0"/>
-          <StackPanel Margin="20,10,0,0" Spacing="4">
+          <TextBlock Text="{Binding Said}" IsVisible="{Binding Known}" Foreground="{StaticResource InkFaint}" FontSize="12" TextWrapping="Wrap"
+                     MaxWidth="680" HorizontalAlignment="Left" Margin="0,8,0,0"/>
+          <Button HorizontalAlignment="Left" Margin="0,12,0,0" Content="{Binding Offer.Label}" Command="{Binding OfferCommand}"
+                  IsVisible="{Binding Offer, Converter={x:Static ObjectConverters.IsNotNull}}"/>
+          <StackPanel Margin="20,10,0,0" Spacing="4" IsVisible="{Binding Unknown}">
             <TextBlock Foreground="{StaticResource InkSoft}" TextWrapping="Wrap" IsVisible="{Binding Memory}">
               <Run Text="• Set "/><Run Text="Build memory" FontWeight="SemiBold" Foreground="{StaticResource Ink}"/><Run Text=" lower in step 2's Advanced, or close other programs."/>
             </TextBlock>

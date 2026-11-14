@@ -37,6 +37,11 @@ public sealed class LauncherSettings
     public string? BuildsFolder { get; set; }
     /// Ask git.magicbean.dev for each channel's newest version when the launcher starts
     public bool CheckUpdates { get; set; } = true;
+    /// Each build folder's log already shown on the problem page, by its write time: a crash is shown once
+    public Dictionary<string, long> SeenCrashLogs { get; set; } = new();
+    /// When the launcher first looked for crashes (UTC ticks; null: not yet): a log from before then is not offered, so the first
+    /// start with the check doesn't bring up a crash from weeks ago
+    public long? CrashChecksSince { get; set; }
 
     /// The channel new builds start on: the one the player picked, else the launcher's own (a nightly launcher builds nightlies, an rc
     /// launcher release candidates; LauncherChannel when set, else its own version's track)
@@ -89,6 +94,7 @@ public sealed class LauncherSettings
         if (BuildWorkers is <= 0) BuildWorkers = null;
         if (!DlssLicense) Dlss = false;   // (a tick saved before its license was accepted is not one)
         if (!FsrLicense && !FsrLinuxNotice) Fsr = false;
+        SeenCrashLogs ??= new();
         return this;
     }
 

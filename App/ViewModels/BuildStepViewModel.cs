@@ -495,16 +495,31 @@ public sealed class ProblemViewModel : ViewModelBase, IWizardPage
         CopyCommand = new Command(() => _ = Copy());
         BackCommand = new Command(() => build.Job.Main.Navigate(build.Job.Settings ?? new SettingsStepViewModel(build.Job)));
         RetryCommand = new Command(() => build.Job.Main.Navigate(new BuildStepViewModel(build.Job)));
+        Problem = Problems.FromBuild(why);
+        // (Build again is the screen's own button; the others go to the step that has the choice)
+        Offer = Problem.Fixes.FirstOrDefault(f => f.Kind is FixKind.PickOtherFiles or FixKind.ChooseOtherFolder or FixKind.LowerBuildMemory);
+        OfferCommand = new Command(TakeOffer, () => Offer != null);
     }
+
+    /// What went wrong in plain words (launcher/Core/Problems.cs), from make_game.py's last message
+    public Problem Problem { get; }
+    /// The fix this screen has a button for besides Build again: step 1 for other game files, step 2 for another folder or less
+    /// build memory (its Advanced opened); null for none
+    public Fix? Offer { get; }
 
     public int Step => 3;
     public bool Finished => false;
     public string Why { get; }
     public string Stage { get; }
     public int Percent { get; }
-    public bool Memory => Why.Contains("memory", StringComparison.OrdinalIgnoreCase);
-    public string Head => Memory ? "The PC ran out of memory while building" : "make_game.py stopped";
-    public string Body => $"Building {build.Job.Shown} stopped in {Stage}, {Percent}% of the way through. It said: {Why}";
+    public bool Known => Problem.Kind != ProblemKind.Unknown;
+    /// The general advice, under a message the launcher doesn't know (a known one has its own)
+    public bool Unknown => !Known;
+    public bool Memory => Unknown && Why.Contains("memory", StringComparison.OrdinalIgnoreCase);
+    public string Head => Known ? Problem.Headline : "make_game.py stopped";
+    /// What make_game.py said: the file, the folder, the build ids it names
+    public string Said => $"Building {build.Job.Shown} stopped in {Stage}, {Percent}% of the way through. It said: {Why}";
+    public string Body => Known ? Problem.Detail : Said;
     public bool ShowLog { get => showLog; set { if (Set(ref showLog, value)) RaiseAll(nameof(LogButton), nameof(LogTail)); } }
     public string LogButton => showLog ? "Hide details" : "Show details";
     public string LogTail => string.Join("\n", build.Log.Tail(LogLevel.Info, null, 6));
@@ -513,6 +528,26 @@ public sealed class ProblemViewModel : ViewModelBase, IWizardPage
     public Command CopyCommand { get; }
     public Command BackCommand { get; }
     public Command RetryCommand { get; }
+    public Command OfferCommand { get; }
+
+    void TakeOffer()
+    {
+        var job = build.Job;
+        switch (Offer?.Kind)
+        {
+            case FixKind.PickOtherFiles:
+                job.Main.Navigate(job.Files ?? new FilesStepViewModel(job));
+                break;
+            case FixKind.ChooseOtherFolder:
+                job.Main.Navigate(job.Settings ?? new SettingsStepViewModel(job));
+                break;
+            case FixKind.LowerBuildMemory:
+                var settings = job.Settings ?? new SettingsStepViewModel(job);
+                settings.AdvancedOpen = true;
+                job.Main.Navigate(settings);
+                break;
+        }
+    }
 
     async Task Copy()
     {

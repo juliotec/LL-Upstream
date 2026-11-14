@@ -19,6 +19,17 @@ public static class SystemInfo
         _ => null,
     };
 
+    /// The maker of a graphics card by its Vulkan device name (the game log's "vk: NVIDIA GeForce RTX 4070 Ti, Vulkan 1.4, ..."
+    /// line); null for another (llvmpipe, a Mali, ...)
+    public static string? VendorOfName(string deviceName)
+    {
+        bool Has(string s) => deviceName.Contains(s, StringComparison.OrdinalIgnoreCase);
+        if (Has("NVIDIA") || Has("GeForce") || Has("Quadro")) return Nvidia;
+        if (Has("AMD") || Has("Radeon")) return Amd;
+        if (Has("Intel")) return Intel;
+        return null;
+    }
+
     /// The makers of the graphics cards Linux lists in /sys/class/drm (card&lt;n&gt;/device/vendor), each once, in card order.
     /// drm: that folder (the tests' stand-in). On Windows none are read yet (the step's "Your GPU" chip is left out)
     public static IReadOnlyList<string> GpuVendors(Platform platform, string drm = "/sys/class/drm")
