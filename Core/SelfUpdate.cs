@@ -49,6 +49,19 @@ public static class SelfUpdate
     public static int Compare(string offered, string own) =>
         Versions.Newer(offered, own, Versions.LauncherFirstMajor) ? 1 : Versions.Newer(own, offered, Versions.LauncherFirstMajor) ? -1 : 0;
 
+    /// The command that starts this launcher again from outside it, for the game folders' stamp (builder=) and the shortcuts:
+    /// LONGSHOT_LAUNCHER_EXE when a package sets it (the Flatpak: a script that runs `flatpak run`, as /app/bin exists only inside
+    /// its sandbox), else the AppImage on Linux, else this program
+    public static string StartPath(Func<string, string?>? getenv = null, string? processPath = null)
+    {
+        getenv ??= Environment.GetEnvironmentVariable;
+        processPath ??= Environment.ProcessPath;
+        return getenv(StartVariable) is { Length: > 0 } set ? set
+            : getenv("APPIMAGE") is { Length: > 0 } appImage ? appImage : processPath ?? "LongshotLauncher";
+    }
+
+    public const string StartVariable = "LONGSHOT_LAUNCHER_EXE";
+
     /// The file this launcher runs from: the AppImage on Linux ($APPIMAGE), else the program itself, whatever it is named (the
     /// download's LongshotLauncher-&lt;v&gt;-windows-x64-setup.exe, the installed LongshotLauncher.exe, a renamed copy); null when it is
     /// not one that can replace itself (dotnet run: dotnet.exe; a dll)

@@ -104,9 +104,8 @@ public sealed class LauncherService
         return service;
     }
 
-    /// This launcher's path, for the game folders' stamp (builder=): the AppImage on Linux, else this program
-    public static string LauncherPath =>
-        Environment.GetEnvironmentVariable("APPIMAGE") is { Length: > 0 } appImage ? appImage : Environment.ProcessPath ?? "LongshotLauncher";
+    /// This launcher's path, for the game folders' stamp (builder=) and the shortcuts (SelfUpdate.StartPath)
+    public static string LauncherPath => SelfUpdate.StartPath();
 
     public void SaveSettings() => Settings.Save(Home.Settings);
 
@@ -141,7 +140,8 @@ public sealed class LauncherService
             any = true;
         }
         LauncherUpdate = null;
-        if (await LauncherReleases.ChannelAsync(LauncherChannel, cancel) is { } own
+        // (only a launcher started from its own file can replace itself: not a Flatpak's, which Flatpak updates)
+        if (Program.Layout.File != null && await LauncherReleases.ChannelAsync(LauncherChannel, cancel) is { } own
             && SelfUpdate.UpdateTo(OwnTag, own, Platform, LauncherChannel, Program.Layout.UpdateKey) != null)
             LauncherUpdate = own;
         Checked = true;

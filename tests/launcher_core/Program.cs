@@ -383,6 +383,11 @@ static partial class Program
                 && SelfUpdate.CurrentFile(Platform.Windows, _ => null, @"C:\dotnet\dotnet.exe") == null
                 && SelfUpdate.CurrentFile(Platform.Windows, _ => null, @"C:\L\LongshotLauncher.dll") == null,
                 "The launcher's own file: the AppImage, or its .exe whatever it is named (not dotnet.exe).");
+        Require(SelfUpdate.StartPath(k => k == "LONGSHOT_LAUNCHER_EXE" ? "/h/.var/app/x/data/longshot-launcher" : k == "APPIMAGE" ? "/a" : null, "/app/bin/LongshotLauncher")
+                    == "/h/.var/app/x/data/longshot-launcher"
+                && SelfUpdate.StartPath(k => k == "APPIMAGE" ? "/apps/Longshot.AppImage" : null, "/tmp/.mount/LongshotLauncher") == "/apps/Longshot.AppImage"
+                && SelfUpdate.StartPath(_ => null, @"C:\L\LongshotLauncher.exe") == @"C:\L\LongshotLauncher.exe",
+                "The path the shortcuts start: a package's LONGSHOT_LAUNCHER_EXE, else the AppImage, else the program.");
         Require(SelfUpdate.Compare("v1.1.0", "v1.0.0") == 1 && SelfUpdate.Compare("v1.0.0", "v1.1.0-rc.1") == -1
                 && SelfUpdate.Compare("nightly-3-aaaaaaaa", "v1.0.0") == 0, "Newer, older, or no order (the banner's words).");
         var kinds = new Dictionary<string, FileRef> { ["windows-x64"] = both["windows-x64"], [ReleaseManifest.WindowsPortable] = both["windows-x64"] };
