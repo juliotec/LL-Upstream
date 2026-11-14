@@ -459,6 +459,26 @@ static partial class Program
     static async Task ToolchainChecks()
     {
         var root = Folder("toolchains");
+
+        // (a binfmt_misc handler for AppImages, as NixOS's programs.appimage.binfmt registers it: the builder's magic cleared then)
+        var binfmt = Folder("binfmt_misc");
+        File.WriteAllText(Path.Combine(binfmt, "status"), "enabled\n");
+        File.WriteAllText(Path.Combine(binfmt, "register"), "");
+        Require(!Toolchains.HasAppImageBinfmt(binfmt) && !Toolchains.HasAppImageBinfmt(Path.Combine(binfmt, "missing")),
+                "No AppImage handler: none registered, or no binfmt_misc at all.");
+        File.WriteAllText(Path.Combine(binfmt, "appimage_type_2"),
+                          "disabled\ninterpreter /run/binfmt/appimage_type_2\nflags: \noffset 0\nmagic 7f454c462e2e2e2e414902\nmask ffffffff00000000ffffff\n");
+        Require(!Toolchains.HasAppImageBinfmt(binfmt), "A disabled AppImage handler takes nothing.");
+        File.WriteAllText(Path.Combine(binfmt, "appimage_type_2"),
+                          "enabled\ninterpreter /run/binfmt/appimage_type_2\nflags: \noffset 0\nmagic 7f454c462e2e2e2e414902\nmask ffffffff00000000ffffff\n");
+        Require(Toolchains.HasAppImageBinfmt(binfmt), "NixOS's AppImage handler is seen.");
+        File.WriteAllText(Path.Combine(binfmt, "appimage_type_2"), "enabled\ninterpreter /usr/bin/x\nflags: \noffset 8\nmagic 414902\n");
+        Require(Toolchains.HasAppImageBinfmt(binfmt), "An AppImage handler matching at offset 8 is seen.");
+        var image = Path.Combine(binfmt, "builder.AppImage");
+        File.WriteAllBytes(image, [0x7F, (byte)'E', (byte)'L', (byte)'F', 2, 1, 1, 0, (byte)'A', (byte)'I', 2, 0, 9]);
+        Toolchains.ClearAppImageMagic(image);
+        Require(File.ReadAllBytes(image).SequenceEqual(new byte[] { 0x7F, (byte)'E', (byte)'L', (byte)'F', 2, 1, 1, 0, 0, 0, 0, 0, 9 }),
+                "The AppImage magic cleared, nothing else.");
         var gh = new FakeFetcher();
         var tools = Zip(("nx2/make_game.py", "print('authored')\n", null, 0x1ED), ("nx2/link.py", null, "make_game.py", 0),
                         ("README", "authored\n", null, 0x1A4));

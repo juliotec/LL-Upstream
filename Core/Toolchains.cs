@@ -340,6 +340,9 @@ public sealed class Toolchains
 
     static async Task ExtractAppImage(string image, string folder, CancellationToken cancel)
     {
+        // (a binfmt_misc handler, NixOS's programs.appimage.binfmt, takes any file with AppImage's magic to appimage-run, which
+        // unpacks it in its own cache and runs its AppRun with our arguments: without the magic the kernel runs its runtime)
+        if (HasAppImageBinfmt()) ClearAppImageMagic(image);
         var si = new System.Diagnostics.ProcessStartInfo(image, "--appimage-extract")
         {
             WorkingDirectory = folder, UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true,
@@ -352,6 +355,41 @@ public sealed class Toolchains
         await p.WaitForExitAsync(cancel);
         await Task.WhenAll(output, error);
         if (p.ExitCode != 0) throw new IOException($"The builder's AppImage could not be unpacked ({p.ExitCode}): {error.Result.Trim()}");
+    }
+
+    /// Where Linux lists its binfmt_misc handlers: one file each, besides register and status
+    public const string BinfmtMisc = "/proc/sys/fs/binfmt_misc";
+
+    /// Whether an enabled binfmt_misc handler takes type 2 AppImages (its magic ends with "AI" and 2, at offset 8 of the ELF
+    /// header): NixOS's programs.appimage.binfmt, AppImageLauncher. None where the folder is missing or unreadable
+    public static bool HasAppImageBinfmt(string folder = BinfmtMisc)
+    {
+        try
+        {
+            if (!Directory.Exists(folder)) return false;
+            foreach (var entry in Directory.EnumerateFiles(folder))
+            {
+                var name = Path.GetFileName(entry);
+                if (name is "register" or "status") continue;
+                var lines = File.ReadAllLines(entry);
+                if (lines.FirstOrDefault() == "enabled"
+                    && lines.Any(l => l.StartsWith("magic ", StringComparison.Ordinal) && l.EndsWith("414902", StringComparison.Ordinal)))
+                    return true;
+            }
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+        return false;
+    }
+
+    /// The AppImage magic ("AI" and its type, at offset 8 of the ELF header) zeroed: its runtime does not read it
+    public static void ClearAppImageMagic(string image)
+    {
+        using var f = new FileStream(image, FileMode.Open, FileAccess.ReadWrite);
+        Span<byte> magic = stackalloc byte[3];
+        f.Position = 8;
+        if (f.Read(magic) != 3 || magic[0] != (byte)'A' || magic[1] != (byte)'I') return;
+        f.Position = 8;
+        f.Write(stackalloc byte[3]);
     }
 
     static string Native(string rel) => rel.Replace('/', Path.DirectorySeparatorChar);
