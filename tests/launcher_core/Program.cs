@@ -54,6 +54,7 @@ static partial class Program
         Directory.CreateDirectory(scratch);
 
         RequirementsChecks();
+        GameFolderChecks();
         VersionChecks(vectors.RootElement);
         await ReleaseChecks(Path.Combine(fixtures, "release"));
         await SelfUpdateChecks();
@@ -582,6 +583,73 @@ static partial class Program
                 "Prune keeps the versions builds use and removes the rest.");
         Require(File.ReadAllText(Path.Combine(root, "v3.3.1", "usr", "share", "longshot", "nx2", "make_game.py")) == "print('authored')\n",
                 "A version that shared files with a removed one keeps them.");
+    }
+
+    // ---- Game folders: the game in bin/ behind the setup, or in the folder itself beside its renderer ----
+
+    static void GameFolderChecks()
+    {
+        foreach (var platform in new[] { Platform.Windows, Platform.Linux })
+        {
+            var folder = Folder("game-folder-" + platform);
+            var exe = Platforms.GameExe(platform);
+            var inBin = Path.Combine(folder, "bin", exe);
+            var atRoot = Path.Combine(folder, exe);
+            var renderer = Path.Combine(folder, platform == Platform.Windows ? "longshot_vk.dll" : "longshot_vk.so");
+            var other = platform == Platform.Windows ? Platform.Linux : Platform.Windows;
+            File.WriteAllText(Path.Combine(folder, Platforms.GameExe(other)), "authored other-platform file");
+            Require(!GameFolder.IsBuilt(folder, platform) && !GameFolder.IsGameFolder(folder, platform)
+                    && GameFolder.ExePath(folder, platform) == inBin,
+                    $"{platform}: another platform's executable does not make a built game.");
+
+            var stamp = Path.Combine(folder, GameFolder.StampName);
+            File.WriteAllText(stamp, "version=v3.0.0-rc.3\n");
+            Require(GameFolder.IsGameFolder(folder, platform) && !GameFolder.IsBuilt(folder, platform),
+                    $"{platform}: a stamp identifies a game folder, but cannot enable Play without its executable.");
+            File.Delete(stamp);
+
+            // (a packaged build: the setup in the folder, the game in bin/, no renderer in the folder)
+            File.WriteAllText(atRoot, "authored setup");
+            Require(!GameFolder.IsBuilt(folder, platform) && GameFolder.ExePath(folder, platform) == inBin,
+                    $"{platform}: the setup alone cannot enable Play when bin's game is missing.");
+            Directory.CreateDirectory(Path.GetDirectoryName(inBin)!);
+            File.WriteAllText(inBin, "authored packaged game");
+            Require(GameFolder.ExePath(folder, platform) == inBin && GameFolder.IsBuilt(folder, platform),
+                    $"{platform}: a packaged build plays bin's game, not the setup.");
+            var user = Path.Combine(folder, "separate user");
+            var play = GamePlay.StartInfo(folder, platform, new Dictionary<string, string>(), user);
+            Require(play.FileName == inBin && play.WorkingDirectory == folder,
+                    $"{platform}: packaged Play starts bin's game from the game folder.");
+
+            // (built again without the setup: the new game and its renderer in the folder, the older game still in bin/)
+            File.WriteAllText(atRoot, "authored newer game");
+            File.WriteAllText(renderer, "authored renderer beside the game");
+            Require(GameFolder.ExePath(folder, platform) == atRoot && GameFolder.IsBuilt(folder, platform),
+                    $"{platform}: the game the last build left in the folder is played, not bin's older one.");
+            play = GamePlay.StartInfo(folder, platform, new Dictionary<string, string>(), user);
+            Require(play.FileName == atRoot && play.WorkingDirectory == folder && !play.UseShellExecute,
+                    $"{platform}: Play starts the folder's own game with the game folder as its working directory.");
+            Require(platform == Platform.Windows
+                    ? play.ArgumentList.SequenceEqual(new[] { "--user", user }) : play.ArgumentList.Count == 0,
+                    $"{platform}: the folder's own game gets the same save-folder arguments.");
+
+            // (and packaged again: make_game.py takes the renderer out of the folder, and bin's game is the new one)
+            File.Delete(renderer);
+            Require(GameFolder.ExePath(folder, platform) == inBin && GameFolder.IsBuilt(folder, platform),
+                    $"{platform}: once the renderer is gone from the folder, bin's game is played again.");
+            File.Delete(inBin);
+            Require(!GameFolder.IsBuilt(folder, platform) && GameFolder.ExePath(folder, platform) == inBin,
+                    $"{platform}: a packaged build whose bin game disappears does not fall back to its setup.");
+
+            // (no bin/ at all: the game and its renderer in the folder)
+            File.WriteAllText(renderer, "authored renderer beside the game");
+            Require(GameFolder.IsBuilt(folder, platform) && GameFolder.IsGameFolder(folder, platform)
+                    && GameFolder.ExePath(folder, platform) == atRoot,
+                    $"{platform}: a game in the folder itself, beside its renderer, is playable.");
+            File.Delete(atRoot);
+            Require(!GameFolder.IsBuilt(folder, platform) && GameFolder.ExePath(folder, platform) == inBin,
+                    $"{platform}: no executable keeps the expected bin path and disables Play.");
+        }
     }
 
     // ---- BuildRegistry ----

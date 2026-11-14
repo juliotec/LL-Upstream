@@ -1,7 +1,7 @@
 namespace LongshotLauncher.Core;
 
 /// What a game folder says about itself: the stamp make_game.py writes (longshot_version.txt: version=, builder=, builder_local=),
-/// the game's language (language.txt) and whether it is built (bin/longshot[.exe])
+/// the game's language (language.txt) and whether it is built (bin/longshot[.exe], or longshot[.exe] beside its renderer: ExePath)
 public static class GameFolder
 {
     public const string StampName = "longshot_version.txt";
@@ -29,7 +29,18 @@ public static class GameFolder
     /// A portable install's folder (builder_local=1)
     public static bool Portable(string folder) => ReadStamp(folder) is { } s && s.TryGetValue("builder_local", out var v) && v == "1";
 
-    public static string ExePath(string folder, Platform platform) => Path.Combine(folder, "bin", Platforms.GameExe(platform));
+    /// The game a folder plays. make_game.py puts it in bin/ when it installs the setup as the folder's longshot[.exe], and
+    /// then removes the renderer from the folder itself; without the setup (a development build, or a setup an antivirus took)
+    /// the game and its renderer stay in the folder. So the renderer in the folder means its last build left the game there:
+    /// that one is played, even when bin/ still holds an older game from a packaged build before. Else bin/'s, which is also
+    /// the path a folder with no game at all reports (a setup left without bin/'s game must not enable Play)
+    public static string ExePath(string folder, Platform platform)
+    {
+        var exe = Platforms.GameExe(platform);
+        var atRoot = Path.Combine(folder, exe);
+        var renderer = platform == Platform.Windows ? "longshot_vk.dll" : "longshot_vk.so";
+        return File.Exists(atRoot) && File.Exists(Path.Combine(folder, renderer)) ? atRoot : Path.Combine(folder, "bin", exe);
+    }
 
     public static bool IsBuilt(string folder, Platform platform) => File.Exists(ExePath(folder, platform));
 
@@ -56,7 +67,7 @@ public static class GameFolder
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException) { return false; }
     }
 
-    /// A folder make_game.py made: its stamp, or the game in bin/. Only such a folder may be deleted from the launcher
+    /// A folder make_game.py made: its stamp, or the game executable. Only such a folder may be deleted from the launcher
     public static bool IsGameFolder(string folder, Platform platform) =>
         Directory.Exists(folder) && (File.Exists(Path.Combine(folder, StampName)) || IsBuilt(folder, platform));
 }
