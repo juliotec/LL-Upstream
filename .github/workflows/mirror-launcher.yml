@@ -1,0 +1,29 @@
+# Fork only (juliotec/LongshotLauncher-Upstream): copies MagicBeanDev/LongshotLauncher's main, unchanged, to the branch launcher-main,
+# for machines that cannot reach git.magicbean.dev. It never touches main, so it starts no nightly.
+name: Mirror LongshotLauncher main
+on:
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mirror-launcher
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Copy main to launcher-main
+        run: |
+          set -eu
+          git init -q mirror
+          cd mirror
+          git fetch --no-tags https://git.magicbean.dev/MagicBeanDev/LongshotLauncher.git +refs/heads/main:refs/heads/main
+          echo "MagicBeanDev/LongshotLauncher main: $(git rev-parse main)"
+          git push --force "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" main:refs/heads/launcher-main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
