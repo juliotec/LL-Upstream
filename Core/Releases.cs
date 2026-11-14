@@ -13,8 +13,8 @@ namespace LongshotLauncher.Core;
 /// lacks it, is refused, with the reason in Problem.
 public sealed class Releases
 {
-    public const string Repo = Product.Server + "/juliotec/Longshot-Upstream";
-    public const string LauncherRepo = Product.Server + "/juliotec/LongshotLauncher-Upstream";
+    public const string Repo = Product.Server + "/juliotec/L-Upstream";
+    public const string LauncherRepo = Product.Server + "/juliotec/LL-Upstream";
     const long MaxSmall = 4 << 20;
 
     readonly IReadOnlyList<ReleaseKey> keys;
