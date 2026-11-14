@@ -69,6 +69,7 @@ static partial class Program
         CommandLineChecks();
         SavesChecks.Run(Folder("saves"));
         HookshotChecks(fixtures);
+        HookshotSettingsChecks();
         Utf8Checks();
         await ScreenChecks();
         await BusyChecks(Path.GetFullPath(Path.Combine(fixtures, "..", "..")));
@@ -633,6 +634,7 @@ static partial class Program
         var path = Path.Combine(Folder("settings"), "settings.json");
         var d = LauncherSettings.Load(path);
         Require(d.PrepareShaders && !d.Dlss && d.DefaultChannel == null && d.MemoryGb == null, "The defaults.");
+        Require(!d.Nx2naviSavesAsked && !d.HookshotSavesAsked, "Save import offers default to unanswered.");
         var s = new LauncherSettings
         {
             Nup = "/n.nup", Language = "de", Dlss = true, DlssLicense = true, Fsr = true, FsrLicense = true, PrepareShaders = false,
@@ -642,6 +644,10 @@ static partial class Program
         var t = LauncherSettings.Load(path);
         Require(t.Nup == "/n.nup" && t.Language == "de" && t.Dlss && t.DlssLicense && t.Fsr && t.FsrLicense && !t.PrepareShaders && t.MemoryGb == 16
                 && t.BuildWorkers == 6 && t.Work == "/w" && t.DefaultChannel == "nightly", "settings.json round trip.");
+        new LauncherSettings { Nx2naviSavesAsked = true }.Save(path);
+        Require(LauncherSettings.Load(path) is { Nx2naviSavesAsked: true, HookshotSavesAsked: false }, "NX2navi's import answer is saved independently of Hookshot's.");
+        new LauncherSettings { HookshotSavesAsked = true }.Save(path);
+        Require(LauncherSettings.Load(path) is { Nx2naviSavesAsked: false, HookshotSavesAsked: true }, "Hookshot's import answer leaves NX2navi's offer unanswered.");
         // (AMD FSR 4: the Linux notice keeps the switch on without AMD's licence, and is not that licence)
         new LauncherSettings { Fsr = true, FsrLinuxNotice = true }.Save(path);
         var n = LauncherSettings.Load(path);

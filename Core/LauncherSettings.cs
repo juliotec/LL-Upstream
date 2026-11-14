@@ -33,6 +33,8 @@ public sealed class LauncherSettings
     public string? LauncherChannel { get; set; }
     /// The player answered the offer to import Hookshot's saves (imported, or Not now): it is not offered again at start
     public bool HookshotSavesAsked { get; set; }
+    /// The player answered the offer to import NX2navi's saves (imported, or Not now)
+    public bool Nx2naviSavesAsked { get; set; }
     /// Where new builds go, each version in its own folder; null: DefaultBuildsFolder
     public string? BuildsFolder { get; set; }
     /// Ask git.magicbean.dev for each channel's newest version when the launcher starts

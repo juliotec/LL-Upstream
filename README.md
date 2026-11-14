@@ -34,7 +34,7 @@ It installs Longshot's builder, builds the game **on your PC, from your own copy
 the game and itself up to date. It is a separate project from Longshot, with its own repository and its own releases.
 
 <p align="center">
-  <img src="docs/images/home-hookshot-offer.png" alt="The launcher's home: the default version, Play, the versions you have, and an offer to import Hookshot saves" width="720">
+  <img src="docs/images/nx2navi-save-offer.png" alt="The launcher's home: the default version, Play, and offers to import NX2navi and Hookshot saves" width="720">
 </p>
 
 > [!NOTE]
@@ -152,14 +152,20 @@ applications menu.
 Every build shares one save folder (`%APPDATA%\Longshot` on Windows, `~/.local/share/longshot` on Linux). On Windows the
 launcher brings in, once, the saves each build kept in its own folder before, and the 2.x Builder's, keeping the newest
 after backing them all up ([docs/saves.md](docs/saves.md#saves-from-before-windows)). The **Saves** page imports saves from
-Lichii, Eden, NX2navi and the other emulators, and exports them back. Every copy backs up what it replaces first.
+Lichii, Eden, NX2navi and the other emulators, and exports them back. You can import before playing Longshot for the first
+time. Every copy backs up what it replaces first.
+
+**Coming from NX2navi?** The home offers to import saves found in its usual game folder. Choose the profile and confirm
+the import; the originals stay where they are. Portable or custom installs can be chosen by hand.
 
 **Coming from Hookshot?** The launcher finds Hookshot's saves and offers once to copy them in, or use
 *Saves > Import from Hookshot…*. It copies them and never moves them, so Hookshot keeps its own. It checks the files
-first, and it asks, and backs up, before it replaces a Longshot save. Nothing else of a Hookshot install is read.
+first, and it asks, and backs up, before it replaces a Longshot save. **Import graphics and controls…** separately brings
+compatible Hookshot game settings into the Longshot version you choose, with its own confirmation and backup.
 
 <p align="center">
   <img src="docs/images/hookshot-import.png" alt="Import saves from Hookshot: the saves found, with their slots, and Choose a folder" width="720">
+  <img src="docs/images/hookshot-settings-import.png" alt="Choose a Longshot version and review the Hookshot settings and backup before importing" width="720">
 </p>
 
 All of it, with where every save lives: [docs/saves.md](docs/saves.md). Longshot's own

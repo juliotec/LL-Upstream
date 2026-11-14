@@ -127,6 +127,18 @@ public sealed class HomeViewModel : ViewModelBase
             try { Service.SaveSettings(); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
             HookshotOffer = null;
         });
+        ImportNx2naviCommand = new Command(() =>
+        {
+            var page = new SavesViewModel(Main);
+            Main.Navigate(page);
+            Main.Modal = new SavePickViewModel(page, SaveMode.Import) { Pick = "nx2navi" };
+        });
+        NotNowNx2naviCommand = new Command(() =>
+        {
+            Service.Settings.Nx2naviSavesAsked = true;
+            try { Service.SaveSettings(); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+            Nx2naviOffer = null;
+        });
     }
 
     public MainViewModel Main { get; }
@@ -252,6 +264,34 @@ public sealed class HomeViewModel : ViewModelBase
     }
     public Command ImportHookshotCommand { get; }
     public Command NotNowHookshotCommand { get; }
+    public Command ImportNx2naviCommand { get; }
+    public Command NotNowNx2naviCommand { get; }
+
+    string? nx2naviOffer;
+    public string? Nx2naviOffer
+    {
+        get => nx2naviOffer;
+        set { if (Set(ref nx2naviOffer, value)) Raise(nameof(HasNx2naviOffer)); }
+    }
+    public bool HasNx2naviOffer => nx2naviOffer != null;
+
+    void OfferNx2navi()
+    {
+        Nx2naviOffer = null;
+        if (Service.Settings.Nx2naviSavesAsked) return;
+        try
+        {
+            var found = Saves.Emulator(Service.SaveEnv).FirstOrDefault(s => s.Owner == "nx2navi" && s.Found);
+            if (found == null) return;
+            var profiles = found.Profiles.Select(p => Saves.Describe(p.Path)).Where(s => s.Count > 0).ToList();
+            if (profiles.Count > 0)
+            {
+                var summary = profiles.Count > 1 ? $"{profiles.Count} profiles" : SaveText.Long(profiles[0], DateTime.Now).ToLowerInvariant();
+                Nx2naviOffer = $"Found {summary} in {ShownPath.Of(found.Folder)}. Copy them into Longshot? The originals stay where they are.";
+            }
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or SaveFailure) { }
+    }
 
     // ---- the offer to import Hookshot's saves (once: until it is answered) ----
 
@@ -323,6 +363,7 @@ public sealed class HomeViewModel : ViewModelBase
         }
         Notice = notes.Count > 0 ? string.Join("\n", notes) : null;
         OfferHookshot();
+        OfferNx2navi();
         Refresh();
     }
 

@@ -111,15 +111,6 @@ public static class HookshotSaves
         return problems;
     }
 
-    /// Where an import goes: the Longshot save of the same profile if there is one, else Longshot's only profile, else a new folder
-    /// for Hookshot's profile id, in Longshot's user folder, which every build shares (SaveEnvironment.LongshotUser)
-    public static string TargetFor(string profileId, SaveEnvironment env)
-    {
-        var longshot = Saves.Shared(env).Profiles;
-        return longshot.FirstOrDefault(p => string.Equals(p.Id, profileId, StringComparison.OrdinalIgnoreCase))?.Path
-               ?? (longshot.Count == 1 ? longshot[0].Path : Saves.SharedSavePath(env, profileId));
-    }
-
     /// Whether importing into target would replace a Longshot save (then the player is asked first)
     public static bool WouldReplace(string target) => Directory.Exists(target) && Saves.IsSaveFolder(target);
 

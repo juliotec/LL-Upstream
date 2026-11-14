@@ -163,6 +163,7 @@
             <DataTemplate DataType="vm:StopBuildViewModel"><views:StopBuildView/></DataTemplate>
             <DataTemplate DataType="vm:SavePickViewModel"><views:SavePickView/></DataTemplate>
             <DataTemplate DataType="vm:HookshotImportViewModel"><views:HookshotImportView/></DataTemplate>
+            <DataTemplate DataType="vm:HookshotSettingsViewModel"><views:HookshotSettingsView/></DataTemplate>
           </ContentControl.DataTemplates>
         </ContentControl>
       </Border>

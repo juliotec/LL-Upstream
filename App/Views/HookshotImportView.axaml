@@ -44,6 +44,7 @@
           <TextBlock Text="{Binding Problem}" TextWrapping="Wrap"/>
         </Border>
         <StackPanel Classes="buttons" Margin="0,16,0,0" IsVisible="{Binding Listing}">
+          <Button Content="Import graphics and controls…" Command="{Binding SettingsCommand}"/>
           <Button Content="Choose a folder…" Command="{Binding PickFolderCommand}"/>
           <Button Content="Close" Command="{Binding CloseCommand}"/>
         </StackPanel>

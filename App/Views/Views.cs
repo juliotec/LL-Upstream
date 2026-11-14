@@ -84,3 +84,4 @@ public sealed partial class LicenceView : UserControl { public LicenceView() => 
 public sealed partial class StopBuildView : UserControl { public StopBuildView() => InitializeComponent(); }
 public sealed partial class SavePickView : UserControl { public SavePickView() => InitializeComponent(); }
 public sealed partial class HookshotImportView : UserControl { public HookshotImportView() => InitializeComponent(); }
+public sealed partial class HookshotSettingsView : UserControl { public HookshotSettingsView() => InitializeComponent(); }

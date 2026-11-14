@@ -35,9 +35,9 @@ static partial class Program
                 && found[0].Slots.All(s => s.Saved != null), "Linux: Hookshot's save, with its slots and when they were saved.");
         var hookshotBefore = Tree(Path.Combine(linuxData, "hookshot"));
 
-        var target = HookshotSaves.TargetFor(found[0].Profile, linux);
-        Require(target == Path.Combine(linuxData, "longshot", "save", Id1) && !HookshotSaves.WouldReplace(target),
-                "Linux: a new Longshot save for Hookshot's profile, in Longshot's own data folder.");
+        var target = Saves.ImportTarget(linux);
+        Require(target == Path.Combine(linuxData, "longshot", "save", Saves.UserId) && !HookshotSaves.WouldReplace(target),
+                "Linux: a new save in the fixed profile Longshot reads, regardless of the source profile.");
         var backups = Path.Combine(root, "backups");
         var first = HookshotSaves.Import(found[0], target, backups, overwrite: false, none, when);
         Require(first.Backup == null && first.Slots.SequenceEqual(new[] { "slot_00", "slot_01" })
@@ -49,7 +49,7 @@ static partial class Program
         // (a Longshot save there: refused without a yes, untouched; with it, backed up first, then replaced)
         File.WriteAllText(Path.Combine(target, "slot_01", "progress.sav"), "played on in Longshot");
         var longshotBefore = Tree(target);
-        Require(HookshotSaves.WouldReplace(target) && HookshotSaves.TargetFor(Id1, linux) == target, "The same profile is found again.");
+        Require(HookshotSaves.WouldReplace(target) && Saves.ImportTarget(linux) == target, "The same profile is found again.");
         try
         {
             HookshotSaves.Import(found[0], target, backups, overwrite: false, none, when);
@@ -70,13 +70,24 @@ static partial class Program
         catch (SaveFailure e) when (e.Reason == SaveRefusal.Running) { checks++; }
         Require(Saves.ProcessNames().TryGetValue("hookshot", out var who) && who == "Hookshot", "A running Hookshot is seen.");
 
+        // A Longshot profile folder the game never opens (here one with Hookshot's own id) is not a target: the import still
+        // goes into the fixed user, and leaves that folder alone.
+        var stray = Saves.SharedSavePath(linux, Id1);
+        CopyDir(found[0].Path, stray);
+        File.WriteAllText(Path.Combine(stray, "slot_01", "progress.sav"), "a copy by hand");
+        var strayBefore = Tree(stray);
+        Require(Saves.ImportTarget(linux) == target, "Another Longshot profile moved the import away from the user the game opens.");
+        var third = HookshotSaves.Import(found[0], Saves.ImportTarget(linux), backups, overwrite: true, none, when);
+        Require(third.Target == target && Tree(stray) == strayBefore && Tree(Path.Combine(linuxData, "hookshot")) == hookshotBefore,
+                "An import beside another Longshot profile goes into the fixed user and changes neither that profile nor Hookshot.");
+
         // (Windows: the default game folder, and a version folder in it; the import goes into the save every build shares)
         var home = Path.Combine(root, "windows");
         var windows = new SaveEnvironment(Platform.Windows, k => k switch { "HOME" => home, "USERPROFILE" => home, "APPDATA" => Path.Combine(home, "Roaming"), _ => null });
         var win = HookshotSaves.Find(windows);
         Require(win.Count == 2 && win.Select(s => s.Profile).SequenceEqual(new[] { Id1, Id2 }) && win.All(s => s.Valid)
                 && win[1].Slots.Single().Name == "slot_02", "Windows: Games\\Hookshot and its version folders.");
-        Require(HookshotSaves.TargetFor(Id2, windows) == Path.Combine(home, "Roaming", "Longshot", "save", Id2),
+        Require(Saves.ImportTarget(windows) == Path.Combine(home, "Roaming", "Longshot", "save", Saves.UserId),
                 "Windows: into the shared save, %APPDATA%\\Longshot\\save, with no build needed.");
 
         // (a folder chosen by hand: a game folder, or the save folder itself)

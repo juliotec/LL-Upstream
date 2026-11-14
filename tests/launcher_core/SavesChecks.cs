@@ -92,6 +92,7 @@ static class SavesChecks
     {
         Discovery(root);
         Copies(root);
+        FirstImports(root);
         Nx2navi(root);
         Guard(root);
         Builds(root);
@@ -332,6 +333,7 @@ static class SavesChecks
         MakeSave(P(tx, "work"), "WORK", "slot_05");
         MakeSave(P(tx, "new"), "NEW", "slot_05");
         MakeSave(P(tx, "old"), "OLD", "slot_05");
+        MakeSave(P(game, "profile", "save-import.part"), "PART", "slot_05");
         foreach (var name in new[] { "ready-0", "ready-", "ready-1x", "Ready-1", "ready-99999999999" }) MakeSave(P(tx, name), "NOT", "slot_05");
         File.WriteAllText(P(tx, "ready-2"), "a file, not a folder");
         Require(Saves.PendingCommit(nx) == null, "A working copy, an unfinished commit or an old save in save-tx is no save waiting.");
@@ -351,6 +353,16 @@ static class SavesChecks
                 "Nothing copied while NX2navi has a save waiting.");
         c.Run(true, "nx2navi", force: true);
         Require(Tree(c.Hs) == Tree(nx), "Forced.");
+        Directory.Delete(P(tx, "ready-0000000003"), recursive: true);
+        var pendingImport = P(game, "profile", "save-import");
+        MakeSave(pendingImport, "IMPORT", "slot_04");
+        before = Tree(c.Hs) + Tree(game);
+        backups = c.BackupDirs().Count;
+        Require(Saves.PendingCommit(nx) == pendingImport, "NX2navi's completed menu import waits for the next start.");
+        foreach (var import in new[] { true, false })
+            Fails(() => c.Run(import, "nx2navi"), "save-import", "A menu import waiting in NX2navi.");
+        Require(Tree(c.Hs) + Tree(game) == before && c.BackupDirs().Count == backups,
+                "Nothing copied while NX2navi has a menu import waiting.");
     }
 
     static void Guard(string root)
@@ -377,14 +389,105 @@ static class SavesChecks
         Require(Saves.RunningFrom(Platform.Linux, new[] { "Longshot.AppImage", "LongshotLauncher" }).Count == 0, "The launcher itself is not the game.");
     }
 
+    static void FirstImports(string root)
+    {
+        foreach (var platform in new[] { Platform.Linux, Platform.Windows })
+        foreach (var custom in new[] { false, true })
+        {
+            var c = new Case(root, $"first-nx2navi-{platform}-{custom}");
+            Directory.Delete(c.Hs, recursive: true);
+            var env = platform == Platform.Linux ? c.Linux : c.Windows;
+            var game = custom ? P(c.Tmp, "portable game") : platform == Platform.Linux
+                ? P(c.Home, "Games", "Ocarina") : P(c.LocalAppData, "Programs", "NX2navi", "game");
+            var folder = custom ? game : null;
+            var source = P(game, "profile", "save", Profile);
+            MakeSave(source, "FIRST", "slot_03");
+            File.WriteAllBytes(P(game, "profile", "account.uid"), new byte[16]);
+            var progress = P(source, "slot_03", "progress.sav");
+            var bytes = new byte[] { 0, 255, 128, 42, 13, 10 };
+            File.WriteAllBytes(progress, bytes);
+            var sourceBefore = Tree(game);
+            var target = Saves.ImportTarget(env);
+            Require(target == P(env.LongshotUser, "save", "5a3c9e1f0b7d24680000000000000001")
+                    && !Directory.Exists(target), "First import: the fixed user Longshot reads, without writing a folder.");
+            Require(Saves.Locate(Saves.Named("nx2navi"), folder, env).Profiles.Single().Path == source,
+                    "First import: NX2navi's default or custom game folder on either platform.");
+
+            SaveCopy Copy(bool dry = false) => Saves.ImportExport(true, Saves.Named("nx2navi"), folder, env,
+                dryRun: dry, backupRoot: c.Backups, running: () => c.Busy);
+            c.Busy = new[] { "NX2navi" };
+            Fails(() => Copy(), "Close NX2navi", "First import refuses a running NX2navi.");
+            Require(!Directory.Exists(target) && c.BackupDirs().Count == 0 && Tree(game) == sourceBefore,
+                    "A refused first import writes nothing.");
+            var preview = Copy(dry: true);
+            Require(preview.Target == target && preview.Backup == null && !Directory.Exists(target) && c.BackupDirs().Count == 0,
+                    "A first import's preview names the target without making it or a backup.");
+            c.Busy = Array.Empty<string>();
+            Fails(() => Saves.ImportExport(false, Saves.Named("nx2navi"), folder, env, backupRoot: c.Backups, running: () => c.Busy),
+                  "Start Longshot once", "Export still requires a Longshot save.");
+            foreach (var pending in new[] { P(game, "profile", "save-tx", "ready-1"), P(game, "profile", "save-import") })
+            {
+                MakeSave(pending, "WAITING", "slot_02");
+                var before = Tree(game);
+                try
+                {
+                    Copy();
+                    throw new Exception("First import ignored NX2navi's pending save.");
+                }
+                catch (SaveFailure e)
+                {
+                    Require(e.Reason == SaveRefusal.Waiting && e.Who.SequenceEqual(new[] { "NX2navi" })
+                            && e.Message.Contains(Path.GetFileName(pending) == "save-import" ? pending : Path.GetDirectoryName(pending)!),
+                            "First import names NX2navi's pending commit or menu import.");
+                }
+                Require(!Directory.Exists(target) && c.BackupDirs().Count == 0 && Tree(game) == before,
+                        "A pending NX2navi save refuses first import without changing either side.");
+                Directory.Delete(pending, recursive: true);
+            }
+
+            var first = Copy();
+            Require(first.Backup == null && Tree(target) == Tree(source)
+                    && File.ReadAllBytes(P(target, "slot_03", "progress.sav")).SequenceEqual(bytes)
+                    && File.ReadAllBytes(progress).SequenceEqual(bytes) && Tree(game) == sourceBefore,
+                    "First import: every file copied, source bytes untouched, no backup of an absent target.");
+            MakeSave(target, "PLAYED", "slot_08");
+            var targetBefore = Tree(target);
+            var second = Copy();
+            Require(second.Backup != null && Tree(second.Backup) == targetBefore && Tree(target) == Tree(source)
+                    && !Directory.Exists(P(target, "slot_08")) && Tree(game) == sourceBefore,
+                    "A later import backs up the target whole and replaces its slots, leaving the source alone.");
+
+            var secondSource = P(game, "profile", "save", Account);
+            MakeSave(secondSource, "SECOND");
+            var bothBefore = Tree(game) + Tree(target);
+            var backups = c.BackupDirs().Count;
+            Fails(() => Copy(), "pick one", "Several NX2navi profiles require a choice.");
+            Require(Tree(game) + Tree(target) == bothBefore && c.BackupDirs().Count == backups,
+                    "An ambiguous NX2navi profile writes nothing.");
+            Saves.ImportExport(true, Saves.Named("nx2navi"), folder, env, profile: Account,
+                               backupRoot: c.Backups, running: () => c.Busy);
+            Require(Tree(target) == Tree(secondSource), "The NX2navi profile the player chose is imported.");
+
+            // (a second Longshot profile folder, one the game never opens: the import still goes into the fixed user, and leaves it)
+            var stray = P(env.LongshotUser, "save", Uid);
+            MakeSave(stray, "STRAY");
+            var strayBefore = Tree(stray);
+            Require(Saves.ImportTarget(env) == target, "Another Longshot profile moved the import away from the user the game opens.");
+            var beside = Saves.ImportExport(true, Saves.Named("nx2navi"), folder, env, profile: Account,
+                                            backupRoot: c.Backups, running: () => c.Busy);
+            Require(beside.Target == target && Tree(target) == Tree(secondSource) && Tree(stray) == strayBefore,
+                    "An import beside a stray Longshot profile goes into the fixed user and leaves the stray one alone.");
+        }
+    }
+
     static void Builds(string root)
     {
         // (import and export: the save every build shares, on Windows as on Linux)
         var c = new Case(root, "builds");
         MakeSave(EdenSave(P(c.AppData, "eden")), "WE", "slot_07");
-        Fails(() => Saves.ImportExport(true, Saves.Named("lichii"), null, c.Windows, backupRoot: c.Backups, running: () => c.Busy),
+        Fails(() => Saves.ImportExport(false, Saves.Named("lichii"), null, c.Windows, backupRoot: c.Backups, running: () => c.Busy),
               "Start Longshot once", "Windows: Longshot never saved yet.");
-        var shared = Saves.SharedSavePath(c.Windows, Uid);
+        var shared = Saves.SharedSavePath(c.Windows, Saves.UserId);
         MakeSave(shared, "S");
         Saves.ImportExport(true, Saves.Named("lichii"), null, c.Windows, backupRoot: c.Backups, running: () => c.Busy);
         Require(Tree(shared) == Tree(EdenSave(P(c.AppData, "eden"))), "Import into Windows' shared save.");

@@ -4,8 +4,8 @@ are tests/fixtures/release's (made by scripts/release.py). Its scratch folder is
 
     python -I tests/test_launcher_core.py [--dotnet <dotnet>] [--strict] [--longshot <checkout of MagicBeanDev/Longshot>]
 
-With --longshot it also checks what the launcher copies from Longshot: make_game.py's languages and the SDK commits the DLSS and
-FSR 4 licence texts name (CI checks out Longshot's main for it).
+With --longshot it also checks what the launcher copies from Longshot: make_game.py's languages, the SDK commits the DLSS and
+FSR 4 licence texts name, and the first-import player ID (CI checks out Longshot's main for it).
 
 With no dotnet here the check is skipped (exit 0, saying why), unless --strict.
 """
@@ -80,6 +80,18 @@ def check_licences(longshot):
                              % (script, commit))
 
 
+def check_save_user(longshot):
+    """A first import must use the player the game opens, not the emulator's profile ID."""
+    host = (longshot / "host" / "nn_applet.c").read_text(encoding="utf-8")
+    uid = re.search(r"user_uid\[2\]\s*=\s*\{\s*0x([0-9a-fA-F]+)ULL,\s*0x([0-9a-fA-F]+)ULL\s*\}", host)
+    if uid is None:
+        raise SystemExit("Longshot's user_uid changed: review the first-import save destination.")
+    expected = f"{int(uid[2], 16):016x}{int(uid[1], 16):016x}"
+    source = (ROOT / "Core" / "Saves.cs").read_text(encoding="utf-8")
+    if f'UserId = "{expected}"' not in source:
+        raise SystemExit("Core/Saves.cs's UserId differs from Longshot's player: " + expected)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dotnet", default=None)
@@ -89,6 +101,7 @@ def main():
     if args.longshot:
         check_languages(args.longshot)
         check_licences(args.longshot)
+        check_save_user(args.longshot)
     elif args.strict:
         raise SystemExit("--strict needs --longshot <checkout of MagicBeanDev/Longshot>")
     dotnet = args.dotnet or shutil.which("dotnet") or (str(Path.home() / ".dotnet" / "dotnet")

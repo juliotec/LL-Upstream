@@ -41,7 +41,7 @@ public sealed class SaveFailure(string message, SaveRefusal reason = SaveRefusal
     public IReadOnlyList<string> Who { get; } = who ?? Array.Empty<string>();
 }
 
-/// Running: a game or an emulator runs; Waiting: NX2navi has a save waiting in profile/save-tx; Exists: the copy would replace a
+/// Running: a game or an emulator runs; Waiting: NX2navi has a commit or menu import waiting; Exists: the copy would replace a
 /// save the player has not agreed to replace (HookshotSaves.Import); Other: anything else
 public enum SaveRefusal { Other, Running, Waiting, Exists }
 
@@ -95,6 +95,8 @@ public static class Saves
 {
     public const string Title = "0400486024DEC000";
     public const string NoAccount = "0000000000000000";
+    // Longshot's host/nn_applet.c returns this one user; an emulator's profile id is not read by the game.
+    public const string UserId = "5a3c9e1f0b7d24680000000000000001";
 
     static Dictionary<Platform, string[]> On(string[] linux, string[] windows) => new() { [Platform.Linux] = linux, [Platform.Windows] = windows };
 
@@ -242,14 +244,16 @@ public static class Saves
     /// while a finished commit waits there (save-tx/ready-&lt;n&gt;, n from 1), that is the save the game loads next. The rest of
     /// save-tx is not a save in waiting (NX2navi's runtime/fs_host.c, "save transactions"): work/ is the working copy, which a
     /// quit leaves behind (the exit waits for a commit but does not unmount the save) and the next start deletes; new/ is an unfinished
-    /// commit, rolled back; old/ is the save a commit replaced, on its way to save-backup
+    /// commit, rolled back; old/ is the save a commit replaced, on its way to save-backup. The menu's completed import in
+    /// profile/save-import also replaces the current save at the next start (fs_host.c import_pending); save-import.part does not
     public static string? PendingCommit(string save)
     {
         var parent = Up(System.IO.Path.TrimEndingDirectorySeparator(System.IO.Path.GetFullPath(save)));
+        if (Base(parent).ToLowerInvariant() != "save") return null;
+        var import = System.IO.Path.Combine(Up(parent), "save-import");
+        if (Directory.Exists(import)) return import;
         var tx = System.IO.Path.Combine(Up(parent), "save-tx");
-        if (Base(parent).ToLowerInvariant() == "save" && Subdirs(tx).Any(IsFinishedCommit))
-            return tx;
-        return null;
+        return Subdirs(tx).Any(IsFinishedCommit) ? tx : null;
     }
 
     /// fs_host.c ready_number: "ready-" and a number above 0, nothing else
@@ -278,6 +282,11 @@ public static class Saves
 
     /// Where Longshot's save of a profile goes when there is none yet: &lt;LongshotUser&gt;\save\&lt;id&gt;
     public static string SharedSavePath(SaveEnvironment env, string profile) => System.IO.Path.Combine(env.LongshotUser, "save", profile);
+
+    /// Where an import goes: the save of the one user the game opens (UserId: host/nn_applet.c's user_uid, which host/nn_fs.c
+    /// names save\&lt;high word&gt;&lt;low word&gt;), whether it is there yet or not. Another profile folder in save\ (a stray one, a copy
+    /// made by hand) is never read by the game, so an import never goes there and never has to choose between them
+    public static string ImportTarget(SaveEnvironment env) => SharedSavePath(env, UserId);
 
     /// Every emulator's saves, grouped by the folder they come from (the emulators that share Eden's folder in one group), as
     /// list_all shows them: a group with nothing names the folders it looked in
@@ -424,14 +433,26 @@ public static class Saves
         return (System.IO.Path.Combine(parent, $".{name}.longshot-staging"), System.IO.Path.Combine(parent, $".{name}.longshot-old"));
     }
 
-    static string Real(string path)
+    /// path with every link on the way resolved (a symlinked ~/Games, a junction, the folder itself), the parts not there yet
+    /// kept as they are: two paths to one folder compare equal, whichever links they pass through
+    internal static string Real(string path) => Real(path, 0);
+
+    static string Real(string path, int depth)
     {
         var full = System.IO.Path.TrimEndingDirectorySeparator(System.IO.Path.GetFullPath(path));
-        try { if (new DirectoryInfo(full).ResolveLinkTarget(true) is { } t) full = t.FullName; } catch (IOException) { }
-        return full;
+        var root = System.IO.Path.GetPathRoot(full) ?? "";
+        var real = root;
+        foreach (var part in full[root.Length..].Split(System.IO.Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries))
+        {
+            real = System.IO.Path.Combine(real, part);
+            if (depth >= 40) continue;   // (a loop of links: left as it is from there)
+            try { if (new DirectoryInfo(real).ResolveLinkTarget(true) is { } t) real = Real(t.FullName, depth + 1); }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+        }
+        return real.Length == 0 ? full : System.IO.Path.TrimEndingDirectorySeparator(real);
     }
 
-    static bool Inside(string root, string path)
+    internal static bool Inside(string root, string path)
     {
         var c = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
         return path.Equals(root, c) || path.StartsWith(root + System.IO.Path.DirectorySeparatorChar, c);
@@ -463,7 +484,7 @@ public static class Saves
         for (var n = 2; Directory.Exists(at) || File.Exists(at); n++) at = $"{backup}-{n}";   // (two copies in the same second)
         backup = at;
 
-        if (Inside(Real(dst), System.IO.Path.GetFullPath(backup))) throw new SaveFailure($"Choose a backup folder outside the target save folder ({dst}).");
+        if (Inside(Real(dst), Real(backup))) throw new SaveFailure($"Choose a backup folder outside the target save folder ({dst}).");
         var names = SlotNames(src);
         if (names.Count == 0) throw new SaveFailure($"{src} has no slot_* folders: nothing to copy.");
         foreach (var s in names) RefuseLinks(System.IO.Path.Combine(src, s));
@@ -556,9 +577,8 @@ public static class Saves
         var build = Shared(env);
         var em = Locate(other, folder, env).Profiles;
         var emulator = Pick(em, other.Display, profile);
-        // (as the script: Longshot's side has to exist, so the save lands in the user id folder the game made)
-        if (!build.Found) throw new SaveFailure((build.Problem ?? "No Longshot save found.") + " Start Longshot once and save first.");
-        var hs = Pick(build.Profiles, "Longshot").Path;
+        if (!import && !build.Found) throw new SaveFailure((build.Problem ?? "No Longshot save found.") + " Start Longshot once and save first.");
+        var hs = import ? ImportTarget(env) : Pick(build.Profiles, "Longshot").Path;
         var (src, dst) = import ? (emulator.Path, hs) : (hs, emulator.Path);
         return Copy(src, dst, backupRoot ?? env.BackupRoot, import ? "import" : "export", other.Name, keepSettings, dryRun, force, running, now);
     }

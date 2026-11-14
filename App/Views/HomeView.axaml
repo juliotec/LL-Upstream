@@ -65,6 +65,23 @@
         </StackPanel>
       </Grid>
     </Border>
+    <!-- NX2navi's saves found, offered once -->
+    <Border DockPanel.Dock="Top" IsVisible="{Binding HasNx2naviOffer}" Margin="0,0,0,6" Padding="16,12,14,12" CornerRadius="10"
+            BorderBrush="#4D5FB08A" BorderThickness="1">
+      <Grid ColumnDefinitions="30,*,Auto" ColumnSpacing="14">
+        <Border Width="30" Height="30" CornerRadius="15" Background="{StaticResource GoSoft}" VerticalAlignment="Center">
+          <c:Icon Kind="disk" Width="16" Height="16" Foreground="{StaticResource Go}"/>
+        </Border>
+        <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+          <TextBlock Text="Your NX2navi saves" FontWeight="SemiBold"/>
+          <TextBlock Classes="note" Text="{Binding Nx2naviOffer}" TextWrapping="Wrap"/>
+        </StackPanel>
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <Button Classes="small" Content="Not now" Command="{Binding NotNowNx2naviCommand}"/>
+          <Button Classes="small" Content="Import…" Command="{Binding ImportNx2naviCommand}"/>
+        </StackPanel>
+      </Grid>
+    </Border>
     <!-- a problem to read -->
     <Border DockPanel.Dock="Top" Classes="warnbox" IsVisible="{Binding HasNotice}" Margin="0,0,0,6">
       <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
@@ -74,6 +91,7 @@
       </Grid>
     </Border>
 
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
     <Panel>
       <!-- no build yet: Build -->
       <StackPanel IsVisible="{Binding NoBuilds}" HorizontalAlignment="Center" VerticalAlignment="Center">
@@ -273,5 +291,6 @@
         </StackPanel>
       </Grid>
     </Panel>
+    </ScrollViewer>
   </DockPanel>
 </UserControl>

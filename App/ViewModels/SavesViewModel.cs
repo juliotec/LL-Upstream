@@ -299,7 +299,7 @@ public sealed class SavesConfirmViewModel : ViewModelBase
         Page = page;
         Op = op;
         BackCommand = new Command(() => page.Main.Navigate(page));
-        RunCommand = new Command(Run);
+        RunCommand = new Command(Run, () => Problem == null && From.Path != null && To.Path != null);
         Refresh();
     }
 
@@ -347,9 +347,8 @@ public sealed class SavesConfirmViewModel : ViewModelBase
     /// Longshot's side: the save every build shares
     SaveSide LongshotSide()
     {
-        var set = Saves.Shared(Page.Env);
-        var path = set.Found ? set.Profiles[0].Path : null;
-        return new SaveSide("Longshot", path ?? Path.Combine(Page.Env.LongshotUser, "save"), path != null ? Saves.Describe(path) : Array.Empty<SaveSlot>(), path, false);
+        var path = Op.Mode == SaveMode.Import ? Saves.ImportTarget(Page.Env) : Saves.Pick(Saves.Shared(Page.Env).Profiles, "Longshot").Path;
+        return new SaveSide("Longshot", path, Saves.Describe(path), path, false);
     }
 
     void Refresh()
@@ -367,7 +366,13 @@ public sealed class SavesConfirmViewModel : ViewModelBase
             Problem = e.Message;
             other = new SaveSide(Op.OtherName, Op.Folder ?? "", Array.Empty<SaveSlot>(), null, true);
         }
-        var me = LongshotSide();
+        SaveSide me;
+        try { me = LongshotSide(); }
+        catch (SaveFailure e)
+        {
+            Problem = e.Message;
+            me = new SaveSide("Longshot", Path.Combine(Page.Env.LongshotUser, "save"), Array.Empty<SaveSlot>(), null, false);
+        }
         (From, To) = Op.Mode == SaveMode.Import ? (other, me) : (me, other);
         // (where the backup goes: the dry run of the same copy)
         if (From.Path != null && To.Path != null)
@@ -386,7 +391,15 @@ public sealed class SavesConfirmViewModel : ViewModelBase
         var main = Page.Main;
         try
         {
+            if (Op.Mode == SaveMode.Import && Saves.ImportTarget(Page.Env) != To.Path)
+                throw new SaveFailure("Longshot's save location changed. Go back and review the import again.");
             var done = Saves.ImportExport(Op.Mode == SaveMode.Import, Op.Program, Op.Folder, Page.Env, Op.Profile, Op.KeepSettings);
+            if (Op.Mode == SaveMode.Import && Op.Program.Name == "nx2navi")
+            {
+                Service.Settings.Nx2naviSavesAsked = true;
+                try { Service.SaveSettings(); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+                main.Home.Nx2naviOffer = null;
+            }
             main.Navigate(new SavesResultViewModel(this, SaveResult.Done, done.Backup, null));
         }
         catch (SaveFailure e)

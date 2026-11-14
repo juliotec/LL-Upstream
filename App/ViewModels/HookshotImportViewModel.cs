@@ -27,6 +27,7 @@ public sealed class HookshotImportViewModel : ViewModelBase
         Main = main;
         CloseCommand = new Command(() => Main.Modal = null);
         PickFolderCommand = new Command(() => _ = PickFolderAsync());
+        SettingsCommand = new Command(() => Main.Modal = new HookshotSettingsViewModel(Main));
         ReplaceCommand = new Command(() => Run(overwrite: true));
         KeepCommand = new Command(() => { chosen = null; RaiseAll(nameof(Asking), nameof(Listing)); });
         Load(null);
@@ -59,6 +60,7 @@ public sealed class HookshotImportViewModel : ViewModelBase
 
     public Command CloseCommand { get; }
     public Command PickFolderCommand { get; }
+    public Command SettingsCommand { get; }
     public Command ReplaceCommand { get; }
     public Command KeepCommand { get; }
 
@@ -84,7 +86,7 @@ public sealed class HookshotImportViewModel : ViewModelBase
         Problem = null;
         try
         {
-            var to = HookshotSaves.TargetFor(source.Profile, Env);
+            var to = Saves.ImportTarget(Env);
             chosen = source;
             if (HookshotSaves.WouldReplace(to))
             {
@@ -104,8 +106,11 @@ public sealed class HookshotImportViewModel : ViewModelBase
         busy = true;
         try
         {
+            if (Saves.ImportTarget(Env) != target)
+                throw new SaveFailure("Longshot's save location changed. Choose the Hookshot save again and review the import.");
             var done = HookshotSaves.Import(chosen, target, Env.BackupRoot, overwrite);
             Main.Service.Settings.HookshotSavesAsked = true;
+            Main.Home.HookshotOffer = null;
             try { Main.Service.SaveSettings(); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
             Main.Modal = null;
             Main.ShowToast($"Imported {done.Slots.Count} save slot{(done.Slots.Count == 1 ? "" : "s")} from Hookshot" +
