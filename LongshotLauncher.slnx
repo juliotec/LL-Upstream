@@ -1,4 +1,5 @@
 <Solution>
   <Project Path="Core/LongshotLauncher.Core.csproj" />
   <Project Path="App/LongshotLauncher.csproj" />
+  <Project Path="tools/screenshots/Screenshots.csproj" />
 </Solution>

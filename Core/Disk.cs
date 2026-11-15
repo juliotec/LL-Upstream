@@ -108,9 +108,14 @@ public static class Disk
         return r.Length == 0 || path.Equals(r, c) || path.StartsWith(prefix, c) || root == "/";
     }
 
+    /// The screenshots' stand-in for the drive every path is on (tools/screenshots: nothing of this PC's in the picture); null:
+    /// this PC's drives
+    public static string? ShownDrive { get; set; }
+
     /// The drive a path is on, as the window names it: "D:" on Windows, the mount point on Linux ("/" , "/home", "/mnt/games")
     public static string DriveName(string path)
     {
+        if (ShownDrive is { } shown) return shown;
         try
         {
             var full = Path.GetFullPath(path);

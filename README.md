@@ -216,10 +216,26 @@ dotnet run --project App
 | `Core/` | `LongshotLauncher.Core`: the logic, no UI and no package. Versions and channels (`Versions`), the signed releases of Longshot and of the launcher (`Releases`, `ReleaseTrust`, `ReleaseManifest`), its own update (`SelfUpdate`), each version's builder and its tools.lock (`Toolchains`, `ToolsSource`, `ToolsLock`), game folders, `builds.json` (`BuildRegistry`), remembered settings, make_game.py's command line, `@@` lines, run and check (`MakeGameCommand`, `MakeGameProtocol`, `MakeGameRun`), the game files found on this PC (`GameFiles`), update offers (`UpdatePolicy`), saves (`Saves`, a port of Longshot's `scripts/longshot_saves.py`; `SaveText`) and Hookshot's (`HookshotSaves`), the game settings brought to a new build (`SettingsCarry`), disk space (`Disk`), this PC (`SystemInfo`), shortcuts (`Shortcuts`), installed or portable (`LauncherLayout`, `Installer`), one launcher per home (`InstanceLock`), the launcher's home and command line |
 | `Core/Lang/` | The launcher's translations, one catalog per language (`Tr`, [Translations](#translations)) |
 | `App/` | `LongshotLauncher`: the Avalonia window. `ViewModels/` (one per page and dialog), `Views/` (one .axaml each, compiled bindings), `Controls/` (icons, bars and spinner), `App.axaml` (the palette and the styles), `Assets/` (the Longshot logo and icon, the Inter font with its licence) |
+| `tools/screenshots/` | The screens drawn without a display into PNGs ([Screenshots](#screenshots)) |
 | `tests/` | `test_launcher_core.py` (builds `launcher_core/`, which compiles `Core/` and checks it), `test_release.py` (`scripts/release.py`), `fixtures/` (signed test releases, fake Hookshot saves) |
 | `scripts/` | `package.sh` (both release programs, from Linux), `make_icon.py` (`App/Assets/longshot.ico` from the logo), `release.py` (the signed release files, the keys, the uploads; the same file as Longshot's), `translations.py` (the window's texts against each catalog) |
 | `.forgejo/workflows/` | `ci.yml` (compile and test, every pull request), `release.yml` (the nightly from `main`, a release from a `v*` tag) |
 | `docs/` | [releases.md](docs/releases.md), [saves.md](docs/saves.md), and the screenshots in this README |
+
+### Screenshots
+
+`tools/screenshots` draws the launcher's screens without a display (Avalonia.Headless, rendered by Skia), each in a launcher
+of its own: a home in a temporary folder, a player's folders as the screens show them, no game files and no network. For
+a pull request that changes a screen:
+
+```sh
+dotnet run --project tools/screenshots -- work/screenshots            # every scene
+dotnet run --project tools/screenshots -- work/screenshots build-log  # only these
+```
+
+Each scene is one PNG of the 960x600 window, named after it; the scenes are in `tools/screenshots/Program.cs` (the home,
+the build settings on Linux and Windows, the FSR 4 notice, the build page with and without its details). A change to a
+screen adds or updates the scene that shows it.
 
 ### Environment and command line
 

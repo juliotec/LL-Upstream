@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The launcher's screens drawn without a display (Avalonia.Headless, rendered by Skia) into PNGs, for pull requests and the
+       README (README.md, Screenshots). Program.cs has the scenes -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>LongshotScreenshots</AssemblyName>
+    <RootNamespace>LongshotScreenshots</RootNamespace>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia.Headless"/>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../App/LongshotLauncher.csproj"/>
+  </ItemGroup>
+</Project>

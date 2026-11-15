@@ -7,6 +7,8 @@
   <ItemGroup>
     <PackageVersion Include="Avalonia" Version="[12.1.6]"/>
     <PackageVersion Include="Avalonia.Desktop" Version="[12.1.6]"/>
+    <!-- (tools/screenshots only: the screens drawn without a display) -->
+    <PackageVersion Include="Avalonia.Headless" Version="[12.1.6]"/>
     <PackageVersion Include="Avalonia.Themes.Fluent" Version="[12.1.6]"/>
     <PackageVersion Include="Avalonia.Wayland" Version="[12.1.6]"/>
   </ItemGroup>
