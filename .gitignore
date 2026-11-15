@@ -6,3 +6,4 @@ out/
 .appimagetool/
 __pycache__/
 *.pyc
+.mb-main/

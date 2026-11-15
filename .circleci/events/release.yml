@@ -1,0 +1,35 @@
+# Tag v* release workflow (setup forces full path areas). See docs/ci.md.
+workflows:
+  release:
+    when: (pipeline.git.tag or "") starts-with "v"
+    jobs:
+      - lint:
+          filters: (pipeline.git.tag or "") starts-with "v"
+      - build-test:
+          filters: (pipeline.git.tag or "") starts-with "v"
+      - release-scripts:
+          filters: (pipeline.git.tag or "") starts-with "v"
+      - version:
+          filters: (pipeline.git.tag or "") starts-with "v"
+          requires: [lint, build-test, release-scripts]
+      - build-release:
+          filters: (pipeline.git.tag or "") starts-with "v"
+          requires: [version]
+      - mb/release-sign:
+          name: sign
+          filters: (pipeline.git.tag or "") starts-with "v"
+          context: [release-signing]
+          dry-run: << pipeline.parameters.release_dry_run >>
+          requires: [build-release]
+      - mb/release-publish:
+          name: publish
+          tag: << pipeline.git.tag >>
+          filters: (pipeline.git.tag or "") starts-with "v"
+          context: [forgejo-bot]
+          serial-group: << pipeline.project.slug >>/release
+          dry-run: << pipeline.parameters.release_dry_run >>
+          requires: [sign]
+      - mb/gate:
+          name: gate
+          filters: (pipeline.git.tag or "") starts-with "v"
+          requires: [lint, build-test, release-scripts, sign, publish]

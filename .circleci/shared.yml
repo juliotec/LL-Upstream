@@ -1,0 +1,451 @@
+# Shared jobs, commands, executors (merged with .circleci/events/<event>.yml). See docs/ci.md.
+version: 2.1
+
+orbs:
+  mb: magicbeandev/ci@0.1.2
+
+parameters:
+  app:
+    type: boolean
+    default: false
+  core:
+    type: boolean
+    default: false
+  tests:
+    type: boolean
+    default: false
+  packaging:
+    type: boolean
+    default: false
+  release_scripts:
+    type: boolean
+    default: false
+  docs_only:
+    type: boolean
+    default: false
+  full:
+    type: boolean
+    default: false
+  nightly:
+    type: boolean
+    default: false
+  release_dry_run:
+    type: boolean
+    default: false
+  fork_pr:
+    type: integer
+    default: 0
+  fork_sha:
+    type: string
+    default: ""
+executors:
+  # Gen2 Arm (beta): override resource_class on the job if the project lacks gen2 (use arm.medium or medium).
+  python-arm:
+    parameters:
+      resource_class:
+        type: string
+        default: arm.medium.gen2
+    docker:
+      - image: cimg/python:3.12.16
+    resource_class: << parameters.resource_class >>
+  dotnet-arm:
+    parameters:
+      resource_class:
+        type: string
+        default: arm.medium.gen2
+    docker:
+      - image: mcr.microsoft.com/dotnet/sdk:10.0.404-noble
+    resource_class: << parameters.resource_class >>
+    environment:
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      DOTNET_NOLOGO: "1"
+      DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "1"
+  dotnet-x86-large:
+    docker:
+      - image: mcr.microsoft.com/dotnet/sdk:10.0.404-noble
+    resource_class: large
+    environment:
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      DOTNET_NOLOGO: "1"
+      DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "1"
+
+commands:
+  ensure-tools:
+    description: python3, git, openssl, curl, jq on the .NET SDK image.
+    steps:
+      - run:
+          name: APT tools (python3, git, openssl, curl, jq)
+          command: |
+            export DEBIAN_FRONTEND=noninteractive
+            sudo=; [ "$(id -u)" = 0 ] || sudo=sudo
+            $sudo apt-get update -qq
+            $sudo apt-get install -y -qq --no-install-recommends python3 git openssl curl jq ca-certificates file >/dev/null
+
+  longshot-clone:
+    description: Longshot sparse checkout (pin in tests/longshot.ref, or ref main for advisory).
+    parameters:
+      ref:
+        type: string
+        default: pin
+    steps:
+      - run:
+          name: Longshot sparse checkout
+          command: |
+            set -euo pipefail
+            URL=https://git.magicbean.dev/MagicBeanDev/Longshot.git
+            DEST=$HOME/longshot
+            pick="<< parameters.ref >>"
+            if [ "$pick" = pin ]; then
+              pick=$(grep -vE '^[[:space:]]*(#|$)' tests/longshot.ref | head -1 | tr -d '[:space:]')
+              [[ $pick =~ ^[0-9a-f]{40}$ ]] || { echo "bad longshot.ref: $pick" >&2; exit 1; }
+            fi
+            rm -rf "$DEST"
+            mkdir -p "$DEST"
+            cd "$DEST"
+            git init -q
+            git remote add origin "$URL"
+            git config core.sparseCheckout true
+            printf '%s\n' nx2/make_game.py nx2/translator_files.py scripts/ngx_sdk.py scripts/ffx_sdk.py \
+              scripts/dev_packs.py tools.lock host/nn_applet.c \
+              >.git/info/sparse-checkout
+            git config remote.origin.promisor true
+            git config remote.origin.partialclonefilter blob:none
+            git fetch --depth 1 --filter=blob:none origin "$pick"
+            git checkout FETCH_HEAD
+            echo "Longshot at $(git rev-parse HEAD)"
+
+  nuget-restore:
+    steps:
+      - restore_cache:
+          keys:
+            - v1-nuget-{{ arch }}-{{ checksum "Directory.Packages.props" }}-{{ checksum "App/packages.lock.json" }}-{{ checksum "Core/packages.lock.json" }}
+            - v1-nuget-{{ arch }}-
+
+  nuget-save:
+    steps:
+      - mb/save-cache-main:
+          key: v1-nuget-{{ arch }}-{{ checksum "Directory.Packages.props" }}-{{ checksum "App/packages.lock.json" }}-{{ checksum "Core/packages.lock.json" }}
+          paths: ~/.nuget/packages
+          fork-pr: << pipeline.parameters.fork_pr >>
+          git-branch: << pipeline.git.branch >>
+
+  mise-tools:
+    description: Pin shellcheck, conftest, actionlint, circleci CLI via mise (cached).
+    steps:
+      - mb/setup-mise:
+          fork-pr: << pipeline.parameters.fork_pr >>
+          git-branch: << pipeline.git.branch >>
+
+  dotnet-format-cache-save:
+    steps:
+      - mb/save-cache-main:
+          key: v1-dotnet-format-{{ arch }}-{{ checksum "global.json" }}-{{ checksum "Directory.Packages.props" }}
+          paths: ~/.dotnet
+          fork-pr: << pipeline.parameters.fork_pr >>
+          git-branch: << pipeline.git.branch >>
+
+jobs:
+  lint:
+    executor: python-arm
+    environment:
+      BASH_ENV: /tmp/bash_env.ci
+    steps:
+      - mb/get-source:
+          fork-pr: << pipeline.parameters.fork_pr >>
+          fork-sha: "<< pipeline.parameters.fork_sha >>"
+          repo-url: "https://git.magicbean.dev/MagicBeanDev/LongshotLauncher.git"
+      - mb/commit-subjects
+      - mise-tools
+      - run:
+          name: Shellcheck scripts
+          command: shellcheck -S error -x scripts/package.sh
+      - run:
+          name: YAML and JSON sanity
+          command: |
+            set -euo pipefail
+            if ! command -v yq >/dev/null; then
+              curl -fsSL -o /tmp/yq https://github.com/mikefarah/yq/releases/download/v4.34.1/yq_linux_arm64
+              echo "b8600f47afef46e5e56133fbe7ac74b8e7fac981796a9a15c7102a1f9a8df5c  /tmp/yq" | sha256sum -c -
+              chmod +x /tmp/yq
+              export PATH="/tmp:$PATH"
+            fi
+            yq -e '.' .pre-commit-config.yaml
+            jq -e '.' global.json
+      - mb/policy-check:
+          shared: .circleci/shared.yml
+          events-dir: .circleci/events
+          forks: .circleci/forks.yml
+      - run:
+          name: Gitleaks (mise pin)
+          command: gitleaks dir . --config .circleci/gitleaks.toml --redact --no-banner
+      - run:
+          name: actionlint (.forgejo/workflows)
+          command: actionlint -config-file .actionlint.yml .forgejo/workflows/*.yml
+      - run:
+          name: CircleCI config validate
+          command: |
+            circleci config validate .circleci/config.yml
+            circleci config validate .circleci/forks.yml
+  build-test:
+    executor: dotnet-arm
+    retention:
+      caches: 5d
+    steps:
+      - ensure-tools
+      - mb/get-source:
+          fork-pr: << pipeline.parameters.fork_pr >>
+          fork-sha: "<< pipeline.parameters.fork_sha >>"
+          repo-url: "https://git.magicbean.dev/MagicBeanDev/LongshotLauncher.git"
+      - nuget-restore
+      - longshot-clone
+      - run:
+          name: dotnet build LongshotLauncher.slnx (Release, RestoreLockedMode)
+          command: dotnet build LongshotLauncher.slnx --configuration Release -p:RestoreLockedMode=true
+          no_output_timeout: 15m
+      - run:
+          name: tests/test_launcher_core.py (--strict --pinned)
+          command: python3 -I -B tests/test_launcher_core.py --strict --longshot "$HOME/longshot" --pinned
+          no_output_timeout: 15m
+      - nuget-save
+
+  release-scripts:
+    executor: python-arm
+    environment:
+      BASH_ENV: /tmp/bash_env.ci
+    steps:
+      - mb/get-source:
+          fork-pr: << pipeline.parameters.fork_pr >>
+          fork-sha: "<< pipeline.parameters.fork_sha >>"
+          repo-url: "https://git.magicbean.dev/MagicBeanDev/LongshotLauncher.git"
+      - mise-tools
+      - run:
+          name: tests/test_release.py (pytest junit)
+          command: |
+            set -euo pipefail
+            python -m pip install --disable-pip-version-check --require-hashes -r tests/requirements-pytest.txt
+            mkdir -p test-results/release
+            python -m pytest tests/test_release.py --junitxml=test-results/release/junit.xml
+          no_output_timeout: 15m
+      - store_test_results:
+          path: test-results
+          when: always
+
+  package:
+    executor: dotnet-x86-large
+    steps:
+      - ensure-tools
+      - mb/get-source:
+          fork-pr: << pipeline.parameters.fork_pr >>
+          fork-sha: "<< pipeline.parameters.fork_sha >>"
+          repo-url: "https://git.magicbean.dev/MagicBeanDev/LongshotLauncher.git"
+      - run:
+          name: scripts/package.sh ci-smoke (unsigned)
+          command: scripts/package.sh ci-smoke dist
+          environment:
+            WINE_CHECK_EXE: /tmp/wine-check/LongshotLauncher.exe
+          no_output_timeout: 35m
+      - run:
+          name: Wine --self-check (Windows build unpack variant)
+          command: |
+            export DEBIAN_FRONTEND=noninteractive
+            sudo=; [ "$(id -u)" = 0 ] || sudo=sudo
+            if ! command -v wine64 >/dev/null 2>&1 && ! command -v wine >/dev/null 2>&1; then
+              $sudo dpkg --add-architecture i386 || true
+              $sudo apt-get update -qq
+              $sudo apt-get install -y -qq --no-install-recommends wine wine64 >/dev/null
+            fi
+            wine=$(command -v wine64 || command -v wine)
+            export WINEDEBUG=-all WINEPREFIX="${WINEPREFIX:-$HOME/.wine-ci}"
+            "$wine" wineboot --init >/dev/null 2>&1 || true
+            out=$("$wine" /tmp/wine-check/LongshotLauncher.exe --self-check | tr -d '\r')
+            echo "$out"
+            echo "$out" | grep -qxF "LongshotLauncher ci-smoke" || { echo "Wine self-check failed"; exit 1; }
+          no_output_timeout: 15m
+      - store_artifacts:
+          path: dist
+          destination: package
+
+  contract-longshot-main:
+    executor: python-arm
+    environment:
+      BASH_ENV: /tmp/bash_env.ci
+    steps:
+      - mb/get-source:
+          fork-pr: << pipeline.parameters.fork_pr >>
+          fork-sha: "<< pipeline.parameters.fork_sha >>"
+          repo-url: "https://git.magicbean.dev/MagicBeanDev/LongshotLauncher.git"
+      - mise-tools
+      - run:
+          name: dotnet build (mise-pinned SDK)
+          command: |
+            set -euo pipefail
+            export PATH="$HOME/.local/share/mise/shims:$PATH"
+            mise exec dotnet -- dotnet build LongshotLauncher.slnx --configuration Release -p:RestoreLockedMode=true
+          no_output_timeout: 15m
+      - longshot-clone:
+          ref: main
+      - run:
+          name: Contract checks against Longshot main (no --pinned)
+          command: python3 -I -B tests/test_launcher_core.py --strict --longshot "$HOME/longshot" || true
+          no_output_timeout: 15m
+
+  dotnet-format:
+    executor: dotnet-arm
+    retention:
+      caches: 5d
+    steps:
+      - mb/get-source:
+          fork-pr: << pipeline.parameters.fork_pr >>
+          fork-sha: "<< pipeline.parameters.fork_sha >>"
+          repo-url: "https://git.magicbean.dev/MagicBeanDev/LongshotLauncher.git"
+      - restore_cache:
+          keys:
+            - v1-dotnet-format-{{ arch }}-{{ checksum "global.json" }}-{{ checksum "Directory.Packages.props" }}
+            - v1-dotnet-format-{{ arch }}-
+      - run:
+          name: dotnet format --verify-no-changes (advisory)
+          command: dotnet format LongshotLauncher.slnx --verify-no-changes --verbosity diagnostic || true
+          no_output_timeout: 10m
+      - dotnet-format-cache-save
+
+  version:
+    executor: python-arm
+    steps:
+      - checkout
+      - run:
+          name: Fetch tags and main
+          command: |
+            git fetch -q --filter=blob:none --unshallow origin || true
+            git fetch -q origin main:refs/remotes/origin/main '+refs/tags/*:refs/tags/*'
+      - run:
+          name: Release name (scripts/release.py)
+          command: |
+            set -euo pipefail
+            mkdir -p /tmp/ws
+            git fetch -q --tags origin main
+            ref=$(git rev-parse HEAD)
+            tag=""
+            skip=0
+            circle_tag="${CIRCLE_TAG:-}"
+            [[ "$circle_tag" == "null" ]] && circle_tag=""
+            if [[ "$circle_tag" == refs/tags/* ]]; then
+              tag="${circle_tag#refs/tags/}"
+            elif [[ -n "$circle_tag" && "$circle_tag" == v* ]]; then
+              tag="$circle_tag"
+            fi
+            mkdir -p .mb-main
+            git show origin/main:scripts/release.py > .mb-main/release.py
+            if [[ -n "$tag" ]]; then
+              python3 -I .mb-main/release.py check-tag "$tag" --main origin/main
+            elif [[ "${CIRCLE_BRANCH:-}" == "main" || "<< pipeline.parameters.nightly >>" == "true" ]]; then
+              head=$(git rev-parse origin/main)
+              if [[ "$head" != "$ref" ]]; then
+                echo "main has moved on to ${head:0:8}: this nightly skips, the newer one builds"
+                tag=""
+                skip=1
+              else
+                tag=$(python3 -I .mb-main/release.py nightly-name)
+              fi
+            else
+              tag=""
+              skip=1
+            fi
+            if [ "$skip" = 1 ] || [ -z "$tag" ]; then
+              printf 'TAG=\nREF=%s\n' "$ref" > /tmp/ws/release.env
+              touch /tmp/ws/release.skip
+            else
+              printf 'TAG=%s\nREF=%s\n' "$tag" "$ref" > /tmp/ws/release.env
+              rm -f /tmp/ws/release.skip
+            fi
+            cat /tmp/ws/release.env
+      - persist_to_workspace:
+          root: /tmp/ws
+          paths:
+            - release.env
+            - release.skip
+      - run:
+          name: Stop when no release name
+          command: |
+            if [ -f /tmp/ws/release.skip ]; then
+              circleci-agent step halt
+            fi
+            . /tmp/ws/release.env
+            if [ -z "${TAG:-}" ]; then
+              circleci-agent step halt
+            fi
+
+  build-release:
+    executor: dotnet-x86-large
+    steps:
+      - attach_workspace:
+          at: /tmp/ws
+      - run:
+          name: Load version
+          command: |
+            . /tmp/ws/release.env
+            if [ -z "${TAG:-}" ]; then
+              circleci-agent step halt
+            fi
+            echo "building $TAG"
+      - checkout
+      - run:
+          name: Match version.ref
+          command: |
+            . /tmp/ws/release.env
+            git checkout -q "$REF"
+      - ensure-tools
+      - run:
+          name: scripts/package.sh (release build, no cache restore)
+          command: |
+            . /tmp/ws/release.env
+            scripts/package.sh "$TAG" dist
+          environment:
+            WINE_CHECK_EXE: /tmp/wine-check/LongshotLauncher.exe
+          no_output_timeout: 45m
+      - run:
+          name: Wine --self-check
+          command: |
+            . /tmp/ws/release.env
+            export DEBIAN_FRONTEND=noninteractive
+            sudo=; [ "$(id -u)" = 0 ] || sudo=sudo
+            if ! command -v wine64 >/dev/null 2>&1 && ! command -v wine >/dev/null 2>&1; then
+              $sudo dpkg --add-architecture i386 || true
+              $sudo apt-get update -qq
+              $sudo apt-get install -y -qq --no-install-recommends wine wine64 >/dev/null
+            fi
+            wine=$(command -v wine64 || command -v wine)
+            export WINEDEBUG=-all WINEPREFIX="${WINEPREFIX:-$HOME/.wine-ci}"
+            "$wine" wineboot --init >/dev/null 2>&1 || true
+            out=$("$wine" /tmp/wine-check/LongshotLauncher.exe --self-check | tr -d '\r')
+            echo "$out" | grep -qxF "LongshotLauncher $TAG"
+          no_output_timeout: 15m
+      - run:
+          name: Stage artifacts
+          command: |
+            . /tmp/ws/release.env
+            mkdir -p /tmp/ws/files
+            for f in "LongshotLauncher-$TAG-windows-x64-setup.exe" "LongshotLauncher-$TAG-windows-x64-portable.zip" "LongshotLauncher-$TAG-x86_64.AppImage"; do
+              cp "dist/$f" /tmp/ws/files/
+            done
+      - persist_to_workspace:
+          root: /tmp/ws
+          paths:
+            - files
+            - release.env
+
+  fork-package:
+    description: Unsigned packaging check for fork PRs (appimagetool x86_64; no Wine).
+    executor: dotnet-x86-large
+    steps:
+      - ensure-tools
+      - mb/get-source:
+          fork-pr: << pipeline.parameters.fork_pr >>
+          fork-sha: "<< pipeline.parameters.fork_sha >>"
+          repo-url: "https://git.magicbean.dev/MagicBeanDev/LongshotLauncher.git"
+      - run:
+          name: scripts/package.sh ci-smoke (unsigned, no Wine)
+          command: scripts/package.sh ci-smoke dist
+          no_output_timeout: 35m
+      - store_artifacts:
+          path: dist
+          destination: package

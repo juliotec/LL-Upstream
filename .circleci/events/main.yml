@@ -1,0 +1,37 @@
+# Push to main workflow (nightly release on every merge). See docs/ci.md.
+workflows:
+  main:
+    jobs:
+      - lint
+      - build-test:
+          filters: pipeline.parameters.full or pipeline.parameters.app or pipeline.parameters.core or pipeline.parameters.tests or pipeline.parameters.nightly
+      - release-scripts:
+          filters: pipeline.parameters.full or pipeline.parameters.release_scripts or pipeline.parameters.core or pipeline.parameters.nightly
+      - contract-longshot-main:
+          filters: pipeline.parameters.nightly
+      - version:
+          requires:
+            - lint
+            - build-test
+            - release-scripts
+      - build-release:
+          requires: [version]
+      - mb/release-sign:
+          name: sign
+          context: [release-signing]
+          dry-run: << pipeline.parameters.release_dry_run >>
+          requires: [build-release]
+      - mb/release-publish:
+          name: publish
+          context: [forgejo-bot]
+          serial-group: << pipeline.project.slug >>/release
+          dry-run: << pipeline.parameters.release_dry_run >>
+          requires: [sign]
+      - mb/gate:
+          name: gate
+          requires:
+            - lint
+            - build-test
+            - release-scripts
+            - sign
+            - publish

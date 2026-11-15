@@ -2,11 +2,13 @@
 no game, no network and no window. The version vectors (TRACKS, ORDER, UNORDERED) are this file's own; the signed release files
 are tests/fixtures/release's (made by scripts/release.py). Its scratch folder is named "ゲーム Zélda 🎮", as tests/test_utf8_paths.py's.
 
-    python -I tests/test_launcher_core.py [--dotnet <dotnet>] [--strict] [--longshot <checkout of MagicBeanDev/Longshot>]
+    python -I tests/test_launcher_core.py [--dotnet <dotnet>] [--strict] [--longshot <checkout of MagicBeanDev/Longshot>] [--pinned]
 
 With --longshot it also checks what the launcher copies from Longshot: make_game.py's languages, the SDK commits the DLSS and
 FSR 4 licence texts name, the first-import player ID, and the shader caches' names, the translator's stamped files and its
-compiler's tools.lock parts (CI checks out Longshot's main for it).
+compiler's tools.lock parts. CI checks out the commit tests/longshot.ref pins (--pinned
+makes the test refuse a checkout that is at another commit); a scheduled CI run also checks Longshot's main, as advice. To
+move the pin, see docs/ci.md.
 
 With no dotnet here the check is skipped (exit 0, saying why), unless --strict.
 """
@@ -22,6 +24,7 @@ import sys
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
+LONGSHOT_REF = ROOT / "tests" / "longshot.ref"
 RUN_ALL_ARGS = ["--dotnet", "{dotnet}"]
 
 
@@ -54,6 +57,26 @@ UNORDERED = [
 
 def vectors():
     return {"tracks": TRACKS, "order": ORDER, "unordered": UNORDERED}
+
+
+def read_pin(path=LONGSHOT_REF):
+    """The Longshot commit tests/longshot.ref pins: the first line that is not blank or a # comment, 40 lowercase hex digits"""
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if line and not line.startswith("#"):
+            if not re.fullmatch(r"[0-9a-f]{40}", line):
+                raise SystemExit("%s: not a full commit id: %r" % (path, line))
+            return line
+    raise SystemExit("%s names no commit" % path)
+
+
+def check_pin(longshot):
+    """The --longshot checkout is the commit tests/longshot.ref pins (CI clones it from the pin; a stale clone would test nothing)"""
+    want = read_pin()
+    done = subprocess.run(["git", "-C", str(longshot), "rev-parse", "HEAD"], capture_output=True, text=True)
+    have = done.stdout.strip()
+    if done.returncode or have != want:
+        raise SystemExit("%s is at %s, not the %s tests/longshot.ref pins" % (longshot, have or "(no commit)", want))
 
 
 def check_languages(longshot):
@@ -150,9 +173,14 @@ def main():
     parser.add_argument("--dotnet", default=None)
     parser.add_argument("--strict", action="store_true")
     parser.add_argument("--longshot", type=Path, default=None)
+    parser.add_argument("--pinned", action="store_true", help="--longshot must be at the commit tests/longshot.ref pins")
     args = parser.parse_args()
+    if args.pinned and not args.longshot:
+        raise SystemExit("--pinned needs --longshot <checkout of MagicBeanDev/Longshot>")
     check_translations()
     if args.longshot:
+        if args.pinned:
+            check_pin(args.longshot)
         check_languages(args.longshot)
         check_licences(args.longshot)
         check_save_user(args.longshot)
@@ -182,4 +210,4 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()

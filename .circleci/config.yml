@@ -1,0 +1,100 @@
+# One mb/setup job per event (mutually exclusive filters). See docs/ci.md.
+version: 2.1
+
+setup: true
+
+parameters:
+  nightly:
+    type: boolean
+    default: false
+  release_dry_run:
+    type: boolean
+    default: false
+  full:
+    type: boolean
+    default: false
+  fork_pr:
+    type: integer
+    default: 0
+  fork_sha:
+    type: string
+    default: ""
+
+orbs:
+  mb: magicbeandev/ci@0.1.2
+
+jobs:
+  setup-noop:
+    docker:
+      - image: cimg/base:2025.11
+    resource_class: small
+    steps:
+      - run:
+          name: No matching setup event
+          command: echo "setup noop"
+
+workflows:
+  pr:
+    when: pipeline.event.name == "pull_request" and (pipeline.git.tag or "") == ""
+    jobs:
+      - mb/setup:
+          event-file: .circleci/events/pr.yml
+          mapping: .circleci/mapping.conf
+          extra-params: '{"fork_pr":0,"fork_sha":"","release_dry_run":false,"nightly":false}'
+
+  main:
+    # expression strings: git.tag is null (not "") on Forgejo pipelines with no tag
+    when: pipeline.event.name == "push" and pipeline.git.branch == "main" and (pipeline.git.tag or "") == ""
+    jobs:
+      - mb/setup:
+          event-file: .circleci/events/main.yml
+          mapping: .circleci/mapping.conf
+          # dry-run until cutover: Forgejo's release.yml is still the live publisher (docs/ci.md)
+          extra-params: '{"nightly":true,"release_dry_run":true,"fork_pr":0,"fork_sha":""}'
+
+  release:
+    when: (pipeline.git.tag or "") starts-with "v"
+    jobs:
+      - mb/setup:
+          event-file: .circleci/events/release.yml
+          filters: (pipeline.git.tag or "") starts-with "v"
+          mapping: .circleci/mapping.conf
+          force-full: true
+          # dry-run until cutover: Forgejo's release.yml is still the live publisher (docs/ci.md)
+          extra-params: '{"nightly":false,"release_dry_run":true,"fork_pr":0,"fork_sha":""}'
+
+  nightly:
+    when: >-
+      pipeline.event.name == "schedule" and pipeline.parameters.nightly == true
+      and (pipeline.git.tag or "") == ""
+    jobs:
+      - mb/setup:
+          event-file: .circleci/events/nightly.yml
+          mapping: .circleci/mapping.conf
+          extra-params: '{"nightly":true,"fork_pr":0,"fork_sha":""}'
+
+  manual:
+    when: pipeline.event.name == "api" and (pipeline.git.tag or "") == ""
+    jobs:
+      - mb/setup:
+          event-file: .circleci/events/manual.yml
+          mapping: .circleci/mapping.conf
+          extra-params: '{"release_dry_run":<< pipeline.parameters.release_dry_run >>,"full":<< pipeline.parameters.full >>,"nightly":false,"fork_pr":0,"fork_sha":""}'
+
+  noop-non-release-tag:
+    when: (pipeline.git.tag or "") != "" and not ((pipeline.git.tag or "") starts-with "v")
+    jobs:
+      - setup-noop:
+          filters: (pipeline.git.tag or "") != "" and not ((pipeline.git.tag or "") starts-with "v")
+
+  noop-schedule-without-nightly:
+    when: >-
+      pipeline.event.name == "schedule" and pipeline.parameters.nightly == false
+      and (pipeline.git.tag or "") == ""
+    jobs:
+      - setup-noop
+
+  noop-branch-push:
+    when: pipeline.event.name == "push" and pipeline.git.branch != "main" and (pipeline.git.tag or "") == ""
+    jobs:
+      - setup-noop

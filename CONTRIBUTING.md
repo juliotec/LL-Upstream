@@ -16,6 +16,8 @@ added through a reviewed pull request), lives in Longshot's repository, never he
 
 ## Get started
 
+After clone, install git hooks once: `mise run setup` (pre-commit and Conventional Commit `commit-msg` hook).
+
 ```
 git clone --depth 1 https://git.magicbean.dev/MagicBeanDev/LongshotLauncher.git   (jj: jj git clone --colocate --depth 1 ...)
 cd LongshotLauncher
@@ -30,6 +32,15 @@ release (`scripts/release.py` counts and checks commits), need the history: `git
 
 Sign in to git.magicbean.dev as for Longshot
 (`python -I scripts/forge.py login` in a Longshot checkout: one sign-in covers both).
+
+### Tools: mise, CircleCI and AI agents
+
+- **mise** pins every tool this repo uses. Install it ([mise docs](https://mise.jdx.dev/getting-started.html)), then in the repo run `mise install` and, once per clone, `mise run setup` (it installs the pre-commit and commit-msg hooks). `mise run lint` and `mise run test` run the same checks CI does.
+- **CircleCI** runs CI for this repo; [docs/ci.md](docs/ci.md) has the flow and what runs when. Sign up at https://circleci.com/signup and ask in Discord to be added to the MagicBeanDev org, so you can see runs, read logs and rerun jobs.
+- **CircleCI CLI:** `mise install` installs the pinned version, or see the [official install docs](https://circleci.com/docs/guides/toolkit/circleci-cli/). Run `circleci auth login` once.
+- **CircleCI MCP server**, so an AI agent can read failures and logs and rerun jobs. Claude Code: `claude mcp add --transport http circleci-mcp-server https://mcp.circleci.com/v1/mcp`, then `/mcp` and Authenticate. Cursor: search "circleci" in the MCP marketplace.
+- **CircleCI docs MCP**, so an agent can look things up in CircleCI's docs (no account needed): `claude mcp add --transport http circleci-docs https://circleci.mcp.kapa.ai`.
+- **Chunk CLI** (optional) runs this repo's checks on a remote CircleCI sidecar, handy for an agent or a machine without the toolchain. Install with `brew install CircleCI-Public/circleci/chunk` (Windows: see its [README](https://github.com/CircleCI-Public/chunk-cli)), run `chunk auth login`, then `chunk sidecar create`, `chunk sidecar sync` and `chunk validate`. The commands it runs are in `.chunk/config.json`.
 
 ## Changes and tests
 
@@ -53,11 +64,13 @@ Sign in to git.magicbean.dev as for Longshot
 has the set-up).
 
 1. One topic per pull request, on a branch named for it (`fix/...`, `feat/...`, `docs/...`).
-2. The title is a [Conventional Commit](https://www.conventionalcommits.org/) (`feat(saves): ...`, `fix: ...`): it becomes
-   the squash-merged commit on `main` and a line of the next release's notes.
+2. Each commit subject is a [Conventional Commit](https://www.conventionalcommits.org/) (`feat(saves): ...`, `fix: ...`);
+   one concern per commit when you can. The pull request title uses the same form and becomes the squash-merged commit on
+   `main` and a line of the next release's notes.
 3. Start the description with why the pull request is needed, in one or two plain sentences, then what changed and how it
    was tested. Include screenshots when the change shows on screen.
-4. CI (`.forgejo/workflows/ci.yml`) compiles with warnings as errors and runs both tests.
+4. CI is on CircleCI ([docs/ci.md](docs/ci.md)); locally run `mise run ci:smoke` before you push. Forgejo Actions
+   (`.forgejo/workflows/ci.yml`) still mirror the compile-and-test checks until maintainers retire them.
 
 A maintainer reviews and squash-merges it. Releases are tags on `main` ([RELEASING.md](RELEASING.md)): `vX.Y.Z-rc.N`,
 then `vX.Y.Z`, and every merge makes a nightly. The title decides the next version: CI refuses a tag lower than the titles

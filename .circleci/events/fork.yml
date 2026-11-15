@@ -1,0 +1,44 @@
+# Fork PR on LongshotLauncher-forks (mb/fork-doorbell). See docs/ci.md.
+workflows:
+  fork-pr:
+    when:
+      pipeline.parameters.fork_pr > 0
+    jobs:
+      - lint:
+          name: fork-lint
+      - build-test:
+          name: fork-build-test
+          requires: [fork-lint]
+          filters: pipeline.parameters.full or pipeline.parameters.app or pipeline.parameters.core or pipeline.parameters.tests
+      - release-scripts:
+          name: fork-release-scripts
+          requires: [fork-lint]
+          filters: pipeline.parameters.full or pipeline.parameters.release_scripts or pipeline.parameters.core
+      - fork-package:
+          requires: [fork-lint]
+          filters: pipeline.parameters.full or pipeline.parameters.packaging or pipeline.parameters.app or pipeline.parameters.core
+      - mb/gate:
+          name: fork-gate
+          requires:
+            - fork-lint
+            - fork-build-test
+            - fork-release-scripts
+            - fork-package
+      - mb/fork-report:
+          name: fork-report-ok
+          state: success
+          fork-sha: "<< pipeline.parameters.fork_sha >>"
+          repo: MagicBeanDev/LongshotLauncher
+          context: [forgejo-bot]
+          requires: [fork-gate]
+      - mb/fork-report:
+          name: fork-report-fail
+          state: failure
+          fork-sha: "<< pipeline.parameters.fork_sha >>"
+          repo: MagicBeanDev/LongshotLauncher
+          context: [forgejo-bot]
+          requires:
+            - fork-gate:
+                - not_run
+                - failed
+                - canceled

@@ -1,0 +1,32 @@
+# LongshotLauncher-forks: webhook doorbell + daily stale sweep. See docs/ci.md.
+version: 2.1
+
+setup: true
+
+parameters:
+  stale_sweep:
+    type: boolean
+    default: false
+
+orbs:
+  mb: magicbeandev/ci@0.1.2
+
+workflows:
+  doorbell:
+    when:
+      not:
+        equal: [true, << pipeline.parameters.stale_sweep >>]
+    jobs:
+      - mb/fork-doorbell:
+          repo: MagicBeanDev/LongshotLauncher
+          webhook-body: << pipeline.trigger_parameters.webhook.body >>
+          context: [forgejo-bot]
+
+  stale-sweep:
+    when:
+      equal: [true, << pipeline.parameters.stale_sweep >>]
+    jobs:
+      - mb/fork-stale:
+          repo: MagicBeanDev/LongshotLauncher
+          days: 14
+          context: [forgejo-bot]

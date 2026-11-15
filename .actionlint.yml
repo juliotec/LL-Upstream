@@ -1,0 +1,10 @@
+# Forgejo workflows: full action URLs and forgejo.* contexts (not GitHub Actions).
+self-hosted-runner:
+  labels:
+    - quick
+
+paths:
+  '.forgejo/workflows/**':
+    ignore:
+      - 'specifying action'
+      - 'undefined variable "forgejo"'
