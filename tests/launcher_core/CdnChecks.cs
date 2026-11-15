@@ -1,9 +1,9 @@
 using System.Text;
 using LongshotLauncher.Core;
 
-/// Release files through git-cdn.magicbean.dev (CdnFetcher): which links go to the CDN, the fall back to git.magicbean.dev when
-/// the CDN fails (before its bytes, and half way), no fall back for a file that is not the one its release names, a tool's own
-/// links tried once each, and LONGSHOT_LAUNCHER_NO_CDN
+/// Release files and release lists through git-cdn.magicbean.dev (CdnFetcher): which links go to the CDN, the fall back to
+/// git.magicbean.dev when the CDN fails (before its bytes, and half way; a list), no fall back for a file that is not the one its
+/// release names, a tool's own links tried once each, and LONGSHOT_LAUNCHER_NO_CDN
 static partial class Program
 {
     /// A server whose files can fail: Status (null: no answer) once FailAt bytes have gone out (0: before any)
@@ -14,9 +14,11 @@ static partial class Program
         public readonly Dictionary<string, Served> Files = new();
         public readonly List<string> Asked = new();
 
+        /// A text: "text of <url>", or the failure a Served with FailAt 0 has for it
         public Task<string> GetTextAsync(string url, string? accept, CancellationToken cancel)
         {
             Asked.Add(url);
+            if (Files.TryGetValue(url, out var s) && s.FailAt == 0) throw new FetchException("authored failure", s.Status);
             return Task.FromResult("text of " + url);
         }
 
@@ -63,7 +65,27 @@ static partial class Program
                 && CdnFetcher.CdnOf("https://GIT.magicbean.dev/MagicBeanDev/LongshotLauncher/releases/download/v1.0.0-rc.1/SHA256SUMS")
                    == "https://git-cdn.magicbean.dev/MagicBeanDev/LongshotLauncher/releases/download/v1.0.0-rc.1/SHA256SUMS",
                 "A release file and a package go to git-cdn, the same path.");
-        Require(CdnFetcher.CdnOf("https://git.magicbean.dev/api/v1/repos/MagicBeanDev/Longshot/releases?limit=50&page=1") == null
+        const string list = "https://git.magicbean.dev/api/v1/repos/MagicBeanDev/Longshot/releases?limit=50&page=1";
+        const string cdnList = "https://git-cdn.magicbean.dev/api/v1/repos/MagicBeanDev/Longshot/releases?limit=50&page=1";
+        const string tag = "https://git.magicbean.dev/api/v1/repos/MagicBeanDev/LongshotLauncher/releases/tags/v1.0.0-rc.3";
+        Require(CdnFetcher.ListCdnOf(list) == cdnList
+                && CdnFetcher.ListCdnOf(tag) == "https://git-cdn.magicbean.dev/api/v1/repos/MagicBeanDev/LongshotLauncher/releases/tags/v1.0.0-rc.3"
+                && CdnFetcher.ListCdnOf("https://GIT.magicbean.dev/api/v1/repos/MagicBeanDev/Longshot/releases") ==
+                   "https://git-cdn.magicbean.dev/api/v1/repos/MagicBeanDev/Longshot/releases",
+                "A release list (its query kept) and a release by its tag go to git-cdn, the same path.");
+        Require(CdnFetcher.ListCdnOf(release) == null && CdnFetcher.ListCdnOf(package) == null && CdnFetcher.ListCdnOf(cdnList) == null
+                && CdnFetcher.ListCdnOf("https://git.magicbean.dev/api/v1/repos/MagicBeanDev/Longshot/releases/123") == null
+                && CdnFetcher.ListCdnOf("https://git.magicbean.dev/api/v1/repos/MagicBeanDev/Longshot/releases/123/assets") == null
+                && CdnFetcher.ListCdnOf("https://git.magicbean.dev/api/v1/repos/MagicBeanDev/Longshot/releases/latest") == null
+                && CdnFetcher.ListCdnOf("https://git.magicbean.dev/api/v1/repos/MagicBeanDev/Longshot") == null
+                && CdnFetcher.ListCdnOf("https://git.magicbean.dev/api/v1/user") == null
+                && CdnFetcher.ListCdnOf("https://git.magicbean.dev/MagicBeanDev/Longshot/releases") == null
+                && CdnFetcher.ListCdnOf("http://git.magicbean.dev/api/v1/repos/MagicBeanDev/Longshot/releases") == null
+                && CdnFetcher.ListCdnOf("https://git.magicbean.dev:8443/api/v1/repos/MagicBeanDev/Longshot/releases") == null
+                && CdnFetcher.ListCdnOf("https://git.magicbean.dev.example/api/v1/repos/MagicBeanDev/Longshot/releases") == null
+                && CdnFetcher.ListCdnOf("https://github.com/api/v1/repos/MagicBeanDev/Longshot/releases") == null,
+                "The rest of the API, a release's page, a file, another host, a link already on git-cdn, http and another port stay as they are.");
+        Require(CdnFetcher.CdnOf(list) == null
                 && CdnFetcher.CdnOf("https://git.magicbean.dev/api/v1/repos/MagicBeanDev/Longshot/releases/tags/v3.1.0") == null
                 && CdnFetcher.CdnOf("https://git.magicbean.dev/MagicBeanDev/Longshot/releases/tag/v3.1.0") == null
                 && CdnFetcher.CdnOf(upstream) == null && CdnFetcher.CdnOf(cdnRelease) == null && CdnFetcher.CdnOf(cdnPackage) == null
@@ -93,9 +115,9 @@ static partial class Program
         server.Files[release] = new Served(other);
         Require((await Get(release)).SequenceEqual(bytes) && server.Asked.SequenceEqual(new[] { cdnRelease }), "A release file from the CDN.");
         server.Asked.Clear();
-        var api = "https://git.magicbean.dev/api/v1/repos/MagicBeanDev/Longshot/releases?limit=50&page=1";
-        Require(await cdn.GetTextAsync(api, null, CancellationToken.None) == "text of " + api && server.Asked.SequenceEqual(new[] { api }),
-                "The API stays on git.magicbean.dev.");
+        const string user = "https://git.magicbean.dev/api/v1/user";
+        Require(await cdn.GetTextAsync(user, null, CancellationToken.None) == "text of " + user && server.Asked.SequenceEqual(new[] { user }),
+                "The rest of the API stays on git.magicbean.dev.");
         server.Files[upstream] = new Served(bytes);
         server.Files[cdnPackage] = new Served(bytes);
         Require((await Get(upstream)).SequenceEqual(bytes) && server.Asked.SequenceEqual(new[] { upstream })
@@ -218,6 +240,36 @@ static partial class Program
                                                 "A builder that is another file from the CDN was installed.");
         Require(server.Asked.SequenceEqual(new[] { appCdn }) && !chains.IsInstalled("v3.6.3"), "Another builder from the CDN went on.");
 
+        // (a release list: from the CDN when it answers, else git.magicbean.dev, as for a file)
+        async Task<string> Text(CdnFetcher via, string url)
+        {
+            server.Asked.Clear();
+            return await via.GetTextAsync(url, "application/json", CancellationToken.None);
+        }
+        server.Files.Remove(cdnList);
+        Require(await Text(cdn, list) == "text of " + cdnList && server.Asked.SequenceEqual(new[] { cdnList }), "A release list from the CDN.");
+        foreach (var status in new int?[] { null, 403, 404, 500, 503 })
+        {
+            server.Files[cdnList] = new Served(other, 0, status);
+            Require(await Text(cdn, list) == "text of " + list && server.Asked.SequenceEqual(new[] { cdnList, list }),
+                    $"A release list, the CDN's failure ({status?.ToString() ?? "no answer"}): from git.magicbean.dev.");
+        }
+        server.Files[cdnList] = new Served(other, 0, 400);
+        await ThrowsAsync<FetchException>(() => Text(cdn, list), "A 400 for a release list from the CDN is not a failure of the CDN.");
+        Require(server.Asked.SequenceEqual(new[] { cdnList }), "A 400 for a release list went on to git.magicbean.dev.");
+        server.Files[cdnList] = new Served(other, 0, 503);
+        server.Files[list] = new Served(other, 0, 502);
+        try
+        {
+            await Text(cdn, list);
+            Require(false, "A release list, both failing, was a success.");
+        }
+        catch (FetchException e)
+        {
+            Require(e.Status == 502 && e.Transient && server.Asked.Count == 2, "A release list, both failing: git.magicbean.dev's failure is the one told.");
+        }
+        server.Files.Remove(list);
+
         // (LONGSHOT_LAUNCHER_NO_CDN=1: everything from git.magicbean.dev, a tool's git-cdn link too)
         Require(!CdnFetcher.EnabledByEnvironment(k => k == CdnFetcher.DisableVariable ? "1" : null)
                 && CdnFetcher.EnabledByEnvironment(_ => null) && CdnFetcher.EnabledByEnvironment(k => k == CdnFetcher.DisableVariable ? "0" : null)
@@ -230,6 +282,9 @@ static partial class Program
             await off.DownloadAsync(release, to, null, CancellationToken.None);
             Require(to.ToArray().SequenceEqual(bytes) && server.Asked.SequenceEqual(new[] { release }), "With the CDN off, git.magicbean.dev only.");
         }
+        server.Files.Remove(cdnList);
+        Require(await Text(off, list) == "text of " + list && server.Asked.SequenceEqual(new[] { list }),
+                "With the CDN off, a release list from git.magicbean.dev only.");
         Require(off.Expand(new[] { llvmCdn, llvmOrigin, upstream }).SequenceEqual(new[] { llvmOrigin, upstream })
                 && off.Expand(new[] { cdnRelease }).SequenceEqual(new[] { cdnRelease })
                 && cdn.Expand(new[] { llvmCdn, llvmOrigin, upstream }).SequenceEqual(new[] { llvmCdn, llvmOrigin, upstream })

@@ -39,7 +39,7 @@ public sealed class LauncherService
         Home = home;
         Registry = BuildRegistry.Load(home.Builds);
         Settings = LauncherSettings.Load(home.Settings);
-        // (release files and packages through git-cdn.magicbean.dev first: CdnFetcher; LONGSHOT_LAUNCHER_NO_CDN=1 turns it off)
+        // (release lists, release files and packages through git-cdn.magicbean.dev first: CdnFetcher; LONGSHOT_LAUNCHER_NO_CDN=1 turns it off)
         var cdn = CdnFetcher.EnabledByEnvironment();
         Fetcher = new CdnFetcher(Slow(new HttpFetcher(TimeSpan.FromSeconds(60))), cdn);
         Tools = new Toolchains(home.Toolchains, Fetcher);
