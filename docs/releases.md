@@ -237,7 +237,10 @@ The first release of each product only needs its first number (Longshot `v3.0.0`
 ## Release notes
 
 git-cliff writes them at release time from the commit titles since the previous tag, with the repository's `cliff.toml`.
-For a stable, that is since the previous stable, so its notes cover its release candidates. The headings are Features,
+For a stable, that is since the previous stable, so its notes cover its release candidates. A release candidate after the
+first has two lists: its own, headed `## <tag> (<date>), new since rc.N`, the commits since the rc before; then
+`## Earlier release candidates: rc.1, rc.2 (since <stable>)`, what those brought since the last stable in one list
+(`release.py notes`, git-cliff's `--ignore-tags`). The headings are Features,
 Fixes, Performance, Reverted, Documentation, Code, Build and Tests; `ci` and `chore` are left out. The notes go on the
 release page only: nothing is committed back to `main`, and there is no changelog file to keep up (Hookshot's is in
 NotRexed/Hookshot).

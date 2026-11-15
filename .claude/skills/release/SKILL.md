@@ -60,8 +60,9 @@ Longshot. The summary can go in as soon as *Sign and publish* runs: the draft is
 ## 4. What's new
 
 It goes between the first `---` (under the downloads) and `## <tag>`. Write it for players from the notes (for a
-stable: everything since the last stable; read a PR when a title isn't enough). Copy the shape of the repository's
-earlier summaries. Read the newest ones first:
+stable: everything since the last stable; read a PR when a title isn't enough). An rc after the first has two lists,
+`## <tag> (<date>), new since rc.N` and `## Earlier release candidates: ...`: summarize the first, what's new for
+someone on the rc before. Copy the shape of the repository's earlier summaries. Read the newest ones first:
 
 - **Launcher** (v1.0.0-rc.4, rc.6): `## What's new`, three to six bullets each opening with a bold phrase and a full
   stop, then a `**Fixes:**` bullet with one short line per fix.

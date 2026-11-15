@@ -17,7 +17,8 @@ Versions and notes:
     python -I scripts/release.py nightly-name
         nightly-<commits since the product's first commit>-<8 hex of HEAD>: the nightly's version
     python -I scripts/release.py notes <tag> [--out <file>]
-        the release notes: git-cliff with cliff.toml, over the commits since the tag before (of the product's numbers)
+        the release notes: git-cliff with cliff.toml, over the commits since the tag before (of the product's numbers); an rc
+        after the first also lists what the earlier release candidates since the last stable brought
     python -I scripts/release.py git-cliff <folder>
         the pinned git-cliff (GIT_CLIFF below), downloaded and checked by its SHA-256 into <folder>; prints its path
 
@@ -241,23 +242,62 @@ def previous_tag(tag, first_major, root=ROOT):
     return max(older, key=version_key, default=None)
 
 
-def notes(tag, product, root=ROOT):
-    """git-cliff's notes for tag (cliff.toml), the commits since the previous tag of the product's numbers (the first:
-    since the product's first commit, for Longshot the fork)"""
-    first = PRODUCTS[product]["first_major"]
-    since = previous_tag(tag, first, root) or PRODUCTS[product]["since"]
-    ref = "HEAD" if NIGHTLY.match(tag) or git("rev-parse", "-q", "--verify", "refs/tags/" + tag, root=root, check=False) is None else tag
+RC_TAGS = r"^v[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$"   # (git-cliff --ignore-tags: the earlier release candidates in one list)
+
+
+def earlier_rcs(tag, first_major, root=ROOT):
+    """The release candidates before an rc since the last stable, oldest first ([] for a stable, a nightly or a first rc):
+    an rc's page lists what is new since the one before, then what those brought"""
+    if not VERSION.match(tag) or STABLE.match(tag):
+        return []
+    ref = tag if git("rev-parse", "-q", "--verify", "refs/tags/" + tag, root=root, check=False) else "HEAD"
+    stable = last_stable(first_major, root, ref, below=tag)
+    return sorted((t for t in tags_merged(root, ref) if t != tag and VERSION.match(t) and not STABLE.match(t)
+                   and is_version(t, first_major) and version_key(t) < version_key(tag)
+                   and (stable is None or version_key(t) > version_key(stable))), key=version_key)
+
+
+def git_cliff(*args, root=ROOT):
     cliff = os.environ.get("GIT_CLIFF") or shutil.which("git-cliff")
     if not cliff:
         fail("git-cliff is needed for the notes: python -I scripts/release.py git-cliff <folder>, then GIT_CLIFF=<its path>")
-    # (no tag before and no first commit, the launcher's first release: every commit of the checkout, which is ref's. No
-    # range then: git-cliff takes a lone ref for a range and stops, SetCommitRangeError("HEAD", unable to parse OID))
-    args = [cliff, "--config", os.path.join(root, "cliff.toml"), "--tag", tag, "--strip", "all"] + \
-        ([since + ".." + ref] if since else [])
-    p = subprocess.run(args, cwd=root, capture_output=True, text=True, encoding="utf-8")
+    p = subprocess.run([cliff, "--config", os.path.join(root, "cliff.toml")] + list(args), cwd=root, capture_output=True,
+                       text=True, encoding="utf-8")
     if p.returncode:
         fail("git-cliff: " + p.stderr.strip())
-    return p.stdout.strip() + "\n"
+    return p.stdout.strip()
+
+
+def notes(tag, product, root=ROOT):
+    """git-cliff's notes for tag (cliff.toml), the commits since the previous tag of the product's numbers (the first:
+    since the product's first commit, for Longshot the fork). An rc after the first has two lists: new since the rc before
+    (its heading says so), then "Earlier release candidates", everything those brought since the last stable in one list"""
+    first = PRODUCTS[product]["first_major"]
+    since = previous_tag(tag, first, root) or PRODUCTS[product]["since"]
+    ref = "HEAD" if NIGHTLY.match(tag) or git("rev-parse", "-q", "--verify", "refs/tags/" + tag, root=root, check=False) is None else tag
+    # (no tag before and no first commit, the launcher's first release: every commit of the checkout, which is ref's. No
+    # range then: git-cliff takes a lone ref for a range and stops, SetCommitRangeError("HEAD", unable to parse OID))
+    text = git_cliff("--tag", tag, "--strip", "all", *([since + ".." + ref] if since else []), root=root)
+    earlier = earlier_rcs(tag, first, root)
+    if not earlier:
+        return text + "\n"
+    last = earlier[-1]
+    short = lambda t: t.split("-", 1)[1] if base_of(t) == base_of(tag) else t   # (rc.2; another number's in full)
+    head, _, rest = text.partition("\n")
+    if head.startswith("## "):
+        text = "%s, new since %s\n%s" % (head, short(last), rest)
+    stable = last_stable(first, root, last)
+    base = stable or PRODUCTS[product]["since"]
+    if base:
+        span = [base + ".." + last]
+    else:   # (the start of the history: no range, and the commits after the last earlier rc skipped)
+        span = [a for c in (git("rev-list", last + "..HEAD", root=root) or "").split() for a in ("--skip-commit", c)]
+    older = git_cliff("--tag", last, "--ignore-tags", RC_TAGS, "--strip", "all", *span, root=root)
+    head, _, rest = older.partition("\n")
+    older = rest if head.startswith("## ") else older   # (git-cliff's heading names the last of them only)
+    heading = "## Earlier release candidates: %s%s" % (", ".join(short(t) for t in earlier),
+                                                       " (since %s)" % stable if stable else "")
+    return "%s\n\n%s\n%s\n" % (text, heading, older.rstrip())
 
 
 # ---- the release page ----

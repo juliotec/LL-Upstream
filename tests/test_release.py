@@ -246,6 +246,40 @@ class Bump(unittest.TestCase):
             args = release.notes("nightly-3-0123abcd", "launcher", root=str(self.dir)).split()
         self.assertEqual(args[-1], "v1.0.0..HEAD")
 
+    def test_an_rc_after_the_first_has_two_lists(self):
+        # (new since the rc before, then the earlier release candidates since the last stable in one list; a first rc and a
+        # stable keep one list)
+        self.git("tag", "v3.0.0")
+        for n in (1, 2, 3):
+            self.commit("fix: %d" % n)
+            self.git("tag", "v3.0.1-rc.%d" % n)
+        stub = self.cliff_stub(self.dir)
+        with mock.patch.dict(os.environ, stub):
+            page = release.notes("v3.0.1-rc.3", "longshot", root=str(self.dir))
+            first = release.notes("v3.0.1-rc.1", "longshot", root=str(self.dir))
+        self.assertEqual(release.earlier_rcs("v3.0.1-rc.3", 3, str(self.dir)), ["v3.0.1-rc.1", "v3.0.1-rc.2"])
+        new, older = page.split("\n## Earlier release candidates: rc.1, rc.2 (since v3.0.0)\n")
+        self.assertIn("v3.0.1-rc.2..v3.0.1-rc.3", new.split())
+        self.assertIn("--ignore-tags", older.split())
+        self.assertIn("v3.0.0..v3.0.1-rc.2", older.split())
+        self.assertNotIn("Earlier", first)
+        self.git("tag", "v3.0.1")
+        self.assertEqual(release.earlier_rcs("v3.0.1", 3, str(self.dir)), [])
+
+    def test_the_earlier_rcs_with_no_stable_skip_the_newer_commits(self):
+        # (the launcher before v1.0.0: no stable and no first commit, so no range; what came after the last earlier rc is
+        # skipped instead)
+        self.commit("fix: a")
+        self.git("tag", "v1.0.0-rc.1")
+        self.commit("fix: b")
+        self.git("tag", "v1.0.0-rc.2")
+        newer = self.git("rev-parse", "HEAD")
+        with mock.patch.dict(os.environ, self.cliff_stub(self.dir)), mock.patch.dict(release.PRODUCTS["launcher"], since=None):
+            page = release.notes("v1.0.0-rc.2", "launcher", root=str(self.dir))
+        older = page.split("\n## Earlier release candidates: rc.1\n")[1].split()
+        self.assertEqual(older[older.index("--skip-commit") + 1], newer)
+        self.assertNotIn("..", " ".join(older))
+
     def test_the_git_cliff_stand_in_runs_from_a_unicode_path(self):
         # (a temporary folder under a user name such as "Zoë": the stand-in still gets its arguments through)
         folder = Path(tempfile.mkdtemp(prefix="release-cliff-Zoë-"))
