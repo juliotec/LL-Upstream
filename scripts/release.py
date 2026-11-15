@@ -242,6 +242,14 @@ def previous_tag(tag, first_major, root=ROOT):
     return max(older, key=version_key, default=None)
 
 
+def previous_nightly(tag, root=ROOT):
+    """The newest nightly tag on HEAD's history other than tag (the ones past the newest 5 are pruned, tag and all): a
+    nightly's notes list what is new since it first. None for the first nightly"""
+    found = [t for t in (git("tag", "--merged", "HEAD", "--list", "nightly-*", root=root) or "").split()
+             if NIGHTLY.match(t) and t != tag]
+    return max(found, key=lambda t: int(NIGHTLY.match(t).group(1)), default=None)
+
+
 RC_TAGS = r"^v[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$"   # (git-cliff --ignore-tags: the earlier release candidates in one list)
 
 
@@ -277,7 +285,18 @@ def notes(tag, product, root=ROOT):
     ref = "HEAD" if NIGHTLY.match(tag) or git("rev-parse", "-q", "--verify", "refs/tags/" + tag, root=root, check=False) is None else tag
     # (no tag before and no first commit, the launcher's first release: every commit of the checkout, which is ref's. No
     # range then: git-cliff takes a lone ref for a range and stops, SetCommitRangeError("HEAD", unable to parse OID))
-    text = git_cliff("--tag", tag, "--strip", "all", *([since + ".." + ref] if since else []), root=root)
+    prev_nightly = previous_nightly(tag, root) if NIGHTLY.match(tag) else None
+    text = git_cliff("--tag", tag, "--strip", "all", *([(prev_nightly or since) + ".." + ref] if prev_nightly or since else []), root=root)
+    if prev_nightly:   # (a nightly: new since the nightly before, then everything since the last version, like an rc's page)
+        head, _, rest = text.partition("\n")
+        if head.startswith("## "):
+            text = "%s, new since %s\n%s" % (head, prev_nightly, rest)
+        older = git_cliff("--tag", prev_nightly, "--strip", "all", *([since + ".." + prev_nightly] if since else []), root=root)
+        head, _, rest = older.partition("\n")
+        older = rest if head.startswith("## ") else older
+        if not older.strip():
+            return text + "\n"
+        return "%s\n\n## Earlier changes%s\n%s\n" % (text, " (since %s)" % since if since else "", older.rstrip())
     earlier = earlier_rcs(tag, first, root)
     if not earlier:
         return text + "\n"

@@ -266,6 +266,26 @@ class Bump(unittest.TestCase):
         self.git("tag", "v3.0.1")
         self.assertEqual(release.earlier_rcs("v3.0.1", 3, str(self.dir)), [])
 
+    def test_a_nightly_after_the_first_has_two_lists(self):
+        # (new since the nightly before, then everything since the last version in one list, as an rc's page does; the first
+        # nightly, and a nightly whose predecessor is the last version's commit, keep one list)
+        self.git("tag", "v3.0.0-rc.1")
+        stub = self.cliff_stub(self.dir)
+        with mock.patch.dict(os.environ, stub):
+            first = release.notes("nightly-5-aaaaaaaa", "longshot", root=str(self.dir))
+        self.assertNotIn("Earlier", first)
+        self.commit("fix: a")
+        self.git("tag", "nightly-6-bbbbbbbb")
+        self.commit("fix: b")
+        self.git("tag", "nightly-7-cccccccc")
+        self.commit("fix: c")
+        self.assertEqual(release.previous_nightly("nightly-8-dddddddd", str(self.dir)), "nightly-7-cccccccc")
+        with mock.patch.dict(os.environ, stub):
+            page = release.notes("nightly-8-dddddddd", "longshot", root=str(self.dir))
+        new, older = page.split("\n## Earlier changes (since v3.0.0-rc.1)\n")
+        self.assertIn("nightly-7-cccccccc..HEAD", new.split())
+        self.assertIn("v3.0.0-rc.1..nightly-7-cccccccc", older.split())
+
     def test_the_earlier_rcs_with_no_stable_skip_the_newer_commits(self):
         # (the launcher before v1.0.0: no stable and no first commit, so no range; what came after the last earlier rc is
         # skipped instead)
