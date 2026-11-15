@@ -11,10 +11,13 @@ public abstract record BuildSource
     public sealed record Update(string Folder) : BuildSource;
 }
 
-/// A build's choices (the wizard's settings step, LauncherSettings). Out is not used by an update (the folder is the update's)
+/// A build's choices (the wizard's settings step, LauncherSettings). Out is not used by an update (the folder is the update's).
+/// RomfsFrom: another game folder built from the same .nup (BuildRegistry.SameGameFiles), whose game files make_game links in
+/// instead of reading the .nup again (LONGSHOT_ROMFS_FROM)
 public sealed record BuildRequest(
     BuildSource Source, string? Out, string? Language = null, string? Work = null, int? Jobs = null, int? MemoryGb = null,
-    bool PrepareShaders = true, bool Dlss = false, bool DlssLicense = false, bool Fsr = false, bool FsrLicense = false);
+    bool PrepareShaders = true, bool Dlss = false, bool DlssLicense = false, bool Fsr = false, bool FsrLicense = false,
+    string? RomfsFrom = null);
 
 /// make_game.py as the 2.x Builders start it (Runner.Info and MainWindow.Run on Windows; builder/linux/AppRun and
 /// longshot_builder.py on Linux): the program, its arguments, its folder and the environment changes (null: removed)
@@ -87,6 +90,9 @@ public sealed record MakeGameCommand(
             // two, the version built and the one before (stable and nightly, or going back), not Longshot's three)
             ["LONGSHOT_OBJ_STORE_GB"] = "4",
             ["LONGSHOT_LIFT_STORE_KEEP"] = "2",
+            // (a version's game files from another game folder of the same .nup: hard links, not ~25 GB read and written again. A
+            // builder that does not know the variable reads the .nup as before; one set on the PC is not passed on)
+            ["LONGSHOT_ROMFS_FROM"] = r.Source is BuildSource.Nup ? r.RomfsFrom : null,
         };
         if (windows && r.Jobs is int workers) env["LONGSHOT_JOBS"] = workers.ToString(CultureInfo.InvariantCulture);
         if (windows)

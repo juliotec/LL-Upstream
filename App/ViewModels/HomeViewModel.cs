@@ -211,7 +211,8 @@ public sealed class HomeViewModel : ViewModelBase
         get
         {
             var n = Builds.Count;
-            var known = Builds.Where(b => b.Entry.Bytes != null).Sum(b => b.Entry.Bytes!.Value);
+            // (a game file hard-linked into several builds counted once: BuildEntry.Counted)
+            var known = Builds.Where(b => b.Entry.Bytes != null).Sum(b => b.Entry.Counted ?? b.Entry.Bytes!.Value);
             var folder = ShownPath.Of(Service.BuildsFolder);
             return known > 0 ? Tr.P(n, "1 version uses {1} in {2}.", "{0} versions use {1} in {2}.", Durations.Size(known), folder)
                 : Tr.P(n, "1 version in {1}.", "{0} versions in {1}.", folder);
@@ -614,10 +615,14 @@ public sealed class DeleteViewModel : ViewModelBase
     bool GameFolderHere => GameFolder.IsGameFolder(build.Entry.Folder, Main.Platform);
 
     public string Sub => GameFolderHere
-        ? build.Entry.Bytes is long b ? Tr.F("This deletes its folder and frees {0}:", Durations.Size(b)) : Tr.T("This deletes its folder:")
+        ? Freed(build.Entry) is long b ? Tr.F("This deletes its folder and frees {0}:", Durations.Size(b)) : Tr.T("This deletes its folder:")
         : Tr.T("This takes it off your versions. Its folder is not a Longshot game folder, so it stays on the disk:");
     public string Folder => ShownPath.Of(build.Entry.Folder);
     public string FolderFull => build.Entry.Folder;
+
+    /// What deleting it frees: its files with no hard link outside its folder (game files shared with another build stay with
+    /// that one: BuildEntry.Frees); null when not measured
+    static long? Freed(BuildEntry e) => e.Bytes == null ? null : e.Frees ?? e.Bytes;
 
     BuildEntry? Next => Main.Service.Registry.Builds.FirstOrDefault(b => b.Id != build.Entry.Id);
     public bool DefaultNote => build.IsDefault && Next != null;
@@ -654,7 +659,7 @@ public sealed class DeleteViewModel : ViewModelBase
             service.Remove(entry, deleteFiles: false);
             if (wasDefault && service.Registry.Builds.FirstOrDefault(b => UpdatePolicy.ChannelOf(b.Channel, b.Version) == Versions.Stable) is { } rel)
                 service.SetDefault(rel);
-            Main.ShowToast(entry.Bytes is long b && files ? Tr.F("Deleted {0}, {1} freed.", build.Version, Durations.Size(b)) : Tr.F("Deleted {0}.", build.Version));
+            Main.ShowToast(Freed(entry) is long b && files ? Tr.F("Deleted {0}, {1} freed.", build.Version, Durations.Size(b)) : Tr.F("Deleted {0}.", build.Version));
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {

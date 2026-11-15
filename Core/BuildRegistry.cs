@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 
 namespace LongshotLauncher.Core;
@@ -22,6 +23,14 @@ public sealed class BuildEntry
     public bool? Fsr { get; set; }
     /// Its folder's size in bytes when it was last measured; null: not yet
     public long? Bytes { get; set; }
+    /// Of Bytes, measured with the other builds' folders (Disk.Measure): its share of what they take on the disk, a game file
+    /// hard-linked into several builds counted once (the home's total), and what deleting it frees, its files with no link
+    /// outside its folder (another build of the same .nup may share its game files: BuildRegistry.SameGameFiles); null: not yet
+    public long? Counted { get; set; }
+    public long? Frees { get; set; }
+
+    /// Measured again: its folder changed
+    public void Unmeasured() => Bytes = Counted = Frees = null;
 }
 
 public sealed class RegistryFile
@@ -100,6 +109,47 @@ public sealed class BuildRegistry
 
     public BuildEntry? FindByFolder(string folder) => builds.FirstOrDefault(b => SameFolder(b.Folder, folder));
 
+    /// Another build made from this .nup, whose game files a new build of it can take by hard links (make_game's
+    /// LONGSHOT_ROMFS_FROM): one whose folder has what make_game's romfs_from_build wants before it links, its romfs/, its kept
+    /// .longshot_exefs/ and a .longshot_romfs stamp of this .nup (UnpackStamp), so that a folder make_game would pass over (and
+    /// the whole .nup read again) is not chosen while another would do. Of those, one on the new build's drive first (a hard
+    /// link does not cross drives: make_game would copy the ~25 GB), then the one updated last; never the new build's own
+    /// folder; null when there is none, or the .nup is not there. driveOf: the tests' stand-in for Disk.DriveName
+    public BuildEntry? SameGameFiles(string nup, string folder, Func<string, string>? driveOf = null)
+    {
+        if (UnpackStamp(nup) is not { } stamp) return null;
+        driveOf ??= Disk.DriveName;
+        var drive = driveOf(folder);
+        var drives = OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+        return builds.Where(b => b.Nup is { Length: > 0 } n && SameFolder(n, nup) && !SameFolder(b.Folder, folder) && Unpacked(b.Folder, stamp))
+                     .OrderByDescending(b => drives.Equals(driveOf(b.Folder), drive))
+                     .ThenByDescending(b => b.Updated).FirstOrDefault();
+    }
+
+    /// The stamp make_game writes in .longshot_romfs for a romfs it unpacked from nup ("unpacked by this builder: <name> <size>",
+    /// make_game.py's main), which romfs_from_build compares with the other folder's; null when the .nup cannot be read
+    public static string? UnpackStamp(string nup)
+    {
+        try
+        {
+            var file = new FileInfo(nup);
+            return file.Exists ? $"unpacked by this builder: {Path.GetFileName(nup)} {file.Length.ToString(CultureInfo.InvariantCulture)}" : null;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException) { return null; }
+    }
+
+    /// folder holds a romfs make_game unpacked from the .nup of stamp, with the exefs it kept (romfs_from_build's checks)
+    static bool Unpacked(string folder, string stamp)
+    {
+        try
+        {
+            var mark = Path.Combine(folder, ".longshot_romfs");
+            return Directory.Exists(Path.Combine(folder, "romfs")) && Directory.Exists(Path.Combine(folder, ".longshot_exefs"))
+                   && File.Exists(mark) && File.ReadAllText(mark).Trim() == stamp;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException) { return false; }
+    }
+
     /// A folder added, or the one already listed brought up to date (its id, name and default kept). makeDefault: it becomes the
     /// default; the first build is the default anyway
     public BuildEntry Add(string folder, string? version, string? channel, string? name = null, bool makeDefault = false)
@@ -161,7 +211,7 @@ public sealed class BuildRegistry
         entry.Version = version ?? entry.Version;
         entry.Channel = Versions.IsChannel(channel) ? channel! : Versions.TrackOf(entry.Version);
         entry.Updated = now();
-        entry.Bytes = null;
+        entry.Unmeasured();
         Normalize();
         return entry;
     }

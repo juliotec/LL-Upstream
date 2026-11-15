@@ -312,6 +312,7 @@ public sealed class LauncherService
     {
         if (deleteFiles) BuildRegistry.DeleteFolder(b.Folder, Platform, KeepOf(b));
         Registry.Remove(b.Id);
+        remeasure = true;   // (the game files it shared with another build are that one's alone now: Measure)
         Registry.Save();
         PruneTools();
     }
@@ -323,20 +324,37 @@ public sealed class LauncherService
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
     }
 
-    /// Each build's folder measured in the background, once (its size is kept in builds.json); then done runs on the UI thread
+    bool measuring, remeasure;
+
+    /// The builds' folders measured together in the background (Disk.Measure: a game file hard-linked into several builds counted
+    /// once), when one is not measured yet or a build went; the sizes are kept in builds.json. Then done runs on the UI thread.
+    /// Asked while a measure runs, it measures again after it
     public void Measure(Action done)
     {
-        var todo = Registry.Builds.Where(b => b.Bytes == null && Directory.Exists(b.Folder)).Select(b => (b, b.Folder)).ToList();
-        if (todo.Count == 0) return;
+        if (measuring) return;   // (what changed meanwhile is measured after it)
+        var todo = Registry.Builds.Where(b => Directory.Exists(b.Folder)).Select(b => (b, b.Folder, b.Updated)).ToList();
+        if (!remeasure && todo.All(t => t.b.Bytes != null && t.b.Counted != null && t.b.Frees != null)) return;
+        if (todo.Count == 0) { remeasure = false; return; }
+        measuring = true;
+        remeasure = false;
         Task.Run(() =>
         {
-            var sizes = todo.Select(t => (t.b, Bytes: Disk.FolderBytes(t.Folder))).ToList();
+            IReadOnlyList<Disk.FolderSize> sizes;
+            try { sizes = Disk.Measure(todo.Select(t => t.Folder).ToList()); }
+            catch (Exception) { sizes = Array.Empty<Disk.FolderSize>(); }
             ViewModels.Ui.Post(() =>
             {
-                foreach (var (b, bytes) in sizes) b.Bytes = bytes;
+                measuring = false;
+                // (a row whose folder changed, or that was built again in its folder, while it was measured keeps its null, and is
+                // measured again below: Add and Replace move its Updated)
+                for (var i = 0; i < sizes.Count; i++)
+                    if (todo[i].b.Folder == todo[i].Folder && todo[i].b.Updated == todo[i].Updated && Registry.Builds.Contains(todo[i].b))
+                        (todo[i].b.Bytes, todo[i].b.Counted, todo[i].b.Frees) = (sizes[i].Bytes, sizes[i].Counted, sizes[i].Frees);
                 try { Registry.Save(); }
                 catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
                 done();
+                // (a build went, or one was added or rebuilt while this measured: again. Not after a failure, which would repeat)
+                if (sizes.Count == todo.Count && (remeasure || Registry.Builds.Any(b => b.Frees == null && Directory.Exists(b.Folder)))) Measure(done);
             });
         });
     }

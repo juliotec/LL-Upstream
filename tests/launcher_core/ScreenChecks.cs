@@ -442,7 +442,8 @@ static partial class Program
         var id = a.Id;
         var u = r.Replace(id, Path.Combine(root, "v3.0.1"), "v3.0.1", "stable");
         Require(u.Id == id && u.Default && r.Builds.Count == 2 && r.Builds[0] == u && u.Folder == Path.Combine(root, "v3.0.1") && u.Version == "v3.0.1"
-                && u.Name == "v3.0.1" && u.Bytes == null && u.Nup == "/d/oot.nup", "An update takes its build's row, its place and the default.");
+                && u.Name == "v3.0.1" && u.Bytes == null && u.Counted == null && u.Frees == null && u.Nup == "/d/oot.nup",
+                "An update takes its build's row, its place and the default.");
         r.SetDefault(b.Id);
         r.Replace(b.Id, Path.Combine(root, "v3.0.1"), "v3.1.0-rc.3", "rc");
         Require(r.Builds.Count == 1 && r.Builds[0].Id == b.Id && r.Builds[0].Default, "A row already on that folder goes (one entry per folder).");
@@ -453,9 +454,12 @@ static partial class Program
         again.Builds[0].Dlss = true;
         again.Builds[0].Romfs = "/d/ゲーム/romfs";
         again.Builds[0].Bytes = 41231686042;
+        again.Builds[0].Counted = 13000000000;
+        again.Builds[0].Frees = 12000000000;
         again.Save();
         var third = BuildRegistry.Load(path).Builds[0];
-        Require(third.Dlss == true && third.Fsr == null && third.Romfs == "/d/ゲーム/romfs" && third.Bytes == 41231686042, "What a build was made with, kept.");
+        Require(third.Dlss == true && third.Fsr == null && third.Romfs == "/d/ゲーム/romfs" && third.Bytes == 41231686042
+                && third.Counted == 13000000000 && third.Frees == 12000000000, "What a build was made with, and its sizes, kept.");
         using var doc = JsonDocument.Parse(File.ReadAllText(path));
         Require(doc.RootElement.GetProperty("builds")[0].TryGetProperty("bytes", out _), "builds.json's new keys are camelCase.");
 
@@ -482,6 +486,50 @@ static partial class Program
         Require(!Directory.Exists(inner) && Directory.Exists(outer), "A build inside another build's folder is deleted alone.");
     }
 
+    /// Builds whose game files are hard links of one another's (BuildRegistry.SameGameFiles): each file counted once in the home's
+    /// total, and a folder frees only what has no link outside it
+    static void MeasureChecks()
+    {
+        var root = Folder("measure");
+        string Make(string rel, int bytes)
+        {
+            var path = Path.Combine(root, rel);
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllBytes(path, new byte[bytes]);
+            return path;
+        }
+        void Link(string from, string rel)
+        {
+            var to = Path.Combine(root, rel);
+            Directory.CreateDirectory(Path.GetDirectoryName(to)!);
+            Require(FileLinks.TryHardLink(from, to), "A hard link made for the check: " + rel);
+        }
+        string a = Path.Combine(root, "a"), b = Path.Combine(root, "b");
+        Make("a/x", 1000);                                   // (a's alone)
+        var shared = Make("a/romfs/shared", 500);            // (linked into b: a game file of both)
+        var outside = Make("a/romfs/outside", 50);           // (linked somewhere no build is)
+        var y = Make("b/y", 100);                            // (b's, linked twice inside b)
+        Link(shared, "b/romfs/shared");
+        Link(outside, "elsewhere/outside");
+        Link(y, "b/deeper/y again");
+        if (!OperatingSystem.IsWindows()) File.CreateSymbolicLink(Path.Combine(b, "link"), Path.Combine(a, "x"));
+        var both = Disk.Measure(new[] { a, b });
+        Require(both[0].Bytes == 1550 && both[1].Bytes == 700, "Each folder's bytes, its hard links in full (as FolderBytes).");
+        Require(both[0].Counted == 1550 && both[1].Counted == 100 && both[0].Counted + both[1].Counted == 1650,
+                "A file linked into two builds counted once, in the first: the total is what they take on the disk.");
+        // (Linux knows each file's links; Windows' listing does not, so there a link outside every build is not seen)
+        Require(both[0].Frees == (OperatingSystem.IsWindows() ? 1050 : 1000) && both[1].Frees == 100,
+                "Deleting a build frees only its files with no link outside its folder.");
+        var alone = Disk.Measure(new[] { b });
+        Require(alone[0].Bytes == 700 && alone[0].Counted == 600 && alone[0].Frees == (OperatingSystem.IsWindows() ? 600 : 100),
+                "Measured alone: a file linked twice inside counted once, and on Linux one linked into a folder not measured is not freed.");
+        File.Delete(Path.Combine(a, "romfs", "shared"));
+        Require(Disk.Measure(new[] { a, b })[1] is { Bytes: 700, Counted: 600, Frees: 600 }, "The other link gone: the file is the build's own.");
+        Require(Disk.Measure(new[] { Path.Combine(root, "none") })[0] == default && Disk.Measure(Array.Empty<string>()).Count == 0,
+                "Nothing there: nothing measured.");
+        Require(Disk.FolderBytes(b) == 700, "FolderBytes counts each link in full, as before.");
+    }
+
     static void DiskChecks()
     {
         var root = Folder("disk");
@@ -490,6 +538,7 @@ static partial class Program
         File.WriteAllBytes(Path.Combine(root, "sub", "deeper", "b"), new byte[24]);
         if (!OperatingSystem.IsWindows()) File.CreateSymbolicLink(Path.Combine(root, "link"), Path.Combine(root, "a"));
         Require(Disk.FolderBytes(root) == 1024 && Disk.FolderBytes(Path.Combine(root, "none")) == 0, "A folder's bytes, links not followed.");
+        MeasureChecks();
         var free = Disk.FreeBytes(Path.Combine(root, "not", "made", "yet"));
         Require(free is > 0, "The free space where a folder would go, from the nearest folder that is there.");
         Require(Disk.DriveName(root).Length > 0, "The drive's name.");

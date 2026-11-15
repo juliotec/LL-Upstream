@@ -701,6 +701,45 @@ static partial class Program
                 "A channel defaults to the version's track.");
         Require(r.Add(Path.Combine(home, "a") + Path.DirectorySeparatorChar, "v3.3.2", null) == a && r.Builds.Count == 3 && a.Version == "v3.3.2",
                 "One entry per folder.");
+        // (the game files a new build of a .nup can link from: a build of that .nup whose folder has what make_game's
+        // romfs_from_build checks, romfs/, .longshot_exefs/ and this .nup's stamp; on the new build's drive first, then the newest;
+        // never its own folder)
+        var nup = Path.Combine(home, "game.nup");
+        File.WriteAllBytes(nup, new byte[37]);
+        var stamp = BuildRegistry.UnpackStamp(nup);
+        Require(stamp == "unpacked by this builder: game.nup 37" && BuildRegistry.UnpackStamp(Path.Combine(home, "gone.nup")) == null,
+                "The stamp make_game writes for a .nup's unpack: its name and size.");
+        void Unpack(string folder, string? mark = null)
+        {
+            Directory.CreateDirectory(Path.Combine(folder, "romfs"));
+            Directory.CreateDirectory(Path.Combine(folder, ".longshot_exefs"));
+            File.WriteAllText(Path.Combine(folder, ".longshot_romfs"), (mark ?? stamp) + "\n");
+        }
+        var fresh = Path.Combine(home, "new");
+        a.Nup = b.Nup = nup;
+        b.Updated = a.Updated.AddMinutes(5);
+        Require(r.SameGameFiles(nup, fresh) == null, "No folder unpacked yet: none.");
+        Unpack(a.Folder);
+        Unpack(b.Folder);
+        Require(r.SameGameFiles(nup, fresh) == b && r.SameGameFiles(nup, b.Folder) == a
+                && r.SameGameFiles(Path.Combine(home, "other.nup"), fresh) == null,
+                "The game files of another build of the same .nup: the newest that has them, not the build's own folder.");
+        Directory.Delete(Path.Combine(b.Folder, ".longshot_exefs"));
+        Require(r.SameGameFiles(nup, fresh) == a, "A folder without its kept exefs is passed over, and an older one used.");
+        Unpack(b.Folder, mark: "unpacked by this builder: game.nup 36");
+        Require(r.SameGameFiles(nup, fresh) == a, "A folder unpacked from another .nup (its stamp) is passed over.");
+        File.Delete(Path.Combine(b.Folder, ".longshot_romfs"));
+        Require(r.SameGameFiles(nup, fresh) == a, "A folder with no stamp is passed over.");
+        Unpack(b.Folder);
+        Directory.Delete(Path.Combine(a.Folder, "romfs"));
+        Require(r.SameGameFiles(nup, fresh) == b && r.SameGameFiles(nup, b.Folder) == null, "A folder without its romfs is passed over.");
+        Unpack(a.Folder);
+        Func<string, string> drives = f => BuildRegistry.SameFolder(f, a.Folder) || BuildRegistry.SameFolder(f, fresh) ? "D:" : "C:";
+        Require(r.SameGameFiles(nup, fresh, drives) == a && r.SameGameFiles(nup, fresh, _ => "C:") == b,
+                "A build on the new build's drive first, as a hard link does not cross drives; then the newest.");
+        File.Delete(nup);
+        Require(r.SameGameFiles(nup, fresh) == null, "No .nup to stamp: none.");
+        a.Nup = b.Nup = null;
         r.SetDefault(c.Id);
         Require(r.Default == c && r.Builds.Count(x => x.Default) == 1, "Set default.");
         Require(r.Remove(c.Id) && r.Default == a && r.Builds.Count == 2, "The default removed: the first one left is it.");
@@ -985,6 +1024,14 @@ static partial class Program
         Require(u.Arguments.SequenceEqual(new[] { "-I", lin.MakeGame, "--update", "/g", "--work", home.Work })
                 && u.Environment["LONGSHOT_VK_PREBUILT"] == prebuilt, "An update: the folder, no --out or --language.");
         Throws<ArgumentOutOfRangeException>(() => MakeGameCommand.For(lin, request with { Jobs = 0 }, Platform.Linux, home, "/L"), "Zero workers.");
+        // (another game folder of the same .nup gives a new build its game files: the variable for --nup only, and never one from the PC)
+        Require(w.Environment.ContainsKey("LONGSHOT_ROMFS_FROM") && w.Environment["LONGSHOT_ROMFS_FROM"] == null
+                && MakeGameCommand.For(win, request with { RomfsFrom = "C:/Games/Longshot/v3.0.0" }, Platform.Windows, home, "L", _ => false)
+                       .Environment["LONGSHOT_ROMFS_FROM"] == "C:/Games/Longshot/v3.0.0"
+                && l.Environment["LONGSHOT_ROMFS_FROM"] == null
+                && MakeGameCommand.For(lin, request with { Source = new BuildSource.Folders("/d/romfs", "/d/exefs"), Out = "/g", RomfsFrom = "/o" },
+                                       Platform.Linux, home, "/L").Environment["LONGSHOT_ROMFS_FROM"] == null,
+                "LONGSHOT_ROMFS_FROM: the folder for a .nup, removed otherwise.");
         var si = l.StartInfo();
         Require(si.ArgumentList.SequenceEqual(l.Arguments) && !si.Environment.ContainsKey("LONGSHOT_VK_PREBUILT") && si.RedirectStandardOutput,
                 "The process start info.");
