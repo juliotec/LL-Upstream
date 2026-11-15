@@ -4,9 +4,8 @@ static partial class Program
 {
     static void RequirementsChecks()
     {
-        RequirementResult Check(IReadOnlyList<GpuRequirement>? gpus, bool os = true, bool avx = true,
-            bool linux = true, int ram = 16, long? disk = 60L << 30) =>
-            SystemRequirements.Evaluate(os, ram, 12, avx, linux, disk, gpus);
+        RequirementResult Check(IReadOnlyList<GpuRequirement>? gpus, bool os = true, int ram = 16, long? disk = 60L << 30) =>
+            SystemRequirements.Evaluate(os, ram, 12, disk, gpus);
         var good = new[] { new GpuRequirement(true, 8UL << 30, true) };
         Require(Check([new(true, 4UL << 30, false)]).Detail.Contains("4 GB VRAM")
                 && Check([new(true, 4UL << 30, false)]).Detail.Contains("No mesh shaders"), "Details show detected VRAM and the missing feature.");
@@ -24,8 +23,7 @@ static partial class Program
         Require(Check([new(true, 0, true)]).Status == RequirementStatus.Gray, "Unavailable GPU memory is gray.");
         Require(Check([]).Status == RequirementStatus.Red, "A successful probe with no hardware GPUs is incompatible.");
         Require(Check(good, os: false).Status == RequirementStatus.Red, "Unsupported OS is red.");
-        Require(Check(good, avx: false).Status == RequirementStatus.Red, "Linux AppImage requires AVX2.");
-        Require(Check(good, avx: false, linux: false).Status == RequirementStatus.Green, "Windows does not require AVX2.");
+        Require(!Check(good).Detail.Contains("AVX2"), "No CPU feature is required: Longshot builds and runs without AVX2.");
         Require(Check(good, ram: 8).Status == RequirementStatus.Yellow, "Low RAM estimates warn without blocking.");
         Require(Check(good, disk: null).Status == RequirementStatus.Gray, "Unknown disk space warns.");
         Require(Check(good, disk: (60L << 30) - 1).Status == RequirementStatus.Yellow, "Less than 60 GiB warns.");

@@ -22,11 +22,12 @@ public sealed record MakeGameCommand(
     string FileName, IReadOnlyList<string> Arguments, string WorkingDirectory, IReadOnlyDictionary<string, string?> Environment)
 {
     /// launcher: this launcher's own path, written into the game folder's stamp (builder=) so the game's update offer starts it
-    /// (host/hos_update.c). directoryExists: the tests' stand-in for the disk
+    /// (host/hos_update.c). directoryExists, fileExists: the tests' stand-ins for the disk
     public static MakeGameCommand For(Toolchain tools, BuildRequest r, Platform platform, LauncherHome home, string launcher,
-                                      Func<string, bool>? directoryExists = null)
+                                      Func<string, bool>? directoryExists = null, Func<string, bool>? fileExists = null)
     {
         directoryExists ??= Directory.Exists;
+        fileExists ??= File.Exists;
         if (r.Jobs is <= 0) throw new ArgumentOutOfRangeException(nameof(r), "Build workers must be positive.");
         if (r.MemoryGb is <= 0) throw new ArgumentOutOfRangeException(nameof(r), "Build memory must be positive.");
         var windows = platform == Platform.Windows;
@@ -77,7 +78,7 @@ public sealed record MakeGameCommand(
         if (windows)
         {
             // (the tools' own compiler, headers and libraries when they have them: nothing of the PC's but Windows' own)
-            foreach (var (name, folder) in new[] { ("EMSDK", "emsdk"), ("RX_CPM", "cpm"), ("WGPU_NATIVE", "wgpu-native") })
+            foreach (var (name, folder) in new[] { ("EMSDK", "emsdk"), ("RX_CPM", "cpm") })
             {
                 var path = Path.Combine(tools.ToolsRoot, folder);
                 if (directoryExists(path)) env[name] = path;
@@ -94,8 +95,11 @@ public sealed record MakeGameCommand(
             // (tools.lock's sdl2, unpacked beside the builder; a builder that carried its tools has it in lib itself)
             env["LONGSHOT_SDL2"] = directoryExists(Path.Combine(lib, "sdl2"))
                 ? Path.Combine(lib, "sdl2", "libSDL2-2.0.so.0") : Path.Combine(lib, "libSDL2-2.0.so.0");
-            // (DLSS or FSR 4: longshot_vk.so built here with NGX or AMD's FSR API headers, not the prebuilt one, which has neither)
-            env["LONGSHOT_VK_PREBUILT"] = dlss || fsr ? null : Path.Combine(lib, "longshot_vk.so");
+            // (the Vulkan back end: every build of current tools compiles it, and their AppImage carries none. One made before
+            // 2026-11-14 carried a prebuilt lib/longshot_vk.so, which its build took in place of compiling one unless DLSS or FSR 4
+            // was on (NGX or AMD's FSR API headers, which the prebuilt one has neither of): given only where it is there)
+            var prebuilt = Path.Combine(lib, "longshot_vk.so");
+            env["LONGSHOT_VK_PREBUILT"] = dlss || fsr || !fileExists(prebuilt) ? null : prebuilt;
         }
         return new MakeGameCommand(tools.Python, args, tools.ToolsRoot, env);
     }

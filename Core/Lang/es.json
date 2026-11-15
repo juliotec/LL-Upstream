@@ -367,7 +367,6 @@
   "16 GB RAM minimum": "Mínimo 16 GB de RAM",
   "CPU thread count could not be checked": "No se ha podido comprobar el número de hilos de la CPU",
   "{0} CPU threads; a 6-core CPU is suggested": "{0} hilos de CPU; se recomienda una CPU de 6 núcleos",
-  "The Linux AppImage requires AVX2": "La AppImage de Linux requiere AVX2",
   "Free disk space could not be checked": "No se ha podido comprobar el espacio libre en disco",
   "{0} GB free; about 60 GB needed for building": "{0} GB libres; se necesitan unos 60 GB para compilar",
   "GPU support could not be checked; requires Vulkan 1.3 and 4 GB VRAM": "No se ha podido comprobar la GPU; requiere Vulkan 1.3 y 4 GB de VRAM",

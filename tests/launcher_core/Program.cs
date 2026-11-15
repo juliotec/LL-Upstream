@@ -941,12 +941,17 @@ static partial class Program
         Require(both.Arguments.Contains("--fsr") && both.Arguments.Contains("--fetch-ngx-sdk") && !both.Arguments.Contains("--fetch-fsr-runtime")
                 && both.Environment["LONGSHOT_VK_PREBUILT"] == null && both.Environment["LONGSHOT_NGX_SDK"] == home.NgxSdk
                 && both.Environment["LONGSHOT_FFX_SDK"] == null, "Linux with DLSS and FSR 4: both, one back end compiled here.");
-        var lfu = MakeGameCommand.For(lin, request with { Dlss = false, FsrLicense = false }, Platform.Linux, home, "/L", d => d == fidelityfx);
-        Require(!lfu.Arguments.Contains("--fsr") && lfu.Environment["LONGSHOT_VK_PREBUILT"] == Path.Combine(lin.LibRoot, "longshot_vk.so"),
-                "Linux, FSR 4 not acknowledged: the prebuilt back end.");
-        var u = MakeGameCommand.For(lin, new BuildRequest(new BuildSource.Update("/g"), null), Platform.Linux, home, "/L");
+        // (the prebuilt back end only where an AppImage from before 2026-11-14 carries it: current tools compile it in every build)
+        var prebuilt = Path.Combine(lin.LibRoot, "longshot_vk.so");
+        var lfu = MakeGameCommand.For(lin, request with { Dlss = false, FsrLicense = false }, Platform.Linux, home, "/L", d => d == fidelityfx, f => f == prebuilt);
+        Require(!lfu.Arguments.Contains("--fsr") && lfu.Environment["LONGSHOT_VK_PREBUILT"] == prebuilt,
+                "Linux, older tools with a prebuilt back end, FSR 4 not acknowledged: the prebuilt back end.");
+        var current = MakeGameCommand.For(lin, request with { Dlss = false, FsrLicense = false }, Platform.Linux, home, "/L", d => d == fidelityfx, _ => false);
+        Require(current.Environment.ContainsKey("LONGSHOT_VK_PREBUILT") && current.Environment["LONGSHOT_VK_PREBUILT"] == null,
+                "Linux, current tools (no prebuilt back end): none given, and one set on the PC is not passed on.");
+        var u = MakeGameCommand.For(lin, new BuildRequest(new BuildSource.Update("/g"), null), Platform.Linux, home, "/L", fileExists: f => f == prebuilt);
         Require(u.Arguments.SequenceEqual(new[] { "-I", lin.MakeGame, "--update", "/g", "--work", home.Work })
-                && u.Environment["LONGSHOT_VK_PREBUILT"] == Path.Combine(lin.LibRoot, "longshot_vk.so"), "An update: the folder, no --out or --language.");
+                && u.Environment["LONGSHOT_VK_PREBUILT"] == prebuilt, "An update: the folder, no --out or --language.");
         Throws<ArgumentOutOfRangeException>(() => MakeGameCommand.For(lin, request with { Jobs = 0 }, Platform.Linux, home, "/L"), "Zero workers.");
         var si = l.StartInfo();
         Require(si.ArgumentList.SequenceEqual(l.Arguments) && !si.Environment.ContainsKey("LONGSHOT_VK_PREBUILT") && si.RedirectStandardOutput,

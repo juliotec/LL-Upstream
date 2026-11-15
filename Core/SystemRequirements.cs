@@ -1,5 +1,4 @@
 using System.Runtime.InteropServices;
-using System.Runtime.Intrinsics.X86;
 
 namespace LongshotLauncher.Core;
 
@@ -10,8 +9,9 @@ public sealed record RequirementResult(RequirementStatus Status, string Summary,
 public static class SystemRequirements
 {
     public const string Url = "https://longshot.magicbean.dev/requirements/";
-    public static RequirementResult Evaluate(bool supportedOs, int memoryGb, int threads, bool avx2,
-        bool linux, long? freeBytes, IReadOnlyList<GpuRequirement>? gpus)
+    /// (no CPU feature is checked: Longshot builds and runs on a CPU without AVX2, more slowly; its build picks the CPU level)
+    public static RequirementResult Evaluate(bool supportedOs, int memoryGb, int threads,
+        long? freeBytes, IReadOnlyList<GpuRequirement>? gpus)
     {
         var observed = new List<string>();
         var failures = new List<string>();
@@ -23,7 +23,6 @@ public static class SystemRequirements
         else if (memoryGb < 16) warnings.Add(Tr.T("16 GB RAM minimum"));
         if (threads <= 0) unknown.Add(Tr.T("CPU thread count could not be checked"));
         else if (threads < 6) warnings.Add(Tr.F("{0} CPU threads; a 6-core CPU is suggested", threads));
-        if (linux && !avx2) failures.Add(Tr.T("The Linux AppImage requires AVX2"));
         if (freeBytes is null) unknown.Add(Tr.T("Free disk space could not be checked"));
         else if (freeBytes < 60L << 30) warnings.Add(Tr.F("{0} GB free; about 60 GB needed for building", FormattableString.Invariant($"{freeBytes.Value / (double)(1L << 30):0.#}")));
         if (gpus is null) unknown.Add(Tr.T("GPU support could not be checked; requires Vulkan 1.3 and 4 GB VRAM"));
@@ -66,8 +65,7 @@ public static class SystemRequirements
         bool linux = OperatingSystem.IsLinux();
         bool os = RuntimeInformation.OSArchitecture == Architecture.X64 &&
             (OperatingSystem.IsWindowsVersionAtLeast(10) || linux && GlibcSupported());
-        return Evaluate(os, SystemInfo.MemoryGb(), SystemInfo.Threads(), Avx2.IsSupported, linux,
-            Disk.FreeBytes(folder), VulkanRequirements.Read());
+        return Evaluate(os, SystemInfo.MemoryGb(), SystemInfo.Threads(), Disk.FreeBytes(folder), VulkanRequirements.Read());
     }
 
     static bool GlibcSupported()

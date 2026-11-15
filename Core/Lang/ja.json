@@ -339,7 +339,6 @@
   "16 GB RAM minimum": "RAM は最低 16 GB 必要です",
   "CPU thread count could not be checked": "CPU のスレッド数を確認できませんでした",
   "{0} CPU threads; a 6-core CPU is suggested": "CPU スレッド数 {0}。6 コアの CPU をおすすめします",
-  "The Linux AppImage requires AVX2": "Linux 版 AppImage には AVX2 が必要です",
   "Free disk space could not be checked": "ディスクの空き容量を確認できませんでした",
   "{0} GB free; about 60 GB needed for building": "空き {0} GB。ビルドには約 60 GB 必要です",
   "GPU support could not be checked; requires Vulkan 1.3 and 4 GB VRAM": "GPU の対応状況を確認できませんでした。Vulkan 1.3 と VRAM 4 GB が必要です",
