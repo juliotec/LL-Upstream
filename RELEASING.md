@@ -40,7 +40,7 @@ python -I scripts/release.py next          # the number the commits call for, th
 python -I scripts/release.py channels      # what stable, rc and nightly offer now, as the launcher reads them
 ```
 
-The remote is called `forge` here (Longshot's `scripts/forge.py login` sets it up; in the launcher's checkout, add
+The remote is called `forge` here (`forge.py login`, MagicBeanDev/Tooling's, sets it up; in the launcher's checkout, add
 `https://git.magicbean.dev/MagicBeanDev/LongshotLauncher.git` under that name). Only maintainers can push tags.
 
 ## A nightly

@@ -16,15 +16,15 @@ What agents trip on:
   repository; a change to either goes to both. The trusted key is in `Core/ReleaseTrust.cs` and in Longshot's
   `scripts/release_keys.json`.
 - **Never make or commit a real signing key**, and never publish a release by hand: tags and the release workflow do it
-  ([RELEASING.md](RELEASING.md)).
+  ([RELEASING.md](RELEASING.md)). Cutting one: Tooling's release skill (`/magicbean:release`, or
+  `../Tooling/skills/release/SKILL.md`).
 - **jj or git**: `main` is protected; push a branch to your fork and open a pull request. Never push to
   MagicBeanDev/LongshotLauncher directly.
-- **Signing in to git.magicbean.dev** is Longshot's: run `python -I scripts/forge.py login` in a Longshot checkout, as its
-  [CONTRIBUTING.md](https://git.magicbean.dev/MagicBeanDev/Longshot/src/branch/main/CONTRIBUTING.md#get-started) says
-  (step 2, *Sign in*). One sign-in covers git on every repository there, this one included. Its `pr` commands are for
-  Longshot only: open a pull request here from the link a push prints, or with fj (Longshot's
-  [docs/forge.md](https://git.magicbean.dev/MagicBeanDev/Longshot/src/branch/main/docs/forge.md), *fj, the Forgejo
-  command line*).
+- **The team's tooling is [MagicBeanDev/Tooling](https://git.magicbean.dev/MagicBeanDev/Tooling)**: the sign-in, `forge.py` (forks, pull requests, issues, for
+  this repository too), the team chat and the shared skills. Read its [AGENTS.md](https://git.magicbean.dev/MagicBeanDev/Tooling/src/branch/main/AGENTS.md) first. Clone it beside
+  this checkout once (`git clone https://git.magicbean.dev/MagicBeanDev/Tooling.git ../Tooling`), pull it each session (`git -C ../Tooling pull --ff-only`), and
+  run it from here: `python -I ../Tooling/scripts/forge.py login` signs in once for git on every repository, then
+  `forge.py pr create <branch> --title "..."` opens a pull request here ([docs/forge.md](https://git.magicbean.dev/MagicBeanDev/Tooling/src/branch/main/docs/forge.md)).
 
 Pull requests: **open the description with why the PR is needed**, in one or two plain sentences, and include
 screenshots when the change shows on screen.

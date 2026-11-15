@@ -30,8 +30,9 @@ python -I tests/test_release.py                        (scripts/release.py; need
 `--depth 1` fetches the newest commit only. Pulling, branches and pull requests work as usual; `git log` past it, and cutting a
 release (`scripts/release.py` counts and checks commits), need the history: `git fetch --unshallow --tags` once.
 
-Sign in to git.magicbean.dev as for Longshot
-(`python -I scripts/forge.py login` in a Longshot checkout: one sign-in covers both).
+Sign in to git.magicbean.dev with the team's tooling, [MagicBeanDev/Tooling](https://git.magicbean.dev/MagicBeanDev/Tooling), cloned beside this checkout
+(`git clone https://git.magicbean.dev/MagicBeanDev/Tooling.git ../Tooling`, then `python -I ../Tooling/scripts/forge.py login`: one sign-in covers every
+repository).
 
 ### Tools: mise, CircleCI and AI agents
 
@@ -60,7 +61,7 @@ Sign in to git.magicbean.dev as for Longshot
 
 `main` takes reviewed pull requests only: push a branch to your fork and open the pull request from there
 (`jj git push --remote forge-fork -b <branch>`, then the pull request on git.magicbean.dev, or
-`fj pr create`; Longshot's [docs/forge.md](https://git.magicbean.dev/MagicBeanDev/Longshot/src/branch/main/docs/forge.md)
+`python -I ../Tooling/scripts/forge.py pr create <branch> --title "..."`; Tooling's [docs/forge.md](https://git.magicbean.dev/MagicBeanDev/Tooling/src/branch/main/docs/forge.md)
 has the set-up).
 
 1. One topic per pull request, on a branch named for it (`fix/...`, `feat/...`, `docs/...`).
