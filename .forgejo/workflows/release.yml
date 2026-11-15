@@ -80,7 +80,7 @@ jobs:
     name: The launcher, both systems
     needs: version
     if: needs.version.outputs.tag != ''
-    runs-on: ubuntu-latest
+    runs-on: release  # (a release's build: only the runners kept for them take it, Longshot's docs/forgejo-runners.md)
     timeout-minutes: 45
     steps:
       - uses: https://github.com/actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
