@@ -211,31 +211,43 @@ static partial class Program
         Require(Math.Abs(BuildForecast.Seconds("compile", 12) - 305 * Math.Pow(2, 0.85)) < 1e-6 && BuildForecast.Seconds("read", 4) == 76
                 && BuildForecast.Seconds("compile", 32) < 305 && BuildForecast.Seconds("nothing", 8) == 0, "Threaded stages scale with the threads, the rest don't.");
 
+        Require(BuildForecast.Parallel("compile") && BuildForecast.Parallel("lift") && BuildForecast.Parallel(MakeGameProtocol.ShadersStage)
+                && !BuildForecast.Parallel("read") && !BuildForecast.Parallel("finish") && !BuildForecast.Parallel("nothing"),
+                "The threaded stages go with the CPU, the others with the disk.");
+
         var p = new BuildProgress(download: true, shaders: true);
         var clock = new BuildClock(threads: 24);
         p.Download(0.5);
         clock.Observe(p, TimeSpan.FromSeconds(0));
-        Require(Math.Abs(clock.SecondsLeft(p)!.Value - 825) < 1e-6 && clock.Of("download") == TimeSpan.Zero && clock.Of("read") == null,
-                "At the start: this PC's forecast.");
+        Require(clock.SecondsLeft(p) == null && clock.Estimate(p, p.Stages.First(s => s.Id == "read")) == null
+                && clock.Of("download") == TimeSpan.Zero && clock.Of("read") == null,
+                "At the start, nothing of this PC measured: no time left, no stage's estimate (only one PC's forecast).");
         p.Feed("@@stage read Reading");
         clock.Observe(p, TimeSpan.FromSeconds(30));
+        Require(clock.SecondsLeft(p) == null, "The read just begun: still working it out.");
         p.Feed("@@stage lift Translating");
         clock.Observe(p, TimeSpan.FromSeconds(182));   // (the read took 152 s, twice the forecast's 76)
         Require(clock.Of("download") == TimeSpan.FromSeconds(30) && clock.Of("read") == TimeSpan.FromSeconds(152), "Each stage's time.");
-        Require(Math.Abs(clock.Pace(p) - 2) < 1e-9, "The pace: the finished stages' time over their forecast.");
+        Require(clock.Settled(p) && clock.Pace(p, cpu: false) is double disk && Math.Abs(disk - 2) < 1e-9 && clock.Pace(p, cpu: true) == null,
+                "The disk's pace: the finished read's time over its forecast; the CPU's not known yet.");
         var lift = p.Stages.First(s => s.Id == "lift");
-        Require(Math.Abs(clock.Estimate(p, lift)!.Value - 57 * 2) < 1e-6 && Math.Abs(p.Stages.Sum(s => s.Weight) - 1) < 1e-9,
-                "A stage: its forecast at this PC's pace.");
-        Require(Math.Abs(clock.SecondsLeft(p)!.Value - (57 + 305 + 66 + 311) * 2) < 1e-6, "The rest at this PC's pace.");
+        Require(Math.Abs(clock.Estimate(p, lift)!.Value - 57) < 1e-6 && Math.Abs(clock.Estimate(p, p.Stages.First(s => s.Id == "finish"))!.Value - 66 * 2) < 1e-6
+                && Math.Abs(p.Stages.Sum(s => s.Weight) - 1) < 1e-9,
+                "A slow disk makes the disk's stages slower, not the CPU's.");
+        Require(Math.Abs(clock.SecondsLeft(p)!.Value - (57 + 305 + 66 * 2 + 311)) < 1e-6, "The rest, each stage at its kind's pace.");
         p.Feed("@@stage compile Compiling");
         p.Feed("@@eta 600");
-        clock.Observe(p, TimeSpan.FromSeconds(300));
-        Require(Math.Abs(clock.SecondsLeft(p)!.Value - (600 + (66 + 311) * clock.Pace(p))) < 1e-6, "In the compile: make_game's eta, then the rest.");
+        clock.Observe(p, TimeSpan.FromSeconds(300));   // (the lift took 118 s against 57)
+        var cpu = 118 / 57.0;
+        Require(Math.Abs(clock.Pace(p, cpu: true)!.Value - cpu) < 1e-9 && Math.Abs(clock.SecondsLeft(p)!.Value - (600 + 66 * 2 + 311 * cpu)) < 1e-6,
+                "In the compile: make_game's eta, then the rest, the shaders at the CPU's pace.");
         p.Feed("@@stage finish Finishing");
         clock.Observe(p, TimeSpan.FromSeconds(900));
         p.Feed("@@progress 0.5");
         clock.Observe(p, TimeSpan.FromSeconds(940));
-        Require(Math.Abs(clock.SecondsLeft(p)!.Value - (40 + 311 * clock.Pace(p))) < 1e-6, "A running stage counts down from its own progress.");
+        // (the running finish counts for the disk's pace as far as it has gone: 80 s at its rate, half of it done)
+        Require(Math.Abs(clock.Pace(p, cpu: false)!.Value - (152 + 80 * 0.5) / (76 + 66 * 0.5)) < 1e-9, "A running stage's rate counts for its kind's pace.");
+        Require(Math.Abs(clock.SecondsLeft(p)!.Value - (40 + 311 * (118 + 600) / (57.0 + 305))) < 1e-6, "A running stage counts down from its own progress.");
         p.Feed("@@done /g");
         clock.Observe(p, TimeSpan.FromSeconds(200));
         Require(clock.SecondsLeft(p) == 0 && clock.Elapsed == TimeSpan.FromSeconds(200), "Done.");
@@ -247,17 +259,22 @@ static partial class Program
         cc.Observe(c, TimeSpan.FromSeconds(0));
         // (the read unpacks for a minute saying nothing, then checks the files: its progress is the check's, from when it moved)
         cc.Observe(c, TimeSpan.FromSeconds(60));
+        Require(cc.SecondsLeft(c) == null, "A minute of the read with no progress: still working it out.");
         c.Feed("@@progress 0.5");
         cc.Observe(c, TimeSpan.FromSeconds(80));
-        Require(Math.Abs(cc.SecondsLeft(c)!.Value - (20 + 57 + 305 + 66)) < 1e-6, "The read's rest from the rate its check moves at, not from its start.");
+        Require(Math.Abs(cc.SecondsLeft(c)!.Value - (20 + 57 + 305 + 66 * (100 * 0.5) / (76 * 0.5))) < 1e-6,
+                "The read's rest from the rate its check moves at, not from its start, and the finish at the disk's pace that says.");
         c.Feed("the game was read from this .nup before: reading it again is skipped");
         c.Feed("@@stage lift Translating");
         cc.Observe(c, TimeSpan.FromSeconds(82));
         c.Feed("the game was translated with these tools before: translating it again is skipped");
         c.Feed("@@stage compile Compiling");
         cc.Observe(c, TimeSpan.FromSeconds(84));
-        Require(cc.Pace(c) == 1, "Stages that kept an earlier build's work say nothing of the pace.");
+        Require(cc.Pace(c, cpu: true) == null && cc.Pace(c, cpu: false) == null && cc.Settled(c),
+                "Stages that kept an earlier build's work say nothing of the pace; the time left, once said, stays.");
         c.Feed("@@plan 300 579");
+        var compile = c.Stages.First(s => s.Id == "compile");
+        Require(Math.Abs(cc.Estimate(c, compile)!.Value - 305 * 300 / 579.0) < 1e-6, "A compile of some files: their share of the forecast.");
         c.Feed("@@eta 400");
         cc.Observe(c, TimeSpan.FromSeconds(90));
         cc.Observe(c, TimeSpan.FromSeconds(190));
@@ -266,13 +283,37 @@ static partial class Program
         cc.Observe(c, TimeSpan.FromSeconds(200));
         Require(Math.Abs(cc.SecondsLeft(c)!.Value - (310 + 66)) < 1e-6, "A new @@eta starts the countdown again.");
         cc.Observe(c, TimeSpan.FromSeconds(600));
-        Require(Math.Abs(cc.SecondsLeft(c)!.Value - (305 * 0.1 + 66)) < 1e-6, "A countdown run out, the compile's progress saying little: a little left, not none.");
+        Require(Math.Abs(cc.SecondsLeft(c)!.Value - (305 * 300 / 579.0 * 0.1 + 66)) < 1e-6, "A countdown run out, the compile's progress saying little: a little left, not none.");
         c.Feed("@@progress 0.8");
         cc.Observe(c, TimeSpan.FromSeconds(610));
         Require(Math.Abs(cc.SecondsLeft(c)!.Value - (526 / 0.8 * 0.2 + 66)) < 1e-6, "Then the compile's own progress says the rest, its rate from its start (its files work from there).");
         c.Feed("@@stage finish Finishing");
         cc.Observe(c, TimeSpan.FromSeconds(1000));
-        Require(Math.Abs(cc.Pace(c) - 1) < 1e-9 && Math.Abs(cc.SecondsLeft(c)!.Value - 66) < 1e-6, "A compile of some files is no pace either.");
+        Require(cc.Pace(c, cpu: true) == null && Math.Abs(cc.SecondsLeft(c)!.Value - 66) < 1e-6, "A compile of some files is no pace either.");
+        c.Feed("@@plan 0 579");
+        Require(Math.Abs(cc.Estimate(c, compile)!.Value - 305 * 0.03) < 1e-6, "A compile of no files still has its link.");
+
+        // (an update whose stages all keep what they did: nothing shows the pace, so the forecast is said after a while)
+        var u = new BuildProgress(download: false, shaders: false, update: true);
+        var uc = new BuildClock(threads: 24);
+        u.Feed("@@stage read Reading");
+        uc.Observe(u, TimeSpan.FromSeconds(0));
+        uc.Observe(u, TimeSpan.FromSeconds(119));
+        Require(uc.SecondsLeft(u) == null, "Nothing measured for two minutes: still working it out.");
+        uc.Observe(u, TimeSpan.FromSeconds(120));
+        Require(Math.Abs(uc.SecondsLeft(u)!.Value - (76 * 0.1 * 0.1 + 57 + 305 + 66)) < 1e-6,
+                "After two minutes, the forecast; a read that keeps the folder's files at a tenth of a read.");
+
+        // (make_game's @@eta is this PC's own measure, but not in the first seconds of make_game)
+        var e = new BuildProgress(download: false, shaders: false);
+        var ec = new BuildClock(threads: 24);
+        e.Feed("@@stage compile Compiling");
+        e.Feed("@@eta 200");
+        ec.Observe(e, TimeSpan.FromSeconds(0));
+        ec.Observe(e, TimeSpan.FromSeconds(19));
+        Require(ec.SecondsLeft(e) == null, "The first seconds: still working it out.");
+        ec.Observe(e, TimeSpan.FromSeconds(20));
+        Require(Math.Abs(ec.SecondsLeft(e)!.Value - (180 + 66)) < 1e-6, "Then make_game's eta says it.");
     }
 
     static async Task ToolsSourceChecks()
