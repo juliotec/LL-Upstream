@@ -267,12 +267,13 @@
                               <TextBlock Text="{c:T 'Update'}"/>
                             </StackPanel>
                           </Button>
-                          <Grid Grid.Row="1" Grid.ColumnSpan="2" ColumnDefinitions="Auto,*,Auto" Margin="50,0,12,12" IsVisible="{Binding ShowActions}">
-                            <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding ShowDefaultNote}" Margin="4,0,0,0">
+                          <!-- (the left side wraps, so the buttons on the right always show whole in the 960-wide window) -->
+                          <Grid Grid.Row="1" Grid.ColumnSpan="2" ColumnDefinitions="*,Auto" ColumnSpacing="8" Margin="50,0,12,12" IsVisible="{Binding ShowActions}">
+                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="6" IsVisible="{Binding ShowDefaultNote}" Margin="4,0,0,0" VerticalAlignment="Center">
                               <c:Icon Kind="star" Width="13" Height="13" Foreground="{StaticResource Warn}" VerticalAlignment="Center"/>
-                              <TextBlock Classes="faint" Text="{c:T 'Your default: the Play button starts this one'}" VerticalAlignment="Center"/>
-                            </StackPanel>
-                            <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding ShowOtherActions}">
+                              <TextBlock Grid.Column="1" Classes="faint" Text="{c:T 'Your default: the Play button starts this one'}" TextWrapping="Wrap" VerticalAlignment="Center"/>
+                            </Grid>
+                            <WrapPanel ItemSpacing="8" LineSpacing="8" IsVisible="{Binding ShowOtherActions}" VerticalAlignment="Center">
                               <Button Classes="small" Command="{Binding PlayCommand}">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                   <c:Icon Kind="play" Width="14" Height="14"/>
@@ -285,8 +286,8 @@
                                   <TextBlock Text="{c:T 'Set as default'}"/>
                                 </StackPanel>
                               </Button>
-                            </StackPanel>
-                            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+                            </WrapPanel>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                               <Button Classes="link smaller" Margin="0,0,6,0" Content="{c:T 'What\'s new'}" Command="{Binding NotesCommand}"
                                       IsVisible="{Binding HasUpdate}"/>
                               <Button Classes="small" Command="{Binding SavesCommand}" ToolTip.Tip="{c:T 'Import or export your saves, which every version shares'}">
@@ -296,6 +297,8 @@
                                 </StackPanel>
                               </Button>
                               <Button Classes="icon" Command="{Binding FolderCommand}" ToolTip.Tip="{c:T 'Open folder'}"><c:Icon Kind="folder"/></Button>
+                              <Button Classes="icon" Command="{Binding OtherVersionsCommand}" IsVisible="{Binding HasOtherVersions}"
+                                      ToolTip.Tip="{c:T 'Other versions: go back to an older one, built in its place'}"><c:Icon Kind="clock"/></Button>
                               <Button Classes="icon iconbad" Command="{Binding DeleteCommand}" ToolTip.Tip="{c:T 'Delete'}"><c:Icon Kind="trash"/></Button>
                             </StackPanel>
                           </Grid>

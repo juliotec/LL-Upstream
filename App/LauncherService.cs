@@ -203,6 +203,9 @@ public sealed class LauncherService
 
     public string? UpdateFor(BuildEntry b) => UpdatePolicy.UpdateTo(b, newest);
 
+    /// The versions a build can be changed to (Other versions), from the list the update check read: none before it answered
+    public IReadOnlyList<OtherVersion> OtherVersionsOf(BuildEntry b) => OtherVersions.Of(b, Releases.Listed, Product.Longshot);
+
     /// What's new from a build's version to the one offered, from the list the update check read (ReleaseNotes)
     public IReadOnlyList<ReleaseNote> NotesFor(string? have, string offered) => ReleaseNotes.Between(Releases.Listed, have, offered, Product.Longshot);
 

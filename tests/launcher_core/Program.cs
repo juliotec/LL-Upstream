@@ -60,6 +60,7 @@ static partial class Program
         VersionChecks(vectors.RootElement);
         await ReleaseChecks(Path.Combine(fixtures, "release"));
         ReleaseNotesChecks();
+        OtherVersionsChecks();
         await SelfUpdateChecks();
         await InstallChecks();
         await ToolchainChecks();

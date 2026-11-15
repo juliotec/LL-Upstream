@@ -1,0 +1,40 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:c="using:LongshotLauncher.Controls"
+             xmlns:vm="using:LongshotLauncher.ViewModels"
+             x:Class="LongshotLauncher.Views.VersionPickerView"
+             x:DataType="vm:VersionPickerViewModel">
+  <Border Classes="dialog wide">
+    <StackPanel>
+      <TextBlock Classes="modaltitle" Text="{Binding Title}"/>
+      <TextBlock Classes="sub" Text="{c:T 'Build another version of its channel in its place: an older one to go back to, if a change broke something for you. Your saves stay: every version shares them.'}"/>
+      <ScrollViewer MaxHeight="340" Margin="0,16,0,0" HorizontalScrollBarVisibility="Disabled">
+        <ItemsControl ItemsSource="{Binding Rows}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate><StackPanel Spacing="8"/></ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:VersionPickerViewModel+Row">
+              <RadioButton Classes="chan" GroupName="version" IsChecked="{Binding IsPicked}">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="14">
+                  <StackPanel Spacing="2" VerticalAlignment="Center">
+                    <TextBlock Classes="channame" Text="{Binding Version}"/>
+                    <TextBlock Classes="chanabout" Text="{Binding When}"/>
+                  </StackPanel>
+                  <TextBlock Grid.Column="1" FontSize="12" Classes="faint" Text="{Binding Order}" VerticalAlignment="Center"/>
+                </Grid>
+              </RadioButton>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
+      <TextBlock Classes="hint" Margin="0,12,0,0" Text="{Binding Hint}"/>
+      <TextBlock Classes="hint" Margin="0,4,0,0" IsVisible="{Binding IsNightly}"
+                 Text="{c:T 'Only the newest 5 nightlies are kept on the server, so a nightly goes back as far as those.'}"/>
+      <StackPanel Classes="buttons">
+        <Button Content="{c:T 'Cancel'}" Command="{Binding CancelCommand}"/>
+        <Button Classes="primary" Content="{Binding GoText}" Command="{Binding GoCommand}"/>
+      </StackPanel>
+    </StackPanel>
+  </Border>
+</UserControl>

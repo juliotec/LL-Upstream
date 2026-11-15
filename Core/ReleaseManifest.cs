@@ -111,21 +111,26 @@ public static class ReleaseManifest
     }
 
     /// What a channel offers from the list, null when nothing
-    public static string? Newest(IEnumerable<ListedRelease> list, string channel, Product product)
+    public static string? Newest(IEnumerable<ListedRelease> list, string channel, Product product) =>
+        OnChannel(list, channel, product).FirstOrDefault()?.Tag;
+
+    /// Every published release a channel offers from the list, newest first (Versions.Newer: one channel's versions are all of
+    /// one order): its newest, then the ones before it that the server still has (Other versions on Home)
+    public static IReadOnlyList<ListedRelease> OnChannel(IEnumerable<ListedRelease> list, string channel, Product product)
     {
-        var published = list.Where(r => !r.Draft && Versions.IsTagName(r.Tag)).ToList();
-        IEnumerable<string> tags = channel switch
+        var published = list.Where(r => !r.Draft && Versions.IsTagName(r.Tag));
+        var on = channel switch
         {
-            Versions.Nightly => published.Where(r => Versions.TrackOf(r.Tag, product.FirstMajor) == Versions.Nightly).Select(r => r.Tag),
-            Versions.Candidate => published.Where(r => Versions.IsRelease(r.Tag, product.FirstMajor)).Select(r => r.Tag),
+            Versions.Nightly => published.Where(r => Versions.TrackOf(r.Tag, product.FirstMajor) == Versions.Nightly),
+            Versions.Candidate => published.Where(r => Versions.IsRelease(r.Tag, product.FirstMajor)),
             Versions.Stable => published.Where(r => !r.Prerelease && Versions.IsRelease(r.Tag, product.FirstMajor)
-                                                    && Versions.TrackOf(r.Tag, product.FirstMajor) == Versions.Stable).Select(r => r.Tag),
+                                                    && Versions.TrackOf(r.Tag, product.FirstMajor) == Versions.Stable),
             _ => throw new ArgumentException("Not a channel: " + channel, nameof(channel)),
         };
-        string? best = null;
-        foreach (var t in tags)
-            if (best == null || Versions.Newer(t, best, product.FirstMajor)) best = t;
-        return best;
+        // (a tag listed twice counts once; OrderBy is stable: ties keep the list's order, the server's newest first)
+        var tags = new HashSet<string>(StringComparer.Ordinal);
+        var order = Comparer<string>.Create((a, b) => Versions.Newer(a, b, product.FirstMajor) ? 1 : Versions.Newer(b, a, product.FirstMajor) ? -1 : 0);
+        return on.Where(r => tags.Add(r.Tag)).OrderByDescending(r => r.Tag, order).ToList();
     }
 
     /// The release's files, each with the SHA-256 its signed SHA256SUMS gives; a file the list does not name is not taken

@@ -159,6 +159,7 @@
         <ContentControl Content="{Binding Modal}" HorizontalAlignment="Center" VerticalAlignment="Center">
           <ContentControl.DataTemplates>
             <DataTemplate DataType="vm:ChannelPickerViewModel"><views:ChannelPickerView/></DataTemplate>
+            <DataTemplate DataType="vm:VersionPickerViewModel"><views:VersionPickerView/></DataTemplate>
             <DataTemplate DataType="vm:DeleteViewModel"><views:DeleteView/></DataTemplate>
             <DataTemplate DataType="vm:LicenceViewModel"><views:LicenceView/></DataTemplate>
             <DataTemplate DataType="vm:StopBuildViewModel"><views:StopBuildView/></DataTemplate>

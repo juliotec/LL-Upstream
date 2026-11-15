@@ -380,7 +380,8 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
     public static int BuildThreads(LauncherSettings settings) =>
         settings.BuildWorkers is int w and > 0 ? Math.Min(w, SystemInfo.Threads()) : SystemInfo.AutomaticWorkers();
     public string StartText => Job.StartText;
-    public bool IsUpdate => Job.Kind == JobKind.Update;
+    /// The start button's arrow: up for an update, not for going back to an older version
+    public bool IsUpdate => Job.Kind == JobKind.Update && !Job.Older;
 
     public Command BackCommand { get; }
     public Command StartCommand { get; }

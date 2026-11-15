@@ -107,7 +107,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
 
     public string Title => Job.Kind switch
     {
-        JobKind.Update => Tr.F("Updating to Longshot {0}", Job.Shown),
+        JobKind.Update => Tr.F(Job.Older ? "Going back to Longshot {0}" : "Updating to Longshot {0}", Job.Shown),
         JobKind.Rebuild => Tr.F("Rebuilding Longshot {0}", Job.Shown),
         _ => Tr.F("Building Longshot {0}", Job.Shown),
     };
@@ -469,7 +469,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
         service.PruneTools();
 
         // (no saves to move: every build shares them, SaveEnvironment.LongshotUser)
-        job.Main.Navigate(new ReadyViewModel(job.Main, entry, job.Kind, job.From, clock.Elapsed + job.ToolsTime, problem));
+        job.Main.Navigate(new ReadyViewModel(job.Main, entry, job.Kind, job.From, clock.Elapsed + job.ToolsTime, problem, job.Older));
     }
 
     /// For the screenshots: the lines a build would have said so far, with the clock at elapsed
@@ -520,12 +520,13 @@ public sealed class ReadyViewModel : ViewModelBase, IWizardPage
 {
     bool desktop = true, menu = true;
 
-    public ReadyViewModel(MainViewModel main, BuildEntry entry, JobKind kind, string? from, TimeSpan took, string? problem)
+    public ReadyViewModel(MainViewModel main, BuildEntry entry, JobKind kind, string? from, TimeSpan took, string? problem, bool older = false)
     {
         Main = main;
         Entry = entry;
         Kind = kind;
         From = from;
+        Older = older;
         Took = took;
         Problem = problem;
         PlayCommand = new Command(() =>
@@ -551,6 +552,8 @@ public sealed class ReadyViewModel : ViewModelBase, IWizardPage
     public BuildEntry Entry { get; }
     public JobKind Kind { get; }
     public string? From { get; }
+    /// It went back to an older version (BuildJob.Older)
+    public bool Older { get; }
     public TimeSpan Took { get; }
     public string? Problem { get; }
     public int Step => 3;
@@ -559,7 +562,8 @@ public sealed class ReadyViewModel : ViewModelBase, IWizardPage
     public string Version => Entry.Version ?? Entry.Name;
     public string Heading => Tr.F("{0} is ready", Version);
     public string Sub => Kind == JobKind.Update && From != null
-        ? Tr.F("Updated from {0} in {1} min, in {2}.", From, Math.Max(1, (int)Math.Round(Took.TotalMinutes)), ShownPath.Of(Entry.Folder))
+        ? Tr.F(Older ? "Went back from {0} in {1} min, in {2}." : "Updated from {0} in {1} min, in {2}.",
+               From, Math.Max(1, (int)Math.Round(Took.TotalMinutes)), ShownPath.Of(Entry.Folder))
         : Tr.F("Built in {0} min, in {1}.", Math.Max(1, (int)Math.Round(Took.TotalMinutes)), ShownPath.Of(Entry.Folder));
     public bool HasProblem => Problem != null;
     public string MenuLabel => Main.Linux ? Tr.T("Applications menu entry") : Tr.T("Start menu entry");

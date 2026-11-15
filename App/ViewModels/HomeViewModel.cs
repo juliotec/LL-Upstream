@@ -17,6 +17,8 @@ public sealed class BuildItemViewModel : ViewModelBase
         Update = update;
         Saves = saves;
         IsDeleting = deleting;
+        OtherVersionsCommand = new Command(() => home.ShowOtherVersions(this), () => !IsDeleting && home.CanStartBuild);
+        HasOtherVersions = home.Main.Service.OtherVersionsOf(entry).Count > 0;
         SelectCommand = new Command(() => home.Select(this));
         // (a build being deleted: nothing more starts on it, and its delete does not start twice)
         PlayCommand = new Command(() => home.Play(this), () => IsBuilt && !IsDeleting);
@@ -73,13 +75,21 @@ public sealed class BuildItemViewModel : ViewModelBase
     public bool ShowMeta => !HasUpdate && !IsDeleting;
     public bool ShowUpdateLine => HasUpdate && !IsDeleting;
     public string DeletingText => Tr.F("Deleting {0}…", Version);
+    /// Its channel has versions other than its own on the server (Other versions: an older one to go back to, or a newer one)
+    public bool HasOtherVersions { get; }
+    /// Another version of its channel in its place (VersionPickerViewModel)
+    public Command OtherVersionsCommand { get; }
     public bool IsFirst { get; set; }
     public Avalonia.Thickness Separator => IsFirst ? default : new Avalonia.Thickness(0, 1, 0, 0);
 
     public void RaiseMeta() => Raise(nameof(Meta));
 
     /// Whether a build can start from it now (the home's checks and the launcher's update)
-    public void RaiseCommands() => UpdateCommand.Changed();
+    public void RaiseCommands()
+    {
+        UpdateCommand.Changed();
+        OtherVersionsCommand.Changed();
+    }
 
     public Command SelectCommand { get; }
     public Command PlayCommand { get; }
@@ -663,6 +673,13 @@ public sealed class HomeViewModel : ViewModelBase
         if (Service.LauncherUpdate is not { } r) return;
         ReleaseNotesViewModel.Show(Main, Product.Launcher, Service.OwnTag, r.Version, Service.LauncherNotes(), LauncherUpdateButton,
                                    UpdateLauncherCommand.CanExecute(null) ? () => UpdateLauncherCommand.Execute(null) : null);
+    }
+
+    /// The versions of a build's channel, to build one in its place (an older one: going back)
+    public void ShowOtherVersions(BuildItemViewModel b)
+    {
+        var others = Service.OtherVersionsOf(b.Entry);
+        if (others.Count > 0 && CanStartBuild) Main.Modal = new VersionPickerViewModel(Main, b.Entry, others);
     }
 
     public void UpdateBuild(BuildItemViewModel b)

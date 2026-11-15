@@ -18,6 +18,7 @@ public sealed class BuildJob
         Version = version;
         Replaces = replaces;
         From = kind == JobKind.Update ? replaces?.Version : null;
+        Older = kind == JobKind.Update && Versions.Newer(From, version);
         var s = main.Service;
         InstallDir = s.Registry.FolderOf(kind == JobKind.Build ? null : replaces, s.BuildsFolder, channel, s.Platform);
     }
@@ -32,6 +33,8 @@ public sealed class BuildJob
     /// The version an update starts from, read when the job is made: the update takes Replaces' row in its place
     /// (BuildRegistry.Replace), its version then the new one
     public string? From { get; }
+    /// An update to a version older than the one it replaces (Other versions on Home): it goes back, and says so
+    public bool Older { get; }
     /// The version and the one it replaces as players see them (a nightly: "Nightly 2029 · c544828f", Versions.Shown)
     public string Shown => Versions.Shown(Version);
     public string? ShownFrom => From == null ? null : Versions.Shown(From);
@@ -49,9 +52,14 @@ public sealed class BuildJob
     public FilesStepViewModel? Files { get; set; }
     public SettingsStepViewModel? Settings { get; set; }
 
-    public string Verb => Kind switch { JobKind.Update => "Update to ", JobKind.Rebuild => "Rebuild ", _ => "Build " };
-    /// The start button's words: Build, Rebuild or Update to, then the version
-    public string StartText => Tr.F(Kind switch { JobKind.Update => "Update to {0}", JobKind.Rebuild => "Rebuild {0}", _ => "Build {0}" }, Shown);
+    public string Verb => Kind switch { JobKind.Update => Older ? "Go back to " : "Update to ", JobKind.Rebuild => "Rebuild ", _ => "Build " };
+    /// The start button's words: Build, Rebuild, Update to or Go back to, then the version
+    public string StartText => Tr.F(Kind switch
+    {
+        JobKind.Update => Older ? "Go back to {0}" : "Update to {0}",
+        JobKind.Rebuild => "Rebuild {0}",
+        _ => "Build {0}",
+    }, Shown);
 
     /// Everything of step 1 stops (the download, the checks): the wizard was left
     public void Stop()
@@ -185,7 +193,8 @@ public sealed class FilesStepViewModel : ViewModelBase, IWizardPage
     public ObservableCollection<GameFileViewModel> Files { get; } = new();
 
     public string Sub => Job.Kind == JobKind.Update
-        ? Tr.F("Updating {0} to {1}. The file you built it from is picked; pick another if it moved.", Job.ShownFrom, Job.Shown)
+        ? Tr.F(Job.Older ? "Going back from {0} to {1}. The file you built it from is picked; pick another if it moved."
+                         : "Updating {0} to {1}. The file you built it from is picked; pick another if it moved.", Job.ShownFrom, Job.Shown)
         : Tr.T("Pick your dump of the game. Longshot reads it on this PC; nothing is uploaded.");
 
     // ---- the tools ----

@@ -328,8 +328,11 @@ Calls made here, most of them the design mockup's; each can be changed:
   files the build was made from, and the build's row takes the new version, its default kept (`BuildRegistry.FolderOf`,
   `BuildRegistry.Replace`). The game's path stays the same, so what follows the path keeps working (a GPU driver's
   settings for the program); the settings, mods and shader caches in the folder stay with the game; and no copy of the
-  version before is left on the disk. So an update replaces the version before it: the only way back is to build that
-  version again. make_game.py puts the new files in only once they are complete, so a build that stops leaves the old
+  version before is left on the disk. So an update replaces the version before it, and the way back is to build that
+  version again: **Other versions** on the build's row (the clock) lists its channel's other releases the server still has
+  (every release and release candidate, the newest 5 nightlies: `OtherVersions`), and builds the one picked the same way, in
+  the build's folder, as "Go back to". Update then offers the newest again. Your saves stay: every build shares them.
+  make_game.py puts the new files in only once they are complete, so a build that stops leaves the old
   game playable. It does not start while Longshot runs: Save and close it first. On Windows, Longshot started during the
   build stops it at its last step, which then asks to close it and build again (what was built is kept).
 - **A new build's folder is named after its channel**: `<builds>/nightly`, `rc` or `stable`, then `nightly (2)` and so

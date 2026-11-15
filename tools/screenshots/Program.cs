@@ -115,6 +115,21 @@ static class Program
             m => m.Home.ShowNotes(m.Home.Default!)),
         new("whats-new-launcher", "What's new in the launcher the banner offers", Platform.Linux, LauncherOffered, _ => null,
             m => m.Home.LauncherNotesCommand.Execute(null)),
+        // (Other versions: a nightly build, the newest 5 nightlies on the server, its own the newest)
+        new("home-other-versions", "A version's row opened: Other versions, beside Saves", Platform.Windows, NightliesListed, _ => null,
+            m => m.Home.Select(m.Home.Builds[0])),
+        new("home-other-versions-second", "A second version's row opened: Play this version, Set as default, Other versions", Platform.Windows,
+            s =>
+            {
+                NightliesListed(s);
+                s.Registry.Add(@"C:\Users\Player\Games\Longshot\stable", "v3.0.0", Versions.Stable, makeDefault: true);
+            },
+            _ => null, m => m.Home.Select(m.Home.Builds.First(b => !b.IsDefault))),
+        new("other-versions", "Other versions of a nightly build: the channel's others on the server, the newest older one picked",
+            Platform.Windows, NightliesListed, _ => null, m => m.Home.ShowOtherVersions(m.Home.Builds[0])),
+        new("settings-go-back", "Step 2 going back to an older nightly, in the build's own folder", Platform.Windows, NightliesListed,
+            m => new SettingsStepViewModel(new BuildJob(m, JobKind.Update, Versions.Nightly, "nightly-187-9e6f231d", m.Service.Registry.Builds[0]))
+                 { Free = 412L << 30 }),
         new("hookshot-import-problem", "Importing Hookshot's saves failed, Copy for a bug report", Platform.Windows, null, _ => null,
             m => m.Modal = new HookshotImportViewModel(m) { Problem = @"The saves could not be copied: Access to the path 'C:\Users\Player\Saved Games\Longshot\slot1' is denied." }),
     ];
@@ -137,6 +152,23 @@ static class Program
             Release("v3.2.0", "2026-11-14", "## What's new in v3.2.0\n\n- **The VRAM budgets set by the card**, not a menu row or a preset: 8 GB cards' mirrors 2 GB (#735)\n" +
                 "- **A page on reporting slow performance**, with the switches that measure it ([help](https://git.magicbean.dev/MagicBeanDev/Longshot))\n\n" +
                 "**Fixed:**\n\n- The start-up screen counts the compute pipelines (#721)\n- Honor `cache-off` for rolling pipeline files (#415)"),
+        ];
+    }
+
+    /// A nightly build of the newest nightly, and the release list the update check read: the 5 nightlies the server keeps
+    static void NightliesListed(LauncherService service)
+    {
+        service.Registry.Add(@"C:\Users\Player\Games\Longshot\nightly", "nightly-189-aa95d35f", Versions.Nightly, makeDefault: true);
+        service.SetNewest(Versions.Nightly, "nightly-189-aa95d35f");
+        ListedRelease Nightly(string tag, string at) =>
+            new(tag, false, true, DateTimeOffset.Parse(at, System.Globalization.CultureInfo.InvariantCulture), ReleaseNotes.PageOf(Product.Longshot, tag), "", []);
+        service.Releases.Listed =
+        [
+            Nightly("nightly-189-aa95d35f", "2026-11-15T11:10:00Z"),
+            Nightly("nightly-188-a00c485c", "2026-11-15T10:10:00Z"),
+            Nightly("nightly-187-9e6f231d", "2026-11-15T09:22:00Z"),
+            Nightly("nightly-182-5274fb72", "2026-11-14T08:07:00Z"),
+            Nightly("nightly-179-70087604", "2026-11-13T07:01:00Z"),
         ];
     }
 
