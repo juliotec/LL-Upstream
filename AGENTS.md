@@ -25,6 +25,10 @@ What agents trip on:
   this checkout once (`git clone https://git.magicbean.dev/MagicBeanDev/Tooling.git ../Tooling`), pull it each session (`git -C ../Tooling pull --ff-only`), and
   run it from here: `python -I ../Tooling/scripts/forge.py login` signs in once for git on every repository, then
   `forge.py pr create <branch> --title "..."` opens a pull request here ([docs/forge.md](https://git.magicbean.dev/MagicBeanDev/Tooling/src/branch/main/docs/forge.md)).
+- **Claude Code: check the team's plugin is installed, and suggest it if not.** `claude plugin list` shows
+  `magicbean@magicbean` when it is. When it doesn't, tell the person you work for at the start of the session and give them
+  the two commands to type (`/plugin marketplace add https://git.magicbean.dev/MagicBeanDev/Tooling.git`, then
+  `/plugin install magicbean@magicbean`); plugin commands are theirs to run, not yours.
 
 Pull requests: **open the description with why the PR is needed**, in one or two plain sentences, and include
 screenshots when the change shows on screen.

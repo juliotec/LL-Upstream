@@ -34,6 +34,14 @@ Sign in to git.magicbean.dev with the team's tooling, [MagicBeanDev/Tooling](htt
 (`git clone https://git.magicbean.dev/MagicBeanDev/Tooling.git ../Tooling`, then `python -I ../Tooling/scripts/forge.py login`: one sign-in covers every
 repository).
 
+**Using Claude Code?** Install the team's plugin once per PC, for the skills (`/magicbean:team-updates`,
+`/magicbean:release`, `/magicbean:batch-review`) in every MagicBeanDev repository:
+
+```
+/plugin marketplace add https://git.magicbean.dev/MagicBeanDev/Tooling.git
+/plugin install magicbean@magicbean
+```
+
 ### Tools: mise, CircleCI and AI agents
 
 - **mise** pins every tool this repo uses. Install it ([mise docs](https://mise.jdx.dev/getting-started.html)), then in the repo run `mise install` and, once per clone, `mise run setup` (it installs the pre-commit and commit-msg hooks). `mise run lint` and `mise run test` run the same checks CI does.
