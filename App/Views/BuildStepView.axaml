@@ -78,7 +78,20 @@
           <ComboBox Classes="dd" ItemsSource="{Binding Levels}" SelectedItem="{Binding Level}" VerticalAlignment="Center"
                     AutomationProperties.Name="{c:T 'Log level shown'}">
             <ComboBox.ItemTemplate>
-              <DataTemplate x:DataType="vm:LogLevelChoice"><TextBlock Text="{Binding Name}"/></DataTemplate>
+              <DataTemplate x:DataType="vm:LogLevelChoice">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <!-- (the levels it shows, stacked: each choice adds its own swatch to the ones before it) -->
+                  <ItemsControl ItemsSource="{Binding Shows}" VerticalAlignment="Center" Width="38">
+                    <ItemsControl.ItemsPanel>
+                      <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="2"/></ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate><Border Width="6" Height="12" CornerRadius="2" Background="{Binding}"/></DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                  <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
+                </StackPanel>
+              </DataTemplate>
             </ComboBox.ItemTemplate>
           </ComboBox>
           <TextBox Grid.Column="1" Classes="path" Text="{Binding Search}" PlaceholderText="{c:T 'Search the log'}" Height="32" MinHeight="32" VerticalAlignment="Center"
@@ -87,7 +100,8 @@
         <Border CornerRadius="10" BorderBrush="{StaticResource GlassLine}" BorderThickness="1" Background="#33000000">
           <!-- (follows the log's new lines while it is scrolled to the bottom; scrolled up, it stays put: BuildStepView in Views.cs) -->
           <ScrollViewer Name="LogScroll" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Padding="12,10">
-            <SelectableTextBlock Text="{Binding LogText}" FontFamily="{StaticResource Mono}" FontSize="11" LineHeight="17.6"
+            <!-- (each line with its level's coloured prefix, written by BuildStepView in Views.cs as LogText changes) -->
+            <SelectableTextBlock Name="LogBlock" FontFamily="{StaticResource Mono}" FontSize="11" LineHeight="17.6"
                                  Foreground="{StaticResource InkSoft}"/>
           </ScrollViewer>
         </Border>

@@ -22,6 +22,8 @@ static partial class Program
         })
             Require(LogLevels.Of(line) == want, $"log level of \"{line}\": {LogLevels.Of(line)}, not {want}");
 
+        Require(LogLevels.All.Select(LogLevels.Prefix).SequenceEqual(["ERR", "WRN", "INF", "DBG", "TRC"]), "The details' prefixes, as wide as each other.");
+
         var log = new BuildLog();
         log.Add("[hos host] first");
         for (var i = 0; i < 50; i++) log.Add($"[hos host] [trace] vk: program {i} not translated: a network left out on this card");
@@ -35,6 +37,8 @@ static partial class Program
         Require(log.Tail(LogLevel.Debug, null, 10).SequenceEqual(["[hos host] first", "[hos host] [debug] vk: 4 pools mapped", "error: Stopped",
                 "[hos host] Last NETWORK line"]), "Debug: debug too, not trace");
         Require(log.Tail(LogLevel.Trace, null, 100).Count == 54, "Trace: every line");
+        Require(log.TailWithLevels(LogLevel.Debug, null, 10).Select(l => l.Level).SequenceEqual([LogLevel.Info, LogLevel.Debug, LogLevel.Error, LogLevel.Info]),
+                "The details' lines carry their levels, for their prefixes.");
         Require(log.Tail(LogLevel.Trace, null, 3).SequenceEqual(["[hos host] [debug] vk: 4 pools mapped", "error: Stopped",
                 "[hos host] Last NETWORK line"]), "the tail is the last lines shown");
         Require(log.Tail(LogLevel.Info, " network ", 10).SequenceEqual(["[hos host] Last NETWORK line"]),

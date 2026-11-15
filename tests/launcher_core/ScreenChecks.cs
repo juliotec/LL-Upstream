@@ -596,5 +596,41 @@ static partial class Program
                 && SystemInfo.GpuVendors(Platform.Windows, drm).Count == 0 && SystemInfo.GpuVendors(Platform.Linux, Path.Combine(drm, "none")).Count == 0,
                 "The GPU makers, by card; outputs and other devices left out.");
         Require(SystemInfo.MemoryGb() > 0 && SystemInfo.Threads() > 0, "Memory and threads.");
+
+        // (the build settings' DLSS and FSR 4 switches: on offer only where a card runs them, or where no card was found)
+        Require(SystemInfo.VendorOfDeviceId(@"pci\ven_10de&dev_2782") == SystemInfo.Nvidia && SystemInfo.VendorOfDeviceId("PCI\\VEN_1002&DEV_744C") == SystemInfo.Amd
+                && SystemInfo.VendorOfDeviceId("root\\basicdisplay") == null, "Windows' display adapters' makers, by their device id.");
+        Gpu rtx = new(SystemInfo.Nvidia, "NVIDIA GeForce RTX 4070 Ti"), gtx = new(SystemInfo.Nvidia, "NVIDIA GeForce GTX 1660 SUPER"),
+            nvidia = new(SystemInfo.Nvidia), rx9070 = new(SystemInfo.Amd, "AMD Radeon RX 9070 XT"), rx6700 = new(SystemInfo.Amd, "AMD Radeon RX 6700 XT"),
+            rx5700 = new(SystemInfo.Amd, "AMD Radeon RX 5700 XT"), rx580 = new(SystemInfo.Amd, "Radeon RX 580 Series"), vega = new(SystemInfo.Amd, "AMD Radeon RX Vega 64"),
+            apu = new(SystemInfo.Amd, "AMD Radeon(TM) Graphics"), amd = new(SystemInfo.Amd), intel = new(SystemInfo.Intel, "Intel(R) UHD Graphics 770");
+        Require(SystemInfo.DlssRuns(rtx) && SystemInfo.DlssRuns(nvidia) && !SystemInfo.DlssRuns(gtx) && !SystemInfo.DlssRuns(rx9070),
+                "DLSS: an RTX card, or an NVIDIA known only by its maker; not a GTX or another maker's.");
+        Require(SystemInfo.FsrRuns(rx9070) && SystemInfo.FsrRuns(rx6700) && SystemInfo.FsrRuns(apu) && SystemInfo.FsrRuns(amd)
+                && !SystemInfo.FsrRuns(rx5700) && !SystemInfo.FsrRuns(rx580) && !SystemInfo.FsrRuns(vega) && !SystemInfo.FsrRuns(rtx),
+                "FSR 4: an RX 6000 or newer, an unplaced Radeon, or an AMD known only by its maker; not an RX 5000, RX 500 or Vega.");
+        Require(SystemInfo.Offers([], SystemInfo.DlssRuns) && SystemInfo.Offers([intel, rtx], SystemInfo.DlssRuns)
+                && !SystemInfo.Offers([intel, rx9070], SystemInfo.DlssRuns) && !SystemInfo.Offers([gtx], SystemInfo.DlssRuns)
+                && !SystemInfo.Offers([rx580, intel], SystemInfo.FsrRuns), "On offer with a card that runs it, or with no card found; else not.");
+
+        // (Linux, AMD FSR 4: the player's library, checked and copied into the game folder)
+        var fsrDir = Folder("fsr-library");
+        var lib = Path.Combine(fsrDir, "libfsr4.so");
+        File.WriteAllBytes(lib, [0x7f, (byte)'E', (byte)'L', (byte)'F', 2, .. new byte[200]]);
+        var lib32 = Path.Combine(fsrDir, "lib32.so");
+        File.WriteAllBytes(lib32, [0x7f, (byte)'E', (byte)'L', (byte)'F', 1, .. new byte[200]]);
+        var notes = Path.Combine(fsrDir, "notes.so");
+        File.WriteAllText(notes, new string('x', 200));
+        Require(FsrLibrary.Check(lib) == null && FsrLibrary.Check(lib32) != null && FsrLibrary.Check(notes) != null
+                && FsrLibrary.Check(Path.Combine(fsrDir, "gone.so")) != null, "A 64-bit ELF is taken; a 32-bit one, a text file or a missing file is not.");
+        var gameDir = Folder("fsr-game");
+        File.WriteAllText(Path.Combine(gameDir, FsrLibrary.FileName), "old");
+        var installed = FsrLibrary.Install(lib, gameDir);
+        Require(installed == Path.Combine(gameDir, "amd_fidelityfx_upscaler_vk.so") && File.ReadAllBytes(installed).SequenceEqual(File.ReadAllBytes(lib))
+                && !File.Exists(installed + ".tmp"), "The library copied in under the name the game looks for, replacing the old one.");
+        Require(FsrLibrary.Install(installed, gameDir) == installed, "The game folder's own library chosen: left as it is.");
+        var refused = false;
+        try { FsrLibrary.Install(notes, gameDir); } catch (InvalidDataException) { refused = true; }
+        Require(refused && File.ReadAllBytes(installed).SequenceEqual(File.ReadAllBytes(lib)), "Not a library: refused, the game folder's left alone.");
     }
 }

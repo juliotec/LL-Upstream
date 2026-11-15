@@ -26,8 +26,10 @@ public sealed class LauncherService
     public string DefaultChannel => Settings.BuildChannel(OwnTag);
     /// The save folders are worked out from this (the screenshots point it into a temporary folder)
     public SaveEnvironment SaveEnv { get; set; }
-    /// The makers of this PC's graphics cards (Linux only for now: SystemInfo.GpuVendors)
-    public IReadOnlyList<string> Gpus { get; set; }
+    /// This PC's graphics cards: named on Windows (WindowsGpus), only by maker on Linux (SystemInfo.GpuVendors)
+    public IReadOnlyList<Gpu> GpuCards { get; set; }
+    /// The makers of this PC's graphics cards, each once
+    public IReadOnlyList<string> Gpus => GpuCards.Select(g => g.Vendor).Distinct().ToList();
     /// Whether the update check has answered (or was not asked: offline)
     public bool Checked { get; set; }
 
@@ -55,7 +57,7 @@ public sealed class LauncherService
             BackupFolder = home.Portable ? home.PortableSaveBackups : null,
             UserFolder = home.Portable ? home.PortableUser : null,
         };
-        Gpus = SystemInfo.GpuVendors(platform);
+        GpuCards = OperatingSystem.IsWindows() ? WindowsGpus.Read() : SystemInfo.GpuVendors(platform).Select(v => new Gpu(v)).ToList();
     }
 
     /// A Debug build only: LONGSHOT_LAUNCHER_DEBUG_SLOW=<ms> waits that long before each answer and after each MB of a download, to

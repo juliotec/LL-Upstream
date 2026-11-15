@@ -22,7 +22,8 @@ public sealed class LauncherSettings
     /// (Linux) The AMD FSR 4 notice read: nothing of AMD's is downloaded there, so no licence is accepted, and FsrLicense is left
     /// as it was (a launcher home shared with Windows must not take this for AMD's licence)
     public bool FsrLinuxNotice { get; set; }
-    public bool PrepareShaders { get; set; } = true;
+    /// (Linux) The player's Vulkan FSR 4 library, copied into each game folder built with FSR 4 (FsrLibrary); null: none chosen
+    public string? FsrLibraryPath { get; set; }
     /// Build memory in GB (LONGSHOT_MEM_LIMIT_GB); null: Automatic
     public int? MemoryGb { get; set; }
     /// Build workers (LONGSHOT_JOBS / --jobs); null: Automatic

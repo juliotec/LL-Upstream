@@ -750,16 +750,16 @@ static partial class Program
     {
         var path = Path.Combine(Folder("settings"), "settings.json");
         var d = LauncherSettings.Load(path);
-        Require(d.PrepareShaders && !d.Dlss && d.DefaultChannel == null && d.MemoryGb == null, "The defaults.");
+        Require(!d.Dlss && d.DefaultChannel == null && d.MemoryGb == null, "The defaults.");
         Require(!d.Nx2naviSavesAsked && !d.HookshotSavesAsked, "Save import offers default to unanswered.");
         var s = new LauncherSettings
         {
-            Nup = "/n.nup", Language = "de", Dlss = true, DlssLicense = true, Fsr = true, FsrLicense = true, PrepareShaders = false,
+            Nup = "/n.nup", Language = "de", Dlss = true, DlssLicense = true, Fsr = true, FsrLicense = true,
             MemoryGb = 16, BuildWorkers = 6, Work = "/w", DefaultChannel = "nightly",
         };
         s.Save(path);
         var t = LauncherSettings.Load(path);
-        Require(t.Nup == "/n.nup" && t.Language == "de" && t.Dlss && t.DlssLicense && t.Fsr && t.FsrLicense && !t.PrepareShaders && t.MemoryGb == 16
+        Require(t.Nup == "/n.nup" && t.Language == "de" && t.Dlss && t.DlssLicense && t.Fsr && t.FsrLicense && t.MemoryGb == 16
                 && t.BuildWorkers == 6 && t.Work == "/w" && t.DefaultChannel == "nightly", "settings.json round trip.");
         new LauncherSettings { Nx2naviSavesAsked = true }.Save(path);
         Require(LauncherSettings.Load(path) is { Nx2naviSavesAsked: true, HookshotSavesAsked: false }, "NX2navi's import answer is saved independently of Hookshot's.");
@@ -774,8 +774,11 @@ static partial class Program
         File.WriteAllText(path, """{"dlss":true,"dlssLicense":false,"defaultChannel":"beta","memoryGb":0}""");
         var u = LauncherSettings.Load(path);
         Require(!u.Dlss && u.DefaultChannel == null && u.MemoryGb == null, "Saved values outside their range are not taken.");
+        // (the "Prepare shaders now" switch is gone, every build prepares them: a settings.json from before still loads)
+        File.WriteAllText(path, """{"prepareShaders":false,"language":"fr"}""");
+        Require(LauncherSettings.Load(path).Language == "fr", "A settings.json with the old prepareShaders is read, the field ignored.");
         File.WriteAllText(path, "nope");
-        Require(LauncherSettings.Load(path).PrepareShaders, "Unreadable settings are the defaults.");
+        Require(LauncherSettings.Load(path) is { CheckUpdates: true, Language: null }, "Unreadable settings are the defaults.");
 
         // (the channel new builds start on: the launcher's own until the player picks one)
         var none = new LauncherSettings();
@@ -849,6 +852,23 @@ static partial class Program
         Require(bars.Zip(bars.Skip(1)).All(x => x.Second >= x.First), "The bar went back: " + string.Join(" ", bars.Select(b => b.ToString("0.000"))));
         Require(bars[^1] == 1 && p.Finished && p.Folder == "/authored/game" && p.Stages.All(s => s.State == StageState.Done), "The bar ends full.");
         Require(Math.Abs(bars[bars.Count - 3] - (825 - 311 / 2.0) / 825) < 1e-9, "The shaders' half: their forecast 311 s of the 825, halfway.");
+
+        // (the read's unpacking says no @@progress: its "MiB written" lines against the title's size move the read's row)
+        var rp = new BuildProgress(download: false, shaders: true);
+        var read = rp.Stages.First(st => st.Id == "read");
+        rp.Feed("@@stage read Reading your game files");
+        rp.Feed("  1.0 MiB written (0 files completed)");   // (before the size: nothing to measure it against)
+        Require(rp.Overall == 0, "A MiB line before the title's size moves nothing.");
+        rp.Feed("title 0: 0400486024dec000 v131072  exefs 5 files (main 29953289)  romfs 186587 files, 26.24 GB");
+        rp.Feed("  12512.0 MiB written (90000 files completed)");
+        var half = 12512.0 * (1 << 20) / 26.24e9 * 0.95;
+        Require(Math.Abs(rp.Overall - (read.Start + read.Weight * half)) < 1e-9, "Half the title unpacked: the read's row about half way.");
+        rp.Feed("  24408.6 MiB written (175854 files completed)");
+        rp.Feed("  100.0 MiB written (1 files completed)");   // (a second title's: the bar never goes back)
+        Require(rp.Overall > read.Start + read.Weight * 0.9 && rp.Overall <= read.Start + read.Weight * 0.95, "Nearly all unpacked: the checks' share left.");
+        rp.Feed("@@stage lift Translating the game to PC code");
+        rp.Feed("  9999.0 MiB written (1 files completed)");
+        Require(Math.Abs(rp.Overall - rp.Stages.First(st => st.Id == "lift").Start) < 1e-9, "Another stage's MiB lines move nothing.");
         Require(p.Stages.Where(s => s.Id != "compile").All(s => !s.Kept), "Nothing else said it kept an earlier build's work.");
 
         var q = new BuildProgress(download: false, shaders: true);

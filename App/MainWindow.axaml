@@ -98,7 +98,8 @@
         <Grid Name="TitleBar" ColumnDefinitions="*,Auto,*" Background="Transparent">
           <StackPanel Orientation="Horizontal" Spacing="10" Margin="28,0,0,0" VerticalAlignment="Center" IsHitTestVisible="False">
             <Image Source="avares://LongshotLauncher/Assets/longshot.png" Width="28" Height="28" RenderOptions.BitmapInterpolationMode="HighQuality"/>
-            <TextBlock Text="Longshot" FontSize="15" FontWeight="Bold" VerticalAlignment="Center"/>
+            <TextBlock Text="Longshot Launcher" FontSize="15" FontWeight="Bold" VerticalAlignment="Center"/>
+            <TextBlock Text="{Binding LauncherVersion}" FontSize="11" Foreground="{StaticResource InkSoft}" VerticalAlignment="Center" Margin="0,2,0,0"/>
           </StackPanel>
           <Border Grid.Column="1" IsVisible="{Binding InWizard}" Height="40" CornerRadius="20" Padding="4" Background="#0BFFFFFF"
                   BorderBrush="{StaticResource GlassLine}" BorderThickness="1" VerticalAlignment="Center">

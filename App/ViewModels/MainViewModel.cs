@@ -83,6 +83,8 @@ public sealed class MainViewModel : ViewModelBase
     }
 
     public LauncherService Service { get; }
+    /// The launcher's own version, small beside its name in the title bar
+    public string LauncherVersion => Versions.Shown(Service.OwnTag);
     public HomeViewModel Home { get; }
     public IWindowHost? Host { get; set; }
     public Platform Platform => Service.Platform;

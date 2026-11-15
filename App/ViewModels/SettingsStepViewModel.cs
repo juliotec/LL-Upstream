@@ -7,7 +7,7 @@ public sealed record Choice(int? Value, string Label);
 public sealed record LanguageChoice(string Code, string Name);
 
 /// Step 2, the build settings (LauncherSettings, remembered for the next build): the saves it shares, DLSS and FSR 4 with
-/// their licences, the game folder and the space it needs, the language, the shaders, and under Advanced the build's memory,
+/// their licences, the game folder and the space it needs, the language, and under Advanced the build's memory,
 /// workers and build files
 public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
 {
@@ -34,6 +34,7 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
         ChangeInstallCommand = new Command(() => _ = ChangeInstallAsync());
         ChangeWorkCommand = new Command(() => _ = ChangeWorkAsync());
         AdvancedCommand = new Command(() => AdvancedOpen = !AdvancedOpen);
+        ChooseFsrLibraryCommand = new Command(() => _ = ChooseFsrLibraryAsync());
         Measure();
     }
 
@@ -61,15 +62,19 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
 
     // ---- upscaling ----
 
-    public bool DlssYourGpu => Job.Service.Gpus.Contains(SystemInfo.Nvidia);
-    public bool FsrYourGpu => Job.Service.Gpus.Contains(SystemInfo.Amd);
+    public bool DlssYourGpu => Job.Service.GpuCards.Any(SystemInfo.DlssRuns);
+    public bool FsrYourGpu => Job.Service.GpuCards.Any(SystemInfo.FsrRuns);
+
+    /// This PC can run it (SystemInfo.Offers): otherwise its switch is off and can't be turned on, and the build leaves it out
+    public bool DlssRunsHere => SystemInfo.Offers(Job.Service.GpuCards, SystemInfo.DlssRuns);
+    public bool FsrRunsHere => SystemInfo.Offers(Job.Service.GpuCards, SystemInfo.FsrRuns);
 
     public bool Dlss
     {
-        get => s.Dlss;
+        get => s.Dlss && DlssRunsHere;
         set
         {
-            if (value == s.Dlss) return;
+            if (value == Dlss || (value && !DlssRunsHere)) return;
             if (value && !s.DlssLicense)
             {
                 Main.Modal = new LicenceViewModel(Main, true, Linux, () => { s.DlssLicense = true; s.Dlss = true; Save(); RaiseUpscalers(); },
@@ -92,10 +97,10 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
 
     public bool Fsr
     {
-        get => s.Fsr && FsrKnown && FsrBuildable;
+        get => s.Fsr && FsrKnown && FsrBuildable && FsrRunsHere;
         set
         {
-            if (value == Fsr || (value && !FsrBuildable)) return;
+            if (value == Fsr || (value && !FsrEnabled)) return;
             if (value && !FsrKnown)
             {
                 Main.Modal = new LicenceViewModel(Main, false, Linux, () =>
@@ -115,17 +120,48 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
         }
     }
 
-    public bool DlssAccepted => s.Dlss;
-    public string DlssLine => s.Dlss ? "" : s.DlssLicense ? Tr.T("Licence accepted earlier.") : Tr.T("Shows NVIDIA's licence first.");
+    /// The FSR 4 switch can be turned on: this version's tools build it and this PC runs it
+    public bool FsrEnabled => FsrBuildable && FsrRunsHere;
+
+    public bool DlssAccepted => Dlss;
+    public string DlssLine => !DlssRunsHere ? Tr.T("This PC has no GeForce RTX card.")
+        : Dlss ? "" : s.DlssLicense ? Tr.T("Licence accepted earlier.") : Tr.T("Shows NVIDIA's licence first.");
     // (Linux: nothing of AMD's is downloaded, so there is no licence to accept; the player's own library goes beside the game)
-    public bool FsrAccepted => s.Fsr && Windows;
-    public string FsrLine => Linux
-        ? (!FsrBuildable ? Tr.T("This version can't build it on Linux yet.") :
-           Fsr ? Tr.T("Put amd_fidelityfx_upscaler_vk.so beside the game.") : Tr.T("Needs your own Vulkan FSR 4 library."))
+    public bool FsrAccepted => Fsr && Windows;
+    public string FsrLine => !FsrRunsHere ? Tr.T("This PC has no Radeon RX 6000 or newer.")
+        : Linux
+        ? (!FsrBuildable ? Tr.T("This version can't build it on Linux yet.") : Tr.T("Uses your Vulkan FSR 4 library."))
         : Fsr ? "" : s.FsrLicense ? Tr.T("Licence accepted earlier.") : Tr.T("Shows AMD's licence first.");
 
+    // ---- (Linux) the player's FSR 4 library ----
+
+    /// The library row, under FSR 4 while it is on (Linux: AMD publishes no runtime there, so the library is the player's)
+    public bool ShowFsrLibrary => Linux && Fsr;
+    public bool FsrLibraryChosen => s.FsrLibraryPath != null;
+    public string FsrLibraryText => s.FsrLibraryPath is { } p ? ShownPath.Of(p) : Tr.T("None chosen");
+    public string FsrLibraryFull => s.FsrLibraryPath ?? "";
+    public string FsrLibraryDesc => s.FsrLibraryPath != null
+        ? Tr.T("Copied into the game folder with each build.")
+        : Tr.T("Choose your amd_fidelityfx_upscaler_vk.so, or put it beside the game yourself.");
+    public Command ChooseFsrLibraryCommand { get; }
+
+    async Task ChooseFsrLibraryAsync()
+    {
+        if (Main.Host is not { } host) return;
+        var picked = await host.PickFileAsync(Tr.T("Your Vulkan FSR 4 library"), new[] { "*.so", "*.so.*" });
+        if (picked == null) return;
+        if (FsrLibrary.Check(picked) is { } why)
+        {
+            Main.ShowToast(why);
+            return;
+        }
+        s.FsrLibraryPath = Path.GetFullPath(picked);
+        Save();
+        RaiseAll(nameof(FsrLibraryChosen), nameof(FsrLibraryText), nameof(FsrLibraryFull), nameof(FsrLibraryDesc));
+    }
+
     void RaiseUpscalers() =>
-        RaiseAll(nameof(Dlss), nameof(Fsr), nameof(DlssAccepted), nameof(DlssLine), nameof(FsrAccepted), nameof(FsrLine), nameof(FsrBuildable),
+        RaiseAll(nameof(Dlss), nameof(Fsr), nameof(ShowFsrLibrary), nameof(DlssAccepted), nameof(DlssLine), nameof(FsrAccepted), nameof(FsrLine), nameof(FsrBuildable), nameof(FsrEnabled),
                  nameof(Estimate));
 
     // ---- install ----
@@ -183,19 +219,6 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
             Raise();
         }
     }
-
-    public bool Prepare
-    {
-        get => s.PrepareShaders;
-        set
-        {
-            s.PrepareShaders = value;
-            Save();
-            RaiseAll(nameof(Prepare), nameof(PrepareDesc), nameof(Estimate));
-        }
-    }
-
-    public string PrepareDesc => s.PrepareShaders ? Tr.T("Adds about 8 min here, so the game starts smoothly.") : Tr.T("The game prepares them at its first start.");
 
     // ---- advanced ----
 
@@ -265,8 +288,8 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
     public bool ShowEstimate => !Short;
     public string SpaceWarning => Tr.F("{0} is too full for the build. Change the game folder.", Drive);
     // (this PC's estimate from its CPU threads: BuildForecast, measured on nightly-56; the build step then corrects it as it goes)
-    public string Estimate => Tr.F(s.PrepareShaders ? "{0} on this PC, shaders included" : "{0} on this PC",
-                                   Durations.About(BuildForecast.Total(download: true, s.PrepareShaders, BuildThreads(s))));
+    public string Estimate => Tr.F("{0} on this PC, shaders included",
+                                   Durations.About(BuildForecast.Total(download: true, true, BuildThreads(s))));
 
     /// The threads a build may use: the Build workers setting, else the PC's
     public static int BuildThreads(LauncherSettings settings) =>
@@ -324,7 +347,7 @@ public sealed class LicenceViewModel : ViewModelBase
     public string AcceptText => !Nvidia && Linux ? Tr.T("Turn on") : Tr.T("Accept");
     public string Title => Nvidia ? Tr.T("NVIDIA's licence for DLSS") : Linux ? Tr.T("AMD FSR 4 on Linux") : Tr.T("AMD's licence for FSR 4");
     public string Sub => !Nvidia && Linux
-        ? Tr.T("Nothing is downloaded: AMD publishes no FSR 4 runtime for Linux. Nothing of AMD's comes with Longshot.")
+        ? Tr.T("The build compiles FSR 4 into the game. Nothing of AMD's comes with Longshot.")
         : Nvidia ? Tr.T("The build downloads NVIDIA's DLSS SDK under this licence. Nothing of NVIDIA's comes with Longshot.")
         : Tr.T("The build downloads AMD's FSR 4 runtime under this licence. Nothing of AMD's comes with Longshot.");
     public string Text { get; }
@@ -349,11 +372,12 @@ public sealed class LicenceViewModel : ViewModelBase
         Tr.F("Its files stay on this PC (in the launcher's {0} folder, and the two DLLs with {1} in the game folder).", "ffx-sdk", "LICENSE-AMD-FSR-SDK.md");
 
     // (Linux: Longshot's README, AMD FSR 4. The build compiles the Vulkan back end with AMD's MIT FSR API headers; the library
-    // is the player's, loaded by the game at its start)
+    // is the player's, loaded by the game at its start: AMD publishes its signed runtime for Windows only)
     static string FsrLinuxText =>
-        Tr.F("AMD FSR 4 is AMD's, not Longshot's. AMD publishes its FSR 4 runtime for Windows only, so on Linux the build downloads " +
-             "nothing: it compiles the game's Vulkan renderer with FSR 4 in it (a few minutes longer), and FSR 4 runs once you put a " +
-             "Vulkan FSR 4 library, {0}, beside the game (in its folder or its bin folder). Where you get " +
-             "it and under which terms is yours to check.", "amd_fidelityfx_upscaler_vk.so") + "\n\n" +
-        Tr.T("Without it, the game's Upscaler row says AMD's files were not found and offers the other upscalers.");
+        Tr.F("AMD FSR 4 is AMD's, not Longshot's. On Linux the build compiles FSR 4 into the game's Vulkan renderer (a few minutes " +
+             "longer), and the game runs it through a Vulkan FSR 4 library, {0}. AMD publishes its own runtime for Windows only and " +
+             "Longshot can't include AMD's files, so the library is yours to provide, under its own terms.",
+             "amd_fidelityfx_upscaler_vk.so") + "\n\n" +
+        Tr.T("Choose it in the build settings and the launcher copies it into the game folder with each build. Without it, the " +
+             "game's Upscaler row says AMD's files were not found and offers the other upscalers.");
 }

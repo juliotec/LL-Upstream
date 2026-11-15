@@ -3,7 +3,6 @@
   "@note": "Only what differs from fr.json: Québec and Microsoft Canadian French terms (bogue, nuanceur, téléverser).",
   "Copy for a bug report": "Copier pour un rapport de bogue",
   "Prepare shaders": "Préparer les nuanceurs",
-  "Prepare shaders now": "Préparer les nuanceurs maintenant",
   "{0} on this PC, shaders included": "{0} sur ce PC, nuanceurs compris",
   "Mesh shaders available": "Nuanceurs de maillage disponibles",
   "No mesh shaders; using the slower compute fallback": "Pas de nuanceurs de maillage ; repli sur la méthode compute, plus lente",

@@ -29,6 +29,16 @@ public static class LogLevels
         };
     }
 
+    /// The details' prefix for a line of this level, each as wide as the others
+    public static string Prefix(LogLevel level) => level switch
+    {
+        LogLevel.Error => "ERR",
+        LogLevel.Warning => "WRN",
+        LogLevel.Info => "INF",
+        LogLevel.Debug => "DBG",
+        _ => "TRC",
+    };
+
     public static string Name(LogLevel level) => level switch
     {
         LogLevel.Error => "Errors",
@@ -65,14 +75,18 @@ public sealed class BuildLog
     }
 
     /// The last `limit` lines the details show: of level `most` or before it, holding `search` when it isn't blank (any case)
-    public IReadOnlyList<string> Tail(LogLevel most, string? search, int limit)
+    public IReadOnlyList<string> Tail(LogLevel most, string? search, int limit) =>
+        TailWithLevels(most, search, limit).Select(l => l.Text).ToList();
+
+    /// Tail's lines with their levels, for the details' coloured prefixes
+    public IReadOnlyList<(LogLevel Level, string Text)> TailWithLevels(LogLevel most, string? search, int limit)
     {
         var find = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
-        var tail = new List<string>();
+        var tail = new List<(LogLevel, string)>();
         lock (lines)
             for (var i = lines.Count - 1; i >= 0 && tail.Count < limit; i--)
                 if (levels[i] <= most && (find == null || lines[i].Contains(find, StringComparison.OrdinalIgnoreCase)))
-                    tail.Add(lines[i]);
+                    tail.Add((levels[i], lines[i]));
         tail.Reverse();
         return tail;
     }

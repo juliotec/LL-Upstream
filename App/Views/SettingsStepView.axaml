@@ -121,7 +121,7 @@
                       <TextBlock Classes="rdesc" Text="{Binding DlssLine}" TextWrapping="NoWrap" IsVisible="{Binding !DlssAccepted}"/>
                     </WrapPanel>
                   </StackPanel>
-                  <ToggleButton Grid.Column="1" Classes="switch" IsChecked="{Binding Dlss}" VerticalAlignment="Center"/>
+                  <ToggleButton Grid.Column="1" Classes="switch" IsChecked="{Binding Dlss}" IsEnabled="{Binding DlssRunsHere}" VerticalAlignment="Center"/>
                 </Grid>
                 <Border Classes="divider"/>
                 <Grid Classes="srow" ColumnDefinitions="*,Auto">
@@ -139,8 +139,21 @@
                       <TextBlock Classes="rdesc" Text="{Binding FsrLine}" TextWrapping="NoWrap" IsVisible="{Binding !FsrAccepted}"/>
                     </WrapPanel>
                   </StackPanel>
-                  <ToggleButton Grid.Column="1" Classes="switch" IsChecked="{Binding Fsr}" IsEnabled="{Binding FsrBuildable}" VerticalAlignment="Center"/>
+                  <ToggleButton Grid.Column="1" Classes="switch" IsChecked="{Binding Fsr}" IsEnabled="{Binding FsrEnabled}" VerticalAlignment="Center"/>
                 </Grid>
+                <!-- (Linux, FSR 4 on: the player's own library, copied into the game folder with each build) -->
+                <StackPanel IsVisible="{Binding ShowFsrLibrary}">
+                  <Border Classes="divider"/>
+                  <Grid Classes="srow" ColumnDefinitions="*,Auto">
+                    <StackPanel VerticalAlignment="Center" Spacing="1">
+                      <TextBlock Classes="rtitle" Text="{c:T 'FSR 4 library'}"/>
+                      <TextBlock Classes="mono path" Foreground="{StaticResource InkSoft}" Text="{Binding FsrLibraryText}" ToolTip.Tip="{Binding FsrLibraryFull}"
+                                 IsVisible="{Binding FsrLibraryChosen}" Margin="0,2,0,0"/>
+                      <TextBlock Classes="rdesc" Text="{Binding FsrLibraryDesc}"/>
+                    </StackPanel>
+                    <Button Grid.Column="1" Classes="small" Content="{c:T 'Choose…'}" Command="{Binding ChooseFsrLibraryCommand}" VerticalAlignment="Center"/>
+                  </Grid>
+                </StackPanel>
               </StackPanel>
             </Border>
           </StackPanel>
@@ -173,27 +186,16 @@
         <!-- the game -->
         <TextBlock Classes="glabel" Text="{c:T 'THE GAME'}"/>
         <Border Classes="card">
-          <Grid ColumnDefinitions="*,20,*">
-            <Border BorderBrush="{StaticResource GlassLine}" BorderThickness="0,0,1,0">
-              <Grid Classes="srow" ColumnDefinitions="*,Auto">
-                <StackPanel VerticalAlignment="Center" Spacing="1">
-                  <TextBlock Classes="rtitle" Text="{c:T 'Language'}"/>
-                  <TextBlock Classes="rdesc" Text="{c:T 'The game\'s text.'}"/>
-                </StackPanel>
-                <ComboBox Grid.Column="1" Classes="dd" ItemsSource="{Binding LanguageChoices}" SelectedItem="{Binding Language}" VerticalAlignment="Center">
-                  <ComboBox.ItemTemplate>
-                    <DataTemplate x:DataType="vm:LanguageChoice"><TextBlock Text="{Binding Name}"/></DataTemplate>
-                  </ComboBox.ItemTemplate>
-                </ComboBox>
-              </Grid>
-            </Border>
-            <Grid Grid.Column="1" Grid.ColumnSpan="2" Classes="srow" ColumnDefinitions="*,Auto" Margin="34,8,14,8">
-              <StackPanel VerticalAlignment="Center" Spacing="1">
-                <TextBlock Classes="rtitle" Text="{c:T 'Prepare shaders now'}"/>
-                <TextBlock Classes="rdesc" Text="{Binding PrepareDesc}"/>
-              </StackPanel>
-              <ToggleButton Grid.Column="1" Classes="switch" IsChecked="{Binding Prepare}" VerticalAlignment="Center"/>
-            </Grid>
+          <Grid Classes="srow" ColumnDefinitions="*,Auto">
+            <StackPanel VerticalAlignment="Center" Spacing="1">
+              <TextBlock Classes="rtitle" Text="{c:T 'Language'}"/>
+              <TextBlock Classes="rdesc" Text="{c:T 'The game\'s text.'}"/>
+            </StackPanel>
+            <ComboBox Grid.Column="1" Classes="dd" ItemsSource="{Binding LanguageChoices}" SelectedItem="{Binding Language}" VerticalAlignment="Center">
+              <ComboBox.ItemTemplate>
+                <DataTemplate x:DataType="vm:LanguageChoice"><TextBlock Text="{Binding Name}"/></DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
           </Grid>
         </Border>
 

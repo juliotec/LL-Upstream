@@ -50,6 +50,7 @@ public sealed partial class BuildStepView : UserControl
             if (vm != null) vm.PropertyChanged -= Changed;   // (the page's view is reused for the next build: the last one let go)
             vm = DataContext as ViewModels.BuildStepViewModel;
             if (vm != null) vm.PropertyChanged += Changed;
+            WriteLog();
         };
     }
 
@@ -60,9 +61,27 @@ public sealed partial class BuildStepView : UserControl
         Avalonia.Threading.Dispatcher.UIThread.Post(() => { if (vm?.Following == true) LogScroll.ScrollToEnd(); },
                                                     Avalonia.Threading.DispatcherPriority.Background);
 
+    /// The details' lines, each after its level's prefix in its colour (LogColors)
+    void WriteLog()
+    {
+        if (vm is not { ShowLog: true } m) return;
+        var inlines = new Avalonia.Controls.Documents.InlineCollection();
+        var first = true;
+        foreach (var (level, text) in m.LogLines)
+        {
+            if (!first) inlines.Add(new Avalonia.Controls.Documents.LineBreak());
+            first = false;
+            inlines.Add(new Avalonia.Controls.Documents.Run(Core.LogLevels.Prefix(level) + "  ")
+                { Foreground = Controls.LogColors.Of(level), FontWeight = Avalonia.Media.FontWeight.SemiBold });
+            inlines.Add(new Avalonia.Controls.Documents.Run(text));
+        }
+        LogBlock.Inlines = inlines;
+    }
+
     void Changed(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (vm is not { } m) return;
+        if (e.PropertyName == nameof(m.LogText)) WriteLog();
         if ((e.PropertyName == nameof(m.ShowLog) && m.ShowLog) || e.PropertyName is nameof(m.Level) or nameof(m.Search))
         {
             m.Following = true;

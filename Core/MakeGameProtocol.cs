@@ -179,6 +179,14 @@ public sealed class BuildProgress
         if (fraction >= 1) d.State = StageState.Done;   // (downloaded: none of it is left to count down)
     }
 
+    // (the read's unpacking says no @@progress: nx2/nup.py says the title's size first, "title 0: ... romfs 186587 files, 26.24 GB",
+    // then "  494.6 MiB written (4329 files completed)" every 2 s. The unpacking is about 95% of the read's time, the checks after it
+    // the rest)
+    static readonly Regex ReadSize = new(@"^title \d+: .* romfs \d+ files, ([\d.]+) GB", RegexOptions.CultureInvariant);
+    static readonly Regex ReadWritten = new(@"^\s+([\d.]+) MiB written \(\d+ files completed\)", RegexOptions.CultureInvariant);
+    const double ReadUnpacking = 0.95;
+    double readBytes;
+
     public MakeGameLine Feed(string line)
     {
         var parsed = MakeGameProtocol.Parse(line);
@@ -211,6 +219,14 @@ public sealed class BuildProgress
             case MakeGameLine.Eta e:
                 Eta = Math.Max(0, e.Seconds);
                 EtaLines++;
+                break;
+            case MakeGameLine.Plain plain when current is { Id: "read" } && ReadSize.Match(plain.Text) is { Success: true } size:
+                if (double.TryParse(size.Groups[1].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var gb) && gb > 0)
+                    readBytes += gb * 1e9;   // (each title's, for a .nup of more than one)
+                break;
+            case MakeGameLine.Plain plain when current is { Id: "read" } && readBytes > 0 && ReadWritten.Match(plain.Text) is { Success: true } w:
+                if (double.TryParse(w.Groups[1].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var mib))
+                    Set(current.From + current.Size * ReadUnpacking * Math.Clamp(mib * (1 << 20) / readBytes, 0, 1));
                 break;
             case MakeGameLine.Plain plain when current != null:
                 foreach (var (stage, kept) in KeptLines)

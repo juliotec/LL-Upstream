@@ -65,13 +65,16 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
     string search = "";
     bool following = true;
     bool fsr;   // (AMD FSR 4 in this build: asked for, and these tools build it; MakeGameCommand.FsrBuilds)
+    bool dlss;  // (NVIDIA DLSS in this build: asked for, licence accepted, and this PC runs it)
+
+    bool Offers(Func<Gpu, bool> runs) => SystemInfo.Offers(Job.Service.GpuCards, runs);
 
     public BuildStepViewModel(BuildJob job, bool start = true)
     {
         Job = job;
         var s = job.Service.Settings;
         var threads = SettingsStepViewModel.BuildThreads(s);
-        progress = new BuildProgress(download: true, shaders: s.PrepareShaders, threads: threads);
+        progress = new BuildProgress(download: true, shaders: true, threads: threads);
         clock = new BuildClock(threads);
         progress.Download(1);
         Rows = progress.Stages.Select(st => new StageRowViewModel(st.Id, Names.GetValueOrDefault(st.Id, st.Title))).ToList();
@@ -80,7 +83,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
         CancelCommand = new Command(() => Job.Main.Modal = new StopBuildViewModel(this));
         log.Add($"Longshot Launcher {typeof(BuildStepViewModel).Assembly.GetName().Version?.ToString(3)}: {job.Verb.Trim().ToLowerInvariant()} {job.Version} ({job.Channel})");
         log.Add($"settings: memory {(s.MemoryGb is int m ? m + " GB" : "automatic")}, workers {(s.BuildWorkers is int w ? w : "automatic")}, " +
-                $"{Languages.NameOf(s.Language)}{(s.Dlss ? ", DLSS" : "")}{(s.Fsr ? ", FSR 4" : "")}");
+                $"{Languages.NameOf(s.Language)}{(s.Dlss && Offers(SystemInfo.DlssRuns) ? ", DLSS" : "")}{(s.Fsr && Offers(SystemInfo.FsrRuns) ? ", FSR 4" : "")}");
         if (start)
         {
             ticker = new DispatcherTimer(TimeSpan.FromSeconds(1), DispatcherPriority.Background, (_, _) => Update());
@@ -99,9 +102,9 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
 
     public string Title => Job.Kind switch
     {
-        JobKind.Update => Tr.F("Updating to {0}", Job.Shown),
-        JobKind.Rebuild => Tr.F("Rebuilding {0}", Job.Shown),
-        _ => Tr.F("Building {0}", Job.Shown),
+        JobKind.Update => Tr.F("Updating to Longshot {0}", Job.Shown),
+        JobKind.Rebuild => Tr.F("Rebuilding Longshot {0}", Job.Shown),
+        _ => Tr.F("Building Longshot {0}", Job.Shown),
     };
 
     public double Overall => progress.Overall;
@@ -119,13 +122,10 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
 
     public bool ShowStages => !showLog;
     public string LogButton => showLog ? Tr.T("Hide details") : Tr.T("Show details");
-    public string LogText
-    {
-        get
-        {
-            return string.Join("\n", log.Tail(level.Level, search, 2000));
-        }
-    }
+    public string LogText => string.Join("\n", log.Tail(level.Level, search, 2000));
+
+    /// The details' lines with their levels: the view writes each with its level's coloured prefix (BuildStepView, LogColors)
+    public IReadOnlyList<(LogLevel Level, string Text)> LogLines => log.TailWithLevels(level.Level, search, 2000);
 
     /// The details' level picker (Info by default: info, warnings and errors; Debug and Trace add the game's detail lines) and
     /// search box (only the lines holding its text, any case)
@@ -157,8 +157,11 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
         var job = Job;
         var s = job.Service.Settings;
         var file = job.Picked!;
-        var request = new BuildRequest(file.Source, job.InstallDir, s.Language, job.Service.Work, s.BuildWorkers, s.MemoryGb, s.PrepareShaders,
-                                       s.Dlss, s.DlssLicense, s.Fsr, job.Main.Linux ? s.FsrLinuxNotice : s.FsrLicense);
+        // (an upscaler this PC can't run is left out, whatever was remembered: SystemInfo.Offers)
+        var request = new BuildRequest(file.Source, job.InstallDir, s.Language, job.Service.Work, s.BuildWorkers, s.MemoryGb, true,
+                                       s.Dlss && Offers(SystemInfo.DlssRuns), s.DlssLicense, s.Fsr && Offers(SystemInfo.FsrRuns),
+                                       job.Main.Linux ? s.FsrLinuxNotice : s.FsrLicense);
+        dlss = request.Dlss && request.DlssLicense;
         MakeGameCommand command;
         try
         {
@@ -324,12 +327,22 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
             entry.Nup = file.Path;
             entry.Romfs = entry.Exefs = null;
         }
-        entry.Dlss = s.Dlss && s.DlssLicense;
+        entry.Dlss = dlss;
         entry.Fsr = fsr;
         entry.Bytes = null;
         string? problem = null;
         try { registry.Save(); }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { problem = Tr.F("The list of builds could not be saved: {0}", e.Message); }
+        // (Linux, AMD FSR 4: the player's own library into the game folder, where the game looks for it)
+        if (fsr && job.Main.Linux && s.FsrLibraryPath is { } library)
+        {
+            try { log.Add("AMD FSR 4: your library copied to " + FsrLibrary.Install(library, job.InstallDir)); }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidDataException)
+            {
+                log.Add("AMD FSR 4: your library was not copied: " + e.Message);
+                problem ??= Tr.F("Your FSR 4 library was not copied into the game folder: {0}", e.Message);
+            }
+        }
         service.PruneTools();
 
         // (no saves to move: every build shares them, SaveEnvironment.LongshotUser)
@@ -359,7 +372,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
         sb.AppendLine($"{System.Runtime.InteropServices.RuntimeInformation.OSDescription}, {SystemInfo.MemoryGb()} GB, {SystemInfo.Threads()} threads" +
                       (Job.Service.Gpus.Count > 0 ? ", " + string.Join(" and ", Job.Service.Gpus) + " GPU" : ""));
         sb.AppendLine($"settings: memory {(s.MemoryGb is int m ? m + " GB" : "automatic")}, workers {(s.BuildWorkers is int w ? w : "automatic")}, " +
-                      $"shaders {(s.PrepareShaders ? "now" : "at first start")}, DLSS {(s.Dlss ? "on" : "off")}, FSR 4 {(fsr ? "on" : s.Fsr ? "asked, not built" : "off")}");
+                      $"DLSS {(dlss ? "on" : "off")}, FSR 4 {(fsr ? "on" : s.Fsr ? "asked, not built" : "off")}");
         sb.AppendLine("stopped: " + why);
         sb.AppendLine();
         foreach (var l in log.Last(200)) sb.AppendLine(l);
@@ -563,6 +576,8 @@ public sealed class ProblemViewModel : ViewModelBase, IWizardPage
 /// One of the build log's levels as its picker shows it
 public sealed record LogLevelChoice(LogLevel Level, string Name)
 {
+    /// The levels it shows, least detailed first: each choice adds its own to the ones before it (the picker's stacked swatches)
+    public IReadOnlyList<Avalonia.Media.IBrush> Shows => LogLevels.All.Where(l => l <= Level).Select(Controls.LogColors.Of).ToList();
     public static IReadOnlyList<LogLevelChoice> All { get; } = LogLevels.All.Select(l => new LogLevelChoice(l, LogLevels.Name(l))).ToList();
     public static LogLevelChoice Of(LogLevel level) => All.First(c => c.Level == level);
     public override string ToString() => Name;

@@ -1,4 +1,9 @@
+using System.Text.RegularExpressions;
+
 namespace LongshotLauncher.Core;
+
+/// A graphics card: its maker (SystemInfo.Nvidia, Amd, Intel) and, where the system names it (Windows), its name
+public sealed record Gpu(string Vendor, string? Name = null);
 
 /// What the build settings say about this PC: its memory, its CPU threads and the makers of its graphics cards
 public static class SystemInfo
@@ -31,7 +36,7 @@ public static class SystemInfo
     }
 
     /// The makers of the graphics cards Linux lists in /sys/class/drm (card&lt;n&gt;/device/vendor), each once, in card order.
-    /// drm: that folder (the tests' stand-in). On Windows none are read yet (the step's "Your GPU" chip is left out)
+    /// drm: that folder (the tests' stand-in). Windows' are read from its registry (App/WindowsGpus.cs)
     public static IReadOnlyList<string> GpuVendors(Platform platform, string drm = "/sys/class/drm")
     {
         var found = new List<string>();
@@ -50,4 +55,28 @@ public static class SystemInfo
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
         return found;
     }
+
+    /// NVIDIA DLSS runs on it: an NVIDIA GeForce RTX (or RTX workstation) card. A card known only by its maker (Linux) is taken
+    /// as able; a named one without RTX in its name (GTX, Quadro P) is not
+    public static bool DlssRuns(Gpu gpu) =>
+        gpu.Vendor == Nvidia && (gpu.Name is not { } n || n.Contains("RTX", StringComparison.OrdinalIgnoreCase));
+
+    /// AMD FSR 4 runs on it: an AMD Radeon of the RX 6000 series (RDNA 2) or newer. A card known only by its maker (Linux) is taken
+    /// as able, as is a name this can't place (an APU's "AMD Radeon(TM) Graphics"); RX 5000 and older, Vega and the R5/R7/R9 and
+    /// HD cards are not
+    public static bool FsrRuns(Gpu gpu) => gpu.Vendor == Amd && (gpu.Name is not { } n || !OldRadeon(n));
+
+    static bool OldRadeon(string name)
+    {
+        if (Regex.Match(name, @"\bRX\s*(\d{3,4})\b", RegexOptions.IgnoreCase) is { Success: true } rx)
+            return int.Parse(rx.Groups[1].Value) < 6000;
+        return Regex.IsMatch(name, @"\b(Vega|R[579]\s|HD\s*\d)", RegexOptions.IgnoreCase);
+    }
+
+    /// Whether the build offers an upscaler on this PC: one of its cards runs it, or no card was found (unknown: left on offer)
+    public static bool Offers(IReadOnlyList<Gpu> gpus, Func<Gpu, bool> runs) => gpus.Count == 0 || gpus.Any(runs);
+
+    /// The maker of a Windows display adapter by its MatchingDeviceId (pci\ven_10de&amp;dev_2782...); null for another
+    public static string? VendorOfDeviceId(string deviceId) =>
+        Regex.Match(deviceId, @"ven_([0-9a-f]{4})", RegexOptions.IgnoreCase) is { Success: true } m ? VendorOf("0x" + m.Groups[1].Value) : null;
 }
