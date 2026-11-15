@@ -552,5 +552,21 @@
   "TO LONGSHOT": "到 Longshot",
   "Build a Longshot version first, then import its graphics and controls. You can import saves before building.": "請先建置一個 Longshot 版本，再匯入它的畫面和操作設定。存檔可以在建置前匯入。",
   "Choose the Longshot version whose settings will be replaced.": "選擇要取代其設定的 Longshot 版本。",
-  "Hookshot's graphics and controls replace the same settings in this version's longshot_options.ini; its other settings stay as they are. The game language replaces this version's. Hookshot keeps its originals. Saves are imported separately.": "Hookshot 的畫面和操作設定會取代此版本 longshot_options.ini 中的相同設定；其他設定保持不變。遊戲語言會取代此版本的語言。Hookshot 中的原始設定會保留。存檔需另行匯入。"
+  "Hookshot's graphics and controls replace the same settings in this version's longshot_options.ini; its other settings stay as they are. The game language replaces this version's. Hookshot keeps its originals. Saves are imported separately.": "Hookshot 的畫面和操作設定會取代此版本 longshot_options.ini 中的相同設定；其他設定保持不變。遊戲語言會取代此版本的語言。Hookshot 中的原始設定會保留。存檔需另行匯入。",
+  "Updates were not checked. {0}": "未檢查更新。{0}",
+  "The proxy this PC uses did not connect to {0}. Check the proxy settings.": "這台電腦使用的代理伺服器未能連線至 {0}。請檢查代理伺服器設定。",
+  "{0}'s answer was cut off or could not be read. A proxy, filter or antivirus may be in the way, or the server is having trouble: try again in a few minutes.": "{0} 的回應中斷或無法讀取。可能是代理伺服器、過濾器或防毒軟體造成干擾，也可能是伺服器發生問題：請幾分鐘後再試一次。",
+  "{0} did not answer in time. The server may be down or busy, or the network slow or blocking it: try again in a few minutes.": "{0} 未及時回應。伺服器可能已停機或忙碌，或者網路速度慢或封鎖了它：請幾分鐘後再試一次。",
+  "{0} has had too many requests from this network ({1}). Try again in a few minutes.": "{0} 收到來自此網路的要求過多（{1}）。請幾分鐘後再試一次。",
+  "{0} refused the request ({1}). It may block the VPN, proxy or network filter this PC goes through: try without it.": "{0} 拒絕了要求（{1}）。它可能封鎖了這台電腦所經過的 VPN、代理伺服器或網路過濾器：請不使用它們再試一次。",
+  "{0} is having trouble ({1}). Try again in a few minutes.": "{0} 發生問題（{1}）。請幾分鐘後再試一次。",
+  "{0} answered {1}.": "{0} 回應了 {1}。",
+  "{0} refused the connection: the server may be down, or a firewall is blocking it. Try again in a few minutes.": "{0} 拒絕了連線：伺服器可能已停機，或防火牆封鎖了連線。請幾分鐘後再試一次。",
+  "This PC has no route to {0}. Check that it is online.": "這台電腦沒有通往 {0} 的路由。請檢查它是否已連上網際網路。",
+  "The connection to {0} was cut. A firewall, antivirus or VPN may be blocking the site.": "與 {0} 的連線中斷。防火牆、防毒軟體或 VPN 可能封鎖了該網站。",
+  "This PC could not look up {0}'s address. Check that it is online, and that no VPN, filter or DNS setting blocks the site.": "這台電腦無法查詢 {0} 的位址。請檢查它是否已連上網際網路，以及 VPN、過濾器或 DNS 設定是否封鎖了該網站。",
+  "The secure connection to {0} failed. Check that this PC's date and time are right; an antivirus or a network that inspects HTTPS can also cause this.": "與 {0} 的安全連線失敗。請檢查這台電腦的日期和時間是否正確；檢查 HTTPS 的防毒軟體或網路也可能導致此問題。",
+  "Could not connect to {0}. Check that this PC is online, and that no firewall, VPN or antivirus blocks the site.": "無法連線至 {0}。請檢查這台電腦是否已連上網際網路，以及防火牆、VPN 或防毒軟體是否封鎖了該網站。",
+  "This PC is set to go through the proxy {1}, which did not answer, so {0} was not reached. Check the proxy settings, or turn the proxy off.": "這台電腦設定為透過代理伺服器 {1} 連線，但該代理伺服器沒有回應，因此無法連線至 {0}。請檢查代理伺服器設定，或關閉代理伺服器。",
+  "No version is out on the {0} channel yet.": "{0}通道尚未推出任何版本。"
 }

@@ -47,12 +47,14 @@ public sealed class HttpFetcher : IFetcher, IDisposable
 
     async Task<HttpResponseMessage> SendAsync(string url, string? accept, HttpCompletionOption option, CancellationToken cancel)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Get, Https(url));
+        var uri = Https(url);
+        using var request = new HttpRequestMessage(HttpMethod.Get, uri);
         if (accept != null) request.Headers.Accept.ParseAdd(accept);
         HttpResponseMessage response;
+        // (why, in words a player can act on: NetFailure)
         try { response = await http.SendAsync(request, option, cancel).ConfigureAwait(false); }
-        catch (HttpRequestException e) { throw new FetchException(e.Message, (int?)e.StatusCode, e); }
-        catch (TaskCanceledException e) when (!cancel.IsCancellationRequested) { throw new FetchException("git.magicbean.dev did not answer in time.", null, e); }
+        catch (HttpRequestException e) { throw new FetchException(NetFailure.Why(e, uri.Host, ProxyFor(uri)), (int?)e.StatusCode, e); }
+        catch (TaskCanceledException e) when (!cancel.IsCancellationRequested) { throw new FetchException(NetFailure.TimedOut(uri.Host), null, e); }
         if (response.RequestMessage?.RequestUri is { } final && final.Scheme != Uri.UriSchemeHttps)
         {
             response.Dispose();
@@ -61,10 +63,22 @@ public sealed class HttpFetcher : IFetcher, IDisposable
         if (!response.IsSuccessStatusCode)
         {
             var status = (int)response.StatusCode;
+            var host = (response.RequestMessage?.RequestUri ?? uri).Host;
             response.Dispose();
-            throw new FetchException($"git.magicbean.dev returned HTTP {status} ({(HttpStatusCode)status}).", status);
+            throw new FetchException(NetFailure.Status(status, host), status);
         }
         return response;
+    }
+
+    /// The proxy a request to uri goes through (HttpClient's default: the system's, or HTTPS_PROXY); null for none
+    static Uri? ProxyFor(Uri uri)
+    {
+        try
+        {
+            var proxy = HttpClient.DefaultProxy;
+            return proxy.IsBypassed(uri) ? null : proxy.GetProxy(uri) is { } p && p != uri ? p : null;
+        }
+        catch (Exception) { return null; }
     }
 
     public async Task<string> GetTextAsync(string url, string? accept, CancellationToken cancel)

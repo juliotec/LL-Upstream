@@ -552,5 +552,21 @@
   "TO LONGSHOT": "Longshot へ",
   "Build a Longshot version first, then import its graphics and controls. You can import saves before building.": "先に Longshot のバージョンをビルドしてから、グラフィックと操作設定をインポートしてください。セーブデータはビルド前でもインポートできます。",
   "Choose the Longshot version whose settings will be replaced.": "設定を置き換える Longshot バージョンを選んでください。",
-  "Hookshot's graphics and controls replace the same settings in this version's longshot_options.ini; its other settings stay as they are. The game language replaces this version's. Hookshot keeps its originals. Saves are imported separately.": "Hookshot のグラフィックと操作設定で、このバージョンの longshot_options.ini の同じ設定を置き換えます。それ以外の設定はそのままです。ゲーム言語もこのバージョンのものを置き換えます。Hookshot 側の元の設定は残ります。セーブデータは別にインポートします。"
+  "Hookshot's graphics and controls replace the same settings in this version's longshot_options.ini; its other settings stay as they are. The game language replaces this version's. Hookshot keeps its originals. Saves are imported separately.": "Hookshot のグラフィックと操作設定で、このバージョンの longshot_options.ini の同じ設定を置き換えます。それ以外の設定はそのままです。ゲーム言語もこのバージョンのものを置き換えます。Hookshot 側の元の設定は残ります。セーブデータは別にインポートします。",
+  "Updates were not checked. {0}": "アップデートを確認しませんでした。{0}",
+  "The proxy this PC uses did not connect to {0}. Check the proxy settings.": "この PC が使うプロキシが {0} に接続できませんでした。プロキシの設定を確認してください。",
+  "{0}'s answer was cut off or could not be read. A proxy, filter or antivirus may be in the way, or the server is having trouble: try again in a few minutes.": "{0} からの応答が途中で切れたか、読み取れませんでした。プロキシ、フィルター、ウイルス対策ソフトが妨げているか、サーバーに問題が起きている可能性があります。数分後にもう一度お試しください。",
+  "{0} did not answer in time. The server may be down or busy, or the network slow or blocking it: try again in a few minutes.": "{0} から時間内に応答がありませんでした。サーバーが停止しているか混雑している、またはネットワークが遅いかブロックしている可能性があります。数分後にもう一度お試しください。",
+  "{0} has had too many requests from this network ({1}). Try again in a few minutes.": "このネットワークから {0} へのリクエストが多すぎます（{1}）。数分後にもう一度お試しください。",
+  "{0} refused the request ({1}). It may block the VPN, proxy or network filter this PC goes through: try without it.": "{0} がリクエストを拒否しました（{1}）。この PC が経由している VPN、プロキシ、ネットワークフィルターがブロックされている可能性があります。それを使わずにお試しください。",
+  "{0} is having trouble ({1}). Try again in a few minutes.": "{0} に問題が起きています（{1}）。数分後にもう一度お試しください。",
+  "{0} answered {1}.": "{0} の応答: {1}",
+  "{0} refused the connection: the server may be down, or a firewall is blocking it. Try again in a few minutes.": "{0} が接続を拒否しました。サーバーが停止しているか、ファイアウォールがブロックしている可能性があります。数分後にもう一度お試しください。",
+  "This PC has no route to {0}. Check that it is online.": "この PC から {0} への経路がありません。インターネットに接続されているか確認してください。",
+  "The connection to {0} was cut. A firewall, antivirus or VPN may be blocking the site.": "{0} との接続が切断されました。ファイアウォール、ウイルス対策ソフト、VPN がサイトをブロックしている可能性があります。",
+  "This PC could not look up {0}'s address. Check that it is online, and that no VPN, filter or DNS setting blocks the site.": "この PC は {0} のアドレスを調べられませんでした。インターネットに接続されているか、VPN、フィルター、DNS の設定がサイトをブロックしていないか確認してください。",
+  "The secure connection to {0} failed. Check that this PC's date and time are right; an antivirus or a network that inspects HTTPS can also cause this.": "{0} との安全な接続に失敗しました。この PC の日付と時刻が正しいか確認してください。HTTPS を検査するウイルス対策ソフトやネットワークが原因の場合もあります。",
+  "Could not connect to {0}. Check that this PC is online, and that no firewall, VPN or antivirus blocks the site.": "{0} に接続できませんでした。この PC がインターネットに接続されているか、ファイアウォール、VPN、ウイルス対策ソフトがサイトをブロックしていないか確認してください。",
+  "This PC is set to go through the proxy {1}, which did not answer, so {0} was not reached. Check the proxy settings, or turn the proxy off.": "この PC はプロキシ {1} を経由する設定ですが、プロキシが応答しなかったため {0} に接続できませんでした。プロキシの設定を確認するか、プロキシをオフにしてください。",
+  "No version is out on the {0} channel yet.": "{0} チャンネルにはまだバージョンが公開されていません。"
 }

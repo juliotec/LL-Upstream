@@ -134,9 +134,13 @@
           <TextBlock Classes="note" Text="{Binding CheckCommand.Status}"/>
         </StackPanel>
         <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center" Margin="0,16,0,0" IsVisible="{Binding CheckFailed}">
-          <TextBlock Classes="note" Text="{c:T 'git.magicbean.dev did not answer, so the version to build is not known.'}"/>
+          <TextBlock Classes="note" Text="{Binding CheckFailedText}"/>
+          <Button Classes="link" Content="{c:T 'Change'}" Command="{Binding ChannelCommand}" IsVisible="{Binding ChannelEmpty}"/>
           <Button Classes="link" Content="{c:T 'Try again'}" Command="{Binding RetryCheckCommand}"/>
         </StackPanel>
+        <!-- why: no address, no connection, a timeout, an HTTP error, or a release refused -->
+        <TextBlock Classes="note" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" MaxWidth="560" Margin="0,4,0,0"
+                   Text="{Binding CheckWhy}" IsVisible="{Binding HasCheckWhy}"/>
         <TextBlock Classes="faint" HorizontalAlignment="Center" Margin="0,8,0,0"
                    Text="{c:T 'You need your dump of the game: a .nup file, or its romfs and exefs folders.'}"/>
       </StackPanel>
@@ -283,7 +287,7 @@
               </StackPanel>
             </Button>
           </Grid>
-          <TextBlock Classes="faint" Text="{Binding Status}" Margin="0,4,0,0" IsVisible="{Binding ShowStatus}"/>
+          <TextBlock Classes="faint" Text="{Binding Status}" TextWrapping="Wrap" Margin="0,4,0,0" IsVisible="{Binding ShowStatus}"/>
           <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,4,0,0" IsVisible="{Binding CheckCommand.IsBusy}">
             <c:Spinner Width="12" Height="12" VerticalAlignment="Center"/>
             <TextBlock Classes="faint" Text="{Binding CheckCommand.Status}"/>

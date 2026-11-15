@@ -96,6 +96,9 @@ public sealed class HomeViewModel : ViewModelBase
     string? notice;
     string status = "";
     bool checkAgain, asked;
+    /// The last check: some channel had a version (the server answered), or the check itself failed (its words)
+    bool listed;
+    string? checkProblem;
     readonly HashSet<string> deleting = new();
 
     public HomeViewModel(MainViewModel main)
@@ -161,6 +164,15 @@ public sealed class HomeViewModel : ViewModelBase
     public bool KnowsNewest => NewestDefault != null;
     public bool CheckFailed => NewestDefault == null && Service.Checked;
     public bool Checking => NewestDefault == null && !Service.Checked;
+    /// Why the check failed, under its line: no answer (Releases.Unreachable: no address, no connection, a timeout, an HTTP error),
+    /// a release refused (Releases.Problem) or the check's own failure; "" when none says
+    public string CheckWhy => Service.Releases.Unreachable ?? Service.Releases.Problem ?? checkProblem ?? "";
+    public bool HasCheckWhy => CheckFailed && CheckWhy.Length > 0;
+    /// The server answered with versions, none on the default channel (no stable is out yet): that, not "did not answer"
+    public bool ChannelEmpty => CheckFailed && listed && CheckWhy.Length == 0;
+    public string CheckFailedText => ChannelEmpty
+        ? Tr.F("No version is out on the {0} channel yet.", ChannelPickerViewModel.NameOf(DefaultChannel))
+        : Tr.T("git.magicbean.dev did not answer, so the version to build is not known.");
 
     // ---- the default version, on the left ----
 
@@ -389,7 +401,7 @@ public sealed class HomeViewModel : ViewModelBase
         RaiseAll(nameof(HasBuilds), nameof(NoBuilds), nameof(Default), nameof(ShowLeftPanel), nameof(HeroVersion), nameof(HeroChannel),
                  nameof(HeroIsRelease), nameof(HeroIsCandidate), nameof(HeroIsNightly), nameof(HeroNote), nameof(HeroSaves), nameof(HeroHasUpdate),
                  nameof(HeroUpdate), nameof(Footer), nameof(NewestDefault), nameof(NewestDefaultText), nameof(DefaultChannel), nameof(DefaultIsRelease), nameof(DefaultIsCandidate),
-                 nameof(DefaultIsNightly), nameof(KnowsNewest), nameof(CheckFailed), nameof(Checking), nameof(ShowCheckLine), nameof(HasLauncherUpdate),
+                 nameof(DefaultIsNightly), nameof(KnowsNewest), nameof(CheckFailed), nameof(CheckWhy), nameof(HasCheckWhy), nameof(ChannelEmpty), nameof(CheckFailedText), nameof(Checking), nameof(ShowCheckLine), nameof(HasLauncherUpdate),
                  nameof(LauncherUpdateText), nameof(LauncherUpdateHeading), nameof(LauncherUpdateButton));
         BuildCommand.Changed();
         PlayDefaultCommand.Changed();
@@ -420,18 +432,24 @@ public sealed class HomeViewModel : ViewModelBase
         var wasAsked = asked;
         asked = false;
         Service.Checked = false;
+        listed = false;
+        checkProblem = null;
         Refresh();
         var any = false;
         try
         {
-            any = await Service.CheckReleasesAsync();
-            Status = any ? "" : Service.Releases.Problem is { } problem
+            any = listed = await Service.CheckReleasesAsync();
+            // (why, in words a player can act on: no address, no connection, a timeout, an HTTP error: NetFailure)
+            Status = any ? "" : Service.Releases.Unreachable is { } why
+                ? Tr.F("Updates were not checked. {0}", why)
+                : Service.Releases.Problem is { } problem
                 ? Tr.F("Updates were not checked: {0}", problem)
                 : Tr.T("Could not reach git.magicbean.dev: updates were not checked.");
         }
         catch (Exception e)
         {
             Service.Checked = true;
+            checkProblem = e.Message;
             Status = Tr.F("Could not check for updates: {0}", e.Message);
         }
         Refresh();

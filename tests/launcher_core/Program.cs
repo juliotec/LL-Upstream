@@ -300,6 +300,17 @@ static partial class Program
         flaky.Texts[longshot.ListUrl(1)] = () => ++tries < 2 ? throw new FetchException("authored", 502) : "[]";
         Require(await new Releases(flaky, Platform.Linux, keys, NoWait).NewestAsync("stable") == null && tries == 2, "A server error is tried again.");
         Require(await new Releases(new FakeFetcher(), Platform.Linux, keys, NoWait).ChannelAsync("stable") == null, "No answer, no channel.");
+        // (and the window says why: the fetch's words, until a check gets an answer)
+        var down = new FakeFetcher();
+        var answers = false;
+        down.Texts[longshot.ListUrl(1)] = () => answers ? "[]" : throw new FetchException("This PC could not look up git.magicbean.dev's address.", null);
+        var unreachable = new Releases(down, Platform.Linux, keys, NoWait);
+        Require(await unreachable.ChannelAsync("stable") == null && unreachable.Unreachable == "This PC could not look up git.magicbean.dev's address.",
+                "No answer says why.");
+        answers = true;
+        Require(await unreachable.ChannelAsync("stable") == null && unreachable.Unreachable == null && unreachable.Problem == null,
+                "An answer clears the last check's why.");
+        NetFailureChecks();
 
         // (the launcher's own releases: its own versions, from v1.0.0)
         var own = new FakeForgejo(Product.Launcher);
@@ -989,6 +1000,39 @@ static partial class Program
         var b = new BuildEntry { Version = "v3.4.0-rc.1", Channel = "rc" };
         Require(UpdatePolicy.UpdateTo(b, new Dictionary<string, string?> { ["stable"] = "v3.5.0", ["rc"] = "v3.4.0-rc.3" }) == "v3.4.0-rc.3"
                 && UpdatePolicy.UpdateTo(b, new Dictionary<string, string?> { ["stable"] = "v3.5.0" }) == null, "Each build asks its own channel.");
+    }
+
+    /// Why git.magicbean.dev was not reached, in words a player can act on, and .NET's own in brackets
+    static void NetFailureChecks()
+    {
+        const string host = "git.magicbean.dev";
+        string Why(System.Net.Http.HttpRequestError error, Exception? inner = null) =>
+            NetFailure.Why(new HttpRequestException(error, "outer words", inner), host);
+        var dns = Why(System.Net.Http.HttpRequestError.NameResolutionError, new System.Net.Sockets.SocketException(11001));
+        Require(dns.Contains("could not look up git.magicbean.dev's address") && dns.EndsWith(")", StringComparison.Ordinal) && !dns.Contains("outer words"),
+                "No address: says so, with the innermost words. (said: " + dns + ")");
+        Require(Why(System.Net.Http.HttpRequestError.ConnectionError, new System.Net.Sockets.SocketException((int)System.Net.Sockets.SocketError.ConnectionRefused))
+                    .Contains("refused the connection"), "A refused connection");
+        Require(Why(System.Net.Http.HttpRequestError.ConnectionError, new System.Net.Sockets.SocketException((int)System.Net.Sockets.SocketError.TimedOut))
+                    .Contains("did not answer in time"), "A connection that timed out");
+        Require(Why(System.Net.Http.HttpRequestError.ConnectionError, new System.Net.Sockets.SocketException((int)System.Net.Sockets.SocketError.NetworkUnreachable))
+                    .Contains("no route"), "No network");
+        Require(Why(System.Net.Http.HttpRequestError.SecureConnectionError, new System.Security.Authentication.AuthenticationException("bad certificate"))
+                    .Contains("date and time") && Why(System.Net.Http.HttpRequestError.SecureConnectionError, new System.Security.Authentication.AuthenticationException("bad certificate")).Contains("(bad certificate)"),
+                "A failed secure connection: check the clock; the certificate's words");
+        Require(Why(System.Net.Http.HttpRequestError.Unknown, new System.Security.Authentication.AuthenticationException("x")).Contains("date and time"),
+                "An unknown error over a failed TLS handshake is still the secure connection.");
+        Require(Why(System.Net.Http.HttpRequestError.ProxyTunnelError).Contains("proxy") && Why(System.Net.Http.HttpRequestError.ProxyTunnelError).EndsWith("(outer words)", StringComparison.Ordinal),
+                "A proxy that did not connect, with the only words there are");
+        Require(Why(System.Net.Http.HttpRequestError.Unknown).Contains("Could not connect to git.magicbean.dev"), "Anything else: no connection, and what to check");
+        var proxied = NetFailure.Why(new HttpRequestException(System.Net.Http.HttpRequestError.ConnectionError, "x",
+                                         new System.Net.Sockets.SocketException((int)System.Net.Sockets.SocketError.ConnectionRefused)), host, new Uri("http://proxy.lan:3128"));
+        Require(proxied.Contains("the proxy proxy.lan:3128, which did not answer") && !proxied.Contains("refused the connection"),
+                "Through a proxy, a refused connection is the proxy's, not the server's. (said: " + proxied + ")");
+        Require(NetFailure.Status(503, host).Contains("having trouble (HTTP 503 (ServiceUnavailable))") && NetFailure.Status(429, host).Contains("too many requests")
+                && NetFailure.Status(403, host).Contains("refused the request") && NetFailure.Status(418, host) == "git.magicbean.dev answered HTTP 418.",
+                "An HTTP error, by what it means: " + NetFailure.Status(418, host));
+        Require(NetFailure.TimedOut(host).StartsWith("git.magicbean.dev did not answer in time.", StringComparison.Ordinal), "A timeout");
     }
 
     static void CommandLineChecks()
