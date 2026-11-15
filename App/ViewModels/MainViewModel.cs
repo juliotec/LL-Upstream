@@ -202,6 +202,13 @@ public sealed class MainViewModel : ViewModelBase
         Navigate(Home);
     }
 
+    /// The window active again: on the home, a build whose folder was deleted outside the launcher meanwhile leaves the list
+    /// (HomeViewModel.Refresh); nothing is redone when every folder is still there
+    public void HomeAgain()
+    {
+        if (page == Home && Modal == null && Service.Registry.Builds.Any(b => BuildRegistry.Gone(b.Folder))) Home.Refresh();
+    }
+
     public void ShowSettings() => Navigate(new SettingsViewModel(this));
 
     public void ShowSaves() => Navigate(new SavesViewModel(this));

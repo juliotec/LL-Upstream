@@ -80,6 +80,12 @@
     "many": "{0} версий в {1}.",
     "other": "{0} версии в {1}."
   },
+  "{0} versions were deleted outside the launcher, so they are no longer listed.": {
+    "one": "{0} версия удалена не через лаунчер, поэтому её больше нет в списке.",
+    "few": "{0} версии удалены не через лаунчер, поэтому их больше нет в списке.",
+    "many": "{0} версий удалены не через лаунчер, поэтому их больше нет в списке.",
+    "other": "{0} версии удалены не через лаунчер, поэтому их больше нет в списке."
+  },
   "Found {0} in Hookshot. Copy them into Longshot? Hookshot keeps its own.": "Найдено в Hookshot: {0}. Скопировать их в Longshot? В Hookshot они тоже останутся.",
   "A new launcher is out": "Вышел новый лаунчер",
   "Another launcher on the {0} channel": "Другой лаунчер на канале «{0}»",

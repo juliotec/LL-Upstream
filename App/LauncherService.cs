@@ -331,6 +331,19 @@ public sealed class LauncherService
         PruneTools();
     }
 
+    /// The builds whose folder was deleted outside the launcher, out of the list (BuildRegistry.ForgetGone) and builds.json; the
+    /// tools only they used go too. keep: the builds the launcher is deleting itself (their row goes when their folder has)
+    public IReadOnlyList<BuildEntry> ForgetGone(IReadOnlyCollection<string> keep)
+    {
+        var gone = Registry.ForgetGone(keep);
+        if (gone.Count == 0) return gone;
+        remeasure = true;   // (the game files it shared with another build are that one's alone now: Measure)
+        try { Registry.Save(); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+        PruneTools();
+        return gone;
+    }
+
     /// The tools of versions no build uses any more go
     public void PruneTools()
     {

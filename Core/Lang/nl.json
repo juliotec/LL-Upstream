@@ -76,6 +76,10 @@
     "one": "1 versie in {1}.",
     "other": "{0} versies in {1}."
   },
+  "{0} versions were deleted outside the launcher, so they are no longer listed.": {
+    "one": "1 versie is buiten de launcher verwijderd en staat niet meer in de lijst.",
+    "other": "{0} versies zijn buiten de launcher verwijderd en staan niet meer in de lijst."
+  },
   "Found {0} in Hookshot. Copy them into Longshot? Hookshot keeps its own.": "{0} gevonden in Hookshot. Naar Longshot kopiëren? Hookshot houdt zijn eigen saves.",
   "A new launcher is out": "Er is een nieuwe launcher",
   "Another launcher on the {0} channel": "Een andere launcher op het kanaal {0}",

@@ -80,6 +80,12 @@
     "many": "{0} wersji w {1}.",
     "other": "{0} wersji w {1}."
   },
+  "{0} versions were deleted outside the launcher, so they are no longer listed.": {
+    "one": "{0} wersja została usunięta poza launcherem, więc nie ma jej już na liście.",
+    "few": "{0} wersje zostały usunięte poza launcherem, więc nie ma ich już na liście.",
+    "many": "{0} wersji zostało usuniętych poza launcherem, więc nie ma ich już na liście.",
+    "other": "{0} wersji zostało usuniętych poza launcherem, więc nie ma ich już na liście."
+  },
   "Found {0} in Hookshot. Copy them into Longshot? Hookshot keeps its own.": "W Hookshot znaleziono: {0}. Skopiować je do Longshot? Hookshot zachowa swoje.",
   "A new launcher is out": "Jest nowy launcher",
   "Another launcher on the {0} channel": "Inny launcher na kanale {0}",

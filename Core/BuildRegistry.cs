@@ -198,6 +198,29 @@ public sealed class BuildRegistry
         return true;
     }
 
+    /// The builds whose folder was deleted outside the launcher, out of the list (as Remove), and returned. Gone: the folder is
+    /// not there while the folder that held it is, so a build on a drive that is unplugged, or a network share that is not
+    /// connected, keeps its row until it is back. keep: rows left as they are (one the launcher is deleting itself)
+    public IReadOnlyList<BuildEntry> ForgetGone(IReadOnlyCollection<string>? keep = null)
+    {
+        var gone = builds.Where(b => keep?.Contains(b.Id) != true && Gone(b.Folder)).ToList();
+        foreach (var b in gone) builds.Remove(b);
+        if (gone.Count > 0) Normalize();
+        return gone;
+    }
+
+    /// folder is not on the disk, and the folder it was in is
+    public static bool Gone(string folder)
+    {
+        try
+        {
+            var full = Path.TrimEndingDirectorySeparator(Path.GetFullPath(folder));
+            if (Path.Exists(full)) return false;
+            return Path.GetDirectoryName(full) is { Length: > 0 } parent && Directory.Exists(parent);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException) { return false; }
+    }
+
     /// Where a build is made. An update or a rebuild (replaces: the build it takes the place of) is made in that build's own
     /// folder: the game keeps its path (a GPU driver's settings for the program follow the path), its settings, mods and
     /// shader caches stay with it, and no folder of the version before is left on the disk. A new build goes in NewFolder

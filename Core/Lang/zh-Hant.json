@@ -74,6 +74,9 @@
   "{0} versions in {1}.": {
     "other": "{1} 中有 {0} 個版本。"
   },
+  "{0} versions were deleted outside the launcher, so they are no longer listed.": {
+    "other": "有 {0} 個版本已在啟動器之外被刪除，因此不再列出。"
+  },
   "Found {0} in Hookshot. Copy them into Longshot? Hookshot keeps its own.": "在 Hookshot 中找到{0}。要複製到 Longshot 嗎？Hookshot 中的存檔會保留。",
   "A new launcher is out": "新版啟動器已推出",
   "Another launcher on the {0} channel": "{0}通道上有另一個啟動器版本",

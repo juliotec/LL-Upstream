@@ -415,6 +415,10 @@ public sealed class HomeViewModel : ViewModelBase
     public void Refresh()
     {
         var selected = Builds.FirstOrDefault(b => b.IsSelected)?.Entry.Id;
+        // (a build whose folder was deleted by hand, not here: its row goes, as Delete's would)
+        if (Service.ForgetGone(deleting) is { Count: > 0 } gone)
+            Main.ShowToast(Tr.P(gone.Count, "1 version was deleted outside the launcher, so it is no longer listed.",
+                                "{0} versions were deleted outside the launcher, so they are no longer listed."));
         Builds.Clear();
         var saves = Service.SaveSlots();
         foreach (var b in Service.Registry.Builds)

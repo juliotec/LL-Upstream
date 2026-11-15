@@ -790,6 +790,20 @@ static partial class Program
         var unbuilt = Path.Combine(home, "unbuilt");
         Game(unbuilt, "v3.3.0", built: false);
         Require(GameFolder.IsGameFolder(unbuilt, Platforms.Current) && !GameFolder.IsBuilt(unbuilt, Platforms.Current), "A stamped folder not built.");
+
+        // (a build's folder deleted outside the launcher: its row goes; one whose drive or share is not there keeps it, as does
+        // one the launcher is deleting itself, and one whose game is missing but whose folder is there)
+        var lost = BuildRegistry.Load(Path.Combine(home, "lost.json"));
+        var kept = lost.Add(unbuilt, "v3.3.0", null);
+        var deleted = lost.Add(game, "v3.3.1", null, makeDefault: true);
+        var unplugged = lost.Add(Path.Combine(home, "no-drive", "stable"), "v3.3.2", null);
+        var busy = lost.Add(Path.Combine(home, "busy"), "v3.3.3", null);
+        Require(BuildRegistry.Gone(game) && !BuildRegistry.Gone(unbuilt) && !BuildRegistry.Gone(unplugged.Folder),
+                "Gone: the folder is not there while the one that held it is.");
+        var forgot = lost.ForgetGone(new[] { busy.Id });
+        Require(forgot.SequenceEqual(new[] { deleted }) && lost.Builds.SequenceEqual(new[] { kept, unplugged, busy }) && lost.Default == kept,
+                "A folder deleted by hand leaves the list (the default passes on); an unplugged drive's and one being deleted stay.");
+        Require(lost.ForgetGone().SequenceEqual(new[] { busy }) && lost.ForgetGone().Count == 0, "Nothing more to forget.");
     }
 
     static void SettingsChecks()

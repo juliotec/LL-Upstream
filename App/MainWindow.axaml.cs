@@ -25,6 +25,8 @@ public sealed partial class MainWindow : Window, IWindowHost
         {
             if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) BeginMoveDrag(e);
         };
+        // (back to the launcher: a build's folder deleted meanwhile, in the file manager, leaves the list)
+        Activated += (_, _) => (DataContext as MainViewModel)?.HomeAgain();
         AddHandler(DragDrop.DragEnterEvent, (_, e) => Drag(e, true));
         AddHandler(DragDrop.DragOverEvent, (_, e) => Drag(e, true));
         AddHandler(DragDrop.DragLeaveEvent, (_, e) => Drag(e, false));

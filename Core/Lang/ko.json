@@ -74,6 +74,9 @@
   "{0} versions in {1}.": {
     "other": "{1}에 버전 {0}개가 있습니다."
   },
+  "{0} versions were deleted outside the launcher, so they are no longer listed.": {
+    "other": "버전 {0}개가 런처 밖에서 삭제되어 더 이상 목록에 표시되지 않습니다."
+  },
   "Found {0} in Hookshot. Copy them into Longshot? Hookshot keeps its own.": "Hookshot에서 {0}을(를) 찾았습니다. Longshot으로 복사할까요? Hookshot의 세이브는 그대로 남습니다.",
   "A new launcher is out": "새 런처가 나왔습니다",
   "Another launcher on the {0} channel": "{0} 채널의 다른 런처",
