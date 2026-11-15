@@ -68,6 +68,7 @@ static partial class Program
         ProgressChecks();
         LogChecks();
         CommandChecks();
+        ShaderCacheChecks();
         UpdatePolicyChecks();
         CommandLineChecks();
         SavesChecks.Run(Folder("saves"));

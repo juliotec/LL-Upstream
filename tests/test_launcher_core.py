@@ -5,7 +5,8 @@ are tests/fixtures/release's (made by scripts/release.py). Its scratch folder is
     python -I tests/test_launcher_core.py [--dotnet <dotnet>] [--strict] [--longshot <checkout of MagicBeanDev/Longshot>]
 
 With --longshot it also checks what the launcher copies from Longshot: make_game.py's languages, the SDK commits the DLSS and
-FSR 4 licence texts name, and the first-import player ID (CI checks out Longshot's main for it).
+FSR 4 licence texts name, the first-import player ID, and the shader caches' names, the translator's stamped files and its
+compiler's tools.lock parts (CI checks out Longshot's main for it).
 
 With no dotnet here the check is skipped (exit 0, saying why), unless --strict.
 """
@@ -92,6 +93,45 @@ def check_save_user(longshot):
         raise SystemExit("Core/Saves.cs's UserId differs from Longshot's player: " + expected)
 
 
+def check_shader_caches(longshot):
+    """Core/ShaderCaches.cs names the caches Longshot's scripts/dev_packs.py copies (CACHES, PLAY_FILES) and stamps the
+    translator with the folders and files of nx2/translator_files.py (DIRS, FILES), in its order, and its compiler with parts
+    tools.lock unpacks, each system's cpm among them"""
+    def literal(script, name):
+        tree = ast.parse((longshot / script).read_text(encoding="utf-8"))
+        return next(n.value for n in tree.body if isinstance(n, ast.Assign) and len(n.targets) == 1
+                    and isinstance(n.targets[0], ast.Name) and n.targets[0].id == name)
+    source = (ROOT / "Core" / "ShaderCaches.cs").read_text(encoding="utf-8")
+
+    def listed(name):
+        at = source.index(name + " = new[]")
+        return re.findall(r'"([^"]+)"', source[at:source.index("};", at)])
+    for name, script, theirs in (("Names", "scripts/dev_packs.py", "CACHES"), ("TranslatorDirs", "nx2/translator_files.py", "DIRS"),
+                                 ("TranslatorFiles", "nx2/translator_files.py", "FILES")):
+        want = list(ast.literal_eval(literal(script, theirs)))
+        if listed(name) != want:
+            raise SystemExit("Core/ShaderCaches.cs's %s differs from %s's %s:\n%s\n%s" % (name, script, theirs, listed(name), want))
+    play = ast.literal_eval(literal("scripts/dev_packs.py", "PLAY_FILES").args[0])
+    if play != r"longshot_vk_pipelines_play_[0-9]+\.bin" or 'PlayPrefix = "longshot_vk_pipelines_play_"' not in source:
+        raise SystemExit("scripts/dev_packs.py's PLAY_FILES changed: review Core/ShaderCaches.cs's IsCache (%s)" % play)
+    # (the compiler's parts, by the folder tools.lock unpacks them to: each a dest of its system's lines, and its cpm among
+    # them, where nx2/build.py's header_package takes the Vulkan and SPIR-V headers from, RX_CPM)
+    dests, cpm = {}, {}
+    for line in (longshot / "tools.lock").read_text(encoding="utf-8").splitlines():
+        w = line.split()
+        if len(w) >= 9 and w[0] == "tool":
+            dests.setdefault(w[3], set()).add(w[6])
+            if w[1] == "cpm":
+                cpm[w[3]] = w[6]
+    for name, system in (("WindowsCompiler", "windows-x64"), ("LinuxCompiler", "linux-x64")):
+        missing = [d for d in listed(name) if d not in dests.get(system, set())]
+        if not listed(name) or missing:
+            raise SystemExit("Core/ShaderCaches.cs's %s names folders tools.lock's %s lines do not unpack to: %s" % (name, system, missing))
+        if cpm.get(system) not in listed(name):
+            raise SystemExit("Core/ShaderCaches.cs's %s lacks tools.lock's %s cpm (%s), where the translator's headers come from"
+                             % (name, system, cpm.get(system)))
+
+
 def check_translations():
     """The catalogs' texts are the window's, with their placeholders and plural forms (scripts/translations.py). A text a catalog
     lacks shows in English: said, not a failure"""
@@ -116,6 +156,7 @@ def main():
         check_languages(args.longshot)
         check_licences(args.longshot)
         check_save_user(args.longshot)
+        check_shader_caches(args.longshot)
     elif args.strict:
         raise SystemExit("--strict needs --longshot <checkout of MagicBeanDev/Longshot>")
     dotnet = args.dotnet or shutil.which("dotnet") or (str(Path.home() / ".dotnet" / "dotnet")

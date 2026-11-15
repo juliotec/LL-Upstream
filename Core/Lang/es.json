@@ -42,6 +42,8 @@
   "Done": "Hecho",
   "Writing the game folder": "Escribiendo la carpeta del juego",
   "At the game's first start": "Al iniciar el juego por primera vez",
+  "Keeping the prepared shaders": "Conservando los shaders ya preparados",
+  "Keeping the prepared shaders: {0}%": "Conservando los shaders ya preparados: {0} %",
   "Skipped": "Omitido",
   "Build stopped.": "Compilación detenida.",
   "the build": "la compilación",

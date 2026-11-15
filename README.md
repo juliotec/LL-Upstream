@@ -319,6 +319,23 @@ Calls made here, most of them the design mockup's; each can be changed:
 - **An update replaces its build's row.** An update builds the new version into its own folder (`<builds>/<version>`)
   from the game files the build was made from, then takes the old row's place, its default included
   (`BuildRegistry.Replace`). The old folder stays on the disk; nothing deletes it yet.
+- **An update keeps the shader caches when the translator is the same.** The game keeps its translated shaders and
+  pipelines in its folder's `cache/` (10 GB and minutes of preparing), good for one shader translator, and the new
+  version's folder starts with none. When the old and the new version's tools stamp the translator the same way
+  (`ShaderCaches.Translator`, Longshot's `nx2/translator_files.py`) and compile it with the same tools
+  (`ShaderCaches.Compiler`: the SHA-256 of `tools.lock`'s llvm-mingw and cpm on Windows; of emsdk, the sysroot and cpm
+  on Linux), the update takes the old build's caches into the new folder before make_game.py starts (`ShaderCaches.Keep`).
+  make_game.py keeps a `cache/` it finds in its folder, as a rebuild keeps its own, so the build's Prepare shaders step
+  (every build runs it) finds them and has little left to do; after the build it would already have made caches of its
+  own there. On the same drive they are moved: the old folder is no longer listed once the update is done, so nothing
+  else uses them, and a move is instant and needs no room. Only the pipeline notes (`longshot_pipelines.bin`) are
+  copied there too: make_game.py writes its shipped list over them, and a build that does not finish must not give the
+  old build that list. A new folder on another drive gets a copy, made only with room for the build beside it. Never a
+  link both folders keep, since the game writes to them. A build that fails or is stopped puts them back
+  (`ShaderCaches.Undo`), so the build still listed keeps its caches. It is skipped when the new folder has caches
+  already, while the game runs, without room for a copy, or when either version's tools are not on this PC; the build
+  then prepares from none, as before. What the game adds to the stamp itself (the GPU, its switches) the launcher cannot
+  see: if that differs too, the game drops them and prepares again.
 - **Building a version you already have is a rebuild** of that build, in its folder ("Rebuild vX" in the channel picker).
 - **Play from a row's actions**: selecting a version shows Play this version, Set as default, Saves, Open folder and
   Delete; Play on the left always starts the default. The hero shows Play and, when the default has one, Update.

@@ -552,6 +552,18 @@ public sealed class Toolchains
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or JsonException) { return null; }
     }
 
+    /// The SHA-256 of each tools.lock part a version folder's record names, by the folder the part became there (tools.lock's
+    /// dest, '/' separated: LongshotBuilder/tools/llvm-mingw, usr/lib/longshot/sysroot); null when it has no record to read.
+    /// A Linux builder's AppImage itself is ".". What ShaderCaches.Compiler compares
+    public static IReadOnlyDictionary<string, string>? PartShas(string folder)
+    {
+        if (Read(folder) is not { } record) return null;
+        var shas = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var p in record.Parts)
+            shas[p.To == null ? p.Dest : p.Dest == "." ? p.To : p.Dest + "/" + p.To] = p.Sha;
+        return shas;
+    }
+
     /// A folder and everything in it; a link in it is removed, never followed
     public static void DeleteTree(string dir)
     {

@@ -59,6 +59,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
     readonly CancellationTokenSource cancel = new();
     readonly DispatcherTimer? ticker;
     string? lastError;
+    string? seeding;   // (what the first row after the download says while an update's shader caches are taken: Seed)
     TimeSpan? fixedTime;
     bool showLog, running;
     LogLevelChoice level = LogLevelChoice.Of(LogLevel.Info);
@@ -183,20 +184,100 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
         ticker?.Start();
         Task.Run(async () =>
         {
+            Seeded? seeded;
+            try { seeded = Seed(); }
+            catch (OperationCanceledException) { return; }   // (stopped before the build started: Keep left nothing taken)
             int code;
             try
             {
+                cancel.Token.ThrowIfCancellationRequested();   // (stopped as the caches were taken: no build to start)
                 code = await MakeGameRun.RunAsync(command.StartInfo(), line => Ui.Post(() => Line(line)),
                                                   line => Ui.Post(() => ErrorLine(line)), cancel.Token);
             }
-            catch (OperationCanceledException) { return; }
-            catch (Exception e) when (e is System.ComponentModel.Win32Exception or IOException or InvalidOperationException)
+            catch (OperationCanceledException)
             {
-                Ui.Post(() => Fail(Tr.F("The build tools could not start: {0}", e.Message)));
+                // (already on a pool thread: Undo may wait a moment for a file a killed compiler or game still holds)
+                seeded?.Undo();
                 return;
             }
-            Ui.Post(() => Exited(code));
+            catch (Exception e) when (e is System.ComponentModel.Win32Exception or IOException or InvalidOperationException)
+            {
+                var back = seeded?.Undo();
+                Ui.Post(() =>
+                {
+                    if (back is { } n) log.Add(Seeded.Said(n));
+                    Fail(Tr.F("The build tools could not start: {0}", e.Message));
+                });
+                return;
+            }
+            Ui.Post(() => Exited(code, seeded));
         });
+    }
+
+    /// The shader caches an update took from the build it replaces, before its build (Seed): put back when the build does
+    /// not finish (ShaderCaches.Undo), so the build still listed keeps them
+    sealed record Seeded(string From, string To, CachesResult Kept)
+    {
+        public int Undo() => ShaderCaches.Undo(From, To, Kept);
+        public static string Said(int files) => $"shader caches: {files} put back, the build did not finish";
+    }
+
+    /// An update starts with the shader caches of the build it replaces, when both versions translate shaders the same
+    /// way with the same compiler (ShaderCaches.Keep): moved, or copied from another drive, into the new folder's cache/
+    /// before make_game.py starts. make_game.py keeps a cache/ it finds in its folder, as a rebuild keeps its own, and its
+    /// prepare (Prepare shaders, which every build runs: no switch leaves it to the game's first start) then finds them
+    /// and has little left to do; after the build it would find caches of its own there already. Run on a pool thread;
+    /// null: none taken (said in the log). Cancel stops a copy (OperationCanceledException), and the build is not started
+    Seeded? Seed()
+    {
+        var job = Job;
+        if (job.Kind != JobKind.Update || job.Replaces is not { } old || job.Tools is not { } tools) return null;
+        var fromTools = old.Version is { } was ? job.Service.Tools.Find(was) : null;
+        Ui.Post(() =>
+        {
+            seeding = Tr.T("Keeping the prepared shaders");
+            Update();
+        });
+        string said;
+        CachesResult? kept = null;
+        try
+        {
+            var last = -1;
+            kept = ShaderCaches.Keep(old.Folder, job.InstallDir, fromTools, tools, cancel: cancel.Token, progress: (done, all) =>
+            {
+                var pct = all > 0 ? (int)(done * 100 / all) : 100;
+                if (pct == Interlocked.Exchange(ref last, pct)) return;
+                Ui.Post(() =>
+                {
+                    if (seeding == null) return;
+                    seeding = Tr.F("Keeping the prepared shaders: {0}%", pct);
+                    Update();
+                });
+            });
+            said = kept.What switch
+            {
+                CachesKept.Kept => $"shader caches: {(kept.Moved ? "moved" : "copied")} from {old.Version} ({kept.Files} files, {kept.Bytes >> 20} MB)",
+                CachesKept.NoCaches => $"shader caches: {old.Version} has none to keep",
+                CachesKept.HasCaches => "shader caches: this build's folder has its own already",
+                CachesKept.OtherTranslator => $"shader caches: not kept, {old.Version} translates or compiles shaders differently (or its tools are gone)",
+                CachesKept.Running => "shader caches: not kept, Longshot is running",
+                _ => $"shader caches: not kept, no room for a copy ({kept.Bytes >> 20} MB) and the build",
+            };
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        {
+            said = "shader caches: not kept: " + e.Message;
+        }
+        finally
+        {
+            Ui.Post(() =>
+            {
+                seeding = null;
+                Update();
+            });
+        }
+        Ui.Post(() => log.Add(said));
+        return kept is { What: CachesKept.Kept } taken ? new Seeded(old.Folder, job.InstallDir, taken) : null;
     }
 
     public void Line(string line)
@@ -230,13 +311,30 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
         if (showLog && following) Raise(nameof(LogText));
     }
 
-    void Exited(int code)
+    void Exited(int code, Seeded? seeded = null)
     {
         running = false;
         ticker?.Stop();
         Update();
-        if (progress.Finished && code == 0) Complete();
-        else Fail(progress.Error ?? lastError ?? Tr.F("make_game.py stopped with exit code {0} without saying why.", code));
+        if (progress.Finished && code == 0)
+        {
+            Complete();
+            return;
+        }
+        var why = progress.Error ?? lastError ?? Tr.F("make_game.py stopped with exit code {0} without saying why.", code);
+        if (seeded is not { } taken)
+        {
+            Fail(why);
+            return;
+        }
+        // (put back on a pool thread: Undo may wait up to ShaderCaches.UndoWait for a file something the build started still
+        // holds, too long for the window's thread. The problem page shows once they are back, so that building again finds
+        // the old build's caches in their place)
+        Task.Run(() => taken.Undo()).ContinueWith(t => Ui.Post(() =>
+        {
+            if (t.IsCompletedSuccessfully) log.Add(Seeded.Said(t.Result));
+            Fail(why);
+        }), TaskScheduler.Default);
     }
 
     /// The rows, the bar and the time left from the progress and the clock
@@ -282,6 +380,12 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
                     row.TimeFaint = clock.Estimate(progress, st) is double e ? Durations.Roughly(e) : "";
                     break;
             }
+        }
+        // (before the build: the first row after the download runs while an update's shader caches are taken, Seed)
+        if (seeding != null && Rows.FirstOrDefault(r => r.Id != "download") is { } first)
+        {
+            first.State = "run";
+            first.Detail = seeding;
         }
         RaiseAll(nameof(Overall), nameof(Percent), nameof(Left));
         if (showLog && following) Raise(nameof(LogText));
