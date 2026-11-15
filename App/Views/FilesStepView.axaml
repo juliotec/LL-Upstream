@@ -55,6 +55,8 @@
               <TextBlock Text="{Binding ToolsTitle}" FontWeight="SemiBold"/>
               <TextBlock FontSize="12" Foreground="{StaticResource InkSoft}" Classes.bad="{Binding ToolsFailed}" Text="{Binding ToolsNote}"
                          TextTrimming="CharacterEllipsis"/>
+              <Button Classes="link soft" HorizontalAlignment="Left" Margin="0,2,0,0" Content="{c:T 'Copy for a bug report'}"
+                      Command="{Binding CopyToolsReportCommand}" IsVisible="{Binding ToolsFailed}"/>
             </StackPanel>
             <Panel Grid.Column="2" VerticalAlignment="Center">
               <c:Bar Value="{Binding ToolsFraction}" Fill="{StaticResource Brand}" IsVisible="{Binding ToolsMeasured}"/>

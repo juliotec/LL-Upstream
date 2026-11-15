@@ -573,5 +573,6 @@
   "The file is not there any more.": "檔案已不在原處。",
   "This is not a Vulkan FSR 4 library (.so).": "這不是 Vulkan FSR 4 程式庫（.so）。",
   "FSR 4 library": "FSR 4 程式庫",
-  "Choose…": "選擇…"
+  "Choose…": "選擇…",
+  "Copied for a bug report: what happened, the launcher's version, this PC's system and the launcher's log.": "已複製以回報錯誤：發生了什麼、啟動器的版本、這台電腦的系統，以及啟動器的記錄檔。"
 }

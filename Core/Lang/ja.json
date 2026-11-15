@@ -573,5 +573,6 @@
   "The file is not there any more.": "ファイルがもうありません。",
   "This is not a Vulkan FSR 4 library (.so).": "これは Vulkan FSR 4 ライブラリ (.so) ではありません。",
   "FSR 4 library": "FSR 4 ライブラリ",
-  "Choose…": "選択…"
+  "Choose…": "選択…",
+  "Copied for a bug report: what happened, the launcher's version, this PC's system and the launcher's log.": "バグ報告用にコピーしました: 起きたこと、ランチャーのバージョン、この PC のシステム、ランチャーのログ。"
 }

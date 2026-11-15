@@ -26,5 +26,7 @@
       <Button Content="{c:T 'Back to saves'}" Command="{Binding BackCommand}"/>
       <Button Classes="primary" Content="{c:T 'Try again'}" Command="{Binding RetryCommand}"/>
     </StackPanel>
+    <Button Classes="link soft" HorizontalAlignment="Center" Margin="0,14,0,0" Content="{c:T 'Copy for a bug report'}"
+            Command="{Binding CopyCommand}" IsVisible="{Binding Failed}"/>
   </StackPanel>
 </UserControl>

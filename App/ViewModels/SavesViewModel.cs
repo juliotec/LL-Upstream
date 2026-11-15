@@ -443,6 +443,10 @@ public sealed class SavesResultViewModel : ViewModelBase
         });
         RetryCommand = new Command(confirm.Retry);
         BackupCommand = new Command(() => { if (Backup != null) main.Host?.Open(Backup); });
+        // (what failed and between which programs: no save's contents, and the home folder as ~ (BugReport))
+        CopyCommand = main.CopyReportCommand(() => Tr.Sentences(Heading, Sub),
+                                             () => new[] { $"saves: {confirm.Op.Mode} with {confirm.Op.Program.Name}, from {confirm.From.Path} to {confirm.To.Path}" });
+        if (kind == SaveResult.Failed) LauncherLog.Add($"saves {confirm.Op.Mode} with {confirm.Op.Program.Name} failed: {message}");
     }
 
     public SavesConfirmViewModel Confirm { get; }
@@ -453,6 +457,8 @@ public sealed class SavesResultViewModel : ViewModelBase
     public bool Done => Kind == SaveResult.Done;
     public bool Refused => !Done;
     public bool HasBackup => Backup != null;
+    /// The copy failed (not refused for a reason the player can act on: a game running, a save waiting): Copy for a bug report
+    public bool Failed => Kind == SaveResult.Failed;
 
     public string Heading => Kind switch
     {
@@ -491,4 +497,5 @@ public sealed class SavesResultViewModel : ViewModelBase
     public Command BackCommand { get; }
     public Command RetryCommand { get; }
     public Command BackupCommand { get; }
+    public Command CopyCommand { get; }
 }

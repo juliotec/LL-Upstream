@@ -41,7 +41,10 @@
           </Grid>
         </Border>
         <Border Classes="warnbox" IsVisible="{Binding HasProblem}">
-          <TextBlock Text="{Binding Problem}" TextWrapping="Wrap"/>
+          <StackPanel Spacing="4">
+            <TextBlock Text="{Binding Problem}" TextWrapping="Wrap"/>
+            <Button Classes="link soft" HorizontalAlignment="Left" Content="{c:T 'Copy for a bug report'}" Command="{Binding CopyCommand}"/>
+          </StackPanel>
         </Border>
         <StackPanel Classes="buttons" Margin="0,16,0,0" IsVisible="{Binding Listing}">
           <Button Content="{c:T 'Import graphics and controls…'}" Command="{Binding SettingsCommand}"/>

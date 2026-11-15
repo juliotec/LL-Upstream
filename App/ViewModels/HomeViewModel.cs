@@ -113,6 +113,8 @@ public sealed class HomeViewModel : ViewModelBase
         BuildCommand = new Command(() => StartBuild(Service.DefaultChannel), () => NewestDefault != null && CanStartBuild);
         ChannelCommand = new Command(() => Main.Modal = new ChannelPickerViewModel(Main, Service.DefaultChannel), () => CanStartBuild);
         DismissProblemCommand = new Command(() => Notice = null);
+        CopyNoticeReportCommand = main.CopyReportCommand(() => Notice ?? "");
+        CopyCheckReportCommand = main.CopyReportCommand(() => CheckFailed ? Tr.Sentences(CheckFailedText, CheckWhy) : Status);
         PlayDefaultCommand = new Command(() => { if (Default is { } d) Play(d); }, () => Default is { IsBuilt: true, IsDeleting: false });
         UpdateDefaultCommand = new Command(() => { if (Default is { } d) UpdateBuild(d); }, () => CanStartBuild && Default?.IsDeleting != true);
         SavesDefaultCommand = new Command(() => Main.ShowSaves());
@@ -168,6 +170,8 @@ public sealed class HomeViewModel : ViewModelBase
     /// a release refused (Releases.Problem) or the check's own failure; "" when none says
     public string CheckWhy => Service.Releases.Unreachable ?? Service.Releases.Problem ?? checkProblem ?? "";
     public bool HasCheckWhy => CheckFailed && CheckWhy.Length > 0;
+    /// Copy for a bug report beside the check's failure, not beside a channel with no version yet (nothing failed)
+    public bool ShowCheckReport => CheckFailed && !ChannelEmpty;
     /// The server answered with versions, none on the default channel (no stable is out yet): that, not "did not answer"
     public bool ChannelEmpty => CheckFailed && listed && CheckWhy.Length == 0;
     public string CheckFailedText => ChannelEmpty
@@ -227,7 +231,9 @@ public sealed class HomeViewModel : ViewModelBase
         get => notice;
         set
         {
-            if (Set(ref notice, value)) Raise(nameof(HasNotice));
+            if (!Set(ref notice, value)) return;
+            Raise(nameof(HasNotice));
+            if (value != null) LauncherLog.Add("shown on Home: " + value);
         }
     }
 
@@ -238,8 +244,17 @@ public sealed class HomeViewModel : ViewModelBase
     public string Status
     {
         get => status;
-        set { if (Set(ref status, value)) Raise(nameof(ShowStatus)); }
+        set { if (Set(ref status, value)) RaiseAll(nameof(ShowStatus), nameof(ShowStatusReport)); }
     }
+
+    /// The check's last answer is a failure (Status says why): Copy for a bug report beside it
+    bool statusFailed;
+    public bool ShowStatusReport => ShowStatus && statusFailed;
+
+    /// Copy for a bug report, beside a notice: what it says
+    public Command CopyNoticeReportCommand { get; }
+    /// Copy for a bug report, beside the check's failure: on the empty home its line and why, else the status line under the versions
+    public Command CopyCheckReportCommand { get; }
 
     public Command BuildCommand { get; }
     public Command ChannelCommand { get; }
@@ -274,7 +289,7 @@ public sealed class HomeViewModel : ViewModelBase
         ChannelCommand.Changed();
         UpdateDefaultCommand.Changed();
         foreach (var b in Builds) b.RaiseCommands();
-        RaiseAll(nameof(CanStartBuild), nameof(ShowCheckLine), nameof(ShowStatus));
+        RaiseAll(nameof(CanStartBuild), nameof(ShowCheckLine), nameof(ShowStatus), nameof(ShowStatusReport));
     }
     public Command ImportHookshotCommand { get; }
     public Command NotNowHookshotCommand { get; }
@@ -402,7 +417,7 @@ public sealed class HomeViewModel : ViewModelBase
         RaiseAll(nameof(HasBuilds), nameof(NoBuilds), nameof(Default), nameof(ShowLeftPanel), nameof(HeroVersion), nameof(HeroChannel),
                  nameof(HeroIsRelease), nameof(HeroIsCandidate), nameof(HeroIsNightly), nameof(HeroNote), nameof(HeroSaves), nameof(HeroHasUpdate),
                  nameof(HeroUpdate), nameof(Footer), nameof(NewestDefault), nameof(NewestDefaultText), nameof(DefaultChannel), nameof(DefaultIsRelease), nameof(DefaultIsCandidate),
-                 nameof(DefaultIsNightly), nameof(KnowsNewest), nameof(CheckFailed), nameof(CheckWhy), nameof(HasCheckWhy), nameof(ChannelEmpty), nameof(CheckFailedText), nameof(Checking), nameof(ShowCheckLine), nameof(HasLauncherUpdate),
+                 nameof(DefaultIsNightly), nameof(KnowsNewest), nameof(CheckFailed), nameof(CheckWhy), nameof(HasCheckWhy), nameof(ShowCheckReport), nameof(ChannelEmpty), nameof(CheckFailedText), nameof(Checking), nameof(ShowCheckLine), nameof(HasLauncherUpdate),
                  nameof(LauncherUpdateText), nameof(LauncherUpdateHeading), nameof(LauncherUpdateButton));
         BuildCommand.Changed();
         PlayDefaultCommand.Changed();
@@ -437,9 +452,11 @@ public sealed class HomeViewModel : ViewModelBase
         checkProblem = null;
         Refresh();
         var any = false;
+        statusFailed = false;
         try
         {
             any = listed = await Service.CheckReleasesAsync();
+            statusFailed = !any;
             // (why, in words a player can act on: no address, no connection, a timeout, an HTTP error: NetFailure)
             Status = any ? "" : Service.Releases.Unreachable is { } why
                 ? Tr.F("Updates were not checked. {0}", why)
@@ -451,12 +468,26 @@ public sealed class HomeViewModel : ViewModelBase
         {
             Service.Checked = true;
             checkProblem = e.Message;
+            statusFailed = true;
             Status = Tr.F("Could not check for updates: {0}", e.Message);
         }
+        // (the answer in the launcher's log: each request's own lines are there already, this is what the check made of them)
+        LauncherLog.Add(any ? "update check: answered" : "update check failed: " +
+                        (Service.Releases.Unreachable ?? Service.Releases.Problem ?? checkProblem ?? "no version listed"));
         Refresh();
+        Raise(nameof(ShowStatusReport));
         // (a check someone asked for answers even when nothing is new; an update shows itself: the banner, the Update buttons)
         if (wasAsked && any && !HasLauncherUpdate && !Builds.Any(b => b.HasUpdate))
             Status = Tr.F("Everything is up to date, the launcher too. Checked at {0}.", DateTime.Now.ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    /// For the screenshots: the update check got no answer, for why
+    public void ShowCheckFailed(string why)
+    {
+        Service.Checked = true;
+        checkProblem = why;
+        statusFailed = true;
+        Refresh();
     }
 
     public void Select(BuildItemViewModel b)

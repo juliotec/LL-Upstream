@@ -41,16 +41,41 @@ static class Program
     [
         new("home", "The home with no build yet", Platform.Linux, null, _ => null),
         new("settings-linux", "Step 2, the build settings, on Linux with an AMD GPU", Platform.Linux,
-            s => { s.Gpus = [SystemInfo.Amd]; s.Settings.Fsr = true; s.Settings.FsrLinuxNotice = true; },
+            s => { s.GpuCards = [new Gpu(SystemInfo.Amd)]; s.Settings.Fsr = true; s.Settings.FsrLinuxNotice = true; },
             m => Settings(m)),
         new("settings-windows", "Step 2, the build settings, on Windows with an NVIDIA GPU", Platform.Windows,
-            s => { s.Gpus = [SystemInfo.Nvidia]; s.Settings.Dlss = true; s.Settings.DlssLicense = true; },
+            s => { s.GpuCards = [new Gpu(SystemInfo.Nvidia)]; s.Settings.Dlss = true; s.Settings.DlssLicense = true; },
             m => Settings(m)),
-        new("fsr-linux-notice", "The AMD FSR 4 notice on Linux, over step 2", Platform.Linux, s => s.Gpus = [SystemInfo.Amd],
+        new("fsr-linux-notice", "The AMD FSR 4 notice on Linux, over step 2", Platform.Linux, s => s.GpuCards = [new Gpu(SystemInfo.Amd)],
             m => Settings(m), m => m.Modal = new LicenceViewModel(m, false, true, () => { }, () => { })),
         new("build", "Step 3, a build reading the game files", Platform.Linux, null, m => Build(m, showLog: false)),
         new("build-log", "Step 3 with Show details, at Debug", Platform.Linux, null, m => Build(m, showLog: true)),
+        // (the failures with Copy for a bug report: the words are NetFailure's and the other screens' own)
+        new("home-check-failed", "The home with no build, the update check failed, Copy for a bug report", Platform.Windows,
+            s => s.SetNewest(s.DefaultChannel, null), _ => null,
+            m => m.Home.ShowCheckFailed("The secure connection to git.magicbean.dev failed. Check that this PC's date and time are right; an antivirus " +
+                                        "or a network that inspects HTTPS can also cause this. (The remote certificate was rejected by the provided RemoteCertificateValidationCallback)")),
+        new("home-notice", "The home with a notice, Copy for a bug report", Platform.Windows, null, _ => null,
+            m => m.Home.Notice = "The launcher could not update itself: The connection to git-cdn.magicbean.dev was cut. A firewall, antivirus or VPN " +
+                                 "may be blocking the site. (Connection reset by peer)"),
+        new("tools-failed", "Step 1, the tools' download failed, Copy for a bug report", Platform.Windows, null,
+            m => Files(m, "git.magicbean.dev did not answer in time. The server may be down or busy, or the network slow or blocking it: try again in a few minutes.")),
+        new("crash", "The game closed unexpectedly, Copy for a bug report", Platform.Windows, null,
+            m => new ProblemPageViewModel(m, new Problem(ProblemKind.GameCrashed, "The game closed unexpectedly",
+                                                         "If it happens again at the same place, the latest graphics driver is worth a try.",
+                                                         [new Fix(FixKind.DriverPage, "Get the latest graphics driver", Problems.DriverPage(SystemInfo.Nvidia))],
+                                                         "exception_access_violation longshot.exe"), m.ShowHome, crashed: true)),
+        new("hookshot-import-problem", "Importing Hookshot's saves failed, Copy for a bug report", Platform.Windows, null, _ => null,
+            m => m.Modal = new HookshotImportViewModel(m) { Problem = @"The saves could not be copied: Access to the path 'C:\Users\Player\Saved Games\Longshot\slot1' is denied." }),
     ];
+
+    /// Step 1 with the tools' download failed, why
+    static FilesStepViewModel Files(MainViewModel main, string why)
+    {
+        var page = new FilesStepViewModel(Job(main), tools: false, search: false);
+        page.ShowToolsFailed(why);
+        return page;
+    }
 
     static BuildJob Job(MainViewModel main) => new(main, JobKind.Build, "stable", "v3.0.0", null);
 

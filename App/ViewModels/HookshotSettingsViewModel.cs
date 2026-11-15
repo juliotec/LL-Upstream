@@ -20,6 +20,7 @@ public sealed class HookshotSettingsViewModel : ViewModelBase
         CloseCommand = new Command(() => Main.Modal = null);
         PickFolderCommand = new Command(() => _ = PickFolderAsync());
         ImportCommand = new Command(Import, () => CanImport);
+        CopyCommand = main.CopyReportCommand(() => "Hookshot's settings were not imported: " + (problem ?? ""));
         Targets = main.Service.Registry.Builds.Where(main.Service.IsBuilt).ToList();
         // (no version chosen for the player: the import changes the one they pick, and Import waits for that choice)
         target = null;
@@ -66,6 +67,8 @@ public sealed class HookshotSettingsViewModel : ViewModelBase
     public bool HasLanguageText => LanguageChange != null;
     public string? Problem => problem;
     public bool HasProblem => problem != null;
+    /// Copy for a bug report, under the problem
+    public Command CopyCommand { get; }
     public bool CanImport => !busy && preview != null;
 
     public BuildEntry? Target
@@ -106,7 +109,11 @@ public sealed class HookshotSettingsViewModel : ViewModelBase
                                                      optionsFile: Main.Service.OptionsFileOf(Target.Folder));
             }
         }
-        catch (Exception e) when (e is SaveFailure or IOException or UnauthorizedAccessException) { problem = e.Message; }
+        catch (Exception e) when (e is SaveFailure or IOException or UnauthorizedAccessException)
+        {
+            problem = e.Message;
+            LauncherLog.Add("Hookshot settings preview: " + problem);
+        }
         Changed();
     }
 
@@ -136,6 +143,7 @@ public sealed class HookshotSettingsViewModel : ViewModelBase
         catch (Exception e) when (e is SaveFailure or IOException or UnauthorizedAccessException)
         {
             problem = e is SaveFailure { Backup: { } backup } ? Tr.Sentences(e.Message, Tr.F("Backup: {0}.", ShownPath.Of(backup))) : e.Message;
+            LauncherLog.Add("Hookshot settings import: " + problem);
         }
         finally
         {

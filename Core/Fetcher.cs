@@ -51,11 +51,35 @@ public sealed class HttpFetcher : IFetcher, IDisposable
         using var request = new HttpRequestMessage(HttpMethod.Get, uri);
         if (accept != null) request.Headers.Accept.ParseAdd(accept);
         HttpResponseMessage response;
+        // (each request in the launcher's log: the link, then its answer or why there was none, how long it took, the proxy)
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        var proxy = ProxyFor(uri);
+        var via = proxy is { } p ? ", through the proxy " + p.Authority : "";
+        string Took() => $"{clock.ElapsedMilliseconds} ms{via}";
         // (why, in words a player can act on: NetFailure)
         try { response = await http.SendAsync(request, option, cancel).ConfigureAwait(false); }
-        catch (HttpRequestException e) { throw new FetchException(NetFailure.Why(e, uri.Host, ProxyFor(uri)), (int?)e.StatusCode, e); }
-        catch (TaskCanceledException e) when (!cancel.IsCancellationRequested) { throw new FetchException(NetFailure.TimedOut(uri.Host), null, e); }
-        if (response.RequestMessage?.RequestUri is { } final && final.Scheme != Uri.UriSchemeHttps)
+        catch (HttpRequestException e)
+        {
+            // (the log: what failed, in .NET's own terms; the player's words for it are the screen's)
+            var inner = (Exception)e;
+            while (inner.InnerException != null) inner = inner.InnerException;
+            LauncherLog.Add($"GET {uri} failed after {Took()}: {e.HttpRequestError} ({inner.GetType().Name}: {inner.Message.Trim()})");
+            throw new FetchException(NetFailure.Why(e, uri.Host, proxy), (int?)e.StatusCode, e);
+        }
+        catch (TaskCanceledException e) when (!cancel.IsCancellationRequested)
+        {
+            LauncherLog.Add($"GET {uri} timed out after {Took()}");
+            throw new FetchException(NetFailure.TimedOut(uri.Host), null, e);
+        }
+        catch (OperationCanceledException)
+        {
+            LauncherLog.Add($"GET {uri} cancelled after {Took()}");
+            throw;
+        }
+        var final = response.RequestMessage?.RequestUri;
+        var moved = final != null && final != uri ? $" (redirected to {final})" : "";
+        LauncherLog.Add($"GET {uri}: HTTP {(int)response.StatusCode}{moved}, {Took()}");
+        if (final != null && final.Scheme != Uri.UriSchemeHttps)
         {
             response.Dispose();
             throw new FetchException("A download was redirected away from https: " + final, 0);
@@ -63,7 +87,7 @@ public sealed class HttpFetcher : IFetcher, IDisposable
         if (!response.IsSuccessStatusCode)
         {
             var status = (int)response.StatusCode;
-            var host = (response.RequestMessage?.RequestUri ?? uri).Host;
+            var host = (final ?? uri).Host;
             response.Dispose();
             throw new FetchException(NetFailure.Status(status, host), status);
         }
@@ -71,7 +95,7 @@ public sealed class HttpFetcher : IFetcher, IDisposable
     }
 
     /// The proxy a request to uri goes through (HttpClient's default: the system's, or HTTPS_PROXY); null for none
-    static Uri? ProxyFor(Uri uri)
+    public static Uri? ProxyFor(Uri uri)
     {
         try
         {
@@ -91,7 +115,23 @@ public sealed class HttpFetcher : IFetcher, IDisposable
     {
         using var response = await SendAsync(url, null, HttpCompletionOption.ResponseHeadersRead, cancel).ConfigureAwait(false);
         await using var from = await response.Content.ReadAsStreamAsync(cancel).ConfigureAwait(false);
-        await CopyAsync(from, to, progress, readTimeout, cancel).ConfigureAwait(false);
+        // (the download's end in the launcher's log too: its bytes, or where and why it stopped)
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        long have = 0;
+        try
+        {
+            await CopyAsync(from, to, n =>
+            {
+                have = n;
+                progress?.Invoke(n);
+            }, readTimeout, cancel).ConfigureAwait(false);
+        }
+        catch (Exception e) when (e is FetchException or OperationCanceledException)
+        {
+            LauncherLog.Add($"GET {url}: stopped after {have} bytes, {clock.ElapsedMilliseconds} ms: {e.Message}");
+            throw;
+        }
+        LauncherLog.Add($"GET {url}: {have} bytes in {clock.ElapsedMilliseconds} ms");
     }
 
     /// from into to, failing (FetchException) when a read waits longer than readTimeout for its next bytes: the timer starts again

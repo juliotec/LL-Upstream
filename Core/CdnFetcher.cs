@@ -67,12 +67,16 @@ public sealed class CdnFetcher(IFetcher inner, bool enabled = true) : IFetcher
     /// Whether the CDN's failure is worth the server's try: no answer (Status null: connection, TLS, timeout, stall), or 403, 404, 5xx
     public static bool FallsBack(FetchException e) => e.Status is null or 403 or 404 or >= 500;
 
+    /// The fall back in the launcher's log: the CDN's own request is there already, with its answer
+    static void Fell(FetchException e) =>
+        LauncherLog.Add($"git-cdn.magicbean.dev failed ({(e.Status is int s ? "HTTP " + s : "no answer")}): trying git.magicbean.dev");
+
     public async Task<string> GetTextAsync(string url, string? accept, CancellationToken cancel)
     {
         if (Enabled && ListCdnOf(url) is { } cdn)
         {
             try { return await inner.GetTextAsync(cdn, accept, cancel).ConfigureAwait(false); }
-            catch (FetchException e) when (FallsBack(e)) { }
+            catch (FetchException e) when (FallsBack(e)) { Fell(e); }
         }
         return await inner.GetTextAsync(url, accept, cancel).ConfigureAwait(false);
     }
@@ -97,6 +101,7 @@ public sealed class CdnFetcher(IFetcher inner, bool enabled = true) : IFetcher
         }
         catch (FetchException e) when (FallsBack(e))
         {
+            Fell(e);
             if (wrote > 0 || (to.CanSeek && to.Position != start))
             {
                 if (!to.CanSeek) throw;

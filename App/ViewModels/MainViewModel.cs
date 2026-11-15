@@ -150,6 +150,31 @@ public sealed class MainViewModel : ViewModelBase
         _ = Task.Delay(2800).ContinueWith(_ => Ui.Post(() => { if (toastId == id) Toast = null; }), TaskScheduler.Default);
     }
 
+    // ---- Copy for a bug report ----
+
+    /// A bug report (BugReport): what happened, as the screen said it, this launcher and PC, what the screen adds (more), and the
+    /// launcher's log of this run
+    public string Report(string what, IEnumerable<string>? more = null)
+    {
+        var layout = Program.Layout.Kind switch { LauncherKind.Installed => "installed", LauncherKind.Portable => "portable", _ => "not installed" };
+        var facts = new ReportFacts(
+            $"Longshot Launcher {Service.OwnTag} ({layout}), launcher channel {Service.LauncherChannel}, builds from {Service.DefaultChannel}",
+            BugReport.System(),
+            BugReport.Network(Service.Fetcher is CdnFetcher { Enabled: true }, HttpFetcher.ProxyFor(new Uri(Product.Server))));
+        return BugReport.Make(facts, what, more);
+    }
+
+    /// The report on the clipboard, and a toast saying what it holds
+    public async Task CopyReportAsync(string what, IEnumerable<string>? more = null)
+    {
+        if (Host is { } host) await host.CopyAsync(Report(what, more));
+        ShowToast(Tr.T("Copied for a bug report: what happened, the launcher's version, this PC's system and the launcher's log."));
+    }
+
+    /// Copy for a bug report, for a screen that shows a failure: what() is what it says now, more() what it adds (null for nothing)
+    public Command CopyReportCommand(Func<string> what, Func<IEnumerable<string>>? more = null) =>
+        new(() => _ = CopyReportAsync(what(), more?.Invoke()));
+
     /// A file dragged over the window in step 1: "Drop your game file to check it"
     public bool Dropping
     {

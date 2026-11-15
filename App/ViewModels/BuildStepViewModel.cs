@@ -469,20 +469,23 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
 
     public bool Running => running;
 
-    /// A bug report: the version, this PC, the settings and the log's last 200 lines
+    /// A bug report (MainViewModel.Report): why it stopped, then the build, this PC's memory and GPU, the settings and the build log's
+    /// last 200 lines, then the launcher's log
     public string Report(string why)
     {
         var s = Job.Service.Settings;
-        var sb = new StringBuilder();
-        sb.AppendLine($"Longshot Launcher {typeof(BuildStepViewModel).Assembly.GetName().Version?.ToString(3)}: {Job.Verb.Trim()} {Job.Version} ({Job.Channel})");
-        sb.AppendLine($"{System.Runtime.InteropServices.RuntimeInformation.OSDescription}, {SystemInfo.MemoryGb()} GB, {SystemInfo.Threads()} threads" +
-                      (Job.Service.Gpus.Count > 0 ? ", " + string.Join(" and ", Job.Service.Gpus) + " GPU" : ""));
-        sb.AppendLine($"settings: memory {(s.MemoryGb is int m ? m + " GB" : "automatic")}, workers {(s.BuildWorkers is int w ? w : "automatic")}, " +
-                      $"DLSS {(dlss ? "on" : "off")}, FSR 4 {(fsr ? "on" : s.Fsr ? "asked, not built" : "off")}");
-        sb.AppendLine("stopped: " + why);
-        sb.AppendLine();
-        foreach (var l in log.Last(200)) sb.AppendLine(l);
-        return sb.ToString();
+        var more = new List<string>
+        {
+            $"build: {Job.Verb.Trim()} {Job.Version} ({Job.Channel})",
+            $"PC: {SystemInfo.MemoryGb()} GB, {SystemInfo.Threads()} threads" +
+            (Job.Service.Gpus.Count > 0 ? ", " + string.Join(" and ", Job.Service.Gpus) + " GPU" : ""),
+            $"settings: memory {(s.MemoryGb is int m ? m + " GB" : "automatic")}, workers {(s.BuildWorkers is int w ? w : "automatic")}, " +
+            $"DLSS {(dlss ? "on" : "off")}, FSR 4 {(fsr ? "on" : s.Fsr ? "asked, not built" : "off")}",
+            "",
+            "build log, its last 200 lines:",
+        };
+        more.AddRange(log.Last(200));
+        return Job.Main.Report("the build stopped: " + why, more);
     }
 }
 

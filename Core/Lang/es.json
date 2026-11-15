@@ -607,5 +607,6 @@
   "The file is not there any more.": "El archivo ya no está.",
   "This is not a Vulkan FSR 4 library (.so).": "Esto no es una biblioteca Vulkan FSR 4 (.so).",
   "FSR 4 library": "Biblioteca FSR 4",
-  "Choose…": "Elegir…"
+  "Choose…": "Elegir…",
+  "Copied for a bug report: what happened, the launcher's version, this PC's system and the launcher's log.": "Copiado para un informe de errores: lo que pasó, la versión del launcher, el sistema de este PC y el registro del launcher."
 }

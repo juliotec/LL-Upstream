@@ -573,5 +573,6 @@
   "The file is not there any more.": "파일이 더 이상 없습니다.",
   "This is not a Vulkan FSR 4 library (.so).": "Vulkan FSR 4 라이브러리(.so)가 아닙니다.",
   "FSR 4 library": "FSR 4 라이브러리",
-  "Choose…": "선택…"
+  "Choose…": "선택…",
+  "Copied for a bug report: what happened, the launcher's version, this PC's system and the launcher's log.": "버그 신고용으로 복사함: 일어난 일, 런처 버전, 이 PC의 시스템, 런처 로그."
 }

@@ -30,6 +30,7 @@ public sealed class HookshotImportViewModel : ViewModelBase
         SettingsCommand = new Command(() => Main.Modal = new HookshotSettingsViewModel(Main));
         ReplaceCommand = new Command(() => Run(overwrite: true));
         KeepCommand = new Command(() => { chosen = null; RaiseAll(nameof(Asking), nameof(Listing)); });
+        CopyCommand = main.CopyReportCommand(() => "Hookshot's saves were not imported: " + (Problem ?? ""));
         Load(null);
     }
 
@@ -54,11 +55,18 @@ public sealed class HookshotImportViewModel : ViewModelBase
     public string? Problem
     {
         get => problem;
-        set { if (Set(ref problem, value)) Raise(nameof(HasProblem)); }
+        set
+        {
+            if (!Set(ref problem, value)) return;
+            Raise(nameof(HasProblem));
+            if (value != null) LauncherLog.Add("Hookshot saves import: " + value);
+        }
     }
     public bool HasProblem => problem != null;
 
     public Command CloseCommand { get; }
+    /// Copy for a bug report, under the problem
+    public Command CopyCommand { get; }
     public Command PickFolderCommand { get; }
     public Command SettingsCommand { get; }
     public Command ReplaceCommand { get; }

@@ -44,7 +44,10 @@
         </Border>
         <TextBlock Classes="hint" Text="{Binding SkippedText}" IsVisible="{Binding HasSkipped}" TextWrapping="Wrap" Margin="0,8,0,0"/>
         <Border Classes="warnbox" IsVisible="{Binding HasProblem}">
-          <TextBlock Text="{Binding Problem}" TextWrapping="Wrap"/>
+          <StackPanel Spacing="4">
+            <TextBlock Text="{Binding Problem}" TextWrapping="Wrap"/>
+            <Button Classes="link soft" HorizontalAlignment="Left" Content="{c:T 'Copy for a bug report'}" Command="{Binding CopyCommand}"/>
+          </StackPanel>
         </Border>
       </StackPanel>
     </ScrollViewer>

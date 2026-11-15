@@ -16,6 +16,9 @@ public sealed class ProblemPageViewModel : ViewModelBase
         Fix = problem.Fixes.FirstOrDefault(f => f.Kind == FixKind.DriverPage);
         FixCommand = new Command(() => { if (Fix?.Link is { } link) main.Host?.Open(link); }, () => Fix?.Link != null);
         CloseCommand = new Command(Close);
+        // (the problem in English, as Problems names it, and its signature: what identifies the same crash on another PC)
+        CopyCommand = main.CopyReportCommand(() => (crashed ? "the game closed unexpectedly: " : "") + problem.Headline,
+                                             () => new[] { $"problem: {problem.Kind}", $"signature: {problem.Signature ?? "none"}", "said: " + problem.Detail });
     }
 
     public Problem Problem { get; }
@@ -28,6 +31,7 @@ public sealed class ProblemPageViewModel : ViewModelBase
 
     public Command FixCommand { get; }
     public Command CloseCommand { get; }
+    public Command CopyCommand { get; }
 
     void Close() => back();
 }

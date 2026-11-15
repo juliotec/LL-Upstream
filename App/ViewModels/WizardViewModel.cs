@@ -124,8 +124,9 @@ public sealed class FilesStepViewModel : ViewModelBase, IWizardPage
     readonly Stopwatch toolsClock = new();
     bool checking;
 
-    /// tools: start the tools' download (the screenshots show it at a set point instead)
-    public FilesStepViewModel(BuildJob job, bool tools = true)
+    /// tools: start the tools' download (the screenshots show it at a set point instead); search: look for game files in this PC's
+    /// folders (the screenshots don't: nothing of the PC they are drawn on shows)
+    public FilesStepViewModel(BuildJob job, bool tools = true, bool search = true)
     {
         Job = job;
         job.Files = this;
@@ -135,6 +136,7 @@ public sealed class FilesStepViewModel : ViewModelBase, IWizardPage
         FoldersCommand = new Command(() => _ = FoldersAsync());
         // (only after a failure: a second click while it downloads again starts nothing)
         RetryCommand = new Command(StartTools, () => toolsFailed);
+        CopyToolsReportCommand = job.Main.CopyReportCommand(() => ToolsNote, () => new[] { $"tools: {Job.Version} ({Job.Channel})" });
         RequirementsCommand = new Command(() => Main.Host?.Open(SystemRequirements.Url));
         _ = Task.Run(() => SystemRequirements.Check(job.InstallDir)).ContinueWith(task => Ui.Post(() =>
         {
@@ -143,7 +145,8 @@ public sealed class FilesStepViewModel : ViewModelBase, IWizardPage
             RaiseAll(nameof(RequirementsSummary), nameof(RequirementsDetail), nameof(RequirementsGreen), nameof(RequirementsYellow), nameof(RequirementsRed), nameof(RequirementsGray));
         }));
         if (tools) StartTools();
-        StartSearch();
+        if (search) StartSearch();
+        else searching = false;
     }
 
     RequirementResult requirements = new(RequirementStatus.Gray, Tr.T("Checking this PC…"), Tr.T("Checking OS, memory, storage and Vulkan support."));
@@ -220,6 +223,7 @@ public sealed class FilesStepViewModel : ViewModelBase, IWizardPage
             catch (Exception e) when (e is FetchException or IOException or InvalidDataException or FormatException or UnauthorizedAccessException
                                           or ArgumentException)
             {
+                LauncherLog.Add($"tools for {Job.Version} failed: {e.GetType().Name}: {e.Message}");
                 Ui.Post(() =>
                 {
                     toolsFailed = true;
@@ -265,6 +269,14 @@ public sealed class FilesStepViewModel : ViewModelBase, IWizardPage
         Job.ToolsDownloaded = true;
         toolsDone = fraction >= 1;
         ToolsFraction = fraction;
+        RaiseTools();
+    }
+
+    /// For the screenshots: the tools' download failed, saying why
+    public void ShowToolsFailed(string why)
+    {
+        toolsFailed = true;
+        toolsProblem = why;
         RaiseTools();
     }
 
@@ -415,6 +427,8 @@ public sealed class FilesStepViewModel : ViewModelBase, IWizardPage
     public Command BrowseCommand { get; }
     public Command FoldersCommand { get; }
     public Command RetryCommand { get; }
+    /// Copy for a bug report, under the tools' failure: what the download said (cut short on the line), and the launcher's log
+    public Command CopyToolsReportCommand { get; }
 
     void Back()
     {

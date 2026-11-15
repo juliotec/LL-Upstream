@@ -6,6 +6,7 @@
              x:DataType="vm:ProblemPageViewModel">
   <DockPanel>
     <Grid DockPanel.Dock="Bottom" ColumnDefinitions="*,Auto" Margin="0,14,0,0">
+      <Button Classes="link soft" VerticalAlignment="Center" Content="{c:T 'Copy for a bug report'}" Command="{Binding CopyCommand}"/>
       <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
         <Button Content="{c:T 'Close'}" Command="{Binding CloseCommand}"/>
       </StackPanel>

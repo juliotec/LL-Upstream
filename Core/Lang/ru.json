@@ -621,5 +621,6 @@
   "The file is not there any more.": "Файла больше нет.",
   "This is not a Vulkan FSR 4 library (.so).": "Это не библиотека Vulkan FSR 4 (.so).",
   "FSR 4 library": "Библиотека FSR 4",
-  "Choose…": "Выбрать…"
+  "Choose…": "Выбрать…",
+  "Copied for a bug report: what happened, the launcher's version, this PC's system and the launcher's log.": "Скопировано для отчёта об ошибке: что произошло, версия лаунчера, система этого ПК и журнал лаунчера."
 }

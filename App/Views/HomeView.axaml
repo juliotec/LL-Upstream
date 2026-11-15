@@ -87,7 +87,10 @@
       <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
         <c:Icon Kind="alert" Foreground="{StaticResource Warn}" VerticalAlignment="Top"/>
         <TextBlock Grid.Column="1" Text="{Binding Notice}" TextWrapping="Wrap"/>
-        <Button Grid.Column="2" Classes="link soft" Content="{c:T 'Dismiss'}" Command="{Binding DismissProblemCommand}" VerticalAlignment="Top"/>
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="12" VerticalAlignment="Top">
+          <Button Classes="link soft" Content="{c:T 'Copy for a bug report'}" Command="{Binding CopyNoticeReportCommand}"/>
+          <Button Classes="link soft" Content="{c:T 'Dismiss'}" Command="{Binding DismissProblemCommand}"/>
+        </StackPanel>
       </Grid>
     </Border>
 
@@ -137,6 +140,7 @@
           <TextBlock Classes="note" Text="{Binding CheckFailedText}"/>
           <Button Classes="link" Content="{c:T 'Change'}" Command="{Binding ChannelCommand}" IsVisible="{Binding ChannelEmpty}"/>
           <Button Classes="link" Content="{c:T 'Try again'}" Command="{Binding RetryCheckCommand}"/>
+          <Button Classes="link soft" Content="{c:T 'Copy for a bug report'}" Command="{Binding CopyCheckReportCommand}" IsVisible="{Binding ShowCheckReport}"/>
         </StackPanel>
         <!-- why: no address, no connection, a timeout, an HTTP error, or a release refused -->
         <TextBlock Classes="note" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" MaxWidth="560" Margin="0,4,0,0"
@@ -288,6 +292,8 @@
             </Button>
           </Grid>
           <TextBlock Classes="faint" Text="{Binding Status}" TextWrapping="Wrap" Margin="0,4,0,0" IsVisible="{Binding ShowStatus}"/>
+          <Button Classes="link soft" HorizontalAlignment="Left" Margin="0,2,0,0" Content="{c:T 'Copy for a bug report'}"
+                  Command="{Binding CopyCheckReportCommand}" IsVisible="{Binding ShowStatusReport}"/>
           <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,4,0,0" IsVisible="{Binding CheckCommand.IsBusy}">
             <c:Spinner Width="12" Height="12" VerticalAlignment="Center"/>
             <TextBlock Classes="faint" Text="{Binding CheckCommand.Status}"/>
