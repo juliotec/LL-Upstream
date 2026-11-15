@@ -149,6 +149,8 @@ public sealed class HomeViewModel : ViewModelBase
             try { Service.SaveSettings(); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
             Nx2naviOffer = null;
         });
+        KeepLeftoversCommand = new Command(KeepLeftovers, () => !deletingLeftovers);
+        DeleteLeftoversCommand = new Command(() => _ = DeleteLeftoversAsync(), () => !deletingLeftovers);
     }
 
     public MainViewModel Main { get; }
@@ -290,7 +292,8 @@ public sealed class HomeViewModel : ViewModelBase
 
     /// A build may start: not while the check may still change what is newest, nor while the launcher replaces itself (it closes
     /// at the end, and a build would stop with it)
-    public bool CanStartBuild => !CheckCommand.IsBusy && !UpdateLauncherCommand.IsBusy;
+    /// (not while old versions' folders are deleted either: a new build may be given an unlisted game folder, BuildRegistry.NewFolder)
+    public bool CanStartBuild => !CheckCommand.IsBusy && !UpdateLauncherCommand.IsBusy && !deletingLeftovers;
 
     void BusyChanged()
     {
@@ -334,6 +337,108 @@ public sealed class HomeViewModel : ViewModelBase
             }
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or SaveFailure) { }
+    }
+
+    // ---- the old versions' folders updates left on the disk: Keep or Delete ----
+
+    IReadOnlyList<Leftover> leftovers = Array.Empty<Leftover>();
+    long? leftoverFrees;
+    bool deletingLeftovers;
+
+    public bool HasLeftoverOffer => leftovers.Count > 0;
+    public Command KeepLeftoversCommand { get; }
+    public Command DeleteLeftoversCommand { get; }
+
+    /// Which old versions, where, and what deleting them frees once measured
+    public string LeftoverOffer
+    {
+        get
+        {
+            if (leftovers.Count == 0) return "";
+            var names = string.Join(Tr.T(", "), leftovers.Select(l => l.Shown));
+            var where = ShownPath.Of(Service.BuildsFolder);
+            var what = Tr.P(leftovers.Count,
+                            "An update left the old version {1} in {2}, with no row in your versions. Nothing of yours is in it: your saves are in the shared folder.",
+                            "Updates left {0} old versions in {2}, with no row in your versions: {1}. Nothing of yours is in them: your saves are in the shared folder.",
+                            names, where);
+            return Tr.Sentences(what, leftoverFrees is long b && b > 0 ? Tr.F("Delete frees {0}.", Durations.Size(b)) : "");
+        }
+    }
+
+    /// Looks for them once, as the home opens (after Saves.Gather took their saves in), and measures them in the background
+    void OfferLeftovers()
+    {
+        IReadOnlyList<Leftover> found;
+        try { found = Service.FindLeftovers(); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { found = Array.Empty<Leftover>(); }
+        ShowLeftovers(found);
+        if (leftovers.Count == 0) return;
+        var measuring = leftovers;
+        _ = Task.Run(() =>
+        {
+            long? frees = null;
+            try { frees = LauncherService.LeftoverFrees(measuring); }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+            Ui.Post(() =>
+            {
+                if (!ReferenceEquals(measuring, leftovers)) return;
+                leftoverFrees = frees;
+                Raise(nameof(LeftoverOffer));
+            });
+        });
+    }
+
+    /// The offer for these folders, with what deleting them frees when measured (also the screenshots' stand-in for the disk)
+    public void ShowLeftovers(IReadOnlyList<Leftover> found, long? frees = null)
+    {
+        leftovers = found;
+        leftoverFrees = frees;
+        RaiseAll(nameof(HasLeftoverOffer), nameof(LeftoverOffer));
+    }
+
+    /// Keep: they stay, and are not offered again
+    void KeepLeftovers()
+    {
+        foreach (var l in leftovers)
+            if (!Service.Settings.KeptFolders.Any(k => BuildRegistry.SameFolder(k, l.Folder))) Service.Settings.KeptFolders.Add(l.Folder);
+        try { Service.SaveSettings(); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+        leftovers = Array.Empty<Leftover>();
+        RaiseAll(nameof(HasLeftoverOffer), nameof(LeftoverOffer));
+    }
+
+    /// Delete: each folder off the window's thread (tens of GB), never while Longshot runs (Windows would stop half-way)
+    async Task DeleteLeftoversAsync()
+    {
+        if (leftovers.Count == 0 || deletingLeftovers) return;
+        if (Saves.Running(Service.Platform).Contains(Saves.Longshot.Display))
+        {
+            Notice = Tr.T("Close Longshot first: the old versions are not deleted while a game runs.");
+            return;
+        }
+        var doing = leftovers;
+        var frees = leftoverFrees;
+        deletingLeftovers = true;
+        KeepLeftoversCommand.Changed();
+        DeleteLeftoversCommand.Changed();
+        BusyChanged();
+        Main.ShowToast(Tr.P(doing.Count, "Deleting the old version…", "Deleting the {0} old versions…"));
+        var failed = new List<string>();
+        foreach (var l in doing)
+        {
+            try { await Task.Run(() => Service.DeleteLeftover(l)); }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { failed.Add(Tr.F("{0} could not be deleted: {1}", l.Folder, e.Message)); }
+        }
+        deletingLeftovers = false;
+        KeepLeftoversCommand.Changed();
+        DeleteLeftoversCommand.Changed();
+        BusyChanged();
+        leftovers = Array.Empty<Leftover>();
+        RaiseAll(nameof(HasLeftoverOffer), nameof(LeftoverOffer));
+        if (failed.Count > 0) Notice = string.Join("\n", failed);
+        else Main.ShowToast(frees is long b && b > 0
+            ? Tr.P(doing.Count, "Deleted the old version, {1} freed.", "Deleted the {0} old versions, {1} freed.", Durations.Size(b))
+            : Tr.P(doing.Count, "Deleted the old version.", "Deleted the {0} old versions."));
+        Refresh();
     }
 
     // ---- the offer to import Hookshot's saves (once: until it is answered) ----
@@ -409,6 +514,7 @@ public sealed class HomeViewModel : ViewModelBase
         Notice = notes.Count > 0 ? string.Join("\n", notes) : null;
         OfferHookshot();
         OfferNx2navi();
+        OfferLeftovers();
         Refresh();
     }
 

@@ -48,6 +48,8 @@ public sealed class LauncherSettings
     public bool HookshotSavesAsked { get; set; }
     /// The player answered the offer to import NX2navi's saves (imported, or Not now)
     public bool Nx2naviSavesAsked { get; set; }
+    /// The old versions' folders the player chose to keep when the home offered to delete them (Leftovers): not offered again
+    public List<string> KeptFolders { get; set; } = new();
     /// Where new builds go, each in its own folder (FolderFor); null: DefaultBuildsFolder
     public string? BuildsFolder { get; set; }
     /// Ask git.magicbean.dev for each channel's newest version when the launcher starts

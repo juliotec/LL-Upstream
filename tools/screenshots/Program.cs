@@ -79,6 +79,17 @@ static class Program
         new("home-notice", "The home with a notice, Copy for a bug report", Platform.Windows, null, _ => null,
             m => m.Home.Notice = "The launcher could not update itself: The connection to git-cdn.magicbean.dev was cut. A firewall, antivirus or VPN " +
                                  "may be blocking the site. (Connection reset by peer)"),
+        // (the old versions' folders updates left before they stayed in their build's folder: Keep or Delete)
+        new("home-leftovers", "The home offering to delete the old versions' folders updates left on the disk", Platform.Windows,
+            s => s.Registry.Add(@"C:\Users\Player\Games\Longshot\nightly-189-aa95d35f", "nightly-189-aa95d35f", Versions.Nightly, makeDefault: true),
+            _ => null,
+            m => m.Home.ShowLeftovers([new Leftover(@"C:\Users\Player\Games\Longshot\nightly-130-0caf0618", "nightly-130-0caf0618"),
+                                       new Leftover(@"C:\Users\Player\Games\Longshot\nightly-77-9f64464b", "nightly-77-9f64464b")],
+                                      78_400_000_000)),
+        new("home-leftover", "The same offer for one old version", Platform.Windows,
+            s => s.Registry.Add(@"C:\Users\Player\Games\Longshot\nightly-189-aa95d35f", "nightly-189-aa95d35f", Versions.Nightly, makeDefault: true),
+            _ => null,
+            m => m.Home.ShowLeftovers([new Leftover(@"C:\Users\Player\Games\Longshot\nightly-130-0caf0618", "nightly-130-0caf0618")], 38_900_000_000)),
         new("tools-failed", "Step 1, the tools' download failed, Copy for a bug report", Platform.Windows, null,
             m => Files(m, "git.magicbean.dev did not answer in time. The server may be down or busy, or the network slow or blocking it: try again in a few minutes.")),
         // (Linux paths: a Windows path is not split into its folder and name on the Linux PCs the screenshots are drawn on)

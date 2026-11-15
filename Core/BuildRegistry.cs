@@ -321,7 +321,7 @@ public sealed class BuildRegistry
     }
 
     /// path is folder or somewhere under it
-    static bool Holds(string folder, string path)
+    internal static bool Holds(string folder, string path)
     {
         if (SameFolder(folder, path)) return true;
         var windows = OperatingSystem.IsWindows() || folder.Contains('\\') || path.Contains('\\');

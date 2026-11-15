@@ -335,7 +335,11 @@ Calls made here, most of them the design mockup's; each can be changed:
 - **A new build's folder is named after its channel**: `<builds>/nightly`, `rc` or `stable`, then `nightly (2)` and so
   on, never over a folder that holds other things. Not after its version, which would be the wrong one after the first
   update. Folders named after a version are what updates left before this: one for every update, no longer in the list
-  of versions. They stay on the disk; nothing deletes them yet.
+  of versions. **The home offers to delete them** (*Old versions left on the disk*: Keep or Delete; `Leftovers`): the game
+  folders in the builds folder that no build lists, once nothing of the player's is in them (no save left in `user/save`,
+  which `Saves.Gather` takes in first on Windows; neither `user/` nor `user/save` a link; nothing in `mods/`), and never
+  one that holds a build's folder or the launcher's home. It says what deleting them frees (their files with no hard link
+  outside them), deletes nothing while Longshot runs, and Keep is remembered (`KeptFolders` in settings.json).
 - **An update keeps the shader caches.** The game keeps its translated shaders and pipelines in its folder's `cache/`
   (10 GB and minutes of preparing), good for one shader translator. An update in its build's folder keeps them where they
   are; the game drops them itself when its translator stamp differs. An update the player moves to another folder (step 2)

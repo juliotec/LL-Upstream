@@ -44,7 +44,8 @@ shared folder by itself (`Saves.Gather`):
 - **Every one is backed up first,** whole, in one folder: `oot-save-backups\gather-<yyyyMMdd-HHmmss>\<game folder name>`
   (`shared` for the one that was already shared). The home says once which save was kept and where the backup is.
 - **Nothing is deleted.** Each old `save` folder is renamed `save.moved-<yyyyMMdd-HHmmss>` beside it, so the game no longer
-  finds it there.
+  finds it there. A folder an update left behind (no longer listed) is then offered for deletion on the home, `save.moved-*`
+  with it: the backup above keeps its save.
 - **Never while Longshot runs:** the next start tries again. A failure changes nothing and says why.
 
 ## Importing

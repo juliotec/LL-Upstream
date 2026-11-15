@@ -334,6 +334,20 @@ public sealed class LauncherService
         Registry.Save();
     }
 
+    /// The old versions' folders an update left in the builds folder, with nothing of the player's in them (Leftovers.Find)
+    public IReadOnlyList<Leftover> FindLeftovers() =>
+        Leftovers.Find(BuildsFolder, Registry.Builds.Select(b => b.Folder), Platform, Settings.KeptFolders, new[] { Home.Root });
+
+    /// What deleting them frees: their files with no hard link outside them (Disk.Measure: a game file a build was linked to
+    /// stays with that build). Seconds for a game folder: off the window's thread
+    public static long LeftoverFrees(IReadOnlyList<Leftover> leftovers) =>
+        Disk.Measure(leftovers.Select(l => l.Folder).ToList()).Sum(s => s.Frees);
+
+    /// An old version's folder deleted (BuildRegistry.DeleteFolder: a game folder only, never one that holds a build's or the
+    /// launcher's home)
+    public void DeleteLeftover(Leftover leftover) =>
+        BuildRegistry.DeleteFolder(leftover.Folder, Platform, Registry.Builds.Select(b => b.Folder).Append(Home.Root).ToList());
+
     /// What deleting a build's folder must leave: the other builds' folders and the launcher's home (BuildRegistry.DeleteFolder)
     public IReadOnlyList<string> KeepOf(BuildEntry b) => Registry.Builds.Where(x => x.Id != b.Id).Select(x => x.Folder).Append(Home.Root).ToList();
 
