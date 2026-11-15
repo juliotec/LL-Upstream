@@ -601,5 +601,11 @@
   "This file is damaged and could not be read. Copy or download it again, or try another dump of the game.": "Dit bestand is beschadigd en kon niet worden gelezen. Kopieer of download het opnieuw, of probeer een andere dump van het spel.",
   "The file could not be checked, because of this PC rather than the file: {0}": "Het bestand kon niet worden gecontroleerd, door deze pc en niet door het bestand: {0}",
   "The check stopped before it could tell anything about this file: {0}": "De controle stopte voordat er iets over dit bestand bekend was: {0}",
-  "Check again": "Opnieuw controleren"
+  "Check again": "Opnieuw controleren",
+  "What's new": "Wat is er nieuw",
+  "What's new in {0}": "Nieuw in {0}",
+  "Every version since yours ({0}), newest first.": "Elke versie sinds de jouwe ({0}), de nieuwste eerst.",
+  "You have {0}.": "Je hebt {0}.",
+  "This version's page has no notes.": "De pagina van deze versie heeft geen opmerkingen.",
+  "Open the release page": "Releasepagina openen"
 }

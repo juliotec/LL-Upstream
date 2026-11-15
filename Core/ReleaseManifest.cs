@@ -27,9 +27,10 @@ public sealed record ReleaseInfo(string Product, string Version, string Commit, 
                                  IReadOnlyDictionary<string, FileRef> Builder);
 
 /// A release as Forgejo's API lists it (GET /repos/{repo}/releases): its tag, whether it is a draft or a pre-release, its
-/// files (name, download link, size), its page and its commit
+/// files (name, download link, size), its page, its commit, and its page's text (Body: the markdown the release workflow and
+/// the What's new above it wrote; ReleaseNotes reads it)
 public sealed record ListedRelease(string Tag, bool Draft, bool Prerelease, DateTimeOffset? Published, string? Page, string Commit,
-                                   IReadOnlyList<(string Name, string Url, long Size)> Assets);
+                                   IReadOnlyList<(string Name, string Url, long Size)> Assets, string? Body = null);
 
 /// Reading Forgejo's release list, and the channels from it (scripts/release.py newest has the same rules):
 ///   stable   the newest vX.Y.Z that is not a draft nor a pre-release
@@ -42,6 +43,7 @@ public static class ReleaseManifest
 {
     public const long MaxFile = 16L << 30;
     public const string Sums = "SHA256SUMS", Sig = "SHA256SUMS.sig", ToolsLock = "tools.lock";
+    public const int MaxBody = 64 << 10;
 
     public static string PlatformKey(Platform platform) => platform == Platform.Windows ? "windows-x64" : "linux-x64";
 
@@ -102,8 +104,10 @@ public static class ReleaseManifest
         DateTimeOffset? published = Opt(r, "published_at") is { } p
             && DateTimeOffset.TryParse(p, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var when) ? when : null;
         var page = Opt(r, "html_url") is { } h && h.StartsWith("https://", StringComparison.Ordinal) ? h : null;
+        // (a page's text is a few KB; one far larger is cut, so a list of them stays small in memory)
+        var body = Opt(r, "body") is { } b ? b.Length > MaxBody ? b[..MaxBody] : b : null;
         return new ListedRelease(Opt(r, "tag_name") ?? "", Flag(r, "draft"), Flag(r, "prerelease"), published, page,
-                                 Opt(r, "target_commitish") ?? "", assets);
+                                 Opt(r, "target_commitish") ?? "", assets, body);
     }
 
     /// What a channel offers from the list, null when nothing

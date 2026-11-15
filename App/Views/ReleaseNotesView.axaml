@@ -1,0 +1,40 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:c="using:LongshotLauncher.Controls"
+             xmlns:vm="using:LongshotLauncher.ViewModels"
+             x:Class="LongshotLauncher.Views.ReleaseNotesView"
+             x:DataType="vm:ReleaseNotesViewModel">
+  <Border Classes="dialog wide">
+    <StackPanel>
+      <TextBlock Classes="modaltitle" Text="{Binding Title}"/>
+      <TextBlock Classes="sub" Text="{Binding Sub}" IsVisible="{Binding HasSub}"/>
+      <!-- the notes, each version's page after the downloads at its top (ReleaseNotes.Text) -->
+      <Border Margin="0,14,0,0" Padding="16,14,8,14" CornerRadius="8" Background="#26000000"
+              BorderBrush="{StaticResource GlassLine}" BorderThickness="1">
+        <ScrollViewer MaxHeight="380" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,0,10,0">
+          <ItemsControl ItemsSource="{Binding Notes}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate><StackPanel Spacing="18"/></ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:ReleaseNotesViewModel+Version">
+                <StackPanel>
+                  <TextBlock Classes="label" Margin="0,0,0,8" Text="{Binding Heading}" IsVisible="{Binding ShowHeading}"/>
+                  <TextBlock Classes="note" Text="{c:T 'This version\'s page has no notes.'}" IsVisible="{Binding Empty}"/>
+                  <c:Notes Blocks="{Binding Blocks}" Open="{Binding Open}"/>
+                </StackPanel>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+      </Border>
+      <Grid ColumnDefinitions="*,Auto" Margin="0,22,0,0">
+        <Button Classes="link" Content="{c:T 'Open the release page'}" Command="{Binding PageCommand}" VerticalAlignment="Center"/>
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
+          <Button Content="{c:T 'Close'}" Command="{Binding CloseCommand}"/>
+          <Button Classes="primary" Content="{Binding GoText}" Command="{Binding GoCommand}" IsVisible="{Binding CanGo}"/>
+        </StackPanel>
+      </Grid>
+    </StackPanel>
+  </Border>
+</UserControl>

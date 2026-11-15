@@ -43,9 +43,13 @@
           <c:Bar Height="4" Margin="0,6,0,2" Fill="{StaticResource Brand}"
                  Value="{Binding UpdateLauncherCommand.Progress}" IsVisible="{Binding UpdateLauncherCommand.HasFraction}"/>
         </StackPanel>
-        <Button Grid.Column="2" Classes="small" Command="{Binding UpdateLauncherCommand}" VerticalAlignment="Center">
-          <c:BusyContent Content="{Binding LauncherUpdateButton}" IsBusy="{Binding UpdateLauncherCommand.IsBusy}" BusyText="{c:T 'Updating…'}"/>
-        </Button>
+        <!-- What's new in it (ReleaseNotesViewModel), then the update -->
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="14" VerticalAlignment="Center">
+          <Button Classes="link" Content="{c:T 'What\'s new'}" Command="{Binding LauncherNotesCommand}"/>
+          <Button Classes="small" Command="{Binding UpdateLauncherCommand}">
+            <c:BusyContent Content="{Binding LauncherUpdateButton}" IsBusy="{Binding UpdateLauncherCommand.IsBusy}" BusyText="{c:T 'Updating…'}"/>
+          </Button>
+        </StackPanel>
       </Grid>
     </Border>
     <!-- Hookshot's saves found, offered once -->
@@ -175,8 +179,12 @@
           </Button>
           <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,14,0,0" IsVisible="{Binding HeroHasUpdate}">
             <c:Icon Kind="arrowUp" Width="15" Height="15" Foreground="{StaticResource BrandInk}" VerticalAlignment="Center"/>
-            <TextBlock FontSize="13" Foreground="{StaticResource BrandInk}" Text="{Binding HeroUpdate}" VerticalAlignment="Center"/>
+            <TextBlock FontSize="13" Foreground="{StaticResource BrandInk}" Text="{Binding HeroUpdate}" VerticalAlignment="Center"
+                       TextWrapping="Wrap"/>
           </StackPanel>
+          <!-- What's new in it: every version since the default's, newest first (ReleaseNotesViewModel) -->
+          <Button Classes="link" Margin="21,4,0,0" HorizontalAlignment="Left" Content="{c:T 'What\'s new'}" Command="{Binding NotesDefaultCommand}"
+                  IsVisible="{Binding HeroHasUpdate}"/>
           <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,26,0,0">
             <Button Classes="go" Command="{Binding PlayDefaultCommand}">
               <StackPanel Orientation="Horizontal" Spacing="8">
@@ -262,6 +270,8 @@
                               </Button>
                             </StackPanel>
                             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+                              <Button Classes="link smaller" Margin="0,0,6,0" Content="{c:T 'What\'s new'}" Command="{Binding NotesCommand}"
+                                      IsVisible="{Binding HasUpdate}"/>
                               <Button Classes="small" Command="{Binding SavesCommand}" ToolTip.Tip="{c:T 'Import or export your saves, which every version shares'}">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                   <c:Icon Kind="disk" Width="14" Height="14"/>

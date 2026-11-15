@@ -633,5 +633,11 @@
   "This file is damaged and could not be read. Copy or download it again, or try another dump of the game.": "Этот файл повреждён, и его не удалось прочитать. Скопируйте или скачайте его заново или попробуйте другой дамп игры.",
   "The file could not be checked, because of this PC rather than the file: {0}": "Файл не удалось проверить из-за этого ПК, а не из-за файла: {0}",
   "The check stopped before it could tell anything about this file: {0}": "Проверка остановилась, прежде чем смогла что-либо сказать об этом файле: {0}",
-  "Check again": "Проверить снова"
+  "Check again": "Проверить снова",
+  "What's new": "Что нового",
+  "What's new in {0}": "Что нового в {0}",
+  "Every version since yours ({0}), newest first.": "Все версии после вашей ({0}), сначала новые.",
+  "You have {0}.": "У вас {0}.",
+  "This version's page has no notes.": "На странице этой версии нет примечаний.",
+  "Open the release page": "Открыть страницу выпуска"
 }

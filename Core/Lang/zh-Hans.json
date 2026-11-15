@@ -585,5 +585,11 @@
   "This file is damaged and could not be read. Copy or download it again, or try another dump of the game.": "此文件已损坏，无法读取。请重新复制或下载，或尝试另一份游戏转储。",
   "The file could not be checked, because of this PC rather than the file: {0}": "无法检查此文件，原因在于这台电脑而不是文件：{0}",
   "The check stopped before it could tell anything about this file: {0}": "检查在能判断此文件任何情况之前就停止了：{0}",
-  "Check again": "重新检查"
+  "Check again": "重新检查",
+  "What's new": "新内容",
+  "What's new in {0}": "{0} 的新内容",
+  "Every version since yours ({0}), newest first.": "自你的版本（{0}）以来的每个版本，最新的在前。",
+  "You have {0}.": "你的版本是 {0}。",
+  "This version's page has no notes.": "此版本的页面没有说明。",
+  "Open the release page": "打开发行页面"
 }

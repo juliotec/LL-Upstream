@@ -29,6 +29,9 @@ public sealed class Releases
     public string? Problem { get; private set; }
     /// Why the server did not answer the last list asked for (the FetchException's words: NetFailure); null when it answered
     public string? Unreachable { get; private set; }
+    /// The published releases the last list that answered gave, with their pages' text (ReleaseNotes: What's new on Home); null
+    /// before one answered. A list that did not answer keeps the one before (the screenshots set it)
+    public IReadOnlyList<ListedRelease>? Listed { get; set; }
 
     /// delay: the wait between tries (the tests pass none)
     public Releases(IFetcher fetcher, Platform platform, IReadOnlyList<ReleaseKey> keys, Func<TimeSpan, CancellationToken, Task>? delay = null,
@@ -59,7 +62,7 @@ public sealed class Releases
             var text = await TextAsync(ListUrl(page), 2, cancel).ConfigureAwait(false);
             if (text == null)
             {
-                if (page > 1) return all;
+                if (page > 1) return Listed = all;
                 Unreachable = lastFailure;
                 return null;
             }
@@ -73,6 +76,7 @@ public sealed class Releases
             all.AddRange(got.Where(r => !r.Draft));
             if (got.Count < 50) break;
         }
+        Listed = all;
         return all;
     }
 

@@ -585,5 +585,11 @@
   "This file is damaged and could not be read. Copy or download it again, or try another dump of the game.": "このファイルは破損しているため読み込めませんでした。もう一度コピーまたはダウンロードするか、別のゲームのダンプを試してください。",
   "The file could not be checked, because of this PC rather than the file: {0}": "ファイルではなくこの PC の問題で、ファイルを確認できませんでした: {0}",
   "The check stopped before it could tell anything about this file: {0}": "このファイルについて何かわかる前に確認が止まりました: {0}",
-  "Check again": "再確認"
+  "Check again": "再確認",
+  "What's new": "新機能",
+  "What's new in {0}": "{0} の新機能",
+  "Every version since yours ({0}), newest first.": "お使いのバージョン（{0}）以降のすべてのバージョン（新しい順）。",
+  "You have {0}.": "お使いのバージョンは {0} です。",
+  "This version's page has no notes.": "このバージョンのページにはノートがありません。",
+  "Open the release page": "リリースページを開く"
 }

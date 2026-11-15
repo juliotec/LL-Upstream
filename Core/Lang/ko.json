@@ -585,5 +585,11 @@
   "This file is damaged and could not be read. Copy or download it again, or try another dump of the game.": "이 파일이 손상되어 읽을 수 없었습니다. 다시 복사하거나 다운로드하거나, 다른 게임 덤프를 사용해 보세요.",
   "The file could not be checked, because of this PC rather than the file: {0}": "파일이 아니라 이 PC 때문에 파일을 확인할 수 없었습니다: {0}",
   "The check stopped before it could tell anything about this file: {0}": "이 파일에 대해 알아내기 전에 확인이 멈췄습니다: {0}",
-  "Check again": "다시 확인"
+  "Check again": "다시 확인",
+  "What's new": "새로운 기능",
+  "What's new in {0}": "{0}의 새로운 기능",
+  "Every version since yours ({0}), newest first.": "현재 버전({0}) 이후의 모든 버전, 최신순.",
+  "You have {0}.": "현재 버전은 {0}입니다.",
+  "This version's page has no notes.": "이 버전의 페이지에는 노트가 없습니다.",
+  "Open the release page": "릴리스 페이지 열기"
 }

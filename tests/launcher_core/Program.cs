@@ -59,6 +59,7 @@ static partial class Program
         AtomicChecks();
         VersionChecks(vectors.RootElement);
         await ReleaseChecks(Path.Combine(fixtures, "release"));
+        ReleaseNotesChecks();
         await SelfUpdateChecks();
         await InstallChecks();
         await ToolchainChecks();
@@ -259,6 +260,8 @@ static partial class Program
         Require(await longshot.NewestAsync("stable") == "v3.0.0" && await longshot.NewestAsync("rc") == "v3.1.0-rc.1"
                 && await longshot.NewestAsync("nightly") == "nightly-12-bbbbbbbb",
                 "Each channel's newest: stable, the newest release candidate (not a draft), the nightly by its count; never 2.x or tools.");
+        Require(longshot.Listed is { } listed && listed.Any(r => r.Tag == "v3.0.0") && !listed.Any(r => r.Draft),
+                "The list the check read is kept, without its drafts, for What's new.");
         var rc = (await longshot.ChannelAsync("rc"))!;
         Require(rc.Builder["linux-x64"].Size == image.Length && rc.Builder["linux-x64"].Sha256 == ShaOf(image) && rc.Tools.ContainsKey("windows-x64")
                 && rc.Commit == Commit && rc.Notes == "https://git.magicbean.dev/MagicBeanDev/Longshot/releases/tag/v3.1.0-rc.1",

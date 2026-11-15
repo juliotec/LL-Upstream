@@ -187,10 +187,20 @@ public sealed class LauncherService
 
     public string? UpdateFor(BuildEntry b) => UpdatePolicy.UpdateTo(b, newest);
 
+    /// What's new from a build's version to the one offered, from the list the update check read (ReleaseNotes)
+    public IReadOnlyList<ReleaseNote> NotesFor(string? have, string offered) => ReleaseNotes.Between(Releases.Listed, have, offered, Product.Longshot);
+
+    /// What's new from this launcher to the one its channel offers; empty when none is offered
+    public IReadOnlyList<ReleaseNote> LauncherNotes() =>
+        LauncherUpdate is { } u ? ReleaseNotes.Between(LauncherReleases.Listed, OwnTag, u.Version, Product.Launcher) : Array.Empty<ReleaseNote>();
+
     public string? NewestOf(string channel) => newest.TryGetValue(channel, out var v) ? v : null;
 
     /// What a channel's newest is, as the update check found it (also the screenshots' stand-in for the server)
     public void SetNewest(string channel, string? tag) => newest[channel] = tag;
+
+    /// The launcher the update check offers (the screenshots' stand-in for the server)
+    public void SetLauncherUpdate(ReleaseInfo? release) => LauncherUpdate = release;
 
     /// The build's game, from its folder (no window of the launcher needed). Returns what the window says first, if anything: the
     /// saves brought together before it started (PlayFolder)

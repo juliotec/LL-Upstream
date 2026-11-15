@@ -25,6 +25,7 @@ public sealed class BuildItemViewModel : ViewModelBase
         UpdateCommand = new Command(() => home.UpdateBuild(this), () => !IsDeleting && home.CanStartBuild);
         SavesCommand = new Command(() => home.Main.ShowSaves(), () => !IsDeleting);
         FolderCommand = new Command(() => home.Main.Host?.Open(Entry.Folder));
+        NotesCommand = new Command(() => home.ShowNotes(this), () => HasUpdate);
     }
 
     /// Its folder is being deleted (DeleteViewModel): the row says so with a spinner until it goes
@@ -85,6 +86,8 @@ public sealed class BuildItemViewModel : ViewModelBase
     public Command SetDefaultCommand { get; }
     public Command DeleteCommand { get; }
     public Command UpdateCommand { get; }
+    /// What's new in its update (ReleaseNotesViewModel)
+    public Command NotesCommand { get; }
     public Command SavesCommand { get; }
     public Command FolderCommand { get; }
 }
@@ -119,6 +122,8 @@ public sealed class HomeViewModel : ViewModelBase
         UpdateDefaultCommand = new Command(() => { if (Default is { } d) UpdateBuild(d); }, () => CanStartBuild && Default?.IsDeleting != true);
         SavesDefaultCommand = new Command(() => Main.ShowSaves());
         CancelLauncherUpdateCommand = new Command(() => UpdateLauncherCommand.Cancel());
+        NotesDefaultCommand = new Command(() => { if (Default is { } d) ShowNotes(d); });
+        LauncherNotesCommand = new Command(ShowLauncherNotes, () => HasLauncherUpdate);
         // (not while the launcher updates itself: a check forgets the update it is putting in place)
         CheckForUpdatesCommand = new Command(() =>
         {
@@ -270,6 +275,10 @@ public sealed class HomeViewModel : ViewModelBase
     public Command UpdateDefaultCommand { get; }
     public Command SavesDefaultCommand { get; }
     public BusyCommand UpdateLauncherCommand { get; }
+    /// What's new in the default version's update, beside it
+    public Command NotesDefaultCommand { get; }
+    /// What's new in the launcher the banner offers
+    public Command LauncherNotesCommand { get; }
     /// Stops the launcher's download (only while it downloads: BusyCommand.CanCancel)
     public Command CancelLauncherUpdateCommand { get; }
     /// The check running with a version already known (Try again after an answer, a channel switch): a line with a spinner; the
@@ -423,6 +432,7 @@ public sealed class HomeViewModel : ViewModelBase
         PlayDefaultCommand.Changed();
         UpdateDefaultCommand.Changed();
         UpdateLauncherCommand.Changed();
+        LauncherNotesCommand.Changed();
         Service.Measure(() => { foreach (var b in Builds) b.RaiseMeta(); Raise(nameof(Footer)); });
     }
 
@@ -527,6 +537,21 @@ public sealed class HomeViewModel : ViewModelBase
     public void Deleting(BuildEntry b, bool on)
     {
         if (on ? deleting.Add(b.Id) : deleting.Remove(b.Id)) Refresh();
+    }
+
+    /// What's new from a build's version to its update, with Update in the dialog
+    public void ShowNotes(BuildItemViewModel b)
+    {
+        if (b.Update is not { } to) return;
+        ReleaseNotesViewModel.Show(Main, Product.Longshot, b.Entry.Version, to, Service.NotesFor(b.Entry.Version, to), Tr.T("Update"),
+                                   CanStartBuild && !b.IsDeleting ? () => UpdateBuild(b) : null);
+    }
+
+    void ShowLauncherNotes()
+    {
+        if (Service.LauncherUpdate is not { } r) return;
+        ReleaseNotesViewModel.Show(Main, Product.Launcher, Service.OwnTag, r.Version, Service.LauncherNotes(), LauncherUpdateButton,
+                                   UpdateLauncherCommand.CanExecute(null) ? () => UpdateLauncherCommand.Execute(null) : null);
     }
 
     public void UpdateBuild(BuildItemViewModel b)

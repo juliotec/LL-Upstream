@@ -165,6 +165,7 @@
             <DataTemplate DataType="vm:SavePickViewModel"><views:SavePickView/></DataTemplate>
             <DataTemplate DataType="vm:HookshotImportViewModel"><views:HookshotImportView/></DataTemplate>
             <DataTemplate DataType="vm:HookshotSettingsViewModel"><views:HookshotSettingsView/></DataTemplate>
+            <DataTemplate DataType="vm:ReleaseNotesViewModel"><views:ReleaseNotesView/></DataTemplate>
           </ContentControl.DataTemplates>
         </ContentControl>
       </Border>

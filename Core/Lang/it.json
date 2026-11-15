@@ -617,5 +617,11 @@
   "This file is damaged and could not be read. Copy or download it again, or try another dump of the game.": "Questo file è danneggiato e non è stato possibile leggerlo. Copialo o scaricalo di nuovo, oppure prova un altro dump del gioco.",
   "The file could not be checked, because of this PC rather than the file: {0}": "Non è stato possibile verificare il file, a causa di questo PC e non del file: {0}",
   "The check stopped before it could tell anything about this file: {0}": "La verifica si è fermata prima di poter dire qualcosa su questo file: {0}",
-  "Check again": "Verifica di nuovo"
+  "Check again": "Verifica di nuovo",
+  "What's new": "Novità",
+  "What's new in {0}": "Novità di {0}",
+  "Every version since yours ({0}), newest first.": "Ogni versione dalla tua ({0}), dalla più recente.",
+  "You have {0}.": "Hai {0}.",
+  "This version's page has no notes.": "La pagina di questa versione non ha note.",
+  "Open the release page": "Apri la pagina della versione"
 }

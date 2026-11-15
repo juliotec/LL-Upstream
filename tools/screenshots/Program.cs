@@ -88,9 +88,52 @@ static class Program
                                                          "If it happens again at the same place, the latest graphics driver is worth a try.",
                                                          [new Fix(FixKind.DriverPage, "Get the latest graphics driver", Problems.DriverPage(SystemInfo.Nvidia))],
                                                          "exception_access_violation longshot.exe"), m.ShowHome, crashed: true)),
+        // (What's new: a v3.0.0 build, the stable channel at v3.2.0, the release list's pages as scripts/release.py writes them)
+        new("home-update", "The home with an update: What's new beside it", Platform.Linux, UpdateOffered, _ => null),
+        new("whats-new", "What's new, from the build's version to the update, newest first", Platform.Linux, UpdateOffered, _ => null,
+            m => m.Home.ShowNotes(m.Home.Default!)),
+        new("whats-new-launcher", "What's new in the launcher the banner offers", Platform.Linux, LauncherOffered, _ => null,
+            m => m.Home.LauncherNotesCommand.Execute(null)),
         new("hookshot-import-problem", "Importing Hookshot's saves failed, Copy for a bug report", Platform.Windows, null, _ => null,
             m => m.Modal = new HookshotImportViewModel(m) { Problem = @"The saves could not be copied: Access to the path 'C:\Users\Player\Saved Games\Longshot\slot1' is denied." }),
     ];
+
+    /// A v3.0.0 build with v3.2.0 out on its channel, and the release list the update check read (two stables since)
+    static void UpdateOffered(LauncherService service)
+    {
+        service.Registry.Add("/home/player/Games/Longshot/v3.0.0", "v3.0.0", Versions.Stable, makeDefault: true);
+        service.SetNewest(Versions.Stable, "v3.2.0");
+        const string downloads = "# 🎮 To play, get the Longshot Launcher\n\n### [🪟 &nbsp;Download the launcher for Windows](https://longshot.magicbean.dev/download/launcher/stable/windows)\n\n---\n\n";
+        ListedRelease Release(string tag, string day, string notes) =>
+            new(tag, false, false, DateTimeOffset.Parse(day + "T12:00:00Z", System.Globalization.CultureInfo.InvariantCulture),
+                ReleaseNotes.PageOf(Product.Longshot, tag), "", [], downloads + notes);
+        service.Releases.Listed =
+        [
+            Release("v3.0.0", "2026-10-20", "## v3.0.0 (2026-10-20)\n\n- The first stable"),
+            Release("v3.1.0", "2026-11-02", "## What's new in v3.1.0\n\n**A faster game:** Castle Town's market from 34.8 to 45.8 fps on a B580.\n\n" +
+                "- **Settings in the launcher's user folder**, so an update keeps them (#729)\n- Kokiri-start, a save right after the opening (#610)\n\n" +
+                "**Fixed:**\n\n- The GPU device row keeps its card, not its place in the list (#736)\n- Pace at 240 while a movie plays (#488)"),
+            Release("v3.2.0", "2026-11-14", "## What's new in v3.2.0\n\n- **The VRAM budgets set by the card**, not a menu row or a preset: 8 GB cards' mirrors 2 GB (#735)\n" +
+                "- **A page on reporting slow performance**, with the switches that measure it ([help](https://git.magicbean.dev/MagicBeanDev/Longshot))\n\n" +
+                "**Fixed:**\n\n- The start-up screen counts the compute pipelines (#721)\n- Honor `cache-off` for rolling pipeline files (#415)"),
+        ];
+    }
+
+    /// A launcher on its stable channel offered, with its release page's notes
+    static void LauncherOffered(LauncherService service)
+    {
+        UpdateOffered(service);
+        var none = new Dictionary<string, FileRef>();
+        service.SetLauncherUpdate(new ReleaseInfo("launcher", "v1.1.0", "", DateTimeOffset.Now, null, none, none, none));
+        service.LauncherReleases.Listed =
+        [
+            new("v1.1.0", false, false, DateTimeOffset.Now, ReleaseNotes.PageOf(Product.Launcher, "v1.1.0"), "", [],
+                "# ⬇️ Download Longshot Launcher\n\n---\n\n## What's new\n\n- **Release notes in the launcher.** What's new beside each update.\n" +
+                "- **Fixes:**\n  - On Windows, Delete leaves out game files a folder with no row still holds.\n\n" +
+                "## v1.1.0 (2026-11-15)\n\n### Features\n\n- **home:** What's new beside each update (#102)\n\n### Fixes\n\n" +
+                "- **home:** On Windows, Delete leaves out game files a folder with no row still holds (#101)"),
+        ];
+    }
 
     /// Step 1 with the tools' download failed, why (null: the tools downloaded), and the game files listed with their checks
     static FilesStepViewModel Files(MainViewModel main, string? why, params (string Path, GameCheck Check)[] files)
