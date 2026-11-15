@@ -341,6 +341,25 @@ public sealed class LauncherService
     public IReadOnlyList<Leftover> FindLeftovers() =>
         Leftovers.Find(BuildsFolder, Registry.Builds.Select(b => b.Folder), Platform, Settings.KeptFolders, new[] { Home.Root });
 
+    /// The rows that lost the game their update built in a new folder (Leftovers.LostUpdate) given it back, saved, and returned
+    public IReadOnlyList<BuildEntry> RelistLostUpdates()
+    {
+        var moved = new List<BuildEntry>();
+        foreach (var b in Registry.Builds.ToList())
+        {
+            var listed = Registry.Builds.Select(x => x.Folder).Append(Home.Root);
+            if (Leftovers.LostUpdate(BuildsFolder, b, listed, Platform) is not { } found) continue;
+            LauncherLog.Add($"{b.Version} in {b.Folder} has no game; its update's {found.Version} in {found.Folder} is listed in its place");
+            moved.Add(Registry.Replace(b.Id, found.Folder, found.Version, b.Channel));
+        }
+        if (moved.Count == 0) return moved;
+        remeasure = true;
+        try { Registry.Save(); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+        PruneTools();
+        return moved;
+    }
+
     /// What deleting them frees: their files with no hard link outside them (Disk.Measure: a game file a build was linked to
     /// stays with that build). Seconds for a game folder: off the window's thread
     public static long LeftoverFrees(IReadOnlyList<Leftover> leftovers) =>

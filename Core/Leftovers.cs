@@ -38,11 +38,56 @@ public static class Leftovers
                 if (listed.Any(b => BuildRegistry.Holds(dir, b) || BuildRegistry.Holds(b, dir))) continue;
                 if (keptList.Any(k => BuildRegistry.SameFolder(k, dir))) continue;
                 if (!PlayerLeftNothing(dir)) continue;
-                found.Add(new Leftover(dir, GameFolder.Version(dir)));
+                var version = GameFolder.Version(dir);
+                if (NewestOfItsChannel(dir, version, listed, platform)) continue;
+                found.Add(new Leftover(dir, version));
             }
             catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
         }
         return found;
+    }
+
+    /// A game no listed build matches: it plays, and no listed build that plays has its channel's version as new as it. Not an
+    /// old version an update left but the newest game of its channel, which an older launcher's update built in a new folder and
+    /// whose row did not follow it (LostUpdate), or whose row went: never offered for deletion
+    static bool NewestOfItsChannel(string dir, string? version, IEnumerable<string> listed, Platform platform)
+    {
+        if (version == null || !GameFolder.IsBuilt(dir, platform)) return false;
+        return !listed.Where(b => GameFolder.IsBuilt(b, platform)).Select(GameFolder.Version)
+                      .Any(v => v != null && OnChannel(v, Versions.TrackOf(version)) && !Versions.Newer(version, v));
+    }
+
+    /// version is one a build on channel follows: its own track, or a stable on the rc channel (which follows the newest of both)
+    static bool OnChannel(string version, string channel) =>
+        Versions.TrackOf(version) == channel || channel == Versions.Candidate && Versions.TrackOf(version) == Versions.Stable;
+
+    /// The game an update built for row that row lost: before an update stayed in its build's folder (#104), it built the new
+    /// version in a new folder of the builds folder and moved its row there at the end; when the row did not follow (the launcher
+    /// closed, or builds.json was not written), the row kept the old folder and the new game stayed unlisted. Seen as a row whose
+    /// folder has no game to play, and an unlisted game folder directly in buildsFolder that plays, on the row's channel and newer
+    /// than its version: the newest of them, which the row takes back (BuildRegistry.Replace). Null when the row plays, or none is
+    /// there. listed: the builds' folders and the launcher's home, as Find's
+    public static Leftover? LostUpdate(string buildsFolder, BuildEntry row, IEnumerable<string> listed, Platform platform)
+    {
+        if (GameFolder.IsBuilt(row.Folder, platform)) return null;
+        var channel = UpdatePolicy.ChannelOf(row.Channel, row.Version);
+        var all = listed.ToList();
+        IEnumerable<string> dirs;
+        try { dirs = Directory.Exists(buildsFolder) ? Directory.EnumerateDirectories(buildsFolder).ToList() : Enumerable.Empty<string>(); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return null; }
+        Leftover? best = null;
+        foreach (var dir in dirs)
+        {
+            try
+            {
+                if (new DirectoryInfo(dir).LinkTarget != null || !GameFolder.IsBuilt(dir, platform)) continue;
+                if (all.Any(b => BuildRegistry.Holds(dir, b) || BuildRegistry.Holds(b, dir))) continue;
+                if (GameFolder.Version(dir) is not { } v || !OnChannel(v, channel) || !Versions.Newer(v, row.Version)) continue;
+                if (best == null || Versions.Newer(v, best.Version)) best = new Leftover(dir, v);
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+        }
+        return best;
     }
 
     /// Nothing of the player's in the folder: no save in user/save, neither user/ nor user/save a link, nothing in mods/

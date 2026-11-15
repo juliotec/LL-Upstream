@@ -70,6 +70,39 @@ static partial class Program
         Require(Leftovers.Find(builds, new[] { nightly }, p).FirstOrDefault(l => l.Folder == noVersion) is { Version: null, Shown: "old build" },
                 "A leftover with no version in its stamp: its folder's name.");
 
+        // (issue #102: an update before #104 built v3.0.0-rc.4 in a new folder and its row stayed on rc.3, whose game is gone. The
+        // rc.4 game is the row's again (LostUpdate), and never offered for deletion as an old version)
+        var lost = Folder("leftovers-lost");
+        string Built(string name, string version)
+        {
+            var dir = Path.Combine(lost, name);
+            Directory.CreateDirectory(Path.Combine(dir, "bin"));
+            File.WriteAllText(Path.Combine(dir, GameFolder.StampName), $"version={version}\n");
+            File.WriteAllText(Path.Combine(dir, "longshot"), "setup");
+            File.WriteAllText(Path.Combine(dir, "bin", "longshot"), "game");
+            return dir;
+        }
+        var rc3 = Built("v3.0.0-rc.3", "v3.0.0-rc.3");
+        File.Delete(Path.Combine(rc3, "bin", "longshot"));                   // (its game gone)
+        var rc4 = Built("v3.0.0-rc.4", "v3.0.0-rc.4");
+        var rc2 = Built("v3.0.0-rc.2", "v3.0.0-rc.2");                       // (older than the row's: not it)
+        var night = Built("nightly-200-55555555", "nightly-200-55555555");  // (another channel: not it)
+        var row = new BuildEntry { Id = "a", Folder = rc3, Version = "v3.0.0-rc.3", Channel = Versions.Candidate };
+        Require(Leftovers.LostUpdate(lost, row, new[] { rc3 }, p) is { Version: "v3.0.0-rc.4" } l4 && l4.Folder == rc4,
+                "A row whose game is gone takes back the newer game of its channel its update left in a new folder.");
+        Require(Leftovers.LostUpdate(lost, row, new[] { rc3, rc4 }, p) == null, "Not a folder another build lists.");
+        Require(Leftovers.LostUpdate(lost, new BuildEntry { Id = "b", Folder = rc4, Version = "v3.0.0-rc.4", Channel = Versions.Candidate },
+                                     new[] { rc4 }, p) == null, "Nor for a row whose game plays.");
+        var foundLost = Names(Leftovers.Find(lost, new[] { rc3 }, p));
+        Require(!foundLost.Contains("rc.4", StringComparison.Ordinal) && !foundLost.Contains("nightly", StringComparison.Ordinal),
+                "While no listed build of its channel plays, a channel's games are never offered as old versions (got: " + foundLost + ").");
+        var reg = BuildRegistry.Load(Path.Combine(lost, "builds.json"));
+        var entry = reg.Add(rc3, "v3.0.0-rc.3", Versions.Candidate, name: "v3.0.0-rc.3");
+        reg.Replace(entry.Id, rc4, "v3.0.0-rc.4", entry.Channel);
+        Require(Names(Leftovers.Find(lost, reg.Builds.Select(b => b.Folder), p)) == "v3.0.0-rc.2 v3.0.0-rc.3",
+                "Once the row has it back, the rc.3 folder and the older rc.2 are the old versions offered.");
+        _ = (rc2, night);
+
         // (links: the player's own arrangement, never offered)
         var linked = Game("nightly-170-44444444");
         try

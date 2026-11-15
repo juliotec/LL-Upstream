@@ -192,10 +192,14 @@ public sealed class FilesStepViewModel : ViewModelBase, IWizardPage
 
     public ObservableCollection<GameFileViewModel> Files { get; } = new();
 
-    public string Sub => Job.Kind == JobKind.Update
-        ? Tr.F(Job.Older ? "Going back from {0} to {1}. The file you built it from is picked; pick another if it moved."
-                         : "Updating {0} to {1}. The file you built it from is picked; pick another if it moved.", Job.ShownFrom, Job.Shown)
-        : Tr.T("Pick your dump of the game. Longshot reads it on this PC; nothing is uploaded.");
+    /// (an update builds the game again from the game files: when the ones it was built from moved, it says so rather than that
+    /// they are picked)
+    public string Sub => Job.Kind != JobKind.Update ? Tr.T("Pick your dump of the game. Longshot reads it on this PC; nothing is uploaded.")
+        : Remembered() != null
+            ? Tr.F(Job.Older ? "Going back from {0} to {1}. The file you built it from is picked; pick another if it moved."
+                             : "Updating {0} to {1}. The file you built it from is picked; pick another if it moved.", Job.ShownFrom, Job.Shown)
+            : Tr.F(Job.Older ? "Going back from {0} to {1}. The file you built it from is no longer where it was: pick it again, since the game is built from it again."
+                             : "Updating {0} to {1}. The file you built it from is no longer where it was: pick it again, since the game is built from it again.", Job.ShownFrom, Job.Shown);
 
     // ---- the tools ----
 

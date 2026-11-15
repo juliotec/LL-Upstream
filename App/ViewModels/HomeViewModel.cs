@@ -522,6 +522,9 @@ public sealed class HomeViewModel : ViewModelBase
             Service.Ensure(start.Folder);
         }
         Notice = notes.Count > 0 ? string.Join("\n", notes) : null;
+        // (before the leftovers: the game a row takes back is no leftover)
+        foreach (var b in Service.RelistLostUpdates())
+            Main.ShowToast(Tr.F("{0} was found in its own folder and is listed again.", Versions.Shown(b.Version)));
         OfferHookshot();
         OfferNx2navi();
         OfferLeftovers();
