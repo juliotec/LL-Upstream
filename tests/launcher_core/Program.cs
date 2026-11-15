@@ -926,6 +926,10 @@ static partial class Program
                 && w.Environment["LONGSHOT_FFX_SDK"] == home.FfxSdk && w.Environment["LONGSHOT_BUILDER_EXE"] == "C:/L/LongshotLauncher.exe"
                 && w.Environment["RX_CPM"] == Path.Combine(win.ToolsRoot, "cpm") && !w.Environment.ContainsKey("EMSDK")
                 && w.Environment["PYTHONIOENCODING"] == "utf-8" && w.Environment["LONGSHOT_SETUP_BASE"] == null, "Windows environment.");
+        // (Longshot's object and lift stores: in the work folder, on its drive, whichever the player chose; two translations kept)
+        Require(w.Environment["LONGSHOT_OBJ_STORE"] == Path.Combine(home.Work, "obj-store") && w.Environment["LONGSHOT_LIFT_STORE"] == Path.Combine(home.Work, "lift-store")
+                && w.Environment["LONGSHOT_OBJ_STORE_GB"] == "4" && w.Environment["LONGSHOT_LIFT_STORE_KEEP"] == "2"
+                && !w.Environment.ContainsKey("LONGSHOT_OBJ_STORE_DAYS"), "Windows: the object and lift stores in the work folder.");
         var licenceless = MakeGameCommand.For(win, request with { DlssLicense = false, FsrLicense = false, Jobs = null, MemoryGb = null, PrepareShaders = true },
                                               Platform.Windows, home, "L", _ => false);
         Require(!licenceless.Arguments.Any(a => a.StartsWith("--fetch") || a.StartsWith("--accept") || a == "--fsr" || a == "--no-prepare-shaders")
@@ -947,6 +951,9 @@ static partial class Program
                 && l.Environment["LONGSHOT_VK_PREBUILT"] == null && l.Environment["LONGSHOT_TOOLS"] == lin.ToolsRoot
                 && l.Environment["LONGSHOT_SYSROOT"] == Path.Combine(lin.LibRoot, "sysroot") && l.Environment["EMSDK"] == Path.Combine(lin.LibRoot, "emsdk")
                 && l.Environment["LONGSHOT_FFX_SDK"] == null, "Linux environment (DLSS builds its own Vulkan back end).");
+        Require(l.Environment["LONGSHOT_OBJ_STORE"] == Path.Combine("/w", "obj-store") && l.Environment["LONGSHOT_LIFT_STORE"] == Path.Combine("/w", "lift-store")
+                && l.Environment["LONGSHOT_OBJ_STORE_GB"] == "4" && l.Environment["LONGSHOT_LIFT_STORE_KEEP"] == "2",
+                "Linux: the object and lift stores in the chosen work folder.");
         // (AMD FSR 4 on Linux: --fsr alone, nothing of AMD's fetched, and the Vulkan back end compiled here, not the prebuilt one)
         var fidelityfx = Path.Combine(lin.ToolsRoot, "third_party", "fidelityfx");
         var lf = MakeGameCommand.For(lin, request with { Dlss = false, Source = new BuildSource.Nup("/g/game.nup"), Out = "/g", Work = "/w" },

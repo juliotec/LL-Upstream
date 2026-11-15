@@ -320,8 +320,19 @@ Calls made here, most of them the design mockup's; each can be changed:
 - **Delete takes the folder**: only a game folder make_game.py made, and never a link, the home folder, or a folder that
   holds another build or the launcher's home; not while Longshot runs. On Windows it warns that the build's saves go with
   it.
+- **Switching versions reuses the earlier builds' work.** Every build turns on Longshot's object store and lift store
+  (`LONGSHOT_OBJ_STORE`, `LONGSHOT_LIFT_STORE`) in the build files folder, `obj-store` and `lift-store`, so they are on
+  its drive whichever folder the player chose (the objects are hard links into `objcache`, copies only on a file system
+  without hard links: exFAT, FAT, some network shares). Going between stable and nightly, or back to a version built
+  before, then compiles only what no earlier build compiled and copies the translation instead of making it again. The
+  first switch back to a version may still translate again: the lift store's key hashes the build files folder's
+  `chunks.txt` and `hot_pieces.txt` as they are, which the other version's build has rewritten. What they cost: an object
+  a build still uses is one file with `objcache` (where it is hard-linked), the others go after 14 days and the oldest
+  first above 4 GB (`LONGSHOT_OBJ_STORE_GB=4`, Longshot's default is 8); a kept translation is about 1.6 GB, its lifted C
+  whole, and two are kept (`LONGSHOT_LIFT_STORE_KEEP=2`, Longshot's is 3). The stores came with Longshot v3.0.0-rc.4 and
+  nightly-164; tools from before them ignore the variables.
 - **Free up space** (the launcher's settings) lets go of what make_game made in the build files folder (`objcache`, `sa`,
-  `exefs`, `probe`, as the 2.x Builder), never the folder itself, which the player may have chosen.
+  `exefs`, `probe`, as the 2.x Builder, and the two stores), never the folder itself, which the player may have chosen.
 - **The shortcuts** Ready makes (desktop, Start menu / applications menu), ticked by default and made as Ready shows,
   start `--play`, the default build, so they follow "Play starts this version" and updates. On Windows they are written
   through PowerShell's WScript.Shell.

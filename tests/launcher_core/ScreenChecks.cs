@@ -520,6 +520,36 @@ static partial class Program
         Require(!Directory.Exists(Path.Combine(work, "objcache")) && !Directory.Exists(Path.Combine(work, "sa")) && !File.Exists(Path.Combine(work, "system_headers.txt"))
                 && File.Exists(Path.Combine(work, "My notes.txt")) && File.Exists(Path.Combine(work, "photos", "p.jpg")) && Disk.WorkBytes(work) == 0,
                 "Free up space let go of the build's files and nothing else.");
+        // (the object and lift stores in it: an object that is one file with objcache's, hard-linked, counts once, found by its name
+        // in the store's folder for the compiler and headers system_headers.txt notes. A copy of the same name, as object_store.py
+        // _place makes where the disk has no hard links (exFAT, FAT, some network shares), counts twice, as another compiler's does)
+        var stamp = "0123456789abcdef0123\n";
+        var mine = Path.Combine(work, Disk.ObjectStore, "0123456789abcdef");
+        Touch(Path.Combine(work, "system_headers.txt"), stamp);
+        Touch(Path.Combine(work, "objcache", "a.o"), new string('o', 100));
+        Directory.CreateDirectory(mine);
+        Require(FileLinks.TryHardLink(Path.Combine(work, "objcache", "a.o"), Path.Combine(mine, "a.o")), "A hard link in the test folder.");
+        Touch(Path.Combine(work, "objcache", "c.o"), new string('o', 70));
+        Touch(Path.Combine(mine, "c.o"), new string('o', 70));
+        Touch(Path.Combine(mine, "b.o"), new string('o', 50));
+        Touch(Path.Combine(work, Disk.ObjectStore, "fedcba9876543210", "a.o"), new string('o', 30));
+        Touch(Path.Combine(work, Disk.LiftStore, "k", "sa", "gen", "code_1.c"), new string('c', 200));
+        Require(FileLinks.SameFile(Path.Combine(mine, "a.o"), Path.Combine(work, "objcache", "a.o"))
+                && !FileLinks.SameFile(Path.Combine(mine, "c.o"), Path.Combine(work, "objcache", "c.o"))
+                && !FileLinks.SameFile(Path.Combine(mine, "b.o"), Path.Combine(work, "objcache", "b.o")), "One file hard-linked, not a copy of it.");
+        var objects = 100 + 70 + 70 + 50 + 30;
+        Require(Disk.WorkBytes(work) == stamp.Length + objects + 200,
+                "Free up space counts the stores, a hard-linked object once and a copied one twice: " + Disk.WorkBytes(work));
+        // (a stamp that names no store folder, NULs or not lowercase hex (object_store.py folder): every object counts, and the
+        // settings' measure does not throw)
+        foreach (var bad in new[] { new string('\0', 20), "0123456789ABCDEF0123\n", "0123456789abcdeg0123\n" })
+        {
+            Touch(Path.Combine(work, "system_headers.txt"), bad);
+            Require(Disk.WorkBytes(work) == bad.Length + objects + 100 + 200, "A stamp of no store folder: every object counts: " + Disk.WorkBytes(work));
+        }
+        Disk.FreeWork(work);
+        Require(!Directory.Exists(Path.Combine(work, Disk.ObjectStore)) && !Directory.Exists(Path.Combine(work, Disk.LiftStore))
+                && File.Exists(Path.Combine(work, "My notes.txt")) && Disk.WorkBytes(work) == 0, "Free up space let go of the stores too.");
 
         var g = Folder("dlss");
         Require(!GameFolder.HasDlss(g), "No ngx/: no DLSS.");

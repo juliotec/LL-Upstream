@@ -50,7 +50,8 @@ public sealed record MakeGameCommand(
             // (a code make_game knows: "de-DE" from a 2.x settings file is "de"; none known, make_game keeps the folder's or English)
             if (Languages.Normalize(r.Language) is { } language) args.AddRange(new[] { "--language", language });
         }
-        args.AddRange(new[] { "--work", r.Work ?? home.Work });
+        var work = r.Work ?? home.Work;
+        args.AddRange(new[] { "--work", work });
         // (the build workers: LONGSHOT_JOBS on Windows, BuildWorkers.Apply; --jobs on Linux, as longshot_builder.py passes them)
         if (!windows && r.Jobs is int jobs) args.AddRange(new[] { "--jobs", jobs.ToString(CultureInfo.InvariantCulture) });
         if (!r.PrepareShaders) args.Add("--no-prepare-shaders");
@@ -73,6 +74,19 @@ public sealed record MakeGameCommand(
             ["LONGSHOT_NGX_SDK"] = dlss ? home.NgxSdk : null,
             ["LONGSHOT_FFX_SDK"] = fsr && windows ? home.FfxSdk : null,
             ["LONGSHOT_MEM_LIMIT_GB"] = r.MemoryGb?.ToString(CultureInfo.InvariantCulture),
+            // (Longshot's object and lift stores, nx2/object_store.py and lift_store.py: a build of another version, or of one built
+            // before, takes the objects and the translation an earlier build made instead of compiling and translating them again,
+            // where the work folder alone keeps only the last build's. Inside the work folder, so on its drive whichever one the
+            // player chose (the objects are hard links into objcache there; copies only on a file system without hard links, exFAT,
+            // FAT, some network shares), and Free up space lets them go with the rest (Disk.WorkParts). Tools from before the stores,
+            // Longshot before v3.0.0-rc.4 and nightly-164, read none of these)
+            ["LONGSHOT_OBJ_STORE"] = Path.Combine(work, Disk.ObjectStore),
+            ["LONGSHOT_LIFT_STORE"] = Path.Combine(work, Disk.LiftStore),
+            // (the objects no build holds any more: gone after 14 days, and the oldest first above 4 GB rather than Longshot's 8,
+            // about four versions' objects of their own, a build's being ~1 GB. A kept translation is ~1.6 GB, its lifted C whole:
+            // two, the version built and the one before (stable and nightly, or going back), not Longshot's three)
+            ["LONGSHOT_OBJ_STORE_GB"] = "4",
+            ["LONGSHOT_LIFT_STORE_KEEP"] = "2",
         };
         if (windows && r.Jobs is int workers) env["LONGSHOT_JOBS"] = workers.ToString(CultureInfo.InvariantCulture);
         if (windows)

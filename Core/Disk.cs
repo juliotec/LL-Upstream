@@ -3,21 +3,53 @@ namespace LongshotLauncher.Core;
 /// Space on the disk: what a folder holds, what is free where a build goes, and what a build needs
 public static class Disk
 {
-    /// What a build needs while it builds: the game folder and the build files (the 2.x Builders' "Needs 45 GB")
+    /// What a build needs while it builds: the game folder and the build files (the 2.x Builders' "Needs 45 GB"). The stores
+    /// (MakeGameCommand) add at most a new translation's copy while it runs (~1.6 GB): what they keep is on the disk already
     public const long BuildBytes = 45L << 30;
 
     /// What a build makes in its build files folder (make_game.py --work) that Free up space lets go, as the 2.x Builder's
     /// Storage.Freeable: the compiled objects and their system headers' stamp, the translation, the unpacked exefs and the check's
-    /// probe. Never the folder itself: the player may have chosen one that holds other things
-    public static readonly IReadOnlyList<string> WorkParts = new[] { "objcache", "sa", "exefs", "probe", "system_headers.txt" };
+    /// probe; and the launcher's object and lift stores in it (MakeGameCommand: LONGSHOT_OBJ_STORE, LONGSHOT_LIFT_STORE). Never the
+    /// folder itself: the player may have chosen one that holds other things
+    public static readonly IReadOnlyList<string> WorkParts = new[] { "objcache", "sa", "exefs", "probe", "system_headers.txt", ObjectStore, LiftStore };
+
+    /// The object store's and the lift store's folders in the work folder (Longshot's nx2/object_store.py, lift_store.py)
+    public const string ObjectStore = "obj-store";
+    public const string LiftStore = "lift-store";
 
     /// The bytes Free up space would let go in work
     public static long WorkBytes(string work) => WorkParts.Sum(p =>
     {
         var path = Path.Combine(work, p);
         var file = new FileInfo(path);
-        return file.Exists ? (file.LinkTarget == null ? file.Length : 0) : FolderBytes(path);
+        return file.Exists ? (file.LinkTarget == null ? file.Length : 0) : p == ObjectStore ? ObjectStoreBytes(work) : FolderBytes(path);
     });
+
+    /// The object store's bytes, less its objects that are one file with the work folder's objcache's, hard-linked: counted with
+    /// objcache. They are in the store's folder for the compiler and headers the work folder last built with, named by the first
+    /// 16 characters of its system_headers.txt, lowercase hex (object_store.py folder: another stamp has no folder), under the
+    /// same name as in objcache (their key). Where the disk makes no hard links (exFAT, FAT, some network shares) the store holds
+    /// a copy (object_store.py _place), which takes its own bytes: only the same file (FileLinks.SameFile) counts once
+    static long ObjectStoreBytes(string work)
+    {
+        var store = Path.Combine(work, ObjectStore);
+        var bytes = FolderBytes(store);
+        try
+        {
+            var stamp = File.ReadAllText(Path.Combine(work, "system_headers.txt")).Trim();
+            if (stamp.Length < 16 || !stamp[..16].All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f')
+                || new DirectoryInfo(store).LinkTarget != null) return bytes;
+            var mine = new DirectoryInfo(Path.Combine(store, stamp[..16]));
+            if (!mine.Exists || mine.LinkTarget != null) return bytes;
+            foreach (var o in mine.EnumerateFiles("*.o"))
+            {
+                var cached = new FileInfo(Path.Combine(work, "objcache", o.Name));
+                if (o.LinkTarget == null && cached.Exists && cached.LinkTarget == null && FileLinks.SameFile(o.FullName, cached.FullName)) bytes -= o.Length;
+            }
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException or System.Security.SecurityException) { }
+        return bytes;
+    }
 
     /// WorkParts let go (a link among them is removed, never followed); the rest of work stays
     public static void FreeWork(string work)
