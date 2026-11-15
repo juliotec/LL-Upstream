@@ -25,7 +25,7 @@ game also finds that folder by itself; on Windows a build started on its own (`b
 its saves in its own folder's `user\`, and the launcher brings them in at its next start (below).
 
 The game settings (`longshot_options.ini`: the Insert menu's choices and your controls) are in the same folder once a build
-that keeps them there has run. Before Play, a build that has none of its own, such as an update into a new folder, gets the
+that keeps them there has run. Before Play, a build that has none of its own, such as a new build of another channel, gets the
 newest settings of your other versions, its own Compile shaders choice kept.
 
 Backups go to `%LOCALAPPDATA%\Longshot\oot-save-backups` on Windows and `$XDG_DATA_HOME/longshot/save-backup` on Linux (default

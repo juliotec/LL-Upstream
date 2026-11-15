@@ -723,11 +723,12 @@ static partial class Program
         Require(r.SameGameFiles(nup, fresh) == null, "No folder unpacked yet: none.");
         Unpack(a.Folder);
         Unpack(b.Folder);
-        Require(r.SameGameFiles(nup, fresh) == b && r.SameGameFiles(nup, b.Folder) == a
-                && r.SameGameFiles(Path.Combine(home, "other.nup"), fresh) == null,
-                "The game files of another build of the same .nup: the newest that has them, not the build's own folder.");
+        Require(r.SameGameFiles(nup, fresh) == b && r.SameGameFiles(Path.Combine(home, "other.nup"), fresh) == null,
+                "The game files of another build of the same .nup: the newest that has them.");
+        Require(r.SameGameFiles(nup, b.Folder) == null, "A folder that has them already (an update in its own folder): none.");
         Directory.Delete(Path.Combine(b.Folder, ".longshot_exefs"));
-        Require(r.SameGameFiles(nup, fresh) == a, "A folder without its kept exefs is passed over, and an older one used.");
+        Require(r.SameGameFiles(nup, fresh) == a && r.SameGameFiles(nup, b.Folder) == a,
+                "A folder without its kept exefs is passed over, and an older one used, never the build's own folder.");
         Unpack(b.Folder, mark: "unpacked by this builder: game.nup 36");
         Require(r.SameGameFiles(nup, fresh) == a, "A folder unpacked from another .nup (its stamp) is passed over.");
         File.Delete(Path.Combine(b.Folder, ".longshot_romfs"));

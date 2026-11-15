@@ -174,11 +174,7 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
         if (Main.Host is not { } host) return;
         var picked = await host.PickFolderAsync(Tr.F("Where to install {0}", Job.Shown), Path.GetDirectoryName(Job.InstallDir));
         if (picked == null) return;
-        // (a folder that holds other things gets the version's own folder in it; an empty one, or a game folder, is used as it is)
-        var full = Path.GetFullPath(picked);
-        var used = !Directory.Exists(full) || !Directory.EnumerateFileSystemEntries(full).Any() || GameFolder.IsGameFolder(full, Main.Platform)
-            ? full : LauncherSettings.FolderFor(full, Job.Version, p => Job.Service.Registry.FindByFolder(p) is { } e && e.Id != Job.Replaces?.Id);
-        Job.InstallDir = used;
+        Job.InstallDir = Job.Service.Registry.PickedFolder(Path.GetFullPath(picked), Job.Channel, Main.Platform, Job.Replaces);
         RaiseAll(nameof(InstallDir), nameof(InstallDirFull));
         Measure();
     }
@@ -306,6 +302,14 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
     void Start()
     {
         if (Short || Job.Picked == null || Job.Tools == null) return;
+        // (a build replaces the game its folder has, an update's or a rebuild's always: it waits for the game to be closed, as
+        // Delete does. On Windows make_game.py would build for minutes and stop at its last step, the swap, while one runs. One
+        // started during the build is found there by make_game.py itself, and shown as Problems' GameRunning)
+        if (GameFolder.IsBuilt(Job.InstallDir, Main.Platform) && Saves.Running(Main.Platform).Contains(Saves.Longshot.Display))
+        {
+            Main.ShowToast(Tr.T("Save and close Longshot first: this replaces the game in its folder."));
+            return;
+        }
         var file = Job.Picked;
         // (the game files are remembered for the next build)
         if (file.Folders && file.Source is BuildSource.Folders f)

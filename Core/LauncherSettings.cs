@@ -38,7 +38,7 @@ public sealed class LauncherSettings
     public bool HookshotSavesAsked { get; set; }
     /// The player answered the offer to import NX2navi's saves (imported, or Not now)
     public bool Nx2naviSavesAsked { get; set; }
-    /// Where new builds go, each version in its own folder; null: DefaultBuildsFolder
+    /// Where new builds go, each in its own folder (FolderFor); null: DefaultBuildsFolder
     public string? BuildsFolder { get; set; }
     /// Ask git.magicbean.dev for each channel's newest version when the launcher starts
     public bool CheckUpdates { get; set; } = true;
@@ -60,12 +60,13 @@ public sealed class LauncherSettings
     public string BuildsFolderOrDefault(Func<string, string?>? getenv = null) =>
         string.IsNullOrWhiteSpace(BuildsFolder) ? DefaultBuildsFolder(getenv) : BuildsFolder;
 
-    /// A new build's folder: the version's name in the builds folder, with " (2)" and so on when that is taken by something that
-    /// is not the build being replaced
-    public static string FolderFor(string buildsFolder, string version, Func<string, bool>? taken = null)
+    /// A new build's folder: its channel's name in the builds folder (stable, rc, nightly), with " (2)" and so on when that is
+    /// taken by something that is not the build being replaced. Not the version's name: an update stays in its build's folder
+    /// (BuildRegistry.FolderOf), so a version in the name would be the wrong one after the first update
+    public static string FolderFor(string buildsFolder, string channel, Func<string, bool>? taken = null)
     {
         taken ??= p => Directory.Exists(p) || File.Exists(p);
-        var name = Versions.IsTagName(version) ? version : "Longshot";
+        var name = Versions.IsChannel(channel) ? channel : "Longshot";
         var path = Path.Combine(buildsFolder, name);
         for (var n = 2; taken(path); n++) path = Path.Combine(buildsFolder, $"{name} ({n})");
         return path;

@@ -232,6 +232,12 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
     {
         var job = Job;
         if (job.Kind != JobKind.Update || job.Replaces is not { } old || job.Tools is not { } tools) return null;
+        // (an update in its build's own folder, BuildRegistry.FolderOf, has them where they are already)
+        if (BuildRegistry.SameFolder(old.Folder, job.InstallDir))
+        {
+            Ui.Post(() => log.Add("shader caches: kept where they are, in the build's own folder"));
+            return null;
+        }
         var fromTools = old.Version is { } was ? job.Service.Tools.Find(was) : null;
         Ui.Post(() =>
         {

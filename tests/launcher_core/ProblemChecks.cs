@@ -17,6 +17,12 @@ static partial class Program
         var mem = Problems.FromBuild("the system stopped it, most likely because the PC ran out of memory. Close other programs and build again");
         Require(mem.Kind == ProblemKind.BuildMemory && mem.Fixes.Any(f => f.Kind == FixKind.LowerBuildMemory), "out of memory: lower the build memory");
         Require(Problems.FromBuild("something new").Kind == ProblemKind.Unknown, "an unknown message: Unknown, not a wrong fix");
+        // (make_game.py before its swap on Windows, with Longshot started during the build: end_stale_games)
+        Require(Problems.FromBuild("Longshot is still running from this folder (process 4242). Close it, then retry. No installed files " +
+                                   "were replaced.").Kind == ProblemKind.GameRunning, "Longshot running at the swap: GameRunning");
+        Require(Problems.FromBuild(@"Could not replace C:\Games\Longshot\nightly\bin\longshot.exe. Close any running copy of Longshot and " +
+                                   "check that the file and folder are writable, then retry.").Kind == ProblemKind.Unknown,
+                "an exe the swap could not replace: not GameRunning (a folder that can't be written says it too)");
         Require(Problems.FromBuild("The builder's own compiler (tools/llvm-mingw) could not build a test program: x. Unpack the zip again " +
                                    "into a folder your antivirus allows.").Kind == ProblemKind.Antivirus, "the compiler can't build: Antivirus");
         // (messages that name an antivirus, a free space or "not supported" among causes of their own: as make_game.py said them)

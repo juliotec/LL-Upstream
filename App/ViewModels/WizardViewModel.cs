@@ -17,9 +17,9 @@ public sealed class BuildJob
         Channel = channel;
         Version = version;
         Replaces = replaces;
+        From = kind == JobKind.Update ? replaces?.Version : null;
         var s = main.Service;
-        InstallDir = kind == JobKind.Rebuild && replaces != null ? replaces.Folder
-            : LauncherSettings.FolderFor(s.BuildsFolder, version, p => s.Registry.FindByFolder(p) is { } e && e.Id != replaces?.Id);
+        InstallDir = s.Registry.FolderOf(kind == JobKind.Build ? null : replaces, s.BuildsFolder, channel, s.Platform);
     }
 
     public MainViewModel Main { get; }
@@ -29,7 +29,9 @@ public sealed class BuildJob
     public string Version { get; }
     /// The build an update or a rebuild takes the place of
     public BuildEntry? Replaces { get; }
-    public string? From => Kind == JobKind.Update ? Replaces?.Version : null;
+    /// The version an update starts from, read when the job is made: the update takes Replaces' row in its place
+    /// (BuildRegistry.Replace), its version then the new one
+    public string? From { get; }
     /// The version and the one it replaces as players see them (a nightly: "Nightly 2029 · c544828f", Versions.Shown)
     public string Shown => Versions.Shown(Version);
     public string? ShownFrom => From == null ? null : Versions.Shown(From);

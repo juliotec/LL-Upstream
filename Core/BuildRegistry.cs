@@ -114,10 +114,11 @@ public sealed class BuildRegistry
     /// .longshot_exefs/ and a .longshot_romfs stamp of this .nup (UnpackStamp), so that a folder make_game would pass over (and
     /// the whole .nup read again) is not chosen while another would do. Of those, one on the new build's drive first (a hard
     /// link does not cross drives: make_game would copy the ~25 GB), then the one updated last; never the new build's own
-    /// folder; null when there is none, or the .nup is not there. driveOf: the tests' stand-in for Disk.DriveName
+    /// folder; null when there is none, the .nup is not there, or the new build's folder has them already (an update in its own
+    /// folder: BuildRegistry.FolderOf). driveOf: the tests' stand-in for Disk.DriveName
     public BuildEntry? SameGameFiles(string nup, string folder, Func<string, string>? driveOf = null)
     {
-        if (UnpackStamp(nup) is not { } stamp) return null;
+        if (UnpackStamp(nup) is not { } stamp || Unpacked(folder, stamp)) return null;
         driveOf ??= Disk.DriveName;
         var drive = driveOf(folder);
         var drives = OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
@@ -195,9 +196,41 @@ public sealed class BuildRegistry
         return true;
     }
 
-    /// An update built into folder takes the row of the build it updates (old): its id, its place in the list and whether it is
-    /// the default stay; its folder, version and channel are the new build's. When another row already lists folder, that row
-    /// goes (one entry per folder). The old folder stays on the disk
+    /// Where a build is made. An update or a rebuild (replaces: the build it takes the place of) is made in that build's own
+    /// folder: the game keeps its path (a GPU driver's settings for the program follow the path), its settings, mods and
+    /// shader caches stay with it, and no folder of the version before is left on the disk. A new build goes in NewFolder
+    public string FolderOf(BuildEntry? replaces, string buildsFolder, string channel, Platform platform) =>
+        replaces != null ? replaces.Folder : NewFolder(buildsFolder, channel, platform);
+
+    /// A new build's folder in parent (LauncherSettings.FolderFor: its channel's name), past the folders other builds have and
+    /// past anything on the disk that is not a game folder. A game folder no build lists (its row was removed, or the list was
+    /// lost), or one a build stopped in, is built in again, as one the player picks is. replaces: the build this one takes the
+    /// place of, whose own folder is not another build's
+    public string NewFolder(string parent, string channel, Platform platform, BuildEntry? replaces = null) =>
+        LauncherSettings.FolderFor(parent, channel, p => FindByFolder(p) is { } e ? e.Id != replaces?.Id : HoldsOtherThings(p, platform));
+
+    /// The folder a build is made in when the player picks one: a folder that holds other things gets the build's own folder
+    /// in it (NewFolder); an empty one, one not made yet, or a game folder, is used as it is
+    public string PickedFolder(string picked, string channel, Platform platform, BuildEntry? replaces = null) =>
+        HoldsOtherThings(picked, platform) ? NewFolder(picked, channel, platform, replaces) : picked;
+
+    /// make_game.py's copy of the game files read into a game folder, there long before its stamp and game (a build that stopped
+    /// while it compiled): such a folder is built in again, and the next build skips reading the game files
+    static readonly string[] StartedMarks = [".longshot_exefs", ".longshot_romfs"];
+
+    static bool HoldsOtherThings(string path, Platform platform)
+    {
+        if (File.Exists(path)) return true;
+        if (!Directory.Exists(path) || GameFolder.IsGameFolder(path, platform)) return false;
+        if (StartedMarks.Any(m => Path.Exists(Path.Combine(path, m)))) return false;
+        try { return Directory.EnumerateFileSystemEntries(path).Any(); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return true; }
+    }
+
+    /// An update takes the row of the build it updates (old): its id, its place in the list and whether it is the default stay;
+    /// its version and channel are the new build's. It is built in its build's own folder (FolderOf), so the folder stays too.
+    /// When the player chose another folder for it, the row moves there (a row that already lists that folder goes: one entry
+    /// per folder) and the old folder stays on the disk. A row named after its version is named after the new one
     public BuildEntry Replace(string oldId, string folder, string? version, string? channel)
     {
         var entry = Find(oldId) ?? throw new KeyNotFoundException("No build " + oldId);
@@ -206,7 +239,8 @@ public sealed class BuildRegistry
             builds.Remove(other);
             if (other.Default) entry.Default = true;
         }
-        if (!SameFolder(entry.Folder, folder)) entry.Name = DefaultName(folder);
+        if (version != null && entry.Name == entry.Version) entry.Name = version;
+        else if (!SameFolder(entry.Folder, folder)) entry.Name = DefaultName(folder);
         entry.Folder = folder;
         entry.Version = version ?? entry.Version;
         entry.Channel = Versions.IsChannel(channel) ? channel! : Versions.TrackOf(entry.Version);
@@ -244,7 +278,7 @@ public sealed class BuildRegistry
     /// A build's game folder deleted from the disk: only a folder make_game.py made (its stamp or bin/longshot), never another
     /// folder a list entry might name. Not a link either (deleting it would free nothing), nor the home folder or one that holds
     /// it, nor one that holds a folder of keep: the other builds and the launcher's home. (A 2.x install in ~/Games/Longshot holds
-    /// the launcher's own builds, ~/Games/Longshot/&lt;version&gt;, while that is the builds folder.) The entry itself is removed with
+    /// the launcher's own builds, ~/Games/Longshot/&lt;channel&gt;, while that is the builds folder.) The entry itself is removed with
     /// Remove
     public static void DeleteFolder(string folder, Platform platform, IEnumerable<string>? keep = null, Func<string, string?>? getenv = null)
     {

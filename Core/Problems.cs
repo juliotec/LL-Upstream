@@ -18,6 +18,7 @@ public enum ProblemKind
     NoMeshShaders,      // the game closed unexpectedly on a graphics card or driver with no mesh shaders
     GpuLost,            // the graphics driver stopped answering (device lost)
     GameCrashed,        // the game closed with a crash report in its log
+    GameRunning,        // the build was done, but Longshot ran from its folder at the swap (Windows)
 }
 
 /// What a fix button does (the screen decides how)
@@ -79,6 +80,14 @@ public static partial class Problems
             return new Problem(ProblemKind.BuildMemory, Tr.N("Your PC ran out of memory while building"),
                 Tr.N("Close other programs, or set Build memory lower in step 2's Advanced, then build again: what was built so far " +
                 "is kept."), [new Fix(FixKind.LowerBuildMemory, Tr.N("Use less memory")), BuildAgain]);
+        // (make_game.py's last step on Windows, before the swap, end_stale_games: Longshot was started while it built, by a
+        // shortcut or Play starting this build. Start checks only when it is pressed. The new files stay staged beside the game,
+        // and what was built is kept. Not the swap's own "Could not replace ... Close any running copy of Longshot": a folder
+        // that can't be written says that too)
+        if (Has("still running from this folder"))
+            return new Problem(ProblemKind.GameRunning, Tr.N("Longshot is still running"),
+                Tr.N("The new version is built, but it can't replace the game while Longshot runs from its folder. Save and close " +
+                "Longshot, then build again: what was built so far is kept."), [BuildAgain]);
         return new Problem(ProblemKind.Unknown, Tr.N("The build stopped"),
             Tr.N("Something went wrong that Longshot doesn't recognise yet."), [BuildAgain]);
     }

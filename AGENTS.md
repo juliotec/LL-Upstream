@@ -19,6 +19,12 @@ What agents trip on:
   ([RELEASING.md](RELEASING.md)).
 - **jj or git**: `main` is protected; push a branch to your fork and open a pull request. Never push to
   MagicBeanDev/LongshotLauncher directly.
+- **Signing in to git.magicbean.dev** is Longshot's: run `python -I scripts/forge.py login` in a Longshot checkout, as its
+  [CONTRIBUTING.md](https://git.magicbean.dev/MagicBeanDev/Longshot/src/branch/main/CONTRIBUTING.md#get-started) says
+  (step 2, *Sign in*). One sign-in covers git on every repository there, this one included. Its `pr` commands are for
+  Longshot only: open a pull request here from the link a push prints, or with fj (Longshot's
+  [docs/forge.md](https://git.magicbean.dev/MagicBeanDev/Longshot/src/branch/main/docs/forge.md), *fj, the Forgejo
+  command line*).
 
 Pull requests: **open the description with why the PR is needed**, in one or two plain sentences, and include
 screenshots when the change shows on screen.
