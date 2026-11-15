@@ -10,7 +10,12 @@ namespace LongshotLauncher.Core;
 /// SHA256SUMS, so an old list only offers the new version a minute later. A file that is not the one its release names (size,
 /// SHA-256) is not a failure of the CDN: it fails as before, the callers' checks unchanged. A download the CDN cut short
 /// starts again from the stream's start, so no half of the CDN's file stays in front of the server's; a stream that cannot go
-/// back (not seekable) keeps the CDN's failure. LONGSHOT_LAUNCHER_NO_CDN=1: no CDN, everything from git.magicbean.dev
+/// back (not seekable) keeps the CDN's failure. LONGSHOT_LAUNCHER_NO_CDN=1: no CDN, everything from git.magicbean.dev.
+///
+/// git.magicbean.dev itself redirects a release file or a package to git-cdn (Cloudflare's rule, magicbean-infra), which would
+/// send the fall back to the host that just failed: a PC whose network or antivirus breaks the connection to git-cdn alone then
+/// has no way to a file at all. The rule leaves a link with cdn=0 in its query alone, so every such download asked of
+/// git.magicbean.dev (the fall back, a tool's own link, and all of them with the CDN off) carries it: Direct
 public sealed class CdnFetcher(IFetcher inner, bool enabled = true) : IFetcher
 {
     public const string Origin = "https://git.magicbean.dev", Cdn = "https://git-cdn.magicbean.dev";
@@ -33,6 +38,21 @@ public sealed class CdnFetcher(IFetcher inner, bool enabled = true) : IFetcher
         return release || path.StartsWith("/api/packages/", StringComparison.Ordinal) ? Cdn + u.PathAndQuery : null;
     }
 
+    /// A release file's or package's link on git.magicbean.dev as the server itself answers it, not redirected to git-cdn: cdn=0
+    /// in its query. Any other link as it is
+    public static string Direct(string url)
+    {
+        if (CdnOf(url) == null) return url;
+        var u = new Uri(url);
+        if (u.Query.TrimStart('?').Split('&').Contains(NoRedirect)) return url;
+        var at = url.IndexOf('#');
+        var (link, fragment) = at < 0 ? (url, "") : (url[..at], url[at..]);
+        return link + (u.Query.Length > 1 ? "&" : link.EndsWith('?') ? "" : "?") + NoRedirect + fragment;
+    }
+
+    /// The query that keeps git.magicbean.dev from redirecting a download to git-cdn
+    public const string NoRedirect = "cdn=0";
+
     /// The CDN's link for a release list (any page) or a release by its tag on git.magicbean.dev's API; null for any other link
     public static string? ListCdnOf(string url)
     {
@@ -47,16 +67,18 @@ public sealed class CdnFetcher(IFetcher inner, bool enabled = true) : IFetcher
 
     /// A tool's own links (tools.lock: its git-cdn link, the same file on git.magicbean.dev, where it came from), which Toolchains
     /// tries in order through Inner, moving on also when a link gives other bytes: each git.magicbean.dev link with its CDN link in
-    /// front when the list lacks it; with the CDN off, a git-cdn link whose git.magicbean.dev twin is listed is left out
+    /// front when the list lacks it; with the CDN off, a git-cdn link whose git.magicbean.dev twin is listed is left out. A
+    /// git.magicbean.dev link is the server's own answer (Direct), else it would be git-cdn's a second time
     public IReadOnlyList<string> Expand(IReadOnlyList<string> urls)
     {
         if (!Enabled)
-            return urls.Where(u => !(u.StartsWith(Cdn + "/", StringComparison.Ordinal) && urls.Contains(Origin + u[Cdn.Length..]))).ToList();
+            return urls.Where(u => !(u.StartsWith(Cdn + "/", StringComparison.Ordinal) && urls.Contains(Origin + u[Cdn.Length..])))
+                       .Select(Direct).ToList();
         var links = new List<string>();
         foreach (var u in urls)
         {
             if (CdnOf(u) is { } cdn && !links.Contains(cdn) && !urls.Contains(cdn)) links.Add(cdn);
-            if (!links.Contains(u)) links.Add(u);
+            if (!links.Contains(Direct(u))) links.Add(Direct(u));
         }
         return links;
     }
@@ -85,7 +107,7 @@ public sealed class CdnFetcher(IFetcher inner, bool enabled = true) : IFetcher
     {
         if (!Enabled || CdnOf(url) is not { } cdn)
         {
-            await inner.DownloadAsync(url, to, progress, cancel).ConfigureAwait(false);
+            await inner.DownloadAsync(Direct(url), to, progress, cancel).ConfigureAwait(false);
             return;
         }
         var start = to.CanSeek ? to.Position : 0;
@@ -109,6 +131,6 @@ public sealed class CdnFetcher(IFetcher inner, bool enabled = true) : IFetcher
                 to.Position = start;
             }
         }
-        await inner.DownloadAsync(url, to, progress, cancel).ConfigureAwait(false);
+        await inner.DownloadAsync(Direct(url), to, progress, cancel).ConfigureAwait(false);
     }
 }

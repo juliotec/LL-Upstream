@@ -81,7 +81,7 @@ static partial class Program
             var server = new FailingFetcher();
             const string release = "https://git.magicbean.dev/MagicBeanDev/Longshot/releases/download/v3.1.0/SHA256SUMS";
             server.Files["https://git-cdn.magicbean.dev/MagicBeanDev/Longshot/releases/download/v3.1.0/SHA256SUMS"] = new Served(new byte[] { 1 }, 0, 503);
-            server.Files[release] = new Served(new byte[] { 2 });
+            server.Files[CdnFetcher.Direct(release)] = new Served(new byte[] { 2 });
             await new CdnFetcher(server).DownloadAsync(release, new MemoryStream(), null, CancellationToken.None);
             Require(LauncherLog.Tail(5).Any(l => l.EndsWith(" git-cdn.magicbean.dev failed (HTTP 503): trying git.magicbean.dev", StringComparison.Ordinal)),
                     "The CDN's fall back is logged: " + string.Join(" | ", LauncherLog.Tail(5)));

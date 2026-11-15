@@ -59,6 +59,17 @@ static partial class Program
         const string package = "https://git.magicbean.dev/api/packages/MagicBeanDev/generic/llvm-mingw-windows-x64/20261104/abc-llvm-mingw.zip";
         const string cdnPackage = "https://git-cdn.magicbean.dev/api/packages/MagicBeanDev/generic/llvm-mingw-windows-x64/20261104/abc-llvm-mingw.zip";
         const string upstream = "https://github.com/mstorsjo/llvm-mingw/releases/download/20261104/llvm-mingw-20261104-ucrt-x86_64.zip";
+        // (the same file asked of git.magicbean.dev itself: cdn=0, so that its redirect to git-cdn is not taken)
+        const string direct = release + "?cdn=0";
+
+        // (Direct: release files and packages of git.magicbean.dev only, once, after a query and before a fragment)
+        Require(CdnFetcher.Direct(release) == direct && CdnFetcher.Direct(direct) == direct && CdnFetcher.Direct(package) == package + "?cdn=0"
+                && CdnFetcher.Direct(package + "?a=1") == package + "?a=1&cdn=0" && CdnFetcher.Direct(package + "?a=1#top") == package + "?a=1&cdn=0#top"
+                && CdnFetcher.Direct(package + "?") == package + "?cdn=0" && CdnFetcher.Direct(package + "?xcdn=0") == package + "?xcdn=0&cdn=0"
+                && CdnFetcher.Direct(upstream) == upstream && CdnFetcher.Direct(cdnRelease) == cdnRelease
+                && CdnFetcher.Direct("https://git.magicbean.dev/api/v1/user") == "https://git.magicbean.dev/api/v1/user"
+                && CdnFetcher.Direct("not a link") == "not a link",
+                "A release file or package of git.magicbean.dev gets cdn=0, once; any other link stays as it is.");
 
         // (the rewrite: release files and packages of git.magicbean.dev only)
         Require(CdnFetcher.CdnOf(release) == cdnRelease && CdnFetcher.CdnOf(package) == cdnPackage
@@ -112,7 +123,7 @@ static partial class Program
 
         // (from the CDN when it answers; the API and other hosts never go there)
         server.Files[cdnRelease] = new Served(bytes);
-        server.Files[release] = new Served(other);
+        server.Files[direct] = new Served(other);
         Require((await Get(release)).SequenceEqual(bytes) && server.Asked.SequenceEqual(new[] { cdnRelease }), "A release file from the CDN.");
         server.Asked.Clear();
         const string user = "https://git.magicbean.dev/api/v1/user";
@@ -125,27 +136,27 @@ static partial class Program
                 "Another host, and a git-cdn link, as they are.");
 
         // (the CDN fails before any byte: no answer, 403, 404, 5xx, then git.magicbean.dev)
-        server.Files[release] = new Served(bytes);
+        server.Files[direct] = new Served(bytes);
         foreach (var status in new int?[] { null, 403, 404, 500, 503 })
         {
             server.Files[cdnRelease] = new Served(other, 0, status);
-            Require((await Get(release)).SequenceEqual(bytes) && server.Asked.SequenceEqual(new[] { cdnRelease, release }),
+            Require((await Get(release)).SequenceEqual(bytes) && server.Asked.SequenceEqual(new[] { cdnRelease, direct }),
                     $"The CDN's failure ({status?.ToString() ?? "no answer"}) falls back to git.magicbean.dev.");
         }
         server.Files.Remove(cdnRelease);
-        Require((await Get(release)).SequenceEqual(bytes) && server.Asked.SequenceEqual(new[] { cdnRelease, release }), "A file the CDN lacks.");
+        Require((await Get(release)).SequenceEqual(bytes) && server.Asked.SequenceEqual(new[] { cdnRelease, direct }), "A file the CDN lacks.");
         server.Files[cdnRelease] = new Served(other, 0, 400);
         await ThrowsAsync<FetchException>(() => Get(release), "A 400 from the CDN is not a failure of the CDN.");
         Require(server.Asked.SequenceEqual(new[] { cdnRelease }), "A 400 went on to git.magicbean.dev.");
         server.Files[cdnRelease] = new Served(other, 0, 503);
-        server.Files[release] = new Served(other, 0, 502);
+        server.Files[direct] = new Served(other, 0, 502);
         try
         {
             await Get(release);
             Require(false, "Both failing was a success.");
         }
         catch (FetchException e) { Require(e.Status == 502 && server.Asked.Count == 2, "Both fail: git.magicbean.dev's failure is the one told."); }
-        server.Files[release] = new Served(bytes);
+        server.Files[direct] = new Served(bytes);
 
         // (half way: the stream starts again, nothing of the CDN's bytes stays)
         server.Files[cdnRelease] = new Served(other, 70, null);
@@ -155,7 +166,7 @@ static partial class Program
         {
             to.Write("kept"u8);
             await cdn.DownloadAsync(release, to, seen.Add, CancellationToken.None);
-            Require(to.ToArray().SequenceEqual("kept"u8.ToArray().Concat(bytes)) && server.Asked.SequenceEqual(new[] { cdnRelease, release }),
+            Require(to.ToArray().SequenceEqual("kept"u8.ToArray().Concat(bytes)) && server.Asked.SequenceEqual(new[] { cdnRelease, direct }),
                     "A download the CDN cut short is the server's file, from the stream's start.");
             Require(seen[^1] == bytes.Length && seen.Contains(70), "The progress starts again with the server's download.");
         }
@@ -207,15 +218,17 @@ static partial class Program
                       ("LongshotBuilder/tools/python/python.exe", "MZ", null, 0x1A4));
         const string appUrl = "https://git.magicbean.dev/MagicBeanDev/Longshot/releases/download/v3.6.0/LongshotBuilder-v3.6.0-windows-x64.zip";
         var appCdn = CdnFetcher.CdnOf(appUrl)!;
+        var appDirect = CdnFetcher.Direct(appUrl);
         var otherApp = (byte[])app.Clone();
         otherApp[^30] ^= 1;
-        server.Files[appUrl] = new Served(app);
+        server.Files[appDirect] = new Served(app);
         server.Files[appCdn] = new Served(otherApp, app.Length / 2, null);
         var llvm = Zip(("llvm-mingw-20261104-ucrt-x86_64/bin/clang.exe", "MZ", null, 0x1A4));
         var llvmCdn = cdnPackage.Replace("abc-", ShaOf(llvm) + "-");
         var llvmOrigin = package.Replace("abc-", ShaOf(llvm) + "-");
+        var llvmDirect = CdnFetcher.Direct(llvmOrigin);
         server.Files[llvmCdn] = new Served(llvm, 0, 503);
-        server.Files[llvmOrigin] = new Served(otherApp);
+        server.Files[llvmDirect] = new Served(otherApp);
         server.Files[upstream] = new Served(llvm);
         PartsList Setup(string tag, string toolLinks) => new(ListKind.Setup, tag,
             new List<Part> { new(ShaOf(app), app.Length, ".", null, null, appUrl) }
@@ -226,12 +239,12 @@ static partial class Program
         var w = await chains.InstallAsync(Setup("v3.6.0", $"{llvmCdn} {llvmOrigin} {upstream}"));
         Require(File.Exists(Path.Combine(w.ToolsRoot, "llvm-mingw", "bin", "clang.exe")) && File.Exists(w.MakeGame),
                 "A builder, the CDN cut short, and a tool from its last link.");
-        Require(server.Asked.SequenceEqual(new[] { appCdn, appUrl, llvmCdn, llvmOrigin, upstream }),
+        Require(server.Asked.SequenceEqual(new[] { appCdn, appDirect, llvmCdn, llvmDirect, upstream }),
                 "Each link once, in order (the tool's git-cdn link not tried twice): " + string.Join(", ", server.Asked));
         chains.Prune(Array.Empty<string>());   // (else its parts are kept from v3.6.0, not downloaded)
         server.Asked.Clear();
         await chains.InstallAsync(Setup("v3.6.2", $"{llvmOrigin} {upstream}"));
-        Require(server.Asked.SequenceEqual(new[] { appCdn, appUrl, llvmCdn, llvmOrigin, upstream }),
+        Require(server.Asked.SequenceEqual(new[] { appCdn, appDirect, llvmCdn, llvmDirect, upstream }),
                 "A tool listed without its git-cdn link gets it in front: " + string.Join(", ", server.Asked));
         server.Files[appCdn] = new Served(otherApp);
         chains.Prune(Array.Empty<string>());
@@ -280,20 +293,20 @@ static partial class Program
         using (var to = new MemoryStream())
         {
             await off.DownloadAsync(release, to, null, CancellationToken.None);
-            Require(to.ToArray().SequenceEqual(bytes) && server.Asked.SequenceEqual(new[] { release }), "With the CDN off, git.magicbean.dev only.");
+            Require(to.ToArray().SequenceEqual(bytes) && server.Asked.SequenceEqual(new[] { direct }), "With the CDN off, git.magicbean.dev only.");
         }
         server.Files.Remove(cdnList);
         Require(await Text(off, list) == "text of " + list && server.Asked.SequenceEqual(new[] { list }),
                 "With the CDN off, a release list from git.magicbean.dev only.");
-        Require(off.Expand(new[] { llvmCdn, llvmOrigin, upstream }).SequenceEqual(new[] { llvmOrigin, upstream })
+        Require(off.Expand(new[] { llvmCdn, llvmOrigin, upstream }).SequenceEqual(new[] { llvmDirect, upstream })
                 && off.Expand(new[] { cdnRelease }).SequenceEqual(new[] { cdnRelease })
-                && cdn.Expand(new[] { llvmCdn, llvmOrigin, upstream }).SequenceEqual(new[] { llvmCdn, llvmOrigin, upstream })
-                && cdn.Expand(new[] { llvmOrigin, upstream }).SequenceEqual(new[] { llvmCdn, llvmOrigin, upstream }),
+                && cdn.Expand(new[] { llvmCdn, llvmOrigin, upstream }).SequenceEqual(new[] { llvmCdn, llvmDirect, upstream })
+                && cdn.Expand(new[] { llvmOrigin, upstream }).SequenceEqual(new[] { llvmCdn, llvmDirect, upstream }),
                 "A tool's links with the CDN on and off.");
         server.Files[appCdn] = new Served(otherApp);
-        server.Files[llvmOrigin] = new Served(llvm);
+        server.Files[llvmDirect] = new Served(llvm);
         server.Asked.Clear();
         await new Toolchains(Path.Combine(root, "toolchains-off"), off).InstallAsync(Setup("v3.6.4", $"{llvmCdn} {llvmOrigin} {upstream}"));
-        Require(server.Asked.SequenceEqual(new[] { appUrl, llvmOrigin }), "With the CDN off, no git-cdn link: " + string.Join(", ", server.Asked));
+        Require(server.Asked.SequenceEqual(new[] { appDirect, llvmDirect }), "With the CDN off, no git-cdn link: " + string.Join(", ", server.Asked));
     }
 }
