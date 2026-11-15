@@ -625,5 +625,13 @@
   "This is not a Vulkan FSR 4 library (.so).": "Это не библиотека Vulkan FSR 4 (.so).",
   "FSR 4 library": "Библиотека FSR 4",
   "Choose…": "Выбрать…",
-  "Copied for a bug report: what happened, the launcher's version, this PC's system and the launcher's log.": "Скопировано для отчёта об ошибке: что произошло, версия лаунчера, система этого ПК и журнал лаунчера."
+  "Copied for a bug report: what happened, the launcher's version, this PC's system and the launcher's log.": "Скопировано для отчёта об ошибке: что произошло, версия лаунчера, система этого ПК и журнал лаунчера.",
+  "Not checked": "Не проверено",
+  "This file is not a .nup package, or its beginning is damaged. Pick the .nup file of your dump, or copy it again.": "Этот файл не является пакетом .nup, или его начало повреждено. Выберите файл .nup вашего дампа или скопируйте его заново.",
+  "This file is incomplete: it is smaller than it should be. Copy or download it again, then check it again.": "Этот файл неполный: он меньше, чем должен быть. Скопируйте или скачайте его заново, затем проверьте ещё раз.",
+  "This dump's game code is not in a form Longshot can read. Try another dump of the game.": "Код игры в этом дампе записан в виде, который Longshot не может прочитать. Попробуйте другой дамп игры.",
+  "This file is damaged and could not be read. Copy or download it again, or try another dump of the game.": "Этот файл повреждён, и его не удалось прочитать. Скопируйте или скачайте его заново или попробуйте другой дамп игры.",
+  "The file could not be checked, because of this PC rather than the file: {0}": "Файл не удалось проверить из-за этого ПК, а не из-за файла: {0}",
+  "The check stopped before it could tell anything about this file: {0}": "Проверка остановилась, прежде чем смогла что-либо сказать об этом файле: {0}",
+  "Check again": "Проверить снова"
 }

@@ -3,16 +3,54 @@ using System.Globalization;
 
 namespace LongshotLauncher.Core;
 
-public enum GameCheckStatus { Supported, OtherVersion, Unreadable }
+/// Unreadable: the game file itself could not be read (damaged, incomplete, not a game dump, the drive); CheckFailed: the check
+/// did not get as far as the file (this PC's build tools, or an error the builder did not expect), so nothing is known of it
+public enum GameCheckStatus { Supported, OtherVersion, Unreadable, CheckFailed }
 
-/// make_game.py --check's answer, in plain words: the supported version, another version of the game, or files it could not read
-public sealed record GameCheck(GameCheckStatus Status, string Text)
+/// make_game.py --check's answer, in plain words: the supported version, another version of the game, files it could not read,
+/// or a check that could not run. Text: make_game.py's own words (English), for the tooltip and a bug report. ThisPc: a check that
+/// could not run because of this PC (its build tools, compiler or Windows SDK), not an error nobody expected
+public sealed record GameCheck(GameCheckStatus Status, string Text, bool ThisPc = false)
 {
     public bool Ok => Status == GameCheckStatus.Supported;
 
+    /// make_game.py's failures that are the file's: nup.py's (it reads the .nup), the game modules' checks and the drive's. Its
+    /// check tests this PC's compiler first (check_windows_sdk), and those failures, like one it did not expect, are not the file's
+    static readonly string[] FileFailures =
+    [
+        "nup.py stopped", "not a NUP package", ".nup file", "is not a game executable", "is not a game module", "Your drive could not read",
+    ];
+
+    /// What an @@error of the check says of the file: Unreadable when it is the file's, CheckFailed otherwise
+    public static GameCheckStatus Of(string error) =>
+        FileFailures.Any(f => error.Contains(f, StringComparison.OrdinalIgnoreCase)) ? GameCheckStatus.Unreadable : GameCheckStatus.CheckFailed;
+
+    /// The answer in the player's words, shown under the file (Text stays in the tooltip and the report): what is wrong and what to
+    /// do. Null for a supported file
+    public string? Why => Status switch
+    {
+        GameCheckStatus.Supported => null,
+        // (the words the build's own stop says for it: the version Longshot needs, and what to do)
+        GameCheckStatus.OtherVersion => Problems.FromBuild(Text) is { Kind: ProblemKind.WrongGameVersion } p ? Tr.T(p.Detail) : Text,
+        GameCheckStatus.Unreadable when Has("not a NUP package") =>
+            Tr.T("This file is not a .nup package, or its beginning is damaged. Pick the .nup file of your dump, or copy it again."),
+        GameCheckStatus.Unreadable when Has("incomplete") || Has("ends early") =>
+            Tr.T("This file is incomplete: it is smaller than it should be. Copy or download it again, then check it again."),
+        GameCheckStatus.Unreadable when Has("is not a game executable") || Has("is not a game module") =>
+            Tr.T("This dump's game code is not in a form Longshot can read. Try another dump of the game."),
+        GameCheckStatus.Unreadable when Has("Your drive could not read") => Text,
+        GameCheckStatus.Unreadable =>
+            Tr.T("This file is damaged and could not be read. Copy or download it again, or try another dump of the game."),
+        _ when ThisPc => Tr.F("The file could not be checked, because of this PC rather than the file: {0}", Text),
+        // (an error the builder did not expect, or one it did not say: neither the file's nor this PC's, as far as is known)
+        _ => Tr.F("The check stopped before it could tell anything about this file: {0}", Text),
+    };
+
+    bool Has(string words) => Text.Contains(words, StringComparison.OrdinalIgnoreCase);
+
     /// The answer from the check's stdout lines, the last line it wrote to stderr and its exit code (the 2.x Builder's
-    /// Runner.Check): @@check ok, @@check bad (another version), @@error or nothing said (the files could not be read: the
-    /// stderr line says why)
+    /// Runner.Check): @@check ok, @@check bad (another version), @@error (the file could not be read, or the check could not
+    /// run: Of), or nothing said (the check could not run: the stderr line says why)
     public static GameCheck Read(IEnumerable<string> stdout, string? lastError, int exitCode)
     {
         GameCheck? answer = null;
@@ -26,10 +64,11 @@ public sealed record GameCheck(GameCheckStatus Status, string Text)
                     answer = new GameCheck(GameCheckStatus.OtherVersion, c.Text);
                     break;
                 case MakeGameLine.Error e:
-                    answer = new GameCheck(GameCheckStatus.Unreadable, e.Text);
+                    // (make_game.py's own failures, other than the file's, are this PC's: its prerequisites; not one it did not expect)
+                    answer = new GameCheck(Of(e.Text), e.Text, ThisPc: !e.Text.Contains("did not expect", StringComparison.Ordinal));
                     break;
             }
-        return answer ?? new GameCheck(GameCheckStatus.Unreadable,
+        return answer ?? new GameCheck(GameCheckStatus.CheckFailed,
             string.IsNullOrWhiteSpace(lastError) ? Tr.F("The build tools stopped without saying why (exit code {0}).", exitCode) : lastError.Trim());
     }
 }
@@ -87,7 +126,7 @@ public static class MakeGameRun
         }
         catch (Exception e) when (e is System.ComponentModel.Win32Exception or IOException or InvalidOperationException)
         {
-            return new GameCheck(GameCheckStatus.Unreadable, Tr.F("The build tools could not start: {0}", e.Message));
+            return new GameCheck(GameCheckStatus.CheckFailed, Tr.F("The build tools could not start: {0}", e.Message), ThisPc: true);
         }
     }
 }

@@ -577,5 +577,13 @@
   "This is not a Vulkan FSR 4 library (.so).": "Vulkan FSR 4 라이브러리(.so)가 아닙니다.",
   "FSR 4 library": "FSR 4 라이브러리",
   "Choose…": "선택…",
-  "Copied for a bug report: what happened, the launcher's version, this PC's system and the launcher's log.": "버그 신고용으로 복사함: 일어난 일, 런처 버전, 이 PC의 시스템, 런처 로그."
+  "Copied for a bug report: what happened, the launcher's version, this PC's system and the launcher's log.": "버그 신고용으로 복사함: 일어난 일, 런처 버전, 이 PC의 시스템, 런처 로그.",
+  "Not checked": "확인 안 됨",
+  "This file is not a .nup package, or its beginning is damaged. Pick the .nup file of your dump, or copy it again.": "이 파일은 .nup 패키지가 아니거나 앞부분이 손상되었습니다. 덤프의 .nup 파일을 선택하거나 다시 복사하세요.",
+  "This file is incomplete: it is smaller than it should be. Copy or download it again, then check it again.": "이 파일은 불완전합니다. 원래 크기보다 작습니다. 다시 복사하거나 다운로드한 다음 다시 확인하세요.",
+  "This dump's game code is not in a form Longshot can read. Try another dump of the game.": "이 덤프의 게임 코드는 Longshot이 읽을 수 있는 형식이 아닙니다. 다른 게임 덤프를 사용해 보세요.",
+  "This file is damaged and could not be read. Copy or download it again, or try another dump of the game.": "이 파일이 손상되어 읽을 수 없었습니다. 다시 복사하거나 다운로드하거나, 다른 게임 덤프를 사용해 보세요.",
+  "The file could not be checked, because of this PC rather than the file: {0}": "파일이 아니라 이 PC 때문에 파일을 확인할 수 없었습니다: {0}",
+  "The check stopped before it could tell anything about this file: {0}": "이 파일에 대해 알아내기 전에 확인이 멈췄습니다: {0}",
+  "Check again": "다시 확인"
 }

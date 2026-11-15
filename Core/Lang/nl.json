@@ -593,5 +593,13 @@
   "This is not a Vulkan FSR 4 library (.so).": "Dit is geen Vulkan FSR 4-bibliotheek (.so).",
   "FSR 4 library": "FSR 4-bibliotheek",
   "Choose…": "Kiezen…",
-  "Copied for a bug report: what happened, the launcher's version, this PC's system and the launcher's log.": "Gekopieerd voor een bugrapport: wat er gebeurde, de versie van de launcher, het systeem van deze pc en het logboek van de launcher."
+  "Copied for a bug report: what happened, the launcher's version, this PC's system and the launcher's log.": "Gekopieerd voor een bugrapport: wat er gebeurde, de versie van de launcher, het systeem van deze pc en het logboek van de launcher.",
+  "Not checked": "Niet gecontroleerd",
+  "This file is not a .nup package, or its beginning is damaged. Pick the .nup file of your dump, or copy it again.": "Dit bestand is geen .nup-pakket, of het begin is beschadigd. Kies het .nup-bestand van je dump, of kopieer het opnieuw.",
+  "This file is incomplete: it is smaller than it should be. Copy or download it again, then check it again.": "Dit bestand is onvolledig: het is kleiner dan het hoort te zijn. Kopieer of download het opnieuw en controleer het dan nog eens.",
+  "This dump's game code is not in a form Longshot can read. Try another dump of the game.": "De spelcode van deze dump staat niet in een vorm die Longshot kan lezen. Probeer een andere dump van het spel.",
+  "This file is damaged and could not be read. Copy or download it again, or try another dump of the game.": "Dit bestand is beschadigd en kon niet worden gelezen. Kopieer of download het opnieuw, of probeer een andere dump van het spel.",
+  "The file could not be checked, because of this PC rather than the file: {0}": "Het bestand kon niet worden gecontroleerd, door deze pc en niet door het bestand: {0}",
+  "The check stopped before it could tell anything about this file: {0}": "De controle stopte voordat er iets over dit bestand bekend was: {0}",
+  "Check again": "Opnieuw controleren"
 }

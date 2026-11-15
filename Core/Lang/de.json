@@ -593,5 +593,13 @@
   "This is not a Vulkan FSR 4 library (.so).": "Das ist keine Vulkan-FSR-4-Bibliothek (.so).",
   "FSR 4 library": "FSR-4-Bibliothek",
   "Choose…": "Wählen…",
-  "Copied for a bug report: what happened, the launcher's version, this PC's system and the launcher's log.": "Für einen Fehlerbericht kopiert: was passiert ist, die Version des Launchers, das System dieses PCs und das Log des Launchers."
+  "Copied for a bug report: what happened, the launcher's version, this PC's system and the launcher's log.": "Für einen Fehlerbericht kopiert: was passiert ist, die Version des Launchers, das System dieses PCs und das Log des Launchers.",
+  "Not checked": "Nicht geprüft",
+  "This file is not a .nup package, or its beginning is damaged. Pick the .nup file of your dump, or copy it again.": "Diese Datei ist kein .nup-Paket, oder ihr Anfang ist beschädigt. Wähle die .nup-Datei deines Dumps, oder kopiere sie erneut.",
+  "This file is incomplete: it is smaller than it should be. Copy or download it again, then check it again.": "Diese Datei ist unvollständig: Sie ist kleiner, als sie sein sollte. Kopiere oder lade sie erneut herunter und prüfe sie dann noch einmal.",
+  "This dump's game code is not in a form Longshot can read. Try another dump of the game.": "Der Spielcode dieses Dumps liegt nicht in einer Form vor, die Longshot lesen kann. Versuche einen anderen Dump des Spiels.",
+  "This file is damaged and could not be read. Copy or download it again, or try another dump of the game.": "Diese Datei ist beschädigt und konnte nicht gelesen werden. Kopiere oder lade sie erneut herunter, oder versuche einen anderen Dump des Spiels.",
+  "The file could not be checked, because of this PC rather than the file: {0}": "Die Datei konnte nicht geprüft werden, wegen dieses PCs und nicht wegen der Datei: {0}",
+  "The check stopped before it could tell anything about this file: {0}": "Die Prüfung hat angehalten, bevor sie etwas über diese Datei sagen konnte: {0}",
+  "Check again": "Erneut prüfen"
 }

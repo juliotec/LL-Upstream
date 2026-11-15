@@ -60,6 +60,18 @@ static class Program
                                  "may be blocking the site. (Connection reset by peer)"),
         new("tools-failed", "Step 1, the tools' download failed, Copy for a bug report", Platform.Windows, null,
             m => Files(m, "git.magicbean.dev did not answer in time. The server may be down or busy, or the network slow or blocking it: try again in a few minutes.")),
+        // (Linux paths: a Windows path is not split into its folder and name on the Linux PCs the screenshots are drawn on)
+        new("files-not-usable", "Step 1, game files that can't be used: why under each, Check again, Copy for a bug report", Platform.Linux, null,
+            m => Files(m, null,
+                ("/home/player/Games/Ocarina of Time/0400486024dec000_v131072.nup", new GameCheck(GameCheckStatus.Unreadable,
+                    "nup.py stopped (exit status 1): the .nup file is incomplete: it is 9214 MB, its header says 25624 MB. Download or copy it again")),
+                ("/home/player/Downloads/Ocarina of Time.nup", new GameCheck(GameCheckStatus.OtherVersion,
+                    "This is build 7c1a33b0. Longshot supports build e0f3ccfa.")))),
+        new("files-not-checked", "Step 1, a check that could not run because of this PC: not said to be the file's", Platform.Linux, null,
+            m => Files(m, null,
+                ("/home/player/Games/Ocarina of Time/0400486024dec000_v131072.nup", new GameCheck(GameCheckStatus.CheckFailed,
+                    "Building on Linux needs a few programs this PC lacks: clang, lld. Install them with your package manager, then check again.",
+                    ThisPc: true)))),
         new("crash", "The game closed unexpectedly, Copy for a bug report", Platform.Windows, null,
             m => new ProblemPageViewModel(m, new Problem(ProblemKind.GameCrashed, "The game closed unexpectedly",
                                                          "If it happens again at the same place, the latest graphics driver is worth a try.",
@@ -69,11 +81,14 @@ static class Program
             m => m.Modal = new HookshotImportViewModel(m) { Problem = @"The saves could not be copied: Access to the path 'C:\Users\Player\Saved Games\Longshot\slot1' is denied." }),
     ];
 
-    /// Step 1 with the tools' download failed, why
-    static FilesStepViewModel Files(MainViewModel main, string why)
+    /// Step 1 with the tools' download failed, why (null: the tools downloaded), and the game files listed with their checks
+    static FilesStepViewModel Files(MainViewModel main, string? why, params (string Path, GameCheck Check)[] files)
     {
         var page = new FilesStepViewModel(Job(main), tools: false, search: false);
-        page.ShowToolsFailed(why);
+        if (why != null) page.ShowToolsFailed(why);
+        else page.ShowToolsDone();
+        foreach (var (path, check) in files)
+            page.ShowFile(new FoundGameFile(path, "Found", 25L << 30, DateTime.Now, false), check);
         return page;
     }
 

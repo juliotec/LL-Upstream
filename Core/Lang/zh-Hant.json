@@ -577,5 +577,13 @@
   "This is not a Vulkan FSR 4 library (.so).": "這不是 Vulkan FSR 4 程式庫（.so）。",
   "FSR 4 library": "FSR 4 程式庫",
   "Choose…": "選擇…",
-  "Copied for a bug report: what happened, the launcher's version, this PC's system and the launcher's log.": "已複製以回報錯誤：發生了什麼、啟動器的版本、這台電腦的系統，以及啟動器的記錄檔。"
+  "Copied for a bug report: what happened, the launcher's version, this PC's system and the launcher's log.": "已複製以回報錯誤：發生了什麼、啟動器的版本、這台電腦的系統，以及啟動器的記錄檔。",
+  "Not checked": "未檢查",
+  "This file is not a .nup package, or its beginning is damaged. Pick the .nup file of your dump, or copy it again.": "此檔案不是 .nup 套件，或其開頭已損壞。請選擇你的傾印中的 .nup 檔案，或重新複製。",
+  "This file is incomplete: it is smaller than it should be. Copy or download it again, then check it again.": "此檔案不完整：它比應有的大小還小。請重新複製或下載，然後再檢查一次。",
+  "This dump's game code is not in a form Longshot can read. Try another dump of the game.": "此傾印中的遊戲程式碼不是 Longshot 能讀取的形式。請嘗試另一份遊戲傾印。",
+  "This file is damaged and could not be read. Copy or download it again, or try another dump of the game.": "此檔案已損壞，無法讀取。請重新複製或下載，或嘗試另一份遊戲傾印。",
+  "The file could not be checked, because of this PC rather than the file: {0}": "無法檢查此檔案，原因在於這台電腦而不是檔案：{0}",
+  "The check stopped before it could tell anything about this file: {0}": "檢查在能判斷此檔案任何情況之前就停止了：{0}",
+  "Check again": "重新檢查"
 }

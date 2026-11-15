@@ -80,6 +80,7 @@
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:GameFileViewModel">
                   <Border BorderBrush="{StaticResource GlassLine}" BorderThickness="0,0,0,1" Margin="0,0,0,-1">
+                    <StackPanel>
                     <RadioButton Classes="row" GroupName="dump" IsChecked="{Binding IsPicked}" IsEnabled="{Binding CanPick}">
                       <Grid ColumnDefinitions="*,Auto" ColumnSpacing="14">
                         <StackPanel VerticalAlignment="Center">
@@ -105,6 +106,18 @@
                         </Panel>
                       </Grid>
                     </RadioButton>
+                    <!-- why a file can't be used, and what to do: under the row (not in it: a row that can't be picked is disabled,
+                         with its buttons), lined up with the file's name -->
+                    <StackPanel Margin="48,0,16,10" Spacing="2" IsVisible="{Binding HasWhy}">
+                      <TextBlock Classes="note" Text="{Binding Why}" TextWrapping="Wrap" ToolTip.Tip="{Binding Tip}"
+                                 Classes.bad="{Binding Bad}"/>
+                      <WrapPanel>
+                        <Button Classes="link smaller" Content="{c:T 'Check again'}" Command="{Binding CheckAgainCommand}" Margin="0,0,14,0"/>
+                        <Button Classes="link soft smaller" Content="{c:T 'Copy for a bug report'}" Command="{Binding CopyReportCommand}"
+                                IsVisible="{Binding Bad}"/>
+                      </WrapPanel>
+                    </StackPanel>
+                    </StackPanel>
                   </Border>
                 </DataTemplate>
               </ItemsControl.ItemTemplate>

@@ -69,6 +69,10 @@ public sealed class GameFileViewModel : ViewModelBase
     {
         this.step = step;
         File = file;
+        CheckAgainCommand = new Command(() => step.CheckAgain(this), () => Dim);
+        CopyReportCommand = step.Job.Main.CopyReportCommand(() => "The game file was not taken: " + check?.Text,
+            () => new[] { $"game file: {File.Name}, {(File.Folders ? "romfs and exefs folders" : $"{File.Size} bytes")}",
+                          $"check: {check?.Status}", $"tools: {step.Job.Version} ({step.Job.Channel})" });
     }
 
     public FoundGameFile File { get; }
@@ -82,22 +86,32 @@ public sealed class GameFileViewModel : ViewModelBase
         set
         {
             if (!Set(ref check, value)) return;
-            RaiseAll(nameof(Checking), nameof(Ok), nameof(Old), nameof(Bad), nameof(ChipText), nameof(Dim), nameof(CanPick), nameof(Tip));
+            RaiseAll(nameof(Checking), nameof(Ok), nameof(Old), nameof(Bad), nameof(ChipText), nameof(Dim), nameof(CanPick), nameof(Tip),
+                     nameof(Why), nameof(HasWhy));
+            CheckAgainCommand.Changed();
         }
     }
 
     public bool Checking => check == null;
     public bool Ok => check?.Status == GameCheckStatus.Supported;
     public bool Old => check?.Status == GameCheckStatus.OtherVersion;
-    public bool Bad => check?.Status == GameCheckStatus.Unreadable;
+    public bool Bad => check?.Status is GameCheckStatus.Unreadable or GameCheckStatus.CheckFailed;
     public string ChipText => check?.Status switch
     {
         GameCheckStatus.Supported => Tr.T("Supported version"),
         GameCheckStatus.OtherVersion => Tr.T("Not the supported version"),
         GameCheckStatus.Unreadable => Tr.T("Can't be read"),
+        GameCheckStatus.CheckFailed => Tr.T("Not checked"),
         _ => Tr.T("Checking…"),
     };
     public string? Tip => check?.Text;
+    /// Under the file, for one that can't be used: what is wrong and what to do (the chip alone said "Can't be read", and its
+    /// reason only showed on hover, in English)
+    public string? Why => check?.Why;
+    public bool HasWhy => Why != null;
+    /// Check again: after copying the file again, or fixing what stopped the check
+    public Command CheckAgainCommand { get; }
+    public Command CopyReportCommand { get; }
     public bool Dim => check != null && !Ok;
     public bool CanPick => !Dim;
 
@@ -274,6 +288,14 @@ public sealed class FilesStepViewModel : ViewModelBase, IWizardPage
         RaiseTools();
     }
 
+    /// For the screenshots: the tools already on this PC (no check is started: no tools are there)
+    public void ShowToolsDone()
+    {
+        toolsDone = true;
+        ToolsFraction = 1;
+        RaiseTools();
+    }
+
     /// For the screenshots: the tools' download failed, saying why
     public void ShowToolsFailed(string why)
     {
@@ -281,6 +303,9 @@ public sealed class FilesStepViewModel : ViewModelBase, IWizardPage
         toolsProblem = why;
         RaiseTools();
     }
+
+    /// For the screenshots: a file listed with its check's answer
+    public void ShowFile(FoundGameFile file, GameCheck check) => Add(file, pick: false, first: false).Check = check;
 
     // ---- the game files ----
 
@@ -343,6 +368,7 @@ public sealed class FilesStepViewModel : ViewModelBase, IWizardPage
             {
                 var command = MakeGameCommand.ForCheck(tools, next.File.Source, Service.Platform, Service.Home, LauncherService.LauncherPath, Service.Work);
                 var result = await Task.Run(() => MakeGameRun.CheckAsync(command, token), token);
+                LauncherLog.Add($"game file check, {next.File.Name}: {result.Status}: {result.Text}");
                 next.Check = result;
                 if (picked == next && !next.Ok) Picked = null;
                 if (picked == null && next.Ok) Picked = next;
@@ -351,6 +377,13 @@ public sealed class FilesStepViewModel : ViewModelBase, IWizardPage
         }
         catch (OperationCanceledException) { }
         finally { checking = false; }
+    }
+
+    /// The file checked again (Check again under it)
+    public void CheckAgain(GameFileViewModel file)
+    {
+        file.Check = null;
+        _ = CheckAllAsync();
     }
 
     public GameFileViewModel? Picked

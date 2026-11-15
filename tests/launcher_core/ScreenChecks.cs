@@ -90,10 +90,32 @@ static partial class Program
         Require(ok.Ok && ok.Text.StartsWith("This is the version"), "@@check ok is the supported version.");
         var bad = GameCheck.Read(new[] { "@@check bad This is build 12345678. Longshot supports build e0f3ccfa." }, "warn", 0);
         Require(bad.Status == GameCheckStatus.OtherVersion && bad.Text.Contains("12345678"), "@@check bad is another version.");
-        var err = GameCheck.Read(new[] { "@@error The .nup could not be read." }, null, 1);
-        Require(err.Status == GameCheckStatus.Unreadable && err.Text == "The .nup could not be read.", "@@error: it could not be read.");
-        Require(GameCheck.Read(Array.Empty<string>(), "Traceback: boom", 1).Text == "Traceback: boom"
+        const string incomplete = "nup.py stopped (exit status 1): the .nup file is incomplete: it is 9214 MB, its header says 25624 MB. Download or copy it again";
+        var err = GameCheck.Read(new[] { "@@error " + incomplete }, null, 1);
+        Require(err.Status == GameCheckStatus.Unreadable && err.Text == incomplete && err.Why!.StartsWith("This file is incomplete"),
+                "@@error from nup.py: the file can't be read, said in plain words: " + err.Why);
+        var said = GameCheck.Read(Array.Empty<string>(), "Traceback: boom", 1);
+        Require(said is { Status: GameCheckStatus.CheckFailed, Text: "Traceback: boom", ThisPc: false }
                 && GameCheck.Read(Array.Empty<string>(), null, 3).Text.Contains("exit code 3"), "Nothing said: stderr's last line, else the exit code.");
+        Require(said.Why!.StartsWith("The check stopped before it could tell anything about this file"), "Nothing said: not blamed on the file.");
+
+        // (which failures are the file's: the check tests this PC's compiler first, and its failures are not the file's)
+        foreach (var (error, status, why) in new[]
+                 {
+                     ("nup.py stopped (exit status 1): /d/x.nup: not a NUP package (magic b'PK\x03\x04')", GameCheckStatus.Unreadable, "This file is not a .nup package"),
+                     ("nup.py stopped (exit status 1): ValueError: TOC SHA-256 mismatch", GameCheckStatus.Unreadable, "This file is damaged"),
+                     ("The file main in this dump is not a game module (it starts 00000000). Try another dump", GameCheckStatus.Unreadable, "This dump's game code"),
+                     ("Your drive could not read D:\\x.nup: the drive reported an I/O error.", GameCheckStatus.Unreadable, "Your drive could not read"),
+                     ("The builder's own compiler (tools/llvm-mingw) could not build a test program: x", GameCheckStatus.CheckFailed, "The file could not be checked, because of this PC"),
+                     ("The builder stopped on an error it did not expect: KeyError: 'x'. Please send", GameCheckStatus.CheckFailed, "The check stopped before"),
+                 })
+        {
+            var answer = GameCheck.Read(new[] { "@@error " + error }, null, 1);
+            Require(answer.Status == status && answer.Why!.StartsWith(why, StringComparison.Ordinal), $"@@error {error}: {answer.Status}, {answer.Why}");
+        }
+        var other = GameCheck.Read(new[] { "@@check bad This is build 12345678. Longshot supports build e0f3ccfa." }, null, 0);
+        Require(other.Why!.StartsWith("Longshot needs the game with update 2.0.0") && ok.Why == null,
+                "Another version: the version Longshot needs, as the build's stop says it; a supported file says nothing.");
 
         var home = new LauncherHome(Path.Combine(scratch, "check-home"));
         var lin = new Toolchain("v3.0.0", Path.Combine(home.Toolchains, "v3.0.0"), ListKind.Linux, null);
@@ -165,7 +187,8 @@ static partial class Program
         }
         var missing = await MakeGameRun.CheckAsync(new MakeGameCommand(Path.Combine(scratch, "no-python"), Array.Empty<string>(), scratch,
                                                                         new Dictionary<string, string?>()));
-        Require(missing.Status == GameCheckStatus.Unreadable && missing.Text.StartsWith("The build tools could not start"), "Tools that do not start.");
+        Require(missing is { Status: GameCheckStatus.CheckFailed, ThisPc: true } && missing.Text.StartsWith("The build tools could not start"),
+                "Tools that do not start: this PC's, not the file's.");
     }
 
     static void ClockChecks()
