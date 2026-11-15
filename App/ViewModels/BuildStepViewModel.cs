@@ -163,7 +163,9 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
         // (an upscaler this PC can't run is left out, whatever was remembered: SystemInfo.Offers)
         var request = new BuildRequest(file.Source, job.InstallDir, s.Language, job.Service.Work, s.BuildWorkers ?? SystemInfo.AutomaticWorkers(), s.MemoryGb, true,
                                        s.Dlss && Offers(SystemInfo.DlssRuns), s.DlssLicense, s.Fsr && Offers(SystemInfo.FsrRuns),
-                                       job.Main.Linux ? s.FsrLinuxNotice : s.FsrLicense, romfsFrom);
+                                       job.Main.Linux ? s.FsrLinuxNotice : s.FsrLicense, romfsFrom,
+                                       s.IntelSideBySide && job.Service.IntelCompilesApply,
+                                       s.IntelLongerLimits && job.Service.IntelCompilesApply);
         dlss = request.Dlss && request.DlssLicense;
         MakeGameCommand command;
         try

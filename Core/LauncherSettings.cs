@@ -24,6 +24,13 @@ public sealed class LauncherSettings
     public bool FsrLinuxNotice { get; set; }
     /// (Linux) The player's Vulkan FSR 4 library, copied into each game folder built with FSR 4 (FsrLibrary); null: none chosen
     public string? FsrLibraryPath { get; set; }
+    /// (Windows, Intel graphics) Intel shader compiles: Side by side hands Intel's compiler several shaders at once, in the build's
+    /// shader preparation and in play (RX_VK_NO_INTEL_SERIAL=1, SystemInfo.IntelCompilesApply); false: One at a time, the game's
+    /// default, whose own Intel shader compiles row then decides
+    public bool IntelSideBySide { get; set; }
+    /// (Windows, Intel graphics) Shader time limit, Longer: the waits on a driver that seems stuck made longer, for the build's
+    /// shader preparation and in play (GamePlay.IntelLongerLimits); false: Normal, Longshot's own
+    public bool IntelLongerLimits { get; set; }
     /// Build memory in GB (LONGSHOT_MEM_LIMIT_GB); null: Automatic
     public int? MemoryGb { get; set; }
     /// Build workers (LONGSHOT_JOBS / --jobs); null: Automatic

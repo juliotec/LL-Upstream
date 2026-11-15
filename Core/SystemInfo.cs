@@ -80,6 +80,11 @@ public static class SystemInfo
     /// Whether the build offers an upscaler on this PC: one of its cards runs it, or no card was found (unknown: left on offer)
     public static bool Offers(IReadOnlyList<Gpu> gpus, Func<Gpu, bool> runs) => gpus.Count == 0 || gpus.Any(runs);
 
+    /// Intel shader compiles applies here: Windows with Intel graphics, the only place Longshot holds Intel's compiler to one
+    /// thread (its gpu/vk/vk_internal.h IntelDriverGate). No card found: not offered, as the choice only matters on Intel
+    public static bool IntelCompilesApply(Platform platform, IReadOnlyList<Gpu> gpus) =>
+        platform == Platform.Windows && gpus.Any(g => g.Vendor == Intel);
+
     /// The maker of a Windows display adapter by its MatchingDeviceId (pci\ven_10de&amp;dev_2782...); null for another
     public static string? VendorOfDeviceId(string deviceId) =>
         Regex.Match(deviceId, @"ven_([0-9a-f]{4})", RegexOptions.IgnoreCase) is { Success: true } m ? VendorOf("0x" + m.Groups[1].Value) : null;

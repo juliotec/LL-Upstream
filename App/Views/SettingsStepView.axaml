@@ -183,6 +183,39 @@
           </StackPanel>
         </Grid>
 
+        <!-- (Windows, Intel graphics) how many shaders Intel's compiler is given at once: the build's and the game's -->
+        <StackPanel IsVisible="{Binding ShowIntelCompiles}">
+          <TextBlock Classes="glabel" Text="{c:T 'INTEL GRAPHICS'}"/>
+          <Border Classes="card">
+            <StackPanel>
+              <Grid Classes="srow" ColumnDefinitions="*,Auto">
+                <StackPanel VerticalAlignment="Center" Spacing="1">
+                  <TextBlock Classes="rtitle" Text="{c:T 'Intel shader compiles'}"/>
+                  <TextBlock Classes="rdesc" Text="{Binding IntelCompilesDesc}"/>
+                </StackPanel>
+                <ComboBox Grid.Column="1" Classes="dd" ItemsSource="{Binding IntelCompileChoices}" SelectedItem="{Binding IntelCompiles}" VerticalAlignment="Center">
+                  <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:Choice"><TextBlock Text="{Binding Label}"/></DataTemplate>
+                  </ComboBox.ItemTemplate>
+                </ComboBox>
+              </Grid>
+              <Border Classes="divider"/>
+              <!-- how long the shader preparation waits on a driver that seems stuck -->
+              <Grid Classes="srow" ColumnDefinitions="*,Auto">
+                <StackPanel VerticalAlignment="Center" Spacing="1">
+                  <TextBlock Classes="rtitle" Text="{c:T 'Shader time limit'}"/>
+                  <TextBlock Classes="rdesc" Text="{Binding IntelLimitsDesc}"/>
+                </StackPanel>
+                <ComboBox Grid.Column="1" Classes="dd" ItemsSource="{Binding IntelLimitChoices}" SelectedItem="{Binding IntelLimits}" VerticalAlignment="Center">
+                  <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:Choice"><TextBlock Text="{Binding Label}"/></DataTemplate>
+                  </ComboBox.ItemTemplate>
+                </ComboBox>
+              </Grid>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+
         <!-- the game -->
         <TextBlock Classes="glabel" Text="{c:T 'THE GAME'}"/>
         <Border Classes="card">

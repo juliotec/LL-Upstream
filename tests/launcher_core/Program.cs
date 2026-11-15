@@ -1035,6 +1035,21 @@ static partial class Program
                 && MakeGameCommand.For(lin, request with { Source = new BuildSource.Folders("/d/romfs", "/d/exefs"), Out = "/g", RomfsFrom = "/o" },
                                        Platform.Linux, home, "/L").Environment["LONGSHOT_ROMFS_FROM"] == null,
                 "LONGSHOT_ROMFS_FROM: the folder for a .nup, removed otherwise.");
+        // (Intel shader compiles, Side by side: Longshot's switch for the build's shader preparation, on Windows only; One at a time
+        // sets nothing, so one set on the PC still applies)
+        Require(MakeGameCommand.For(win, request with { IntelSideBySide = true }, Platform.Windows, home, "L", _ => false)
+                       .Environment["RX_VK_NO_INTEL_SERIAL"] == "1"
+                && !w.Environment.ContainsKey("RX_VK_NO_INTEL_SERIAL")
+                && !MakeGameCommand.For(lin, request with { IntelSideBySide = true }, Platform.Linux, home, "/L").Environment.ContainsKey("RX_VK_NO_INTEL_SERIAL"),
+                "Intel shader compiles: RX_VK_NO_INTEL_SERIAL=1 for a Windows build on Side by side, nothing otherwise.");
+        // (Shader time limit, Longer: Longshot's three waits on a stuck driver, for a Windows build only; Normal sets none)
+        var longer = MakeGameCommand.For(win, request with { IntelLongerLimits = true }, Platform.Windows, home, "L", _ => false).Environment;
+        Require(longer["RX_VK_PREPARE_STALL_S"] == "1800" && longer["RX_VK_PRECOMPILE_STALL_S"] == "180" && longer["RX_VK_PREDICT_STALL_S"] == "180"
+                && !longer.ContainsKey("RX_VK_NO_INTEL_SERIAL")
+                && GamePlay.IntelLongerLimits.All(v => !w.Environment.ContainsKey(v.Name))
+                && GamePlay.IntelLongerLimits.All(v => !MakeGameCommand.For(lin, request with { IntelLongerLimits = true }, Platform.Linux, home, "/L")
+                                                           .Environment.ContainsKey(v.Name)),
+                "Shader time limit: Longer gives a Windows build the three longer waits, Normal and Linux none.");
         var si = l.StartInfo();
         Require(si.ArgumentList.SequenceEqual(l.Arguments) && !si.Environment.ContainsKey("LONGSHOT_VK_PREBUILT") && si.RedirectStandardOutput,
                 "The process start info.");
@@ -1047,6 +1062,21 @@ static partial class Program
         Require(game.Keys.OrderBy(k => k).SequenceEqual(new[] { "HOME", "LONGSHOT_NO_UPDATE_CHECK", "PATH" }) && game["LONGSHOT_NO_UPDATE_CHECK"] == "1",
                 "Linux Play drops the AppImage's and the tools' environment.");
         Require(GamePlay.Environment(Platform.Windows, env).ContainsKey("LONGSHOT_TOOLS"), "Windows Play keeps the environment, as the Builder's.");
+        Require(GamePlay.Environment(Platform.Windows, env, intelSideBySide: true)["RX_VK_NO_INTEL_SERIAL"] == "1"
+                && !GamePlay.Environment(Platform.Windows, env).ContainsKey("RX_VK_NO_INTEL_SERIAL")
+                && !GamePlay.Environment(Platform.Linux, env, intelSideBySide: true).ContainsKey("RX_VK_NO_INTEL_SERIAL"),
+                "Play with Intel shader compiles on Side by side: RX_VK_NO_INTEL_SERIAL=1 on Windows only.");
+        var playLonger = GamePlay.Environment(Platform.Windows, env, intelLongerLimits: true);
+        Require(GamePlay.IntelLongerLimits.All(v => playLonger[v.Name] == v.Value) && !playLonger.ContainsKey("RX_VK_NO_INTEL_SERIAL")
+                && GamePlay.IntelLongerLimits.All(v => !GamePlay.Environment(Platform.Windows, env).ContainsKey(v.Name)
+                                                       && !GamePlay.Environment(Platform.Linux, env, intelLongerLimits: true).ContainsKey(v.Name)),
+                "Play with Shader time limit on Longer: the three longer waits on Windows only.");
+        Require(SystemInfo.IntelCompilesApply(Platform.Windows, new[] { new Gpu(SystemInfo.Intel, "Intel(R) UHD Graphics") })
+                && SystemInfo.IntelCompilesApply(Platform.Windows, new[] { new Gpu(SystemInfo.Nvidia, "RTX 4060 Laptop"), new Gpu(SystemInfo.Intel) })
+                && !SystemInfo.IntelCompilesApply(Platform.Windows, new[] { new Gpu(SystemInfo.Amd, "AMD Radeon RX 9070 XT") })
+                && !SystemInfo.IntelCompilesApply(Platform.Windows, Array.Empty<Gpu>())
+                && !SystemInfo.IntelCompilesApply(Platform.Linux, new[] { new Gpu(SystemInfo.Intel) }),
+                "Intel shader compiles is offered on Windows with Intel graphics only.");
         var play = GamePlay.StartInfo("/g", Platform.Linux, env);
         Require(play.FileName == Path.Combine("/g", "bin", "longshot") && play.WorkingDirectory == "/g" && !play.Environment.ContainsKey("APPDIR")
                 && play.ArgumentList.Count == 0, "Play starts bin/longshot in its folder.");

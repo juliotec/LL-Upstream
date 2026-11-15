@@ -30,6 +30,8 @@ public sealed class LauncherService
     public IReadOnlyList<Gpu> GpuCards { get; set; }
     /// The makers of this PC's graphics cards, each once
     public IReadOnlyList<string> Gpus => GpuCards.Select(g => g.Vendor).Distinct().ToList();
+    /// The Intel shader compiles choice applies on this PC (SystemInfo.IntelCompilesApply): Windows with Intel graphics
+    public bool IntelCompilesApply => SystemInfo.IntelCompilesApply(Platform, GpuCards);
     /// Whether the update check has answered (or was not asked: offline)
     public bool Checked { get; set; }
 
@@ -211,7 +213,9 @@ public sealed class LauncherService
         if (CarrySettings(folder) is { } carried) said = said == null ? carried : said + " " + carried;
         if (OperatingSystem.IsWindows())
             foreach (var line in CarryDriverSettings(folder)) said = said == null ? line : said + " " + line;
-        using var _ = Process.Start(GamePlay.StartInfo(folder, Platform, user: user));
+        using var _ = Process.Start(GamePlay.StartInfo(folder, Platform, user: user,
+                                                       intelSideBySide: Settings.IntelSideBySide && IntelCompilesApply,
+                                                       intelLongerLimits: Settings.IntelLongerLimits && IntelCompilesApply));
         return said;
     }
 

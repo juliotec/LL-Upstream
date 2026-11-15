@@ -160,6 +160,50 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
         RaiseAll(nameof(FsrLibraryChosen), nameof(FsrLibraryText), nameof(FsrLibraryFull), nameof(FsrLibraryDesc));
     }
 
+    // ---- (Windows, Intel graphics) Intel shader compiles ----
+
+    /// Shown where it applies: Windows with Intel graphics (LauncherService.IntelCompilesApply)
+    public bool ShowIntelCompiles => Job.Service.IntelCompilesApply;
+
+    public IReadOnlyList<Choice> IntelCompileChoices { get; } =
+        new[] { new Choice(0, Tr.T("One at a time")), new Choice(1, Tr.T("Side by side")) };
+
+    public Choice IntelCompiles
+    {
+        get => IntelCompileChoices[s.IntelSideBySide ? 1 : 0];
+        set
+        {
+            if (value == null || (value.Value == 1) == s.IntelSideBySide) return;
+            s.IntelSideBySide = value.Value == 1;
+            Save();
+            RaiseAll(nameof(IntelCompiles), nameof(IntelCompilesDesc));
+        }
+    }
+
+    // (Longshot's README, Intel laptops: the driver faulted or froze the PC with two compiles at once, issue 496)
+    public string IntelCompilesDesc => s.IntelSideBySide
+        ? Tr.T("Faster shader builds, but Intel's driver can crash or freeze the PC. For the build and the game.")
+        : Tr.T("Recommended: slower, but safe for Intel's driver. For the build and the game.");
+
+    public IReadOnlyList<Choice> IntelLimitChoices { get; } = new[] { new Choice(0, Tr.T("Normal")), new Choice(1, Tr.T("Longer")) };
+
+    public Choice IntelLimits
+    {
+        get => IntelLimitChoices[s.IntelLongerLimits ? 1 : 0];
+        set
+        {
+            if (value == null || (value.Value == 1) == s.IntelLongerLimits) return;
+            s.IntelLongerLimits = value.Value == 1;
+            Save();
+            RaiseAll(nameof(IntelLimits), nameof(IntelLimitsDesc));
+        }
+    }
+
+    // (GamePlay.IntelLongerLimits: the preparation's 5 minutes and the last pipelines' 30 s)
+    public string IntelLimitsDesc => s.IntelLongerLimits
+        ? Tr.T("Waits up to 30 minutes on a slow driver, 3 for the last pipelines. A real hang stops later.")
+        : Tr.T("Gives up after 5 minutes with no progress. Longer if the build says the GPU driver stopped responding.");
+
     void RaiseUpscalers() =>
         RaiseAll(nameof(Dlss), nameof(Fsr), nameof(ShowFsrLibrary), nameof(DlssAccepted), nameof(DlssLine), nameof(FsrAccepted), nameof(FsrLine), nameof(FsrBuildable), nameof(FsrEnabled),
                  nameof(Estimate));

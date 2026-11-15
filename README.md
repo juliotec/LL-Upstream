@@ -135,7 +135,11 @@ next time it starts. If `LongshotLauncher.exe` itself is missing, rename `Longsh
    playing, *Release candidate* to try the next version, *Nightly* for the newest changes.
 2. **Game files**: the launcher looks for your dump on this PC; point it at the folder if it doesn't find it.
 3. **Settings**: where the game goes, the language, and DLSS or FSR 4 (their licences are shown first). Your saves come
-   along: every build shares them.
+   along: every build shares them. On Windows with Intel graphics, **Intel shader compiles** chooses how many shaders
+   Intel's driver is given at once, for the build and the game: *One at a time* (recommended: two at once can crash
+   Intel's driver) or *Side by side* (faster on a CPU with many cores). **Shader time limit** on *Longer* waits up to 30
+   minutes, not 5, on a driver that seems stuck before the shader preparation gives up, and 3 minutes, not 30 seconds,
+   for the last pipelines: for a slow Intel GPU whose build says the GPU driver stopped responding.
 4. **Build**: about 15 to 30 minutes the first time, shaders included. An update compiles only what changed.
 5. **Play**. Ready can also make desktop and menu shortcuts, which start the default version.
 
@@ -234,7 +238,8 @@ dotnet run --project tools/screenshots -- work/screenshots build-log  # only the
 ```
 
 Each scene is one PNG of the 960x600 window, named after it; the scenes are in `tools/screenshots/Program.cs` (the home,
-the build settings on Linux and Windows, the FSR 4 notice, the build page with and without its details). A change to a
+the build settings on Linux and Windows, and on Windows with Intel graphics, the FSR 4 notice, the build page with and
+without its details). A change to a
 screen adds or updates the scene that shows it.
 
 ### Environment and command line

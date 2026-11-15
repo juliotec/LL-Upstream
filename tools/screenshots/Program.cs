@@ -44,7 +44,18 @@ static class Program
             s => { s.GpuCards = [new Gpu(SystemInfo.Amd)]; s.Settings.Fsr = true; s.Settings.FsrLinuxNotice = true; },
             m => Settings(m)),
         new("settings-windows", "Step 2, the build settings, on Windows with an NVIDIA GPU", Platform.Windows,
-            s => { s.GpuCards = [new Gpu(SystemInfo.Nvidia)]; s.Settings.Dlss = true; s.Settings.DlssLicense = true; },
+            s => { s.GpuCards = [new Gpu(SystemInfo.Nvidia, "NVIDIA GeForce RTX 4070")]; s.Settings.Dlss = true; s.Settings.DlssLicense = true; },
+            m => Settings(m)),
+        new("settings-windows-intel", "Step 2, the build settings, on Windows with Intel graphics: Intel shader compiles", Platform.Windows,
+            s => s.GpuCards = [new Gpu(SystemInfo.Intel, "Intel(R) Iris(R) Xe Graphics")],
+            m => Settings(m)),
+        new("settings-windows-intel-side", "Step 2 on Windows with Intel graphics, Side by side and the Longer time limit", Platform.Windows,
+            s =>
+            {
+                s.GpuCards = [new Gpu(SystemInfo.Intel, "Intel(R) Iris(R) Xe Graphics")];
+                s.Settings.IntelSideBySide = true;
+                s.Settings.IntelLongerLimits = true;
+            },
             m => Settings(m)),
         new("fsr-linux-notice", "The AMD FSR 4 notice on Linux, over step 2", Platform.Linux, s => s.GpuCards = [new Gpu(SystemInfo.Amd)],
             m => Settings(m), m => m.Modal = new LicenceViewModel(m, false, true, () => { }, () => { })),
