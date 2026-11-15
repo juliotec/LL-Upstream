@@ -675,6 +675,7 @@ static partial class Program
                 && SystemInfo.GpuVendors(Platform.Windows, drm).Count == 0 && SystemInfo.GpuVendors(Platform.Linux, Path.Combine(drm, "none")).Count == 0,
                 "The GPU makers, by card; outputs and other devices left out.");
         Require(SystemInfo.MemoryGb() > 0 && SystemInfo.Threads() > 0, "Memory and threads.");
+        Require(SystemInfo.AutomaticWorkers() == Math.Max(1, SystemInfo.Threads() - 1), "Automatic build workers: every CPU thread but one.");
 
         // (the build settings' DLSS and FSR 4 switches: on offer only where a card runs them, or where no card was found)
         Require(SystemInfo.VendorOfDeviceId(@"pci\ven_10de&dev_2782") == SystemInfo.Nvidia && SystemInfo.VendorOfDeviceId("PCI\\VEN_1002&DEV_744C") == SystemInfo.Amd

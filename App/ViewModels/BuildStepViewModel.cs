@@ -161,7 +161,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
         // (a version you have already built from this .nup gives the new one its game files: BuildRegistry.SameGameFiles)
         var romfsFrom = file.Source is BuildSource.Nup nup ? job.Service.Registry.SameGameFiles(nup.Path, job.InstallDir)?.Folder : null;
         // (an upscaler this PC can't run is left out, whatever was remembered: SystemInfo.Offers)
-        var request = new BuildRequest(file.Source, job.InstallDir, s.Language, job.Service.Work, s.BuildWorkers, s.MemoryGb, true,
+        var request = new BuildRequest(file.Source, job.InstallDir, s.Language, job.Service.Work, s.BuildWorkers ?? SystemInfo.AutomaticWorkers(), s.MemoryGb, true,
                                        s.Dlss && Offers(SystemInfo.DlssRuns), s.DlssLicense, s.Fsr && Offers(SystemInfo.FsrRuns),
                                        job.Main.Linux ? s.FsrLinuxNotice : s.FsrLicense, romfsFrom);
         dlss = request.Dlss && request.DlssLicense;

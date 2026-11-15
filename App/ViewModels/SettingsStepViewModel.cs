@@ -259,10 +259,10 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
         }
     }
 
-    // (make_game's automatic: the compilers take what memory is free (nx2/build.py MemoryGate); one per CPU thread, as it allows)
+    // (Automatic: the compilers take what memory is free (nx2/build.py MemoryGate); every CPU thread but one (SystemInfo.AutomaticWorkers), as it allows)
     public string MemoryDesc => s.MemoryGb == null ? Tr.F("Whatever is free of {0} GB, leaving room for your other programs.", MemoryGb)
         : Tr.T("The compilers may use this much, even if other programs need it.");
-    public string WorkersDesc => s.BuildWorkers == null ? Tr.F("{0} of {1} at once, as the memory allows.", Threads, Threads)
+    public string WorkersDesc => s.BuildWorkers == null ? Tr.F("{0} of {1} at once, as the memory allows.", SystemInfo.AutomaticWorkers(), Threads)
         : Tr.T("Compilers running at once. Each needs about 2 GB.");
     public string Work => ShownPath.Of(Job.Service.Work);
     public string WorkFull => Job.Service.Work;
@@ -270,7 +270,7 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
     public string AdvancedDesc => AdvancedOpen ? Tr.T("For a PC that slows down or runs out of memory while building.")
         : Tr.F("Memory {0}, {1}, build files on {2}",
                s.MemoryGb is int m ? Tr.F("{0} GB", m) : Tr.F("automatic of {0} GB", MemoryGb),
-               s.BuildWorkers is int w ? Tr.P(w, "1 worker", "{0} workers") : Tr.F("{0} of {1} workers (automatic)", Threads, Threads),
+               s.BuildWorkers is int w ? Tr.P(w, "1 worker", "{0} workers") : Tr.F("{0} of {1} workers (automatic)", SystemInfo.AutomaticWorkers(), Threads),
                Disk.DriveName(WorkFull));
 
     async Task ChangeWorkAsync()
@@ -291,9 +291,9 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
     public string Estimate => Tr.F("{0} on this PC, shaders included",
                                    Durations.About(BuildForecast.Total(download: true, true, BuildThreads(s))));
 
-    /// The threads a build may use: the Build workers setting, else the PC's
+    /// The threads a build may use: the Build workers setting, else Automatic's (all but one)
     public static int BuildThreads(LauncherSettings settings) =>
-        settings.BuildWorkers is int w and > 0 ? Math.Min(w, SystemInfo.Threads()) : SystemInfo.Threads();
+        settings.BuildWorkers is int w and > 0 ? Math.Min(w, SystemInfo.Threads()) : SystemInfo.AutomaticWorkers();
     public string StartText => Job.StartText;
     public bool IsUpdate => Job.Kind == JobKind.Update;
 

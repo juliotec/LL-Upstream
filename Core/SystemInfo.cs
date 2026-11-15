@@ -15,6 +15,10 @@ public static class SystemInfo
 
     public static int Threads() => Environment.ProcessorCount;
 
+    /// Build workers when the setting is Automatic: every CPU thread but one, so the PC stays usable while it builds (make_game's
+    /// own automatic takes them all)
+    public static int AutomaticWorkers() => Math.Max(1, Threads() - 1);
+
     /// The PCI vendor id's maker: 0x10de NVIDIA, 0x1002 AMD, 0x8086 Intel; null for another
     public static string? VendorOf(string pciVendor) => pciVendor.Trim().ToLowerInvariant() switch
     {
