@@ -32,9 +32,11 @@ public sealed class LauncherHome
     public string Toolchains => Path.Combine(Root, "toolchains");
     /// make_game.py's --work unless the player chose another: the build files, kept between builds for a faster rebuild
     public string Work => Path.Combine(Root, "work");
-    /// NVIDIA's DLSS SDK, fetched by make_game.py --fetch-ngx-sdk (LONGSHOT_NGX_SDK), and AMD's FSR runtime (LONGSHOT_FFX_SDK)
+    /// NVIDIA's DLSS SDK, fetched by make_game.py --fetch-ngx-sdk (LONGSHOT_NGX_SDK), AMD's FSR runtime (LONGSHOT_FFX_SDK) and
+    /// Intel's XeSS library (--fetch-xess-runtime, LONGSHOT_XESS_SDK)
     public string NgxSdk => Path.Combine(Root, "ngx-sdk");
     public string FfxSdk => Path.Combine(Root, "ffx-sdk");
+    public string XessSdk => Path.Combine(Root, "xess-sdk");
     /// A portable launcher's default builds folder and save backups (an installed one's are the system's: LauncherSettings,
     /// SaveEnvironment.BackupRoot)
     public string PortableBuilds => Path.Combine(Root, "builds");

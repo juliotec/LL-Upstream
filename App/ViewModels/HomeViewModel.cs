@@ -205,6 +205,7 @@ public sealed class HomeViewModel : ViewModelBase
             if (GameFolder.Language(e.Folder) is { } lang) bits.Add(Tr.T(Languages.NameOf(lang)));
             if (e.Dlss ?? GameFolder.HasDlss(e.Folder)) bits.Add("NVIDIA DLSS");
             if (e.Fsr == true) bits.Add("AMD FSR 4");
+            if (e.Xess == true) bits.Add("Intel XeSS");
             if (!d.IsBuilt) bits.Add(Tr.T("not built: its game is missing"));
             return Tr.F("Your default version. {0}.", string.Join(Tr.T(", "), bits));
         }

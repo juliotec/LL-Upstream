@@ -24,6 +24,9 @@ public sealed class LauncherSettings
     public bool FsrLinuxNotice { get; set; }
     /// (Linux) The player's Vulkan FSR 4 library, copied into each game folder built with FSR 4 (FsrLibrary); null: none chosen
     public string? FsrLibraryPath { get; set; }
+    /// (Windows) Intel XeSS: the build fetches Intel's libxess.dll into the game folder, under Intel's licence (XessLicense)
+    public bool Xess { get; set; }
+    public bool XessLicense { get; set; }
     /// (Windows, Intel graphics) Intel shader compiles: Side by side hands Intel's compiler several shaders at once, in the build's
     /// shader preparation and in play (RX_VK_NO_INTEL_SERIAL=1, SystemInfo.IntelCompilesApply); false: One at a time, the game's
     /// default, whose own Intel shader compiles row then decides
@@ -111,6 +114,7 @@ public sealed class LauncherSettings
         if (BuildWorkers is <= 0) BuildWorkers = null;
         if (!DlssLicense) Dlss = false;   // (a tick saved before its license was accepted is not one)
         if (!FsrLicense && !FsrLinuxNotice) Fsr = false;
+        if (!XessLicense) Xess = false;
         SeenCrashLogs ??= new();
         return this;
     }

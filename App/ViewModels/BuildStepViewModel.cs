@@ -67,6 +67,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
     bool following = true;
     bool fsr;   // (AMD FSR 4 in this build: asked for, and these tools build it; MakeGameCommand.FsrBuilds)
     bool dlss;  // (NVIDIA DLSS in this build: asked for, and licence accepted)
+    bool xess;  // (Intel XeSS's library fetched by this build: asked for, licence accepted, and these tools fetch it; Windows)
 
     /// ", DLSS" in the settings line when it is on, and that no card here runs it when none does (Upscalers.Unsupported)
     string Upscaler(bool on, string name, Func<Gpu, bool> runs) =>
@@ -86,7 +87,8 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
         CancelCommand = new Command(() => Job.Main.Modal = new StopBuildViewModel(this));
         log.Add($"Longshot Launcher {job.Service.OwnTag}: {job.Verb.Trim().ToLowerInvariant()} {job.Version} ({job.Channel})");
         log.Add($"settings: memory {(s.MemoryGb is int m ? m + " GB" : "automatic")}, workers {(s.BuildWorkers is int w ? w : "automatic")}, " +
-                $"{Languages.NameOf(s.Language)}{Upscaler(s.Dlss, "DLSS", SystemInfo.DlssRuns)}{Upscaler(s.Fsr, "FSR 4", SystemInfo.FsrRuns)}");
+                $"{Languages.NameOf(s.Language)}{Upscaler(s.Dlss, "DLSS", SystemInfo.DlssRuns)}{Upscaler(s.Fsr, "FSR 4", SystemInfo.FsrRuns)}" +
+                $"{Upscaler(s.Xess && !job.Main.Linux, "XeSS", SystemInfo.XessRuns)}");
         if (start)
         {
             ticker = new DispatcherTimer(TimeSpan.FromSeconds(1), DispatcherPriority.Background, (_, _) => Update());
@@ -162,7 +164,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
         var file = job.Picked!;
         // (a version you have already built from this .nup gives the new one its game files: BuildRegistry.SameGameFiles)
         var romfsFrom = file.Source is BuildSource.Nup nup ? job.Service.Registry.SameGameFiles(nup.Path, job.InstallDir)?.Folder : null;
-        // (DLSS and FSR 4 as the player chose them, whatever this PC's cards: Upscalers.Chosen)
+        // (DLSS, FSR 4 and XeSS as the player chose them, whatever this PC's cards: Upscalers.Chosen)
         var request = Upscalers.Chosen(
             new BuildRequest(file.Source, job.InstallDir, s.Language, job.Service.Work, s.BuildWorkers ?? SystemInfo.AutomaticWorkers(), s.MemoryGb, true,
                              RomfsFrom: romfsFrom, IntelSideBySide: s.IntelSideBySide && job.Service.IntelCompilesApply,
@@ -176,6 +178,9 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
             fsr = command.Arguments.Contains("--fsr");
             if (request.Fsr && request.FsrLicense && !fsr)   // (Linux only: MakeGameCommand.FsrBuilds is always true on Windows)
                 log.Add("AMD FSR 4: this version's tools carry no AMD FSR API headers, so it is built without FSR 4.");
+            xess = command.Arguments.Contains("--fetch-xess-runtime");
+            if (request.Xess && request.XessLicense && !xess && !job.Main.Linux)   // (MakeGameCommand.XessBuilds)
+                log.Add("Intel XeSS: this version's tools can't fetch Intel's library, so the game folder gets none from this build.");
             Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(job.InstallDir))!);
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException)
@@ -445,6 +450,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
         }
         entry.Dlss = dlss;
         entry.Fsr = fsr;
+        entry.Xess = xess;
         entry.Unmeasured();
         string? problem = null;
         try { registry.Save(); }
@@ -490,7 +496,8 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
             $"PC: {SystemInfo.MemoryGb()} GB, {SystemInfo.Threads()} threads" +
             (Job.Service.Gpus.Count > 0 ? ", " + string.Join(" and ", Job.Service.Gpus) + " GPU" : ""),
             $"settings: memory {(s.MemoryGb is int m ? m + " GB" : "automatic")}, workers {(s.BuildWorkers is int w ? w : "automatic")}, " +
-            $"DLSS {(dlss ? "on" : "off")}, FSR 4 {(fsr ? "on" : s.Fsr ? "asked, not built" : "off")}",
+            $"DLSS {(dlss ? "on" : "off")}, FSR 4 {(fsr ? "on" : s.Fsr ? "asked, not built" : "off")}, " +
+            $"XeSS {(xess ? "on" : s.Xess ? "asked, not fetched" : "off")}",
             "",
             "build log, its last 200 lines:",
         };

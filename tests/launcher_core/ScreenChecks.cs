@@ -815,6 +815,12 @@ static partial class Program
         Require(SystemInfo.Offers([], SystemInfo.DlssRuns) && SystemInfo.Offers([intel, rtx], SystemInfo.DlssRuns)
                 && !SystemInfo.Offers([intel, rx9070], SystemInfo.DlssRuns) && !SystemInfo.Offers([gtx], SystemInfo.DlssRuns)
                 && !SystemInfo.Offers([rx580, intel], SystemInfo.FsrRuns), "On offer with a card that runs it, or with no card found; else not.");
+        Gpu arc = new(SystemInfo.Intel, "Intel(R) Arc(TM) B580 Graphics"), irisXe = new(SystemInfo.Intel, "Intel(R) Iris(R) Xe Graphics");
+        Require(SystemInfo.XessRuns(arc) && SystemInfo.XessRuns(irisXe) && SystemInfo.XessRuns(intel) && SystemInfo.XessRuns(new Gpu(SystemInfo.Intel))
+                && !SystemInfo.XessRuns(rtx) && !SystemInfo.XessRuns(rx9070) && !SystemInfo.XessRuns(amd),
+                "Intel XeSS: Intel graphics, named or known only by its maker; not another maker's.");
+        Require(!Upscalers.Unsupported([rtx, arc], SystemInfo.XessRuns) && Upscalers.Unsupported([rtx, rx9070], SystemInfo.XessRuns)
+                && !Upscalers.Unsupported([], SystemInfo.XessRuns), "Intel XeSS: said in red without Intel graphics among the cards; no card found is not.");
 
         // (either switch turns on whatever this PC's cards, for OptiScaler: none that runs it is said in red, and the build fetches its
         // files all the same, as on a card that runs it)
@@ -837,6 +843,14 @@ static partial class Program
         Require(!off.Dlss && !off.Fsr && linuxNotice is { Fsr: true, FsrLicense: true } && windowsNotice is { Fsr: true, FsrLicense: false }
                 && Upscalers.Chosen(upBase, both, Platform.Windows) with { Dlss = false, DlssLicense = false, Fsr = false, FsrLicense = false } == upBase,
                 "Switched off: none; FSR 4's notice stands for AMD's licence on Linux only; the rest of the request is kept.");
+        // (Intel XeSS the same, on Windows: switched on, Intel's library is fetched whatever this PC's cards, by tools that can)
+        var xessOn = new LauncherSettings { Xess = true, XessLicense = true };
+        var upXess = Path.Combine(upTools.ToolsRoot, "scripts", "xess_sdk.py");
+        var xessOnGtx = MakeGameCommand.For(upTools, Upscalers.Chosen(upBase, xessOn, Platform.Windows), Platform.Windows, upHome, "L", _ => false,
+                                            f => f == upXess);
+        Require(xessOnGtx.Arguments.Contains("--fetch-xess-runtime") && xessOnGtx.Arguments.Contains("--accept-intel-license")
+                && xessOnGtx.Environment["LONGSHOT_XESS_SDK"] == upHome.XessSdk && !Upscalers.Chosen(upBase, new LauncherSettings(), Platform.Windows).Xess,
+                "Intel XeSS switched on: fetched whatever this PC's cards; off: not. " + string.Join(" ", xessOnGtx.Arguments));
 
         // (Linux, AMD FSR 4: the player's library, checked and copied into the game folder)
         var fsrDir = Folder("fsr-library");

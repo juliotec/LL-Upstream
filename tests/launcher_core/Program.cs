@@ -801,12 +801,12 @@ static partial class Program
         var s = new LauncherSettings
         {
             Nup = "/n.nup", Language = "de", Dlss = true, DlssLicense = true, Fsr = true, FsrLicense = true,
-            MemoryGb = 16, BuildWorkers = 6, Work = "/w", DefaultChannel = "nightly",
+            Xess = true, XessLicense = true, MemoryGb = 16, BuildWorkers = 6, Work = "/w", DefaultChannel = "nightly",
         };
         s.Save(path);
         var t = LauncherSettings.Load(path);
-        Require(t.Nup == "/n.nup" && t.Language == "de" && t.Dlss && t.DlssLicense && t.Fsr && t.FsrLicense && t.MemoryGb == 16
-                && t.BuildWorkers == 6 && t.Work == "/w" && t.DefaultChannel == "nightly", "settings.json round trip.");
+        Require(t.Nup == "/n.nup" && t.Language == "de" && t.Dlss && t.DlssLicense && t.Fsr && t.FsrLicense && t.Xess && t.XessLicense
+                && t.MemoryGb == 16 && t.BuildWorkers == 6 && t.Work == "/w" && t.DefaultChannel == "nightly", "settings.json round trip.");
         new LauncherSettings { Nx2naviSavesAsked = true }.Save(path);
         Require(LauncherSettings.Load(path) is { Nx2naviSavesAsked: true, HookshotSavesAsked: false }, "NX2navi's import answer is saved independently of Hookshot's.");
         new LauncherSettings { HookshotSavesAsked = true }.Save(path);
@@ -817,6 +817,8 @@ static partial class Program
         Require(n.Fsr && n.FsrLinuxNotice && !n.FsrLicense, "FSR 4 with the Linux notice read: on, and AMD's licence still not accepted.");
         new LauncherSettings { Fsr = true }.Save(path);
         Require(!LauncherSettings.Load(path).Fsr, "FSR 4 with neither AMD's licence nor the Linux notice: off.");
+        new LauncherSettings { Xess = true }.Save(path);
+        Require(!LauncherSettings.Load(path).Xess, "Intel XeSS without Intel's licence: off.");
         File.WriteAllText(path, """{"dlss":true,"dlssLicense":false,"defaultChannel":"beta","memoryGb":0}""");
         var u = LauncherSettings.Load(path);
         Require(!u.Dlss && u.DefaultChannel == null && u.MemoryGb == null, "Saved values outside their range are not taken.");
@@ -1026,6 +1028,25 @@ static partial class Program
         var current = MakeGameCommand.For(lin, request with { Dlss = false, FsrLicense = false }, Platform.Linux, home, "/L", d => d == fidelityfx, _ => false);
         Require(current.Environment.ContainsKey("LONGSHOT_VK_PREBUILT") && current.Environment["LONGSHOT_VK_PREBUILT"] == null,
                 "Linux, current tools (no prebuilt back end): none given, and one set on the PC is not passed on.");
+        // (Intel XeSS, Windows: Intel's library fetched under Intel's licence, by tools that carry scripts/xess_sdk.py; older
+        // tools' make_game.py would stop at the flag. Never on Linux, where Intel makes no XeSS library)
+        var xessScript = Path.Combine(win.ToolsRoot, "scripts", "xess_sdk.py");
+        var xr = request with { Dlss = false, Fsr = false, Xess = true, XessLicense = true };
+        var wx = MakeGameCommand.For(win, xr, Platform.Windows, home, "L", _ => false, f => f == xessScript);
+        Require(wx.Arguments.SkipWhile(a => a != "--no-prepare-shaders").Skip(1).SequenceEqual(new[] { "--fetch-xess-runtime", "--accept-intel-license" })
+                && wx.Environment["LONGSHOT_XESS_SDK"] == home.XessSdk && wx.Environment["LONGSHOT_FFX_SDK"] == null,
+                "Windows with XeSS: both flags, and Intel's library kept in the launcher's xess-sdk: " + string.Join(" ", wx.Arguments));
+        var oldTools = MakeGameCommand.For(win, xr, Platform.Windows, home, "L", _ => false, _ => false);
+        Require(!oldTools.Arguments.Contains("--fetch-xess-runtime") && !oldTools.Arguments.Contains("--accept-intel-license")
+                && oldTools.Environment["LONGSHOT_XESS_SDK"] == null, "Windows, tools without scripts/xess_sdk.py: no XeSS flag.");
+        var xessUnaccepted = MakeGameCommand.For(win, xr with { XessLicense = false }, Platform.Windows, home, "L", _ => false, f => f == xessScript);
+        Require(!xessUnaccepted.Arguments.Contains("--fetch-xess-runtime") && xessUnaccepted.Environment["LONGSHOT_XESS_SDK"] == null,
+                "XeSS without Intel's licence: nothing fetched.");
+        var lx = MakeGameCommand.For(lin, xr with { Source = new BuildSource.Nup("/g/game.nup"), Out = "/g", Work = "/w" }, Platform.Linux, home, "/L",
+                                     _ => false, f => f == Path.Combine(lin.ToolsRoot, "scripts", "xess_sdk.py"));
+        Require(!lx.Arguments.Contains("--fetch-xess-runtime") && lx.Environment["LONGSHOT_XESS_SDK"] == null, "Linux: no XeSS.");
+        Require(MakeGameCommand.XessBuilds(win, f => f == xessScript) && !MakeGameCommand.XessBuilds(win, _ => false),
+                "XeSS: tools that carry scripts/xess_sdk.py.");
         var u = MakeGameCommand.For(lin, new BuildRequest(new BuildSource.Update("/g"), null), Platform.Linux, home, "/L", fileExists: f => f == prebuilt);
         Require(u.Arguments.SequenceEqual(new[] { "-I", lin.MakeGame, "--update", "/g", "--work", home.Work })
                 && u.Environment["LONGSHOT_VK_PREBUILT"] == prebuilt, "An update: the folder, no --out or --language.");

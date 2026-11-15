@@ -21,6 +21,8 @@ public sealed class BuildEntry
     public string? Exefs { get; set; }
     public bool? Dlss { get; set; }
     public bool? Fsr { get; set; }
+    /// Built with Intel's XeSS library fetched into its folder (null: not by this launcher, or before it could)
+    public bool? Xess { get; set; }
     /// Its folder's size in bytes when it was last measured; null: not yet
     public long? Bytes { get; set; }
     /// Of Bytes, measured with the other builds' folders (Disk.Measure): its share of what they take on the disk, a game file

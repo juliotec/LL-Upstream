@@ -159,6 +159,28 @@
                     <Button Grid.Column="1" Classes="small" Content="{c:T 'Choose…'}" Command="{Binding ChooseFsrLibraryCommand}" VerticalAlignment="Center"/>
                   </Grid>
                 </StackPanel>
+                <!-- (Windows: Intel XeSS, Intel's library fetched by the build under Intel's licence; Intel makes none for Linux) -->
+                <StackPanel IsVisible="{Binding Windows}">
+                  <Border Classes="divider"/>
+                  <Grid Classes="srow" ColumnDefinitions="*,Auto">
+                    <StackPanel VerticalAlignment="Center" Spacing="1">
+                      <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Classes="rtitle" Text="Intel XeSS"/>
+                        <Border Classes="chip quiet small" IsVisible="{Binding XessYourGpu}"><TextBlock Text="{c:T 'Your GPU'}"/></Border>
+                      </StackPanel>
+                      <WrapPanel>
+                        <TextBlock Classes="rdesc" Text="{c:T 'For Intel Arc and Iris Xe graphics. '}" TextWrapping="NoWrap"/>
+                        <StackPanel Orientation="Horizontal" Spacing="4" IsVisible="{Binding XessAccepted}">
+                          <c:Icon Kind="check" Width="12" Height="12" Foreground="{StaticResource Go}" VerticalAlignment="Center"/>
+                          <TextBlock FontSize="12" Foreground="{StaticResource Go}" Text="{c:T 'Intel\'s licence accepted'}"/>
+                        </StackPanel>
+                        <TextBlock Classes="rdesc" Classes.bad="{Binding XessUnsupported}" Text="{Binding XessLine}" TextWrapping="NoWrap"
+                                   IsVisible="{Binding ShowXessLine}"/>
+                      </WrapPanel>
+                    </StackPanel>
+                    <ToggleButton Grid.Column="1" Classes="switch" IsChecked="{Binding Xess}" IsEnabled="{Binding XessEnabled}" VerticalAlignment="Center"/>
+                  </Grid>
+                </StackPanel>
               </StackPanel>
             </Border>
           </StackPanel>

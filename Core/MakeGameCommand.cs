@@ -14,11 +14,13 @@ public abstract record BuildSource
 /// A build's choices (the wizard's settings step, LauncherSettings). Out is not used by an update (the folder is the update's).
 /// RomfsFrom: another game folder built from the same .nup (BuildRegistry.SameGameFiles), whose game files make_game links in
 /// instead of reading the .nup again (LONGSHOT_ROMFS_FROM). IntelSideBySide: Intel shader compiles on Side by side;
-/// IntelLongerLimits: Shader time limit on Longer (LauncherSettings, where they apply)
+/// IntelLongerLimits: Shader time limit on Longer (LauncherSettings, where they apply). Xess: Intel's XeSS library fetched
+/// under Intel's licence (XessLicense), Windows only
 public sealed record BuildRequest(
     BuildSource Source, string? Out, string? Language = null, string? Work = null, int? Jobs = null, int? MemoryGb = null,
     bool PrepareShaders = true, bool Dlss = false, bool DlssLicense = false, bool Fsr = false, bool FsrLicense = false,
-    string? RomfsFrom = null, bool IntelSideBySide = false, bool IntelLongerLimits = false);
+    string? RomfsFrom = null, bool IntelSideBySide = false, bool IntelLongerLimits = false, bool Xess = false,
+    bool XessLicense = false);
 
 /// make_game.py as the 2.x Builders start it (Runner.Info and MainWindow.Run on Windows; builder/linux/AppRun and
 /// longshot_builder.py on Linux): the program, its arguments, its folder and the environment changes (null: removed)
@@ -65,6 +67,10 @@ public sealed record MakeGameCommand(
         // Vulkan FSR 4 library beside the game, and the build compiles its own Vulkan back end, as with DLSS)
         var fsr = r.Fsr && r.FsrLicense && FsrBuilds(tools, platform, directoryExists);
         if (fsr) args.AddRange(windows ? new[] { "--fsr", "--fetch-fsr-runtime", "--accept-amd-license" } : new[] { "--fsr" });
+        // (Intel XeSS: every Windows build of the game has it, and it runs once Intel's libxess.dll is beside the game, which the
+        // build fetches under Intel's licence. Intel publishes no XeSS library for Linux. Tools from before the flag: XessBuilds)
+        var xess = windows && r.Xess && r.XessLicense && XessBuilds(tools, fileExists);
+        if (xess) args.AddRange(new[] { "--fetch-xess-runtime", "--accept-intel-license" });
 
         var env = new Dictionary<string, string?>(StringComparer.Ordinal)
         {
@@ -74,9 +80,10 @@ public sealed record MakeGameCommand(
             ["LONGSHOT_SETUP_BASE"] = null,
             ["LONGSHOT_BUILDER_PORTABLE"] = null,
             ["LONGSHOT_BUILDER_ARGS"] = null,
-            // (DLSS and FSR only when ticked: one set on the PC is not passed on either)
+            // (DLSS, FSR and XeSS only when ticked: one set on the PC is not passed on either)
             ["LONGSHOT_NGX_SDK"] = dlss ? home.NgxSdk : null,
             ["LONGSHOT_FFX_SDK"] = fsr && windows ? home.FfxSdk : null,
+            ["LONGSHOT_XESS_SDK"] = xess ? home.XessSdk : null,
             ["LONGSHOT_MEM_LIMIT_GB"] = r.MemoryGb?.ToString(CultureInfo.InvariantCulture),
             // (Longshot's object and lift stores, nx2/object_store.py and lift_store.py: a build of another version, or of one built
             // before, takes the objects and the translation an earlier build made instead of compiling and translating them again,
@@ -134,6 +141,11 @@ public sealed record MakeGameCommand(
     /// back end compiled in the build reads (an AppImage made before it carried them has none, and its build would stop at them)
     public static bool FsrBuilds(Toolchain tools, Platform platform, Func<string, bool>? directoryExists = null) =>
         platform == Platform.Windows || (directoryExists ?? Directory.Exists)(Path.Combine(tools.ToolsRoot, "third_party", "fidelityfx"));
+
+    /// Whether these tools fetch Intel's XeSS library: they carry scripts/xess_sdk.py, which make_game.py's --fetch-xess-runtime
+    /// runs (Longshot's tools from before it would stop at the flag they do not know)
+    public static bool XessBuilds(Toolchain tools, Func<string, bool>? fileExists = null) =>
+        (fileExists ?? File.Exists)(Path.Combine(tools.ToolsRoot, "scripts", "xess_sdk.py"));
 
     /// make_game.py --check: is this the game, and the version these tools build? (the 2.x Builders' check: --nup, or the exefs
     /// folder alone). The same program and environment as a build with no DLSS; a .nup is read into &lt;work&gt;/probe

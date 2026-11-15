@@ -47,7 +47,7 @@ Discord: https://discord.gg/magicbean
 
 | | |
 |---|---|
-| **Builds the game** | A three-step wizard: it finds your game files while that version's builder downloads, then the settings (DLSS, FSR 4, language, where the game goes), then the build with one progress bar |
+| **Builds the game** | A three-step wizard: it finds your game files while that version's builder downloads, then the settings (DLSS, FSR 4, Intel XeSS, language, where the game goes), then the build with one progress bar |
 | **Several versions side by side** | Keep a stable build and a nightly; Play starts the default one; Set as default, Saves, Open folder and Delete for each |
 | **Three channels** | `stable`, `rc` (release candidates) and `nightly`, chosen per build and, apart from that, for the launcher itself |
 | **Installs Longshot's builder** | For each version, from Longshot's signed release: every file checked against its SHA-256 before it is used |
@@ -134,8 +134,9 @@ next time it starts. If `LongshotLauncher.exe` itself is missing, rename `Longsh
 1. **Build another version** (or, the first time, **Build the game**) opens the wizard. Pick the channel: *Stable* for
    playing, *Release candidate* to try the next version, *Nightly* for the newest changes.
 2. **Game files**: the launcher looks for your dump on this PC; point it at the folder if it doesn't find it.
-3. **Settings**: where the game goes, the language, and DLSS or FSR 4 (their licences are shown first). A PC with no card that runs one says
-   so in red, and the switch still turns on: the build fetches its files for tools like OptiScaler. Your saves come
+3. **Settings**: where the game goes, the language, and DLSS, FSR 4 or, on Windows, Intel XeSS (their licences are shown
+   first; with XeSS on, the build downloads Intel's XeSS library for the game's Upscaler row). A PC with no card that runs
+   one says so in red, and the switch still turns on: the build fetches its files for tools like OptiScaler. Your saves come
    along: every build shares them. On Windows with Intel graphics, **Intel shader compiles** chooses how many shaders
    Intel's driver is given at once, for the build and the game: *One at a time* (recommended: two at once can crash
    Intel's driver) or *Side by side* (faster on a CPU with many cores). **Shader time limit** on *Longer* waits up to 30
@@ -239,7 +240,7 @@ dotnet run --project tools/screenshots -- work/screenshots build-log  # only the
 ```
 
 Each scene is one PNG of the 960x600 window, named after it; the scenes are in `tools/screenshots/Program.cs` (the home,
-the build settings on Linux and Windows, on Windows with a card that runs neither DLSS nor FSR 4, and with Intel graphics, the FSR 4 notice, the build page with and
+the build settings on Linux and Windows, on Windows with a card that runs neither DLSS nor FSR 4, and with Intel graphics, the FSR 4 notice, Intel's XeSS licence, the build page with and
 without its details). A change to a
 screen adds or updates the scene that shows it.
 
@@ -274,8 +275,8 @@ recovery from a swap cut short, the portable zip), install, uninstall and the po
 shortcuts: the tests never touch the real ones), one launcher per home, a download that stalls, a save copy that fails half
 way, the
 saves against Longshot's `tests/test_longshot_saves.py` cases, the Hookshot import against fake saves, and the rest over
-temporary folders. With `--longshot`, it also checks the languages and the DLSS and FSR 4 licence texts against Longshot's
-`make_game.py`, `ngx_sdk.py` and `ffx_sdk.py`. The second checks `scripts/release.py` with keys it makes (it needs the
+temporary folders. With `--longshot`, it also checks the languages and the DLSS, FSR 4 and XeSS licence texts against
+Longshot's `make_game.py`, `ngx_sdk.py`, `ffx_sdk.py` and `xess_sdk.py` (XeSS's when that Longshot has it). The second checks `scripts/release.py` with keys it makes (it needs the
 `openssl` command line). CI runs both and compiles with warnings as errors. Contributing: [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ### Translations

@@ -62,7 +62,10 @@ static class Program
             },
             m => Settings(m)),
         new("fsr-linux-notice", "The AMD FSR 4 notice on Linux, over step 2", Platform.Linux, s => s.GpuCards = [new Gpu(SystemInfo.Amd)],
-            m => Settings(m), m => m.Modal = new LicenceViewModel(m, false, true, () => { }, () => { })),
+            m => Settings(m), m => m.Modal = new LicenceViewModel(m, LicenceOf.Amd, true, () => { }, () => { })),
+        new("xess-licence", "Intel's licence for XeSS, over step 2 on Windows with Intel graphics", Platform.Windows,
+            s => s.GpuCards = [new Gpu(SystemInfo.Intel, "Intel(R) Arc(TM) B580 Graphics")],
+            m => Settings(m), m => m.Modal = new LicenceViewModel(m, LicenceOf.Intel, false, () => { }, () => { })),
         new("build", "Step 3, a build reading the game files", Platform.Linux, null, m => Build(m, showLog: false)),
         new("build-log", "Step 3 with Show details, at Debug", Platform.Linux, null, m => Build(m, showLog: true)),
         // (the failures with Copy for a bug report: the words are NetFailure's and the other screens' own)

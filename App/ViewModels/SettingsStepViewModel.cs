@@ -6,9 +6,9 @@ public sealed record Choice(int? Value, string Label);
 
 public sealed record LanguageChoice(string Code, string Name);
 
-/// Step 2, the build settings (LauncherSettings, remembered for the next build): the saves it shares, DLSS and FSR 4 with
-/// their licences, the game folder and the space it needs, the language, and under Advanced the build's memory,
-/// workers and build files
+/// Step 2, the build settings (LauncherSettings, remembered for the next build): the saves it shares, DLSS, FSR 4 and (Windows)
+/// Intel XeSS with their licences, the game folder and the space it needs, the language, and under Advanced the build's
+/// memory, workers and build files
 public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
 {
     readonly LauncherSettings s;
@@ -78,7 +78,7 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
             if (value == Dlss) return;
             if (value && !s.DlssLicense)
             {
-                Main.Modal = new LicenceViewModel(Main, true, Linux, () => { s.DlssLicense = true; s.Dlss = true; Save(); RaiseUpscalers(); },
+                Main.Modal = new LicenceViewModel(Main, LicenceOf.Nvidia, Linux, () => { s.DlssLicense = true; s.Dlss = true; Save(); RaiseUpscalers(); },
                                                   RaiseUpscalers);
                 Raise();
                 return;
@@ -104,7 +104,7 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
             if (value == Fsr || (value && !FsrEnabled)) return;
             if (value && !FsrKnown)
             {
-                Main.Modal = new LicenceViewModel(Main, false, Linux, () =>
+                Main.Modal = new LicenceViewModel(Main, LicenceOf.Amd, Linux, () =>
                 {
                     if (Linux) s.FsrLinuxNotice = true;
                     else s.FsrLicense = true;
@@ -136,6 +136,45 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
         : Linux
         ? (!FsrBuildable ? Tr.T("This version can't build it on Linux yet.") : Tr.T("Uses your Vulkan FSR 4 library."))
         : Fsr ? "" : s.FsrLicense ? Tr.T("Licence accepted earlier.") : Tr.T("Shows AMD's licence first.");
+
+    // ---- (Windows) Intel XeSS ----
+
+    // (every Windows build of the game has XeSS, which runs once Intel's libxess.dll is beside the game: the switch has the build
+    // fetch it under Intel's licence. Intel publishes no XeSS library for Linux, so the row is Windows' alone. As DLSS and FSR 4,
+    // it turns on whatever this PC's cards, its line in red without Intel graphics: Upscalers)
+    public bool XessYourGpu => Job.Service.GpuCards.Any(SystemInfo.XessRuns);
+    public bool XessUnsupported => Upscalers.Unsupported(Job.Service.GpuCards, SystemInfo.XessRuns);
+
+    /// This version's tools fetch Intel's library (MakeGameCommand.XessBuilds). Unknown tools (not found yet) are taken as able:
+    /// the build says so in its log if they were not
+    public bool XessBuildable => Job.Tools is not { } tools || MakeGameCommand.XessBuilds(tools);
+
+    public bool Xess
+    {
+        get => Windows && s.Xess && s.XessLicense && XessBuildable;
+        set
+        {
+            if (value == Xess || (value && !XessEnabled)) return;
+            if (value && !s.XessLicense)
+            {
+                Main.Modal = new LicenceViewModel(Main, LicenceOf.Intel, Linux, () => { s.XessLicense = true; s.Xess = true; Save(); RaiseUpscalers(); },
+                                                  RaiseUpscalers);
+                Raise();
+                return;
+            }
+            s.Xess = value;
+            Save();
+            RaiseUpscalers();
+        }
+    }
+
+    /// The XeSS switch can be turned on: Windows, and this version's tools fetch Intel's library
+    public bool XessEnabled => Windows && XessBuildable;
+    public bool XessAccepted => Xess;
+    public bool ShowXessLine => !XessAccepted || XessUnsupported;
+    public string XessLine => XessUnsupported ? Tr.T("This PC has no Intel graphics.")
+        : !XessBuildable ? Tr.T("This version can't fetch it yet.")
+        : Xess ? "" : s.XessLicense ? Tr.T("Licence accepted earlier.") : Tr.T("Shows Intel's licence first.");
 
     // ---- (Linux) the player's FSR 4 library ----
 
@@ -211,6 +250,7 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
     void RaiseUpscalers() =>
         RaiseAll(nameof(Dlss), nameof(Fsr), nameof(ShowFsrLibrary), nameof(DlssAccepted), nameof(ShowDlssLine), nameof(DlssLine), nameof(FsrAccepted),
                  nameof(ShowFsrLine), nameof(FsrLine), nameof(FsrBuildable), nameof(FsrEnabled),
+                 nameof(Xess), nameof(XessAccepted), nameof(ShowXessLine), nameof(XessLine), nameof(XessBuildable), nameof(XessEnabled),
                  nameof(Estimate));
 
     // ---- install ----
@@ -377,31 +417,48 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
     }
 }
 
-/// NVIDIA's licence for DLSS, or AMD's for FSR 4, shown when the switch is turned on: Accept keeps it on (and is remembered)
+/// Whose licence a LicenceViewModel shows: NVIDIA's for DLSS, AMD's for FSR 4 (on Linux, its notice), Intel's for XeSS
+public enum LicenceOf { Nvidia, Amd, Intel }
+
+/// NVIDIA's licence for DLSS, AMD's for FSR 4 or Intel's for XeSS, shown when the switch is turned on: Accept keeps it on
+/// (and is remembered)
 public sealed class LicenceViewModel : ViewModelBase
 {
     readonly Action accepted, declined;
 
-    public LicenceViewModel(MainViewModel main, bool nvidia, bool linux, Action accepted, Action declined)
+    public LicenceViewModel(MainViewModel main, LicenceOf of, bool linux, Action accepted, Action declined)
     {
         Main = main;
-        Nvidia = nvidia;
+        Of = of;
         this.accepted = accepted;
         this.declined = declined;
         Linux = linux;
-        Text = nvidia ? DlssText(linux) : linux ? FsrLinuxText : FsrText;
+        Text = of switch
+        {
+            LicenceOf.Nvidia => DlssText(linux),
+            LicenceOf.Intel => XessText,
+            _ => linux ? FsrLinuxText : FsrText,
+        };
         AcceptCommand = new Command(() => { Main.Modal = null; this.accepted(); });
         DeclineCommand = new Command(() => { Main.Modal = null; this.declined(); });
     }
 
     public MainViewModel Main { get; }
-    public bool Nvidia { get; }
+    public LicenceOf Of { get; }
     public bool Linux { get; }
-    public string AcceptText => !Nvidia && Linux ? Tr.T("Turn on") : Tr.T("Accept");
-    public string Title => Nvidia ? Tr.T("NVIDIA's licence for DLSS") : Linux ? Tr.T("AMD FSR 4 on Linux") : Tr.T("AMD's licence for FSR 4");
-    public string Sub => !Nvidia && Linux
+    /// (AMD on Linux: a notice, as nothing of AMD's is downloaded there, so nothing to accept)
+    bool FsrNotice => Of == LicenceOf.Amd && Linux;
+    public string AcceptText => FsrNotice ? Tr.T("Turn on") : Tr.T("Accept");
+    public string Title => Of switch
+    {
+        LicenceOf.Nvidia => Tr.T("NVIDIA's licence for DLSS"),
+        LicenceOf.Intel => Tr.T("Intel's licence for XeSS"),
+        _ => Linux ? Tr.T("AMD FSR 4 on Linux") : Tr.T("AMD's licence for FSR 4"),
+    };
+    public string Sub => FsrNotice
         ? Tr.T("The build compiles FSR 4 into the game. Nothing of AMD's comes with Longshot.")
-        : Nvidia ? Tr.T("The build downloads NVIDIA's DLSS SDK under this licence. Nothing of NVIDIA's comes with Longshot.")
+        : Of == LicenceOf.Nvidia ? Tr.T("The build downloads NVIDIA's DLSS SDK under this licence. Nothing of NVIDIA's comes with Longshot.")
+        : Of == LicenceOf.Intel ? Tr.T("The build downloads Intel's XeSS library under this licence. Nothing of Intel's comes with Longshot.")
         : Tr.T("The build downloads AMD's FSR 4 runtime under this licence. Nothing of AMD's comes with Longshot.");
     public string Text { get; }
     public Command AcceptCommand { get; }
@@ -423,6 +480,16 @@ public sealed class LicenceViewModel : ViewModelBase
              "amd_fidelityfx_loader_vk.dll, amd_fidelityfx_upscaler_vk.dll", "github.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK") + "\n\n" +
         "https://github.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK/blob/7539ae8b6568ad29ed78a753404351daf3b5cca7/Kits/FidelityFX/docs/license.md\n\n" +
         Tr.F("Its files stay on this PC (in the launcher's {0} folder, and the two DLLs with {1} in the game folder).", "ffx-sdk", "LICENSE-AMD-FSR-SDK.md");
+
+    // (Longshot's scripts/xess_sdk.py: libxess.dll from Intel's XeSS SDK repository at the commit Longshot's XeSS API headers come
+    // from, with Intel's licence and third-party notices beside it; tests/test_launcher_core.py checks the commit against it)
+    static string XessText =>
+        Tr.F("Intel XeSS is Intel's, not Longshot's. With it on, the build downloads Intel's XeSS Super Resolution library ({0}, " +
+             "signed by Intel) from {1}, each file checked against its SHA-256, under the Intel Simplified Software License:",
+             "libxess.dll 2.0.2.68", "github.com/intel/xess") + "\n\n" +
+        "https://github.com/intel/xess/blob/de0fb9c1c510661c571164e1418ceca8101dab69/LICENSE.txt\n\n" +
+        Tr.F("Its files stay on this PC (in the launcher's {0} folder, and {1} with {2} in the game folder).", "xess-sdk",
+             "libxess.dll", "LICENSE-INTEL-XESS-SDK.txt");
 
     // (Linux: Longshot's README, AMD FSR 4. The build compiles the Vulkan back end with AMD's MIT FSR API headers; the library
     // is the player's, loaded by the game at its start: AMD publishes its signed runtime for Windows only)
