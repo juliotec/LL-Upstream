@@ -201,7 +201,7 @@ static class SavesChecks
         Require(Saves.Find(P(c.Tmp, "junk")).Count == 0, "Unrelated folders are not saves.");
         Fails(() => Saves.Locate(Saves.Folder, P(c.Tmp, "nothing"), c.Linux), "No folder", "A missing folder.");
         Directory.CreateDirectory(P(c.Tmp, "empty"));
-        Fails(() => Saves.Locate(Saves.Folder, P(c.Tmp, "empty"), c.Linux), "No Ocarina of Time save", "An empty folder.");
+        Fails(() => Saves.Locate(Saves.Folder, P(c.Tmp, "empty"), c.Linux), "No save of the game", "An empty folder.");
         var noEg = new Case(root, "no-eglantine");
         Fails(() => Saves.Locate(Saves.Named("eglantine"), null, noEg.Linux), P(noEg.Data, "eglantine"), "Where Eglantine was looked for.");
 

@@ -212,7 +212,7 @@ public static class Saves
             if (!Directory.Exists(folder)) throw new SaveFailure($"No folder at {folder}.");
             var found = Find(folder);
             if (found.Count == 0)
-                throw new SaveFailure($"No Ocarina of Time save under {folder} (a folder with account.sav and slot_*, or {Title} under an " +
+                throw new SaveFailure($"No save of the game under {folder} (a folder with account.sav and slot_*, or {Title} under an " +
                                       "emulator's nand/user/save): start the game there once and save.");
             return (folder, found);
         }
@@ -230,7 +230,7 @@ public static class Saves
             return found.FirstOrDefault(p => string.Equals(p.Id, wanted, StringComparison.OrdinalIgnoreCase))
                    ?? throw new SaveFailure($"{name} has no profile {wanted}; it has: {string.Join(", ", found.Select(p => p.Id).Order(StringComparer.Ordinal))}");
         if (found.Count > 1)
-            throw new SaveFailure($"{name} has Ocarina of Time saves in {found.Count} profiles, so pick one:" +
+            throw new SaveFailure($"{name} has saves of the game in {found.Count} profiles, so pick one:" +
                                   string.Concat(found.OrderBy(p => p.Id, StringComparer.Ordinal).Select(p => $"\n  {p.Id}  {p.Path}")));
         return found.Count == 1 ? found[0] : throw new SaveFailure($"{name} has no save.");
     }

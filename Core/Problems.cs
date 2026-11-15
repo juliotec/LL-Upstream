@@ -64,7 +64,7 @@ public static partial class Problems
         // (make_game.py check_supported_build and --check: "This is build 1a2b3c4d. Longshot supports build e0f3ccfa.")
         if (Has("Longshot supports build"))
             return new Problem(ProblemKind.WrongGameVersion, Tr.N("These game files are a different version"),
-                Tr.N("Longshot needs Ocarina of Time with update 2.0.0 installed (program 0400486024DEC000, update v131072). Pick " +
+                Tr.N("Longshot needs the game with update 2.0.0 installed (program 0400486024DEC000, update v131072). Pick " +
                 "the files of that version, or dump your game again with the update."), [new Fix(FixKind.PickOtherFiles, Tr.N("Pick other game files"))]);
         if (Has("dump is incomplete") || Has("still has") && Has("damaged file"))
             return new Problem(ProblemKind.IncompleteDump, Tr.N("Your game dump is incomplete"),
