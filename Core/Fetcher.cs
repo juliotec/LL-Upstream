@@ -34,7 +34,9 @@ public sealed class HttpFetcher : IFetcher, IDisposable
     public HttpFetcher(TimeSpan? timeout = null, TimeSpan? readTimeout = null)
     {
         this.readTimeout = readTimeout ?? TimeSpan.FromSeconds(60);
-        http = new HttpClient(new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10 })
+        // (each new connection in the launcher's log too: the addresses resolved and tried, Connections; the proxy is the system's
+        // or HTTPS_PROXY, as before)
+        http = new HttpClient(new SocketsHttpHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10, ConnectCallback = Connections.ConnectAsync })
         {
             Timeout = timeout ?? Timeout.InfiniteTimeSpan,
         };

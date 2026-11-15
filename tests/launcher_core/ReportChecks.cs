@@ -71,6 +71,11 @@ static partial class Program
                 await ThrowsAsync<FetchException>(() => http.GetTextAsync("https://127.0.0.1:1/list", null, CancellationToken.None), "Nothing listens on port 1.");
             var refused = LauncherLog.Tail(1).Single();
             Require(refused.Contains(" GET https://127.0.0.1:1/list failed after ") && refused.Contains(" ms"), "A failed request is logged: " + refused);
+            Require(LauncherLog.Tail(10).Any(l => l.Contains(" connect 127.0.0.1 127.0.0.1:1: ConnectionRefused after ")),
+                    "The refused address is logged: " + string.Join(" | ", LauncherLog.Tail(10)));
+
+            // (the connection's own lines: HttpFetcher's failures read as before, with the addresses and their ends logged)
+            await ConnectionChecks();
 
             LauncherLog.Clear();
             var server = new FailingFetcher();
