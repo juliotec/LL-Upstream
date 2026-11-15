@@ -310,6 +310,12 @@ Calls made here, most of them the design mockup's; each can be changed:
   Before Play, a build whose own file holds no setting (an update into a new folder: `compile_shaders=` alone) is filled
   from the newest of the user folder's and the other builds' files, its `compile_shaders=` kept (`SettingsCarry`), so a
   build from before that change keeps the player's settings as well. The launcher never writes the user folder's file.
+- **So do the program's own settings in Windows and NVIDIA's driver** (Windows). Both are kept by the program's full path,
+  which a new folder changes. Before Play, a build's program with none of its own gets the most recently updated other
+  build's (`DriverSettings`): its graphics preference (`HKCU\Software\Microsoft\DirectX\UserGpuPreferences`, which GPU it
+  runs on), and the NVIDIA program profile that names the old program by its path (the NVIDIA app's or Control Panel's
+  program settings, such as Smooth Motion), which the new program joins through NVAPI. Nothing is taken away; a refusal
+  leaves things as they were.
 - **An update replaces its build's row.** An update builds the new version into its own folder (`<builds>/<version>`)
   from the game files the build was made from, then takes the old row's place, its default included
   (`BuildRegistry.Replace`). The old folder stays on the disk; nothing deletes it yet.

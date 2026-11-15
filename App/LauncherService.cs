@@ -209,7 +209,37 @@ public sealed class LauncherService
             catch (Exception e) when (e is IOException or UnauthorizedAccessException or NotSupportedException) { }
         }
         if (CarrySettings(folder) is { } carried) said = said == null ? carried : said + " " + carried;
+        if (OperatingSystem.IsWindows())
+            foreach (var line in CarryDriverSettings(folder)) said = said == null ? line : said + " " + line;
         using var _ = Process.Start(GamePlay.StartInfo(folder, Platform, user: user));
+        return said;
+    }
+
+    /// (Windows) What Windows and the NVIDIA driver keep for the other builds' programs, by their paths, given to this build's
+    /// program when it has none of its own (DriverSettings): Windows' graphics preference and an NVIDIA program profile. The
+    /// sources: the other builds' games, the most recently updated first (three at most: each NVIDIA lookup loads the driver's
+    /// settings). What the window says; a failure (the driver refusing) is left out, and the game starts as before
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    public IReadOnlyList<string> CarryDriverSettings(string folder)
+    {
+        var said = new List<string>();
+        var target = GameFolder.ExePath(folder, Platform);
+        var sources = Registry.Builds.OrderByDescending(b => b.Updated).Select(b => b.Folder)
+            .Where(f => !string.Equals(Path.GetFullPath(f), Path.GetFullPath(folder), StringComparison.OrdinalIgnoreCase))
+            .Select(f => GameFolder.ExePath(f, Platform)).Take(3).ToList();
+        if (sources.Count == 0) return said;
+        try
+        {
+            if (DriverSettings.GpuPreference(new UserRegistry(), target, sources) != null)
+                said.Add(Tr.T("Windows' graphics choice for your other versions now applies to this one too."));
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.Security.SecurityException) { }
+        try
+        {
+            if (NvApiProfiles.Open() is { } nvidia && DriverSettings.Nvidia(nvidia, target, sources) is { } profile)
+                said.Add(Tr.F("Your NVIDIA settings for your other versions (the {0} profile) now apply to this one too.", profile));
+        }
+        catch (NvidiaProblem) { }
         return said;
     }
 
