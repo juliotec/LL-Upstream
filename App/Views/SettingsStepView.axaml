@@ -24,6 +24,9 @@
       <Setter Property="Foreground" Value="{StaticResource InkSoft}"/>
       <Setter Property="TextWrapping" Value="Wrap"/>
     </Style>
+    <Style Selector="TextBlock.rdesc.bad">
+      <Setter Property="Foreground" Value="{StaticResource Bad}"/>
+    </Style>
     <Style Selector="TextBlock.glabel">
       <Setter Property="FontSize" Value="12"/>
       <Setter Property="FontWeight" Value="SemiBold"/>
@@ -118,10 +121,11 @@
                         <c:Icon Kind="check" Width="12" Height="12" Foreground="{StaticResource Go}" VerticalAlignment="Center"/>
                         <TextBlock FontSize="12" Foreground="{StaticResource Go}" Text="{c:T 'NVIDIA\'s licence accepted'}"/>
                       </StackPanel>
-                      <TextBlock Classes="rdesc" Text="{Binding DlssLine}" TextWrapping="NoWrap" IsVisible="{Binding !DlssAccepted}"/>
+                      <TextBlock Classes="rdesc" Classes.bad="{Binding DlssUnsupported}" Text="{Binding DlssLine}" TextWrapping="NoWrap"
+                                 IsVisible="{Binding ShowDlssLine}"/>
                     </WrapPanel>
                   </StackPanel>
-                  <ToggleButton Grid.Column="1" Classes="switch" IsChecked="{Binding Dlss}" IsEnabled="{Binding DlssRunsHere}" VerticalAlignment="Center"/>
+                  <ToggleButton Grid.Column="1" Classes="switch" IsChecked="{Binding Dlss}" VerticalAlignment="Center"/>
                 </Grid>
                 <Border Classes="divider"/>
                 <Grid Classes="srow" ColumnDefinitions="*,Auto">
@@ -136,7 +140,8 @@
                         <c:Icon Kind="check" Width="12" Height="12" Foreground="{StaticResource Go}" VerticalAlignment="Center"/>
                         <TextBlock FontSize="12" Foreground="{StaticResource Go}" Text="{c:T 'AMD\'s licence accepted'}"/>
                       </StackPanel>
-                      <TextBlock Classes="rdesc" Text="{Binding FsrLine}" TextWrapping="NoWrap" IsVisible="{Binding !FsrAccepted}"/>
+                      <TextBlock Classes="rdesc" Classes.bad="{Binding FsrUnsupported}" Text="{Binding FsrLine}" TextWrapping="NoWrap"
+                                 IsVisible="{Binding ShowFsrLine}"/>
                     </WrapPanel>
                   </StackPanel>
                   <ToggleButton Grid.Column="1" Classes="switch" IsChecked="{Binding Fsr}" IsEnabled="{Binding FsrEnabled}" VerticalAlignment="Center"/>

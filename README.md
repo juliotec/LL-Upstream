@@ -134,7 +134,8 @@ next time it starts. If `LongshotLauncher.exe` itself is missing, rename `Longsh
 1. **Build another version** (or, the first time, **Build the game**) opens the wizard. Pick the channel: *Stable* for
    playing, *Release candidate* to try the next version, *Nightly* for the newest changes.
 2. **Game files**: the launcher looks for your dump on this PC; point it at the folder if it doesn't find it.
-3. **Settings**: where the game goes, the language, and DLSS or FSR 4 (their licences are shown first). Your saves come
+3. **Settings**: where the game goes, the language, and DLSS or FSR 4 (their licences are shown first). A PC with no card that runs one says
+   so in red, and the switch still turns on: the build fetches its files for tools like OptiScaler. Your saves come
    along: every build shares them. On Windows with Intel graphics, **Intel shader compiles** chooses how many shaders
    Intel's driver is given at once, for the build and the game: *One at a time* (recommended: two at once can crash
    Intel's driver) or *Side by side* (faster on a CPU with many cores). **Shader time limit** on *Longer* waits up to 30
@@ -238,7 +239,7 @@ dotnet run --project tools/screenshots -- work/screenshots build-log  # only the
 ```
 
 Each scene is one PNG of the 960x600 window, named after it; the scenes are in `tools/screenshots/Program.cs` (the home,
-the build settings on Linux and Windows, and on Windows with Intel graphics, the FSR 4 notice, the build page with and
+the build settings on Linux and Windows, on Windows with a card that runs neither DLSS nor FSR 4, and with Intel graphics, the FSR 4 notice, the build page with and
 without its details). A change to a
 screen adds or updates the scene that shows it.
 

@@ -816,6 +816,28 @@ static partial class Program
                 && !SystemInfo.Offers([intel, rx9070], SystemInfo.DlssRuns) && !SystemInfo.Offers([gtx], SystemInfo.DlssRuns)
                 && !SystemInfo.Offers([rx580, intel], SystemInfo.FsrRuns), "On offer with a card that runs it, or with no card found; else not.");
 
+        // (either switch turns on whatever this PC's cards, for OptiScaler: none that runs it is said in red, and the build fetches its
+        // files all the same, as on a card that runs it)
+        Require(Upscalers.Unsupported([gtx], SystemInfo.DlssRuns) && Upscalers.Unsupported([gtx, intel], SystemInfo.FsrRuns)
+                && !Upscalers.Unsupported([intel, rtx], SystemInfo.DlssRuns) && !Upscalers.Unsupported([rx6700], SystemInfo.FsrRuns)
+                && !Upscalers.Unsupported([], SystemInfo.DlssRuns) && !Upscalers.Unsupported([], SystemInfo.FsrRuns),
+                "Unsupported: no card here runs it; no card found is not.");
+        var upHome = new LauncherHome(Path.Combine(scratch, "upscalers-home"));
+        var upTools = new Toolchain("v3.3.0", Path.Combine(upHome.Toolchains, "v3.3.0"), ListKind.Setup, "LongshotBuilder/LongshotBuilder.exe");
+        var upBase = new BuildRequest(new BuildSource.Nup("C:/g/game.nup"), "C:/Games/Longshot");
+        var both = new LauncherSettings { Dlss = true, DlssLicense = true, Fsr = true, FsrLicense = true };
+        var onGtx = MakeGameCommand.For(upTools, Upscalers.Chosen(upBase, both, Platform.Windows), Platform.Windows, upHome, "L", _ => false);
+        Require(onGtx.Arguments.Contains("--fetch-ngx-sdk") && onGtx.Arguments.Contains("--accept-nvidia-license")
+                && onGtx.Arguments.Contains("--fsr") && onGtx.Arguments.Contains("--fetch-fsr-runtime") && onGtx.Arguments.Contains("--accept-amd-license")
+                && onGtx.Environment["LONGSHOT_NGX_SDK"] == upHome.NgxSdk && onGtx.Environment["LONGSHOT_FFX_SDK"] == upHome.FfxSdk,
+                "DLSS and FSR 4 switched on: fetched and built, whatever this PC's cards: " + string.Join(" ", onGtx.Arguments));
+        var off = Upscalers.Chosen(upBase, new LauncherSettings(), Platform.Windows);
+        var linuxNotice = Upscalers.Chosen(upBase, new LauncherSettings { Fsr = true, FsrLinuxNotice = true }, Platform.Linux);
+        var windowsNotice = Upscalers.Chosen(upBase, new LauncherSettings { Fsr = true, FsrLinuxNotice = true }, Platform.Windows);
+        Require(!off.Dlss && !off.Fsr && linuxNotice is { Fsr: true, FsrLicense: true } && windowsNotice is { Fsr: true, FsrLicense: false }
+                && Upscalers.Chosen(upBase, both, Platform.Windows) with { Dlss = false, DlssLicense = false, Fsr = false, FsrLicense = false } == upBase,
+                "Switched off: none; FSR 4's notice stands for AMD's licence on Linux only; the rest of the request is kept.");
+
         // (Linux, AMD FSR 4: the player's library, checked and copied into the game folder)
         var fsrDir = Folder("fsr-library");
         var lib = Path.Combine(fsrDir, "libfsr4.so");

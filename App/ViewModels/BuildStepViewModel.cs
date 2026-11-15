@@ -66,9 +66,11 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
     string search = "";
     bool following = true;
     bool fsr;   // (AMD FSR 4 in this build: asked for, and these tools build it; MakeGameCommand.FsrBuilds)
-    bool dlss;  // (NVIDIA DLSS in this build: asked for, licence accepted, and this PC runs it)
+    bool dlss;  // (NVIDIA DLSS in this build: asked for, and licence accepted)
 
-    bool Offers(Func<Gpu, bool> runs) => SystemInfo.Offers(Job.Service.GpuCards, runs);
+    /// ", DLSS" in the settings line when it is on, and that no card here runs it when none does (Upscalers.Unsupported)
+    string Upscaler(bool on, string name, Func<Gpu, bool> runs) =>
+        !on ? "" : ", " + name + (Upscalers.Unsupported(Job.Service.GpuCards, runs) ? " (no card here runs it)" : "");
 
     public BuildStepViewModel(BuildJob job, bool start = true)
     {
@@ -84,7 +86,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
         CancelCommand = new Command(() => Job.Main.Modal = new StopBuildViewModel(this));
         log.Add($"Longshot Launcher {job.Service.OwnTag}: {job.Verb.Trim().ToLowerInvariant()} {job.Version} ({job.Channel})");
         log.Add($"settings: memory {(s.MemoryGb is int m ? m + " GB" : "automatic")}, workers {(s.BuildWorkers is int w ? w : "automatic")}, " +
-                $"{Languages.NameOf(s.Language)}{(s.Dlss && Offers(SystemInfo.DlssRuns) ? ", DLSS" : "")}{(s.Fsr && Offers(SystemInfo.FsrRuns) ? ", FSR 4" : "")}");
+                $"{Languages.NameOf(s.Language)}{Upscaler(s.Dlss, "DLSS", SystemInfo.DlssRuns)}{Upscaler(s.Fsr, "FSR 4", SystemInfo.FsrRuns)}");
         if (start)
         {
             ticker = new DispatcherTimer(TimeSpan.FromSeconds(1), DispatcherPriority.Background, (_, _) => Update());
@@ -160,12 +162,12 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
         var file = job.Picked!;
         // (a version you have already built from this .nup gives the new one its game files: BuildRegistry.SameGameFiles)
         var romfsFrom = file.Source is BuildSource.Nup nup ? job.Service.Registry.SameGameFiles(nup.Path, job.InstallDir)?.Folder : null;
-        // (an upscaler this PC can't run is left out, whatever was remembered: SystemInfo.Offers)
-        var request = new BuildRequest(file.Source, job.InstallDir, s.Language, job.Service.Work, s.BuildWorkers ?? SystemInfo.AutomaticWorkers(), s.MemoryGb, true,
-                                       s.Dlss && Offers(SystemInfo.DlssRuns), s.DlssLicense, s.Fsr && Offers(SystemInfo.FsrRuns),
-                                       job.Main.Linux ? s.FsrLinuxNotice : s.FsrLicense, romfsFrom,
-                                       s.IntelSideBySide && job.Service.IntelCompilesApply,
-                                       s.IntelLongerLimits && job.Service.IntelCompilesApply);
+        // (DLSS and FSR 4 as the player chose them, whatever this PC's cards: Upscalers.Chosen)
+        var request = Upscalers.Chosen(
+            new BuildRequest(file.Source, job.InstallDir, s.Language, job.Service.Work, s.BuildWorkers ?? SystemInfo.AutomaticWorkers(), s.MemoryGb, true,
+                             RomfsFrom: romfsFrom, IntelSideBySide: s.IntelSideBySide && job.Service.IntelCompilesApply,
+                             IntelLongerLimits: s.IntelLongerLimits && job.Service.IntelCompilesApply),
+            s, job.Service.Platform);
         dlss = request.Dlss && request.DlssLicense;
         MakeGameCommand command;
         try

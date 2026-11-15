@@ -77,7 +77,8 @@ public static class SystemInfo
         return Regex.IsMatch(name, @"\b(Vega|R[579]\s|HD\s*\d)", RegexOptions.IgnoreCase);
     }
 
-    /// Whether the build offers an upscaler on this PC: one of its cards runs it, or no card was found (unknown: left on offer)
+    /// Whether this PC runs an upscaler: one of its cards runs it, or no card was found (unknown). Else its switch says so in red,
+    /// and still turns on (Upscalers.Unsupported)
     public static bool Offers(IReadOnlyList<Gpu> gpus, Func<Gpu, bool> runs) => gpus.Count == 0 || gpus.Any(runs);
 
     /// Intel shader compiles applies here: Windows with Intel graphics, the only place Longshot holds Intel's compiler to one

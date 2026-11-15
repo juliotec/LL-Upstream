@@ -65,16 +65,17 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
     public bool DlssYourGpu => Job.Service.GpuCards.Any(SystemInfo.DlssRuns);
     public bool FsrYourGpu => Job.Service.GpuCards.Any(SystemInfo.FsrRuns);
 
-    /// This PC can run it (SystemInfo.Offers): otherwise its switch is off and can't be turned on, and the build leaves it out
-    public bool DlssRunsHere => SystemInfo.Offers(Job.Service.GpuCards, SystemInfo.DlssRuns);
-    public bool FsrRunsHere => SystemInfo.Offers(Job.Service.GpuCards, SystemInfo.FsrRuns);
+    /// None of this PC's cards runs it (Upscalers.Unsupported): its line says so in red. The switch still turns on, and the build
+    /// fetches its files all the same (for OptiScaler)
+    public bool DlssUnsupported => Upscalers.Unsupported(Job.Service.GpuCards, SystemInfo.DlssRuns);
+    public bool FsrUnsupported => Upscalers.Unsupported(Job.Service.GpuCards, SystemInfo.FsrRuns);
 
     public bool Dlss
     {
-        get => s.Dlss && DlssRunsHere;
+        get => s.Dlss;
         set
         {
-            if (value == Dlss || (value && !DlssRunsHere)) return;
+            if (value == Dlss) return;
             if (value && !s.DlssLicense)
             {
                 Main.Modal = new LicenceViewModel(Main, true, Linux, () => { s.DlssLicense = true; s.Dlss = true; Save(); RaiseUpscalers(); },
@@ -97,7 +98,7 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
 
     public bool Fsr
     {
-        get => s.Fsr && FsrKnown && FsrBuildable && FsrRunsHere;
+        get => s.Fsr && FsrKnown && FsrBuildable;
         set
         {
             if (value == Fsr || (value && !FsrEnabled)) return;
@@ -120,15 +121,18 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
         }
     }
 
-    /// The FSR 4 switch can be turned on: this version's tools build it and this PC runs it
-    public bool FsrEnabled => FsrBuildable && FsrRunsHere;
+    /// The FSR 4 switch can be turned on: this version's tools build it
+    public bool FsrEnabled => FsrBuildable;
 
     public bool DlssAccepted => Dlss;
-    public string DlssLine => !DlssRunsHere ? Tr.T("This PC has no GeForce RTX card.")
+    /// The line under the switch: hidden once the licence's tick shows, unless it says this PC has no card for it (in red)
+    public bool ShowDlssLine => !DlssAccepted || DlssUnsupported;
+    public string DlssLine => DlssUnsupported ? Tr.T("This PC has no GeForce RTX card.")
         : Dlss ? "" : s.DlssLicense ? Tr.T("Licence accepted earlier.") : Tr.T("Shows NVIDIA's licence first.");
     // (Linux: nothing of AMD's is downloaded, so there is no licence to accept; the player's own library goes beside the game)
     public bool FsrAccepted => Fsr && Windows;
-    public string FsrLine => !FsrRunsHere ? Tr.T("This PC has no Radeon RX 6000 or newer.")
+    public bool ShowFsrLine => !FsrAccepted || FsrUnsupported;
+    public string FsrLine => FsrUnsupported ? Tr.T("This PC has no Radeon RX 6000 or newer.")
         : Linux
         ? (!FsrBuildable ? Tr.T("This version can't build it on Linux yet.") : Tr.T("Uses your Vulkan FSR 4 library."))
         : Fsr ? "" : s.FsrLicense ? Tr.T("Licence accepted earlier.") : Tr.T("Shows AMD's licence first.");
@@ -205,7 +209,8 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
         : Tr.T("Gives up after 5 minutes with no progress. Longer if the build says the GPU driver stopped responding.");
 
     void RaiseUpscalers() =>
-        RaiseAll(nameof(Dlss), nameof(Fsr), nameof(ShowFsrLibrary), nameof(DlssAccepted), nameof(DlssLine), nameof(FsrAccepted), nameof(FsrLine), nameof(FsrBuildable), nameof(FsrEnabled),
+        RaiseAll(nameof(Dlss), nameof(Fsr), nameof(ShowFsrLibrary), nameof(DlssAccepted), nameof(ShowDlssLine), nameof(DlssLine), nameof(FsrAccepted),
+                 nameof(ShowFsrLine), nameof(FsrLine), nameof(FsrBuildable), nameof(FsrEnabled),
                  nameof(Estimate));
 
     // ---- install ----
