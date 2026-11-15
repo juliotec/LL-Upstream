@@ -1,6 +1,6 @@
 namespace LongshotLauncher.Core;
 
-/// A dump of the game found on this PC: a .nup file, or a folder holding its romfs and exefs folders (Folders)
+/// A dump of the game found on this PC: a .nup file (or a .nx archive of one: make_game.py --nup reads both), or a folder holding its romfs and exefs folders (Folders)
 /// (Romfs, Exefs: the two folders when they were picked one by one, not side by side in Path)
 public sealed record FoundGameFile(string Path, string Where, long Size, DateTime Modified, bool Folders, string? Romfs = null, string? Exefs = null)
 {
@@ -90,7 +90,7 @@ public static class GameFiles
             {
                 try
                 {
-                    foreach (var f in Directory.EnumerateFiles(sub, "*.nup"))
+                    foreach (var f in Directory.EnumerateFiles(sub, "*.nup").Concat(Directory.EnumerateFiles(sub, "*.nx")).Where(IsGameFile))
                     {
                         var info = new FileInfo(f);
                         if (seen.Add(info.FullName)) found.Add(new FoundGameFile(info.FullName, name, info.Length, info.LastWriteTime, false));
@@ -104,11 +104,15 @@ public static class GameFiles
         return found.OrderByDescending(d => d.Modified).ToList();
     }
 
+    /// A .nup or .nx by its name ("*.nx" alone also matches .nxs and the like on Windows: its 8.3 names)
+    static bool IsGameFile(string path) =>
+        path.EndsWith(".nup", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".nx", StringComparison.OrdinalIgnoreCase);
+
     /// A folder with the game's romfs and exefs folders in it (exefs holding main)
     public static bool IsDumpFolder(string dir) =>
         Directory.Exists(System.IO.Path.Combine(dir, "romfs")) && File.Exists(System.IO.Path.Combine(dir, "exefs", "main"));
 
-    /// What a path given to the window (Browse, a drop) is: a .nup, a folder holding romfs and exefs, or the romfs or exefs folder
+    /// What a path given to the window (Browse, a drop) is: a .nup or .nx, a folder holding romfs and exefs, or the romfs or exefs folder
     /// itself (its pair beside it); null for anything else
     public static FoundGameFile? FromPath(string path, string where)
     {
@@ -117,7 +121,7 @@ public static class GameFiles
         catch (Exception e) when (e is ArgumentException or IOException or NotSupportedException) { return null; }
         if (File.Exists(full))
         {
-            if (!full.EndsWith(".nup", StringComparison.OrdinalIgnoreCase)) return null;
+            if (!IsGameFile(full)) return null;
             var info = new FileInfo(full);
             return new FoundGameFile(info.FullName, where, info.Length, info.LastWriteTime, false);
         }

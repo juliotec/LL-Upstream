@@ -66,10 +66,10 @@ public sealed partial class MainWindow : Window, IWindowHost
         vm.Dropping = ok;
     }
 
-    public async Task<string?> PickFileAsync(string title, string? pattern)
+    public async Task<string?> PickFileAsync(string title, string[]? patterns)
     {
         var options = new FilePickerOpenOptions { Title = title, AllowMultiple = false };
-        if (pattern != null) options.FileTypeFilter = new[] { new FilePickerFileType(pattern) { Patterns = new[] { pattern } } };
+        if (patterns != null) options.FileTypeFilter = new[] { new FilePickerFileType(string.Join(", ", patterns)) { Patterns = patterns } };
         var files = await StorageProvider.OpenFilePickerAsync(options);
         return files.Count > 0 ? files[0].TryGetLocalPath() : null;
     }

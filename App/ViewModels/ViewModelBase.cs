@@ -72,7 +72,7 @@ public sealed class Command : ICommand
 /// Null in the screenshots
 public interface IWindowHost
 {
-    Task<string?> PickFileAsync(string title, string? pattern);
+    Task<string?> PickFileAsync(string title, string[]? patterns);
     Task<string?> PickFolderAsync(string title, string? start);
     Task CopyAsync(string text);
     void Open(string path);

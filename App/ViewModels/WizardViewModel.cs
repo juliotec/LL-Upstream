@@ -358,10 +358,10 @@ public sealed class FilesStepViewModel : ViewModelBase, IWizardPage
     async Task BrowseAsync()
     {
         if (Main.Host is not { } host) return;
-        var path = await host.PickFileAsync(Tr.T("Your game file (.nup)"), "*.nup");
+        var path = await host.PickFileAsync(Tr.T("Your game file (.nup or .nx)"), new[] { "*.nup", "*.nx" });
         if (path == null) return;
         if (GameFiles.FromPath(path, "Browsed") is { } f) Picked = Add(f, pick: true, first: true);
-        else Main.ShowToast(Tr.T("That is not a .nup file."));
+        else Main.ShowToast(Tr.T("That is not a .nup or .nx file."));
         _ = CheckAllAsync();
     }
 
@@ -391,7 +391,7 @@ public sealed class FilesStepViewModel : ViewModelBase, IWizardPage
                 Add(f, pick: true, first: true);
                 any = true;
             }
-        if (!any) Main.ShowToast(Tr.T("Drop a .nup file, or the folder holding romfs and exefs."));
+        if (!any) Main.ShowToast(Tr.T("Drop a .nup or .nx file, or the folder holding romfs and exefs."));
         _ = CheckAllAsync();
     }
 

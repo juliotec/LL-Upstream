@@ -142,7 +142,7 @@
         <TextBlock Classes="note" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" MaxWidth="560" Margin="0,4,0,0"
                    Text="{Binding CheckWhy}" IsVisible="{Binding HasCheckWhy}"/>
         <TextBlock Classes="faint" HorizontalAlignment="Center" Margin="0,8,0,0"
-                   Text="{c:T 'You need your dump of the game: a .nup file, or its romfs and exefs folders.'}"/>
+                   Text="{c:T 'You need your dump of the game: a .nup or .nx file, or its romfs and exefs folders.'}"/>
       </StackPanel>
 
       <!-- the default version, and every version -->

@@ -79,7 +79,7 @@ STABLE = re.compile(r"^v(\d+)\.(\d+)\.(\d+)$")
 VERSION = re.compile(r"^v(\d+)\.(\d+)\.(\d+)(?:-rc\.(\d+))?$")
 NIGHTLY = re.compile(r"^nightly-([0-9]{1,9})-([0-9a-f]{8})$")
 # (names that look like the game's files, a dump's, or NVIDIA's runtime: never uploaded, CONTRIBUTING.md)
-NOT_A_RELEASE_FILE = re.compile(r"(\.(nso|nca|nsp|xci|nsz|xcz|nup|keys|bin)$|romfs|exefs|nvngx|dlss|streamline|^sl\..*\.dll$)",
+NOT_A_RELEASE_FILE = re.compile(r"(\.(nso|nca|nsp|xci|nsz|xcz|nup|nx|keys|bin)$|romfs|exefs|nvngx|dlss|streamline|^sl\..*\.dll$)",
                                 re.IGNORECASE)
 # (a Conventional Commit title: type(scope)!: description; scripts/forge.py checks pull request titles with the same types)
 TITLE = re.compile(r"^(feat|fix|perf|refactor|docs|test|ci|build|chore|revert)(\([^)]*\))?(!)?: ")

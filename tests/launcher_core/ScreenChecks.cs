@@ -37,6 +37,8 @@ static partial class Program
         Touch(Path.Combine(home, "Downloads", "Switch", "new.NUP".ToLowerInvariant()), "nn", new DateTime(2026, 11, 1));
         Touch(Path.Combine(home, "Downloads", "Switch", "deeper", "too-deep.nup"));
         Touch(Path.Combine(home, "Downloads", ".hidden", "hidden.nup"));
+        Touch(Path.Combine(home, "Documents", "oot.nx"), "nx", new DateTime(2026, 3, 1));
+        Touch(Path.Combine(home, "Documents", "oot.nxs"));
         Touch(Path.Combine(home, "Downloads", "readme.txt"));
         Touch(Path.Combine(home, "Desktop", "oot", "exefs", "main"));
         Directory.CreateDirectory(Path.Combine(home, "Desktop", "oot", "romfs"));
@@ -50,6 +52,7 @@ static partial class Program
         var found = GameFiles.Find(places.Append((Path.Combine(home, "Downloads"), "again")));
         var names = found.Select(f => f.Name).ToList();
         Require(names.Contains("old.nup") && names.Contains("new.nup") && names.Contains("ゲーム Zélda.nup") && names.Contains("oot")
+                && names.Contains("oot.nx") && !names.Contains("oot.nxs")
                 && !names.Contains("too-deep.nup") && !names.Contains("hidden.nup") && !names.Contains("x.nup") && !names.Contains("half")
                 && found.Count == names.Distinct().Count(), "Found: .nup files one level down and dump folders; not deeper, hidden or Program folders, each once: "
                 + string.Join(", ", names));
@@ -62,6 +65,10 @@ static partial class Program
                 && fs.Exefs == Path.Combine(home, "Desktop", "oot", "exefs"), "A dump folder builds from its romfs and exefs.");
         Require(found.First(f => f.Name == "old.nup").Source is BuildSource.Nup { Path: var np } && np == Path.Combine(home, "Downloads", "old.nup"),
                 "A .nup builds from itself.");
+        Require(found.First(f => f.Name == "oot.nx").Source is BuildSource.Nup { Path: var xp } && xp == Path.Combine(home, "Documents", "oot.nx")
+                && GameFiles.FromPath(Path.Combine(home, "Documents", "oot.nx"), "Dropped")?.Folders == false
+                && GameFiles.FromPath(Path.Combine(home, "Documents", "oot.nxs"), "x") == null,
+                "A .nx archive is found, dropped and built like a .nup (make_game.py --nup reads both).");
         Require(GameFiles.FromPath(Path.Combine(home, "Downloads", "old.nup"), "Dropped")?.Where == "Dropped"
                 && GameFiles.FromPath(Path.Combine(home, "Downloads", "readme.txt"), "x") == null
                 && GameFiles.FromPath(Path.Combine(home, "Desktop", "oot", "exefs"), "x")?.Path == Path.Combine(home, "Desktop", "oot")
