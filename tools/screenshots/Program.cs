@@ -1,3 +1,4 @@
+using Avalonia.VisualTree;
 // The launcher's screens drawn without a display, into PNGs: each scene sets up a launcher of its own (a home in a temporary
 // folder, no game files, no network) and the page it shows, and the window is rendered by Skia through Avalonia.Headless.
 //
@@ -19,7 +20,7 @@ static class Program
     /// A scene: its name (the PNG's), what it shows, and how it sets the launcher up (the platform it draws, then the page, then
     /// what is opened over the page: a dialog)
     sealed record Scene(string Name, string Shows, Platform Platform, Action<LauncherService>? Setup, Func<MainViewModel, object?> Page,
-                        Action<MainViewModel>? Then = null);
+                        Action<MainViewModel>? Then = null, bool ScrollToEnd = false);
 
     // (a build's first lines, as make_game.py says them, with when: the build page's rows, bar, time and details)
     static readonly (string Line, double At)[] Transcript =
@@ -40,6 +41,8 @@ static class Program
     static readonly Scene[] Scenes =
     [
         new("home", "The home with no build yet", Platform.Linux, null, _ => null),
+        new("launcher-settings", "The launcher's Settings: an update's build tools downloaded early, when chosen", Platform.Windows,
+            s => { s.Settings.CheckUpdates = true; s.Settings.DownloadUpdatesEarly = true; }, m => new SettingsViewModel(m), ScrollToEnd: true),
         new("settings-linux", "Step 2, the build settings, on Linux with an AMD GPU", Platform.Linux,
             s => { s.GpuCards = [new Gpu(SystemInfo.Amd)]; s.Settings.Fsr = true; s.Settings.FsrLinuxNotice = true; },
             m => Settings(m)),
@@ -231,6 +234,16 @@ static class Program
             {
                 Dispatcher.UIThread.RunJobs();
                 AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+            }
+            // (a scene about the end of a long page: its scroll at the bottom)
+            if (scene.ScrollToEnd)
+            {
+                foreach (var scroll in window.GetVisualDescendants().OfType<Avalonia.Controls.ScrollViewer>()) scroll.ScrollToEnd();
+                for (var i = 0; i < 10; i++)
+                {
+                    Dispatcher.UIThread.RunJobs();
+                    AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+                }
             }
             using var frame = window.CaptureRenderedFrame() ?? throw new InvalidOperationException("no frame for " + scene.Name);
             frame.Save(path, Avalonia.Media.Imaging.PngBitmapEncoderOptions.Default);

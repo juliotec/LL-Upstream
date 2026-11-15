@@ -361,7 +361,8 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
             if (st.Id == "download")
             {
                 row.State = "done";
-                row.Detail = Job.ToolsDownloaded ? Tr.T("Downloaded in step 1") : Tr.T("Already on this PC");
+                row.Detail = !Job.ToolsDownloaded ? Tr.T("Already on this PC")
+                    : Job.ToolsEarly ? Tr.T("Downloaded in the background") : Tr.T("Downloaded in step 1");
                 row.Time = Job.ToolsDownloaded ? Durations.Clock(Job.ToolsTime) : "";
                 row.TimeFaint = "";
                 continue;

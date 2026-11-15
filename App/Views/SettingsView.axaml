@@ -97,6 +97,8 @@
           </StackPanel>
         </Grid>
         <CheckBox Classes="tick" Content="{c:T 'Check for updates when the launcher starts'}" IsChecked="{Binding CheckUpdates}"/>
+        <CheckBox Classes="tick" Content="{c:T 'Download the build tools of an update as soon as it is out (about 500 MB). Nothing updates until you choose to.'}"
+                  IsChecked="{Binding DownloadUpdatesEarly}" IsEnabled="{Binding CheckUpdates}"/>
       </StackPanel>
     </ScrollViewer>
   </DockPanel>

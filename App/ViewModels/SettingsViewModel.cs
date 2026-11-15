@@ -222,6 +222,19 @@ public sealed class SettingsViewModel : ViewModelBase
         }
     }
 
+    /// An update's build tools downloaded as soon as it's out (LauncherSettings.DownloadUpdatesEarly); the update still waits for the
+    /// player. Taking effect from the next update check
+    public bool DownloadUpdatesEarly
+    {
+        get => s.DownloadUpdatesEarly;
+        set
+        {
+            s.DownloadUpdatesEarly = value;
+            Save();
+            Raise();
+        }
+    }
+
     public string Version => "Longshot Launcher " + Versions.Shown(Main.Service.OwnTag);
 
     public Command DoneCommand { get; }

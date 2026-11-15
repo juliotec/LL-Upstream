@@ -18,6 +18,8 @@ public sealed class LauncherService
     /// The launcher's own signed releases (MagicBeanDev/LongshotLauncher), checked the same way
     public Releases LauncherReleases { get; }
     public Toolchains Tools { get; }
+    /// Each version's tools, fetched once: started early for the likely next build (PrefetchLikely), joined by the wizard's step 1
+    public ToolsPrefetch Prefetch { get; }
     /// This launcher's own version (SelfUpdate.OwnTag), and the one its channel (LauncherChannel) offers, if any
     public string OwnTag { get; } = SelfUpdate.OwnTag();
     public ReleaseInfo? LauncherUpdate { get; private set; }
@@ -53,6 +55,9 @@ public sealed class LauncherService
         Releases = new Releases(check, platform, keys, product: Product.Longshot);
         // (the launcher's own releases: its own versions on its own three channels, chosen apart from the builds' in Settings)
         LauncherReleases = new Releases(check, platform, keys, product: Product.Launcher);
+        Prefetch = new ToolsPrefetch((tag, progress, cancel) => ToolsSource.EnsureAsync(Tools, Releases, tag, progress, cancel));
+        // (a prune put off while a fetch ran, once none does: PruneTools)
+        Prefetch.Idle += () => ViewModels.Ui.Post(() => { if (Interlocked.Exchange(ref pruneLater, 0) == 1) PruneTools(); });
         SaveEnv = SaveEnvironment.Current() with
         {
             Platform = platform,
@@ -149,7 +154,18 @@ public sealed class LauncherService
             && SelfUpdate.UpdateTo(OwnTag, own, Platform, LauncherChannel, Program.Layout.UpdateKey) != null)
             LauncherUpdate = own;
         Checked = true;
+        if (any) PrefetchLikely();
         return any;
+    }
+
+    /// The tools of the version the player will most likely build next, started in the background (ToolsPrefetch.Likely), so a
+    /// first build, or an update when the player chose that in Settings (DownloadUpdatesEarly), doesn't wait on them in step 1.
+    /// Off with LONGSHOT_LAUNCHER_NO_PREFETCH=1
+    public void PrefetchLikely()
+    {
+        if (!ToolsPrefetch.EnabledBy(Environment.GetEnvironmentVariable)) return;
+        if (ToolsPrefetch.Likely(Registry.Builds, NewestOf(DefaultChannel), UpdateFor, Tools.IsInstalled, Settings.DownloadUpdatesEarly) is { } tag)
+            Prefetch.Get(tag, early: true);
     }
 
     /// The launcher's update, downloaded, checked and put in place; then the new launcher is started and this one should close.
@@ -344,14 +360,23 @@ public sealed class LauncherService
         return gone;
     }
 
-    /// The tools of versions no build uses any more go
+    /// The tools of versions no build uses any more go, but not the ones fetched this session for a build to come. While a fetch
+    /// runs the prune waits (it would take the fetch's staging folder and downloads) and runs when the last one ends (Idle)
     public void PruneTools()
     {
-        try { Tools.Prune(Registry.Builds.Select(x => x.Version).OfType<string>()); }
+        if (Prefetch.Busy)
+        {
+            Interlocked.Exchange(ref pruneLater, 1);
+            if (Prefetch.Busy) return;
+            // (the last fetch ended between the two looks, its Idle maybe before the flag: prune now)
+            Interlocked.Exchange(ref pruneLater, 0);
+        }
+        try { Tools.Prune(Registry.Builds.Select(x => x.Version).OfType<string>().Concat(Prefetch.Tags)); }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
     }
 
     bool measuring, remeasure;
+    int pruneLater;
 
     /// The builds' folders measured together in the background (Disk.Measure: a game file hard-linked into several builds counted
     /// once), when one is not measured yet or a build went; the sizes are kept in builds.json. Then done runs on the UI thread.

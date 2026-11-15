@@ -52,6 +52,9 @@ public sealed class LauncherSettings
     public string? BuildsFolder { get; set; }
     /// Ask git.magicbean.dev for each channel's newest version when the launcher starts
     public bool CheckUpdates { get; set; } = true;
+    /// Download an update's build tools as soon as the update check finds it, before the player starts the update (ToolsPrefetch):
+    /// ~500 MB a version, so off unless chosen. A first build's tools always start early (LONGSHOT_LAUNCHER_NO_PREFETCH=1 stops both)
+    public bool DownloadUpdatesEarly { get; set; }
     /// Each build folder's log already shown on the problem page, by its write time: a crash is shown once
     public Dictionary<string, long> SeenCrashLogs { get; set; } = new();
     /// When the launcher first looked for crashes (UTC ticks; null: not yet): a log from before then is not offered, so the first

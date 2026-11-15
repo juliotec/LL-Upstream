@@ -65,6 +65,7 @@ static partial class Program
         await ToolchainChecks();
         await CdnChecks();
         await ReportChecks();
+        await PrefetchChecks();
         RegistryChecks();
         SettingsChecks();
         ProgressChecks();

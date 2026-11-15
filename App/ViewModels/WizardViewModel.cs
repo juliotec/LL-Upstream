@@ -40,6 +40,8 @@ public sealed class BuildJob
     public Toolchain? Tools { get; set; }
     /// The tools were downloaded in step 1 (not already on this PC), and how long that took
     public bool ToolsDownloaded { get; set; }
+    /// The tools' download started before step 1, after the update check (ToolsPrefetch): "Downloaded in the background"
+    public bool ToolsEarly { get; set; }
     public TimeSpan ToolsTime { get; set; }
     public bool AdvancedOpen { get; set; }
     public readonly CancellationTokenSource Cancel = new();
@@ -227,12 +229,23 @@ public sealed class FilesStepViewModel : ViewModelBase, IWizardPage
         RaiseTools();
         toolsClock.Restart();
         var token = Job.Cancel.Token;
+        // (the launcher may have started this version's tools already, after the update check: Service.Prefetch; this joins that
+        // download, or starts it. Leaving the wizard stops it, as before, whoever started it: the player left, so no download goes
+        // on unseen; the next Get starts it again)
+        var fetch = Service.Prefetch.Get(Job.Version);
+        Job.ToolsEarly = fetch.Early;
+        var watch = fetch.Watch(p => Ui.Post(() => Progress(p)));
+        token.Register(() =>
+        {
+            watch.Dispose();
+            if (!fetch.Task.IsCompleted) fetch.Cancel();
+        });
         Task.Run(async () =>
         {
             try
             {
-                var t = await ToolsSource.EnsureAsync(Service.Tools, Service.Releases, Job.Version,
-                                                      p => Ui.Post(() => Progress(p)), token);
+                var t = await fetch.Task.WaitAsync(token);
+                watch.Dispose();
                 Ui.Post(() => ToolsReady(t));
             }
             catch (OperationCanceledException) { }
