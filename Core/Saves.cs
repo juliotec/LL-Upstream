@@ -76,7 +76,7 @@ public sealed record SaveEnvironment(Platform Platform, Func<string, string?> Ge
     /// longshot_saves.default_backup_dir: the script's and the launcher's backups in one place
     public string BackupRoot => BackupFolder ?? (Platform == Platform.Windows
         ? Path.Combine(LocalAppData, "Longshot", "oot-save-backups")
-        : Path.Combine(Data, "oot-save-backups"));
+        : Path.Combine(Data, "longshot", "save-backup"));
 
     /// longshot_saves.folders: a program's data folders on this platform, in the order they are tried
     public IReadOnlyList<string> FoldersOf(SaveProgram program) =>

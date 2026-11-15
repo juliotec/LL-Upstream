@@ -23,8 +23,8 @@ to copy between builds. On Linux the game finds that folder by itself. On Window
 `--user <that folder>`; a build started on its own (`bin\longshot.exe` double-clicked) still keeps its saves in its own
 folder's `user\`, and the launcher brings them in at its next start (below).
 
-Backups go to `%LOCALAPPDATA%\Longshot\oot-save-backups` on Windows and `$XDG_DATA_HOME/oot-save-backups` on Linux, one
-folder per copy, named by the time it was made.
+Backups go to `%LOCALAPPDATA%\Longshot\oot-save-backups` on Windows and `$XDG_DATA_HOME/longshot/save-backup` on Linux (default
+`~/.local/share/longshot/save-backup/`), one folder per copy, named by the time it was made.
 
 ## Saves from before (Windows)
 
