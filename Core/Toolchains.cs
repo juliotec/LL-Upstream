@@ -263,6 +263,7 @@ public sealed class Toolchains
             await (extract ?? ExtractAppImage)(image, work, cancel);
             var tree = Path.Combine(work, "squashfs-root");
             if (!File.Exists(Path.Combine(tree, "AppRun"))) throw new InvalidDataException("The builder's AppImage has no AppRun.");
+            if (IsLauncher(tree)) throw new InvalidDataException("The builder's AppImage unpacked this launcher instead of itself.");
             File.Delete(image);
             CheckLinksInside(tree);
             var record = new Record { Tag = tag, Kind = ListKind.Linux };
@@ -347,14 +348,24 @@ public sealed class Toolchains
         {
             WorkingDirectory = folder, UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true,
         };
-        si.Environment.Remove("APPIMAGE");
-        si.Environment.Remove("APPDIR");
+        WithoutOurAppImage(si.Environment);
         using var p = System.Diagnostics.Process.Start(si) ?? throw new IOException("The builder's AppImage did not start.");
         var output = p.StandardOutput.ReadToEndAsync(cancel);
         var error = p.StandardError.ReadToEndAsync(cancel);
         await p.WaitForExitAsync(cancel);
         await Task.WhenAll(output, error);
         if (p.ExitCode != 0) throw new IOException($"The builder's AppImage could not be unpacked ({p.ExitCode}): {error.Result.Trim()}");
+    }
+
+    /// Another AppImage's environment, without what says which AppImage this launcher runs from: APPIMAGE and APPDIR, which the
+    /// AppImage runtime sets for the program it starts, and TARGET_APPIMAGE, which AppImageLauncher's binfmt-bypass sets for the
+    /// runtime it starts. An AppImage's runtime mounts or unpacks TARGET_APPIMAGE when it is set, not itself: left in, the
+    /// builder's --appimage-extract would unpack this launcher
+    public static void WithoutOurAppImage(IDictionary<string, string?> environment)
+    {
+        environment.Remove("APPIMAGE");
+        environment.Remove("APPDIR");
+        environment.Remove("TARGET_APPIMAGE");
     }
 
     /// Where Linux lists its binfmt_misc handlers: one file each, besides register and status
@@ -522,12 +533,21 @@ public sealed class Toolchains
 
     // ---- the record each version keeps of its parts: what reuse reads ----
 
+    /// The launcher's own program inside its AppImage (scripts/package.sh), never in a builder's
+    public const string LauncherProgram = "usr/bin/LongshotLauncher";
+
+    /// Whether an unpacked AppImage is this launcher's, not a builder's: what --appimage-extract made under AppImageLauncher
+    /// before TARGET_APPIMAGE was left out (WithoutOurAppImage)
+    static bool IsLauncher(string tree) => File.Exists(Path.Combine(tree, Native(LauncherProgram)));
+
+    /// A version's record; none for a Linux one that holds the launcher instead of its builder, so that it is installed again
     static Record? Read(string folder)
     {
         try
         {
             using var f = File.OpenRead(Path.Combine(folder, RecordName));
-            return JsonSerializer.Deserialize(f, CoreJson.Default.Record);
+            var record = JsonSerializer.Deserialize(f, CoreJson.Default.Record);
+            return record?.Kind == ListKind.Linux && IsLauncher(folder) ? null : record;
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or JsonException) { return null; }
     }

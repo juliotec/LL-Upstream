@@ -178,9 +178,8 @@ public static class SelfUpdate
     {
         var start = new ProcessStartInfo(staged) { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
         start.ArgumentList.Add(CheckArgument);
-        // (its own AppImage, not this one's: the AppImage runtime sets APPIMAGE for the program it starts)
-        start.Environment.Remove("APPIMAGE");
-        start.Environment.Remove("APPDIR");
+        // (its own AppImage, not this one's: under AppImageLauncher, TARGET_APPIMAGE would have it run this launcher again)
+        Toolchains.WithoutOurAppImage(start.Environment);
         using var cancel = new CancellationTokenSource(timeout);
         try
         {

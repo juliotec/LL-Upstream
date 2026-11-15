@@ -501,6 +501,10 @@ static partial class Program
         Toolchains.ClearAppImageMagic(image);
         Require(File.ReadAllBytes(image).SequenceEqual(new byte[] { 0x7F, (byte)'E', (byte)'L', (byte)'F', 2, 1, 1, 0, 0, 0, 0, 0, 9 }),
                 "The AppImage magic cleared, nothing else.");
+        // (AppImageLauncher's binfmt-bypass sets TARGET_APPIMAGE to this launcher: the builder's runtime would unpack it instead)
+        var env = new Dictionary<string, string?> { ["APPIMAGE"] = "/a", ["APPDIR"] = "/m", ["TARGET_APPIMAGE"] = "/a", ["HOME"] = "/h" };
+        Toolchains.WithoutOurAppImage(env);
+        Require(env.Count == 1 && env["HOME"] == "/h", "Another AppImage starts without this launcher's APPIMAGE, APPDIR and TARGET_APPIMAGE.");
         var gh = new FakeFetcher();
         var tools = Zip(("nx2/make_game.py", "print('authored')\n", null, 0x1ED), ("nx2/link.py", TestLinks.Available ? null : "authored link placeholder", TestLinks.Available ? "make_game.py" : null, 0),
                         ("README", "authored\n", null, 0x1A4));
