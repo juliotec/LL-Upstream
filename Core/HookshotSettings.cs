@@ -227,14 +227,19 @@ public static class HookshotSettings
 
     /// A preview writes nothing. A real import backs up the existing files, then writes Hookshot's settings into them: the
     /// imported keys into the build's longshot_options.ini, its other lines kept (Merge), and language.txt replaced.
+    /// optionsFile: the longshot_options.ini to import into instead of the build's (OptionsFileOf: the user folder's, which a
+    /// build started with --user reads); language.txt stays the build's
     public static HookshotSettingsCopy Import(string sourceGameFolder, string targetGameFolder, string backupRoot, bool overwrite,
-                                             bool dryRun = false, Func<IReadOnlyList<string>>? running = null, Func<DateTime>? now = null)
+                                             bool dryRun = false, Func<IReadOnlyList<string>>? running = null, Func<DateTime>? now = null,
+                                             string? optionsFile = null)
     {
         var source = Folder(sourceGameFolder);
         var target = Folder(targetGameFolder);
         if (source.Equals(target, Comparison)) throw new SaveFailure("The Hookshot and Longshot game folders must differ.");
         var found = Load(source);
-        var previous = TargetFiles.Select(n => (Name: n, Bytes: ReadFile(Path.Combine(target, n), emptyOk: true)))
+        var paths = TargetFiles.ToDictionary(n => n, n => Path.Combine(target, n), StringComparer.Ordinal);
+        if (optionsFile != null) paths["longshot_options.ini"] = Path.GetFullPath(optionsFile);
+        var previous = TargetFiles.Select(n => (Name: n, Bytes: ReadFile(paths[n], emptyOk: true)))
                                   .Where(f => f.Bytes != null).ToDictionary(f => f.Name, f => f.Bytes!, StringComparer.Ordinal);
         var files = new Dictionary<string, byte[]>(StringComparer.Ordinal);
         if (found.Options != null)
@@ -271,7 +276,7 @@ public static class HookshotSettings
             foreach (var (name, bytes) in files)
             {
                 Fault?.Invoke(name);
-                AtomicFile.Write(Path.Combine(target, name), bytes);
+                AtomicFile.Write(paths[name], bytes);
             }
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
@@ -280,8 +285,8 @@ public static class HookshotSettings
             foreach (var name in files.Keys)
                 try
                 {
-                    if (previous.TryGetValue(name, out var bytes)) AtomicFile.Write(Path.Combine(target, name), bytes);
-                    else File.Delete(Path.Combine(target, name));
+                    if (previous.TryGetValue(name, out var bytes)) AtomicFile.Write(paths[name], bytes);
+                    else File.Delete(paths[name]);
                 }
                 catch (Exception restore) when (restore is IOException or UnauthorizedAccessException) { restored = false; }
             var recovery = result.Backup != null ? "Restore them from the backup."

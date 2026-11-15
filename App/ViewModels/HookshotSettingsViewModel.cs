@@ -102,7 +102,8 @@ public sealed class HookshotSettingsViewModel : ViewModelBase
             {
                 files = HookshotSettings.FilesIn(sourceFolder);
                 if (Target != null)
-                    preview = HookshotSettings.Import(sourceFolder, Target.Folder, Main.Service.SaveEnv.BackupRoot, overwrite: false, dryRun: true);
+                    preview = HookshotSettings.Import(sourceFolder, Target.Folder, Main.Service.SaveEnv.BackupRoot, overwrite: false, dryRun: true,
+                                                     optionsFile: Main.Service.OptionsFileOf(Target.Folder));
             }
         }
         catch (Exception e) when (e is SaveFailure or IOException or UnauthorizedAccessException) { problem = e.Message; }
@@ -119,7 +120,8 @@ public sealed class HookshotSettingsViewModel : ViewModelBase
         {
             if (!Main.Service.IsBuilt(Target)) throw new SaveFailure(Tr.T("This Longshot version is no longer built. Build it before importing settings."));
             var language = LanguageChange;
-            var done = HookshotSettings.Import(sourceFolder, Target.Folder, Main.Service.SaveEnv.BackupRoot, overwrite: true);
+            var done = HookshotSettings.Import(sourceFolder, Target.Folder, Main.Service.SaveEnv.BackupRoot, overwrite: true,
+                                                    optionsFile: Main.Service.OptionsFileOf(Target.Folder));
             if (language != null && done.Language == language)
             {
                 Main.Service.Settings.Language = language;

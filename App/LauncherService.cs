@@ -192,22 +192,60 @@ public sealed class LauncherService
     /// saves brought together before it started (PlayFolder)
     public string? Play(BuildEntry b) => PlayFolder(b.Folder);
 
-    /// A game folder's game, with the saves every build shares: the old builds' brought in first (GatherSaves), and on Windows
-    /// the shared user folder given to it (GatherSaves, GamePlay.StartInfo). Returns what that gather did or why it could not
-    /// (SaveText.Gathered), null when there was nothing to do
+    /// A game folder's game, with the saves and the settings every build shares: the old builds' saves brought in first
+    /// (GatherSaves), the player's settings brought to a build that has none (CarrySettings), and the shared user folder given to
+    /// it (GamePlay.UserFolder, StartInfo). Returns what those did or why the gather could not (SaveText.Gathered), null when
+    /// there was nothing to do
     public string? PlayFolder(string folder)
     {
         var said = GatherSaid(GatherSaves());
-        string? user = null;
-        if (Platform == Platform.Windows)
+        var user = GamePlay.UserFolder(SaveEnv, folder);
+        if (user != null)
         {
-            user = SaveEnv.LongshotUser;
             // (the game makes it too; one it cannot make is the game's to report)
             try { Directory.CreateDirectory(user); }
             catch (Exception e) when (e is IOException or UnauthorizedAccessException or NotSupportedException) { }
         }
+        if (CarrySettings(folder) is { } carried) said = said == null ? carried : said + " " + carried;
         using var _ = Process.Start(GamePlay.StartInfo(folder, Platform, user: user));
         return said;
+    }
+
+    /// The player's game settings brought to the build in folder when its own file has none (SettingsCarry.Fill): the newest of
+    /// the shared user folder's and the other builds' (BuildFolders). What the window says, null when nothing was brought. A
+    /// failure is left out: the game starts with its own file, as before
+    public string? CarrySettings(string folder)
+    {
+        try
+        {
+            return SettingsCarry.Fill(folder, SaveEnv.LongshotUser, BuildFolders()) != null
+                ? Tr.T("Your game settings from your other versions now apply to this one too.") : null;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or NotSupportedException) { return null; }
+    }
+
+    /// The settings file a build reads when the launcher starts it: the shared user folder's once there is one (a Longshot that
+    /// keeps its settings there made it, Longshot's host/options_path.c), else the build's own. Hookshot's settings are imported
+    /// into it
+    public string OptionsFileOf(string folder) =>
+        GamePlay.UserFolder(SaveEnv, folder) is { } user && File.Exists(Path.Combine(user, SettingsCarry.FileName))
+            ? Path.Combine(user, SettingsCarry.FileName) : Path.Combine(folder, SettingsCarry.FileName);
+
+    /// The game folders the builds kept their own saves and settings in: every build's, every Longshot game folder in the builds
+    /// folder (a version an update replaced before it took its saves along is no longer listed, its files still there; only
+    /// Longshot's, never another game's such as Hookshot's), and the 2.x Builder's (not for a portable launcher)
+    IReadOnlyList<string> BuildFolders()
+    {
+        IEnumerable<string> inBuilds;
+        try
+        {
+            inBuilds = Directory.Exists(BuildsFolder)
+                ? Directory.EnumerateDirectories(BuildsFolder).Where(d => GameFolder.IsGameFolder(d, Platform)).ToList()
+                : Enumerable.Empty<string>();
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { inBuilds = Enumerable.Empty<string>(); }
+        var all = Registry.Builds.Select(b => b.Folder).Concat(inBuilds);
+        return (Home.Portable ? all : all.Append(LauncherSettings.DefaultBuildsFolder(SaveEnv.Getenv))).ToList();
     }
 
     /// What the window says of a gather (GatherSaves): which save every version uses now and where the backup is, or why it
@@ -215,27 +253,15 @@ public sealed class LauncherService
     public static string? GatherSaid((SaveGathered? Done, string? Problem) g) =>
         g.Done != null ? SaveText.Gathered(g.Done) : g.Problem != null ? Tr.F("Your saves were not brought together: {0}", g.Problem) : null;
 
-    /// (Windows) The saves the builds kept in their own folders brought into the shared one (Saves.Gather): when the window opens
-    /// and before a game starts. The folders: every build's, every Longshot game folder in the builds folder (a version an update
-    /// replaced before it took its saves along is no longer listed, its saves still there; only Longshot's, never another game's
-    /// such as Hookshot's), and the 2.x Builder's (not for a portable launcher). Done: what it did (null: nothing to bring, or
-    /// Longshot runs); Problem: why it could not, with nothing changed
+    /// (Windows) The saves the builds kept in their own folders (BuildFolders) brought into the shared one (Saves.Gather): when
+    /// the window opens and before a game starts. Done: what it did (null: nothing to bring, or Longshot runs); Problem: why it
+    /// could not, with nothing changed
     public (SaveGathered? Done, string? Problem) GatherSaves()
     {
         if (Platform != Platform.Windows) return (null, null);
         try
         {
-            IEnumerable<string> inBuilds;
-            try
-            {
-                inBuilds = Directory.Exists(BuildsFolder)
-                    ? Directory.EnumerateDirectories(BuildsFolder).Where(d => GameFolder.IsGameFolder(d, Platform)).ToList()
-                    : Enumerable.Empty<string>();
-            }
-            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { inBuilds = Enumerable.Empty<string>(); }
-            var old = Saves.OldUserFolders(SaveEnv, Registry.Builds.Select(b => b.Folder).Concat(inBuilds),
-                                           Home.Portable ? null : LauncherSettings.DefaultBuildsFolder(SaveEnv.Getenv));
-            return (Saves.Gather(SaveEnv, old), null);
+            return (Saves.Gather(SaveEnv, Saves.OldUserFolders(SaveEnv, BuildFolders(), null)), null);
         }
         catch (Exception e) when (e is SaveFailure or IOException or UnauthorizedAccessException) { return (null, e.Message); }
     }

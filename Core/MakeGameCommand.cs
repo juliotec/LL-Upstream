@@ -168,15 +168,31 @@ public static class GamePlay
         return env;
     }
 
-    /// user: Longshot's user folder, which every build shares (SaveEnvironment.LongshotUser), given to the game as --user on Windows.
-    /// Every Windows build takes --user, the ones from before the launcher too; without it the game keeps its saves in its own
-    /// folder's user\. On Linux the game finds the shared one by itself, so nothing is passed
+    /// The user folder a build is started with (StartInfo's user): Longshot's shared one (SaveEnvironment.LongshotUser), where
+    /// its saves are and, from the Longshot that takes --user for them, its settings (host/options_path.c). Every Windows build.
+    /// On Linux the game finds the shared folder by itself for the saves, and keeps its settings beside itself without --user:
+    /// given it too, unless the build's folder has a user/ of its own, which the game takes in itself (an old build's saves, moved
+    /// into the shared folder at its next start) or keeps (a link of the player's: their own arrangement). Null: none
+    public static string? UserFolder(SaveEnvironment env, string folder)
+    {
+        if (env.Platform == Platform.Windows) return env.LongshotUser;
+        var own = Path.Combine(folder, "user");
+        try
+        {
+            if (Directory.Exists(own) || File.Exists(own) || new FileInfo(own).LinkTarget != null) return null;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return null; }
+        return env.LongshotUser;
+    }
+
+    /// user: Longshot's user folder, which every build shares (UserFolder), given to the game as --user. Every build takes --user,
+    /// the ones from before the launcher too; without it the game keeps its saves in its own folder's user\ on Windows
     public static ProcessStartInfo StartInfo(string folder, Platform platform, IReadOnlyDictionary<string, string>? current = null, string? user = null)
     {
         current ??= System.Environment.GetEnvironmentVariables().Cast<System.Collections.DictionaryEntry>()
             .ToDictionary(e => (string)e.Key, e => (string?)e.Value ?? "");
         var si = new ProcessStartInfo(GameFolder.ExePath(folder, platform)) { UseShellExecute = false, WorkingDirectory = folder };
-        if (platform == Platform.Windows && user != null)
+        if (user != null)
         {
             si.ArgumentList.Add("--user");
             si.ArgumentList.Add(user);

@@ -213,7 +213,7 @@ dotnet run --project App
 
 | | |
 |---|---|
-| `Core/` | `LongshotLauncher.Core`: the logic, no UI and no package. Versions and channels (`Versions`), the signed releases of Longshot and of the launcher (`Releases`, `ReleaseTrust`, `ReleaseManifest`), its own update (`SelfUpdate`), each version's builder and its tools.lock (`Toolchains`, `ToolsSource`, `ToolsLock`), game folders, `builds.json` (`BuildRegistry`), remembered settings, make_game.py's command line, `@@` lines, run and check (`MakeGameCommand`, `MakeGameProtocol`, `MakeGameRun`), the game files found on this PC (`GameFiles`), update offers (`UpdatePolicy`), saves (`Saves`, a port of Longshot's `scripts/longshot_saves.py`; `SaveText`) and Hookshot's (`HookshotSaves`), disk space (`Disk`), this PC (`SystemInfo`), shortcuts (`Shortcuts`), installed or portable (`LauncherLayout`, `Installer`), one launcher per home (`InstanceLock`), the launcher's home and command line |
+| `Core/` | `LongshotLauncher.Core`: the logic, no UI and no package. Versions and channels (`Versions`), the signed releases of Longshot and of the launcher (`Releases`, `ReleaseTrust`, `ReleaseManifest`), its own update (`SelfUpdate`), each version's builder and its tools.lock (`Toolchains`, `ToolsSource`, `ToolsLock`), game folders, `builds.json` (`BuildRegistry`), remembered settings, make_game.py's command line, `@@` lines, run and check (`MakeGameCommand`, `MakeGameProtocol`, `MakeGameRun`), the game files found on this PC (`GameFiles`), update offers (`UpdatePolicy`), saves (`Saves`, a port of Longshot's `scripts/longshot_saves.py`; `SaveText`) and Hookshot's (`HookshotSaves`), the game settings brought to a new build (`SettingsCarry`), disk space (`Disk`), this PC (`SystemInfo`), shortcuts (`Shortcuts`), installed or portable (`LauncherLayout`, `Installer`), one launcher per home (`InstanceLock`), the launcher's home and command line |
 | `Core/Lang/` | The launcher's translations, one catalog per language (`Tr`, [Translations](#translations)) |
 | `App/` | `LongshotLauncher`: the Avalonia window. `ViewModels/` (one per page and dialog), `Views/` (one .axaml each, compiled bindings), `Controls/` (icons, bars and spinner), `App.axaml` (the palette and the styles), `Assets/` (the Longshot logo and icon, the Inter font with its licence) |
 | `tests/` | `test_launcher_core.py` (builds `launcher_core/`, which compiles `Core/` and checks it), `test_release.py` (`scripts/release.py`), `fixtures/` (signed test releases, fake Hookshot saves) |
@@ -285,10 +285,15 @@ catalog is welcome as a pull request. Logs and *Copy for a bug report* stay in E
 
 Calls made here, most of them the design mockup's; each can be changed:
 
-- **One save folder for every build.** On Windows the launcher starts each build with `--user %APPDATA%\Longshot`, as
-  the game finds `~/.local/share/longshot` by itself on Linux, so an update or a new build starts where you left off. The
-  saves builds kept in their own folders before are brought in once (`Saves.Gather`): the one with the newest progress
-  is kept, all of them backed up, the old ones renamed aside and never deleted.
+- **One save folder for every build.** The launcher starts each build with `--user %APPDATA%\Longshot` on Windows and
+  `--user ~/.local/share/longshot` on Linux (`GamePlay.UserFolder`; not on Linux while the build's folder has a `user/` of
+  its own, which the game takes in itself), so an update or a new build starts where you left off. The saves builds kept in
+  their own folders before are brought in once (`Saves.Gather`): the one with the newest progress is kept, all of them
+  backed up, the old ones renamed aside and never deleted.
+- **The game settings follow too.** A Longshot that takes `--user` for them keeps `longshot_options.ini` in that folder.
+  Before Play, a build whose own file holds no setting (an update into a new folder: `compile_shaders=` alone) is filled
+  from the newest of the user folder's and the other builds' files, its `compile_shaders=` kept (`SettingsCarry`), so a
+  build from before that change keeps the player's settings as well. The launcher never writes the user folder's file.
 - **An update replaces its build's row.** An update builds the new version into its own folder (`<builds>/<version>`)
   from the game files the build was made from, then takes the old row's place, its default included
   (`BuildRegistry.Replace`). The old folder stays on the disk; nothing deletes it yet.

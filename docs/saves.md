@@ -19,9 +19,14 @@ does (for Lichii, Eden, NX2navi and the rest) without the launcher.
 | Windows | `%APPDATA%\Longshot\save\<user id>\`; a portable launcher's in `LongshotLauncher-data\user\save\` beside it |
 
 Every build uses the same saves, on both systems, so a new build or an update starts where you left off, and there is nothing
-to copy between builds. On Linux the game finds that folder by itself. On Windows the launcher starts every build with
-`--user <that folder>`; a build started on its own (`bin\longshot.exe` double-clicked) still keeps its saves in its own
-folder's `user\`, and the launcher brings them in at its next start (below).
+to copy between builds. The launcher starts every build with `--user <that folder>` (on Linux, not while the build's folder
+has a `user/` of its own: the game moves an old one into the shared folder by itself, and keeps a link you made). On Linux the
+game also finds that folder by itself; on Windows a build started on its own (`bin\longshot.exe` double-clicked) still keeps
+its saves in its own folder's `user\`, and the launcher brings them in at its next start (below).
+
+The game settings (`longshot_options.ini`: the Insert menu's choices and your controls) are in the same folder once a build
+that keeps them there has run. Before Play, a build that has none of its own, such as an update into a new folder, gets the
+newest settings of your other versions, its own Compile shaders choice kept.
 
 Backups go to `%LOCALAPPDATA%\Longshot\oot-save-backups` on Windows and `$XDG_DATA_HOME/longshot/save-backup` on Linux (default
 `~/.local/share/longshot/save-backup/`), one folder per copy, named by the time it was made.
@@ -120,12 +125,13 @@ The save import already includes `option.sav`: the game's own options, such as c
 Hookshot's graphics, controls and game language, choose **Import graphics and controls…** in the Hookshot import window.
 This is a separate copy, with its own confirmation and backup.
 
-Choose Hookshot's **game folder** and an installed Longshot version. These settings belong to that build, while saves
+Choose Hookshot's **game folder** and an installed Longshot version. These settings go to the file that build reads, while saves
 are shared. If no Longshot build is installed yet, import the saves now and return for these settings after building the
 game. On Linux, Hookshot's shared save folder does not identify its game folder: choose the game folder yourself.
 
-The settings of `hookshot_options.ini` whose format is compatible with Longshot are written into the build's
-`longshot_options.ini`: each replaces the same setting's line, or is added at the end. Every other line of that file stays
+The settings of `hookshot_options.ini` whose format is compatible with Longshot are written into the
+`longshot_options.ini` the build reads (the user folder's, once a build has kept its settings there; else the build's own):
+each replaces the same setting's line, or is added at the end. Every other line of that file stays
 as it was, such as Compile shaders (`compile_shaders`), V-Sync, the memory budgets, Auto (this PC)'s choices and the
 ocarina note bindings. Keys Longshot does not know, and values outside the range of Longshot's menu, are skipped and
 listed (Longshot would clamp such a value on load anyway); when a key appears more than once, its last line decides, as in

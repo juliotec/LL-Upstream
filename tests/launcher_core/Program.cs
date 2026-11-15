@@ -73,6 +73,7 @@ static partial class Program
         SavesChecks.Run(Folder("saves"));
         HookshotChecks(fixtures);
         HookshotSettingsChecks();
+        SettingsCarryChecks();
         Utf8Checks();
         await ScreenChecks();
         await BusyChecks(Path.GetFullPath(Path.Combine(fixtures, "..", "..")));
@@ -652,8 +653,7 @@ static partial class Program
             play = GamePlay.StartInfo(folder, platform, new Dictionary<string, string>(), user);
             Require(play.FileName == atRoot && play.WorkingDirectory == folder && !play.UseShellExecute,
                     $"{platform}: Play starts the folder's own game with the game folder as its working directory.");
-            Require(platform == Platform.Windows
-                    ? play.ArgumentList.SequenceEqual(new[] { "--user", user }) : play.ArgumentList.Count == 0,
+            Require(play.ArgumentList.SequenceEqual(new[] { "--user", user }),
                     $"{platform}: the folder's own game gets the same save-folder arguments.");
 
             // (and packaged again: make_game.py takes the renderer out of the folder, and bin's game is the new one)
@@ -972,11 +972,12 @@ static partial class Program
         var play = GamePlay.StartInfo("/g", Platform.Linux, env);
         Require(play.FileName == Path.Combine("/g", "bin", "longshot") && play.WorkingDirectory == "/g" && !play.Environment.ContainsKey("APPDIR")
                 && play.ArgumentList.Count == 0, "Play starts bin/longshot in its folder.");
-        Require(GamePlay.StartInfo("/g", Platform.Linux, env, user: "/s").ArgumentList.Count == 0
+        Require(GamePlay.StartInfo("/g", Platform.Linux, env, user: "/s").ArgumentList.SequenceEqual(new[] { "--user", "/s" })
                 && GamePlay.StartInfo("/g", Platform.Windows, env, user: @"C:\Users\Zoë\AppData\Roaming\Longshot").ArgumentList
                     .SequenceEqual(new[] { "--user", @"C:\Users\Zoë\AppData\Roaming\Longshot" })
-                && GamePlay.StartInfo("/g", Platform.Windows, env).ArgumentList.Count == 0,
-                "Windows Play gives the game the shared user folder (--user); Linux's game finds it by itself.");
+                && GamePlay.StartInfo("/g", Platform.Windows, env).ArgumentList.Count == 0
+                && GamePlay.StartInfo("/g", Platform.Linux, env).ArgumentList.Count == 0,
+                "Play gives the game the user folder it is given (--user), on Linux too; none, no argument.");
         // (a settings.json of before, with moveSaves: still read)
         var old = Path.Combine(Folder("settings-old"), "settings.json");
         File.WriteAllText(old, "{\"format\":2,\"moveSaves\":false,\"language\":\"fr\"}");
