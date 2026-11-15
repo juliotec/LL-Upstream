@@ -188,6 +188,22 @@ static class FileLinks
         return false;
     }
 
+    const uint OpenReparsePoint = 0x00200000;
+
+    /// On Windows, the hard links of the file at path that the listing knew as id (Disk.Measure): one open for its attributes,
+    /// never its data. 0 when it cannot be told, or the file there is no longer that one (the caller goes by the links it saw)
+    public static uint WindowsLinks(string path, FileId id)
+    {
+        try
+        {
+            using var handle = WindowsOpen(LongPath(Path.GetFullPath(path)), FileReadAttributes, ShareAll, IntPtr.Zero, OpenExisting,
+                                           BackupSemantics | OpenReparsePoint, IntPtr.Zero);
+            if (handle.IsInvalid || !WindowsFileInformation(handle, out var info)) return 0;
+            return info.VolumeSerial == id.Volume && (((ulong)info.IndexHigh << 32) | info.IndexLow) == id.File ? info.Links : 0;
+        }
+        catch (Exception e) when (e is DllNotFoundException or EntryPointNotFoundException or IOException or ArgumentException) { return 0; }
+    }
+
     /// A Windows path past MAX_PATH as CreateFileW takes it (a romfs is deep): \\?\C:\..., \\?\UNC\server\share\...
     static string LongPath(string full) =>
         full.StartsWith(@"\\?\", StringComparison.Ordinal) ? full

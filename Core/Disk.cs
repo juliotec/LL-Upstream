@@ -92,9 +92,11 @@ public static class Disk
     public readonly record struct FolderSize(long Bytes, long Counted, long Frees);
 
     /// folders measured together, each file once by its identity (FileId): one listing of each folder, and on Linux one statx of
-    /// each file, the call FileInfo.Length makes. A file's links outside the folders are known on Linux (its link count); on
-    /// Windows a folder's listing does not say them (an open of each file would, and takes tens of seconds for a romfs), so there
-    /// a file counts as freed when no other of folders has it. Links are not followed; what cannot be read counts nothing
+    /// each file, the call FileInfo.Length makes. A file's links outside the folders count too (its link count): an update
+    /// built into a new folder leaves the old one on the disk with no row, holding links to the game files it gave the new
+    /// one. Windows' listing does not say a file's links, so there the files that could be freed (all their links seen in one
+    /// folder) are asked, on up to 8 threads: a game folder of ~187,000 files took 3.0 to 4.0 s, the listing alone 0.4 to 0.7 s
+    /// (Ryzen 5 5600, NVMe; one thread took about 16 s). Links are not followed; what cannot be read counts nothing
     public static IReadOnlyList<FolderSize> Measure(IReadOnlyList<string> folders)
     {
         var bytes = new long[folders.Count];
@@ -102,13 +104,13 @@ public static class Disk
         var frees = new long[folders.Count];
         // (a file that may be linked elsewhere: its bytes, its links, 0 when unknown, and how many of its links each folder has;
         // where it is in all of folders, and the folder that counts it)
-        var shared = new Dictionary<FileId, (long Size, uint Links, int First, int Seen)>();
+        var shared = new Dictionary<FileId, (long Size, uint Links, int First, int Seen, string Path)>();
         var here = new Dictionary<FileId, int>[folders.Count];
         for (var i = 0; i < folders.Count; i++)
         {
             var mine = here[i] = new Dictionary<FileId, int>();
             var at = i;
-            Walk(folders[i], (size, id, links) =>
+            Walk(folders[i], (path, size, id, links) =>
             {
                 bytes[at] += size;
                 if (id is not { } key || links == 1)
@@ -118,9 +120,18 @@ public static class Disk
                     return;
                 }
                 mine[key] = mine.GetValueOrDefault(key) + 1;
-                shared[key] = shared.TryGetValue(key, out var s) ? (s.Size, s.Links, s.First, s.Seen + 1) : (size, links, at, 1);
+                shared[key] = shared.TryGetValue(key, out var s) ? s with { Seen = s.Seen + 1 } : (size, links, at, 1, path);
             });
         }
+        // (Windows: a file seen only in one folder, all its links there, may have more outside every folder; one seen in two is
+        // freed by deleting neither, whatever its link count)
+        var ask = shared.Where(p => p.Value.Links == 0 && p.Value.Size > 0 && here[p.Value.First].GetValueOrDefault(p.Key) == p.Value.Seen)
+                        .Select(p => (p.Key, p.Value.Path)).ToList();
+        var asked = new uint[ask.Count];
+        Parallel.For(0, ask.Count, new ParallelOptions { MaxDegreeOfParallelism = Math.Clamp(Environment.ProcessorCount, 1, 8) },
+                     n => asked[n] = FileLinks.WindowsLinks(ask[n].Path, ask[n].Key));
+        for (var n = 0; n < ask.Count; n++)
+            if (asked[n] > 0) shared[ask[n].Key] = shared[ask[n].Key] with { Links = asked[n] };
         for (var i = 0; i < folders.Count; i++)
             foreach (var (key, n) in here[i])
             {
@@ -131,8 +142,9 @@ public static class Disk
         return Enumerable.Range(0, folders.Count).Select(i => new FolderSize(bytes[i], counted[i], frees[i])).ToList();
     }
 
-    /// Each file under folder: its bytes, its identity (null: unknown) and its hard links (0: unknown). Links are not followed
-    static void Walk(string folder, Action<long, FileId?, uint> file)
+    /// Each file under folder: its path, its bytes, its identity (null: unknown) and its hard links (0: unknown). Links are not
+    /// followed
+    static void Walk(string folder, Action<string, long, FileId?, uint> file)
     {
         var pending = new Stack<string>();
         var listing = new List<FileLinks.Listed>();
@@ -149,7 +161,7 @@ public static class Disk
                         if ((e.Attributes & FileLinks.AttributeReparsePoint) != 0 && e.Tag is FileLinks.TagSymlink or FileLinks.TagMountPoint) continue;
                         if ((e.Attributes & FileLinks.AttributeDirectory) != 0) pending.Push(Path.Combine(dir, e.Name));
                         // (0 and all ones: no id the volume can give, as ReFS's longer ones)
-                        else file(e.Size, e.Id is 0 or ulong.MaxValue ? null : new FileId(volume, e.Id), 0);
+                        else file(Path.Combine(dir, e.Name), e.Size, e.Id is 0 or ulong.MaxValue ? null : new FileId(volume, e.Id), 0);
                     }
                     continue;
                 }
@@ -159,8 +171,8 @@ public static class Disk
                     if (entry is DirectoryInfo d) pending.Push(d.FullName);
                     else if (entry is FileInfo f)
                     {
-                        if (FileLinks.TryUnixFile(f.FullName, out var size, out var id, out var links)) file(size, id, links);
-                        else file(f.Length, null, 1);
+                        if (FileLinks.TryUnixFile(f.FullName, out var size, out var id, out var links)) file(f.FullName, size, id, links);
+                        else file(f.FullName, f.Length, null, 1);
                     }
                 }
             }

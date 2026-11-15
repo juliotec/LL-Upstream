@@ -517,12 +517,12 @@ static partial class Program
         Require(both[0].Bytes == 1550 && both[1].Bytes == 700, "Each folder's bytes, its hard links in full (as FolderBytes).");
         Require(both[0].Counted == 1550 && both[1].Counted == 100 && both[0].Counted + both[1].Counted == 1650,
                 "A file linked into two builds counted once, in the first: the total is what they take on the disk.");
-        // (Linux knows each file's links; Windows' listing does not, so there a link outside every build is not seen)
-        Require(both[0].Frees == (OperatingSystem.IsWindows() ? 1050 : 1000) && both[1].Frees == 100,
-                "Deleting a build frees only its files with no link outside its folder.");
+        // (a link outside every build, as an update's old folder with no row keeps: not freed, on Windows too, whose listing
+        // does not say a file's links)
+        Require(both[0].Frees == 1000 && both[1].Frees == 100, "Deleting a build frees only its files with no link outside its folder.");
         var alone = Disk.Measure(new[] { b });
-        Require(alone[0].Bytes == 700 && alone[0].Counted == 600 && alone[0].Frees == (OperatingSystem.IsWindows() ? 600 : 100),
-                "Measured alone: a file linked twice inside counted once, and on Linux one linked into a folder not measured is not freed.");
+        Require(alone[0].Bytes == 700 && alone[0].Counted == 600 && alone[0].Frees == 100,
+                "Measured alone: a file linked twice inside counted once, and one linked into a folder not measured is not freed.");
         File.Delete(Path.Combine(a, "romfs", "shared"));
         Require(Disk.Measure(new[] { a, b })[1] is { Bytes: 700, Counted: 600, Frees: 600 }, "The other link gone: the file is the build's own.");
         Require(Disk.Measure(new[] { Path.Combine(root, "none") })[0] == default && Disk.Measure(Array.Empty<string>()).Count == 0,
