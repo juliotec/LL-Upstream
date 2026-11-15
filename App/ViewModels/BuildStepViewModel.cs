@@ -82,7 +82,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
         Notches = progress.Stages.Skip(1).Select(st => st.Start).ToList();
         ToggleLogCommand = new Command(() => ShowLog = !ShowLog);
         CancelCommand = new Command(() => Job.Main.Modal = new StopBuildViewModel(this));
-        log.Add($"Longshot Launcher {typeof(BuildStepViewModel).Assembly.GetName().Version?.ToString(3)}: {job.Verb.Trim().ToLowerInvariant()} {job.Version} ({job.Channel})");
+        log.Add($"Longshot Launcher {job.Service.OwnTag}: {job.Verb.Trim().ToLowerInvariant()} {job.Version} ({job.Channel})");
         log.Add($"settings: memory {(s.MemoryGb is int m ? m + " GB" : "automatic")}, workers {(s.BuildWorkers is int w ? w : "automatic")}, " +
                 $"{Languages.NameOf(s.Language)}{(s.Dlss && Offers(SystemInfo.DlssRuns) ? ", DLSS" : "")}{(s.Fsr && Offers(SystemInfo.FsrRuns) ? ", FSR 4" : "")}");
         if (start)

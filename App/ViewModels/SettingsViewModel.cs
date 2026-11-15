@@ -222,7 +222,7 @@ public sealed class SettingsViewModel : ViewModelBase
         }
     }
 
-    public string Version => "Longshot Launcher " + (typeof(SettingsViewModel).Assembly.GetName().Version?.ToString(3) ?? "3.0.0");
+    public string Version => "Longshot Launcher " + Versions.Shown(Main.Service.OwnTag);
 
     public Command DoneCommand { get; }
     public Command ChangeBuildsCommand { get; }
