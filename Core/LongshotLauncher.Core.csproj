@@ -3,6 +3,8 @@
   <PropertyGroup>
     <RootNamespace>LongshotLauncher.Core</RootNamespace>
     <AssemblyName>LongshotLauncher.Core</AssemblyName>
+    <!-- (source-generated COM and LibraryImport: Core/ShellLinks.cs, the Windows shortcuts) -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
     <!-- (the launcher's words in each language, Tr.cs: Lang/<code>.json, English to translation) -->

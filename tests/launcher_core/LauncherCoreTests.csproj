@@ -10,6 +10,8 @@
     <UseSharedCompilation>false</UseSharedCompilation>
     <InvariantGlobalization>true</InvariantGlobalization>
     <RootNamespace>LauncherCoreTests</RootNamespace>
+    <!-- (source-generated COM and LibraryImport: Core/ShellLinks.cs, the Windows shortcuts) -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../../Core/**/*.cs" Exclude="../../Core/obj/**;../../Core/bin/**" LinkBase="Core"/>

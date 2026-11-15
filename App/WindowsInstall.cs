@@ -30,11 +30,12 @@ public sealed class UserRegistry : IUserRegistry
     public void Delete(string key) => Registry.CurrentUser.DeleteSubKeyTree(key, throwOnMissingSubKey: false);
 }
 
-/// Core's IShortcutMaker through the shell's own WScript.Shell, as the Ready screen's shortcuts (WindowsShortcuts)
+/// Core's IShortcutMaker through the shell's own ShellLink (ShellLinks), as the Ready screen's shortcuts (WindowsShortcuts)
+[SupportedOSPlatform("windows")]
 public sealed class ShellShortcuts : IShortcutMaker
 {
-    public void Make(string link, string target, string? arguments, string icon, string description) =>
-        WindowsShortcuts.Run(new[] { WindowsShortcuts.Line(link, target, arguments ?? "", icon, description) });
+    public void Make(string link, string target, string? arguments, string icon, string description, string appId) =>
+        ShellLinks.Write(link, target, arguments ?? "", Path.GetDirectoryName(target) ?? "", icon, description, appId);
 
     public void Remove(string link)
     {
@@ -46,6 +47,12 @@ public sealed class ShellShortcuts : IShortcutMaker
 /// it has closed, and the message boxes of a start that has no window
 public static class WindowsInstall
 {
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)] static extern int SetCurrentProcessExplicitAppUserModelID(string appId);
+
+    /// The launcher's windows grouped on the taskbar as its Start menu shortcut, which names the same AppUserModelID
+    /// (Shortcuts.LauncherAppId), however it was started: from that shortcut, the game's (--play), or its file
+    public static void UseAppId() => SetCurrentProcessExplicitAppUserModelID(Shortcuts.LauncherAppId);
+
     /// The program started (the installed one after Install, the new one after an update), with these arguments
     public static void Start(string program, IEnumerable<string> args)
     {

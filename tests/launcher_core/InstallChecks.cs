@@ -22,8 +22,10 @@ static partial class Program
     sealed class FakeShortcuts : IShortcutMaker
     {
         public readonly Dictionary<string, string> Links = new();
-        public void Make(string link, string target, string? arguments, string icon, string description)
+        public readonly Dictionary<string, string> Ids = new();
+        public void Make(string link, string target, string? arguments, string icon, string description, string appId)
         {
+            Ids[link] = appId;
             Directory.CreateDirectory(Path.GetDirectoryName(link)!);
             File.WriteAllText(link, target);
             Links[link] = target;
@@ -37,7 +39,7 @@ static partial class Program
 
     sealed class FailingShortcuts : IShortcutMaker
     {
-        public void Make(string link, string target, string? arguments, string icon, string description) => throw new IOException("blocked");
+        public void Make(string link, string target, string? arguments, string icon, string description, string appId) => throw new IOException("blocked");
         public void Remove(string link) { }
     }
 
@@ -102,6 +104,9 @@ static partial class Program
                 && File.Exists(setup) && !File.Exists(SelfUpdate.Backup(installed))
                 && !Directory.EnumerateFiles(at.Folder).Any(f => f.EndsWith(".part", StringComparison.Ordinal)),
                 "Install: the program copied whole into place (the download stays), the leftovers of earlier updates gone.");
+        Require(links.Ids[at.StartMenuLink] == Shortcuts.LauncherAppId && Shortcuts.LauncherAppId != Shortcuts.GameAppId,
+                "The launcher's Start menu shortcut names its own AppUserModelID, not the game shortcuts' (the Start menu lists both).");
+        if (OperatingSystem.IsWindows()) ShellLinkChecks();
         var entry = registry.Read(Installer.UninstallKey)!;
         Require(Installer.UninstallKey == @"Software\Microsoft\Windows\CurrentVersion\Uninstall\LongshotLauncher"
                 && (string)entry["DisplayName"] == "Longshot Launcher" && (string)entry["DisplayVersion"] == "1.0.0" && (string)entry["Publisher"] == "Magic Bean"

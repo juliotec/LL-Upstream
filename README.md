@@ -357,8 +357,11 @@ Calls made here, most of them the design mockup's; each can be changed:
 - **Free up space** (the launcher's settings) lets go of what make_game made in the build files folder (`objcache`, `sa`,
   `exefs`, `probe`, as the 2.x Builder, and the two stores), never the folder itself, which the player may have chosen.
 - **The shortcuts** Ready makes (desktop, Start menu / applications menu), ticked by default and made as Ready shows,
-  start `--play`, the default build, so they follow "Play starts this version" and updates. On Windows they are written
-  through PowerShell's WScript.Shell.
+  start `--play`, the default build, so they follow "Play starts this version" and updates. On Windows they and the
+  launcher's own Start menu shortcut are written through the shell's ShellLink (`Core/ShellLinks.cs`), each with its own
+  AppUserModelID (`MagicBean.Longshot`, `MagicBean.LongshotLauncher`, which the launcher's window takes too): the Start
+  menu lists one entry per id, and without them it showed only the game's *Longshot* of the two shortcuts to the same
+  program, so the launcher's seemed deleted. A launcher update writes both again (`Installer.Refresh`).
 - **Install, Run portable and uninstall on Windows** are checked by the tests with a fake registry and fake shortcuts, not
   yet on a Windows PC. The uninstall deletes the running program through a hidden PowerShell once its window has closed.
 - **Play on Linux** starts `bin/longshot` from its folder without the AppImage's variables, as `make_game.game_env` says,

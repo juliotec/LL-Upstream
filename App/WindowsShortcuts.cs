@@ -1,10 +1,10 @@
-using System.Diagnostics;
+using LongshotLauncher.Core;
 
 namespace LongshotLauncher;
 
 /// The Ready screen's Windows shortcuts (Desktop, Start menu): Longshot.lnk starting the launcher with --play, made by the shell's
-/// own WScript.Shell through PowerShell (the launcher has no COM interop of its own), or removed when unticked.
-/// (Not yet run on Windows: the launcher's first builds were tried on Linux.)
+/// own ShellLink (Core's ShellLinks) with the game's AppUserModelID, so the Start menu lists it apart from the launcher's own
+/// Longshot Launcher.lnk (the same program: without the ids it showed only this one), or removed when unticked.
 public static class WindowsShortcuts
 {
     public static string DesktopLink => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "Longshot.lnk");
@@ -23,26 +23,9 @@ public static class WindowsShortcuts
         return sb.Append('\'').ToString();
     }
 
-    /// One shortcut's line of the script
-    public static string Line(string link, string target, string arguments, string icon, string description) =>
-        $"$l = $s.CreateShortcut({Quote(link)}); $l.TargetPath = {Quote(target)}; $l.Arguments = {Quote(arguments)}; " +
-        $"$l.WorkingDirectory = {Quote(Path.GetDirectoryName(target) ?? "")}; $l.IconLocation = {Quote(icon)}; $l.Description = {Quote(description)}; $l.Save()";
-
-    /// The shortcuts' lines run in one hidden PowerShell
-    public static void Run(IReadOnlyList<string> lines)
-    {
-        if (!OperatingSystem.IsWindows() || lines.Count == 0) return;
-        var script = string.Join("; ", new[] { "$s = New-Object -ComObject WScript.Shell" }.Concat(lines));
-        var si = new ProcessStartInfo("powershell.exe") { UseShellExecute = false, CreateNoWindow = true };
-        foreach (var a in new[] { "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script }) si.ArgumentList.Add(a);
-        using var p = Process.Start(si);
-        p?.WaitForExit(15000);
-    }
-
     public static void Write(string launcher, bool desktop, bool start)
     {
         if (!OperatingSystem.IsWindows()) return;
-        var lines = new List<string>();
         foreach (var (link, want) in new[] { (DesktopLink, desktop), (StartLink, start) })
         {
             if (!want)
@@ -50,10 +33,8 @@ public static class WindowsShortcuts
                 if (File.Exists(link)) File.Delete(link);
                 continue;
             }
-            Directory.CreateDirectory(Path.GetDirectoryName(link)!);
-            lines.Add(Line(link, launcher, "--play", launcher, "Longshot"));
+            ShellLinks.Write(link, launcher, "--play", Path.GetDirectoryName(launcher) ?? "", launcher, "Longshot", Shortcuts.GameAppId);
         }
-        Run(lines);
     }
 
     /// The game's shortcuts that are there made again, starting launcher (after the launcher's own update: Installer.Refresh)

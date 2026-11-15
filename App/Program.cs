@@ -45,6 +45,8 @@ static class Program
             catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception) { }
         }
         if (args is [SelfUpdate.RollbackArgument]) return Rollback();
+        // (its windows grouped as its Start menu shortcut, which names this id: before any window is made)
+        if (OperatingSystem.IsWindows()) WindowsInstall.UseAppId();
         Args = args;
         Layout = LauncherLayout.Current(platform);
         Home = LauncherHome.Resolve(platform, null, Layout);

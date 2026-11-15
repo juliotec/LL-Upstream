@@ -9,6 +9,9 @@ namespace LongshotLauncher.Core;
 public static class Shortcuts
 {
     public const string Name = "Longshot";
+    /// The AppUserModelIDs the Windows shortcuts name (ShellLinks): the launcher's own Start menu shortcut, and the game's, which
+    /// start the launcher's Play. Told apart, the Start menu lists both; without them it listed only the game's (ShellLinks)
+    public const string LauncherAppId = "MagicBean.LongshotLauncher", GameAppId = "MagicBean.Longshot";
 
     /// A .desktop entry that starts launcher --play [folder]
     public static string DesktopEntry(string launcher, string? folder, string? icon)

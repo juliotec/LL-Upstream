@@ -12,7 +12,8 @@ public interface IUserRegistry
 /// The Start menu's .lnk files (the window makes them through the shell), behind an interface for the tests
 public interface IShortcutMaker
 {
-    void Make(string link, string target, string? arguments, string icon, string description);
+    /// appId: its AppUserModelID (Shortcuts.LauncherAppId), so the Start menu tells it from the game's shortcuts
+    void Make(string link, string target, string? arguments, string icon, string description, string appId);
     void Remove(string link);
 }
 
@@ -80,7 +81,8 @@ public static class Installer
     }
 
     static void MakeLink(InstallPlaces at, IShortcutMaker shortcuts) =>
-        shortcuts.Make(at.StartMenuLink, at.Program, null, at.Program, "Install Longshot's builder, build the game from your own copy, and play");
+        shortcuts.Make(at.StartMenuLink, at.Program, null, at.Program, "Install Longshot's builder, build the game from your own copy, and play",
+                       Shortcuts.LauncherAppId);
 
     /// The entry written again with this version (an installed launcher does it at each start, so it follows its own updates)
     public static void Register(InstallPlaces at, string version, IUserRegistry registry)
