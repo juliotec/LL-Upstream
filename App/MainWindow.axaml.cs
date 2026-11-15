@@ -92,7 +92,10 @@ public sealed partial class MainWindow : Window, IWindowHost
     {
         try
         {
-            using var _ = Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
+            // (a folder goes to Explorer by name: the shell's "open" on a bare path can run a program of that name instead)
+            using var _ = OperatingSystem.IsWindows() && Directory.Exists(path)
+                ? Process.Start(new ProcessStartInfo("explorer.exe") { UseShellExecute = false, ArgumentList = { Path.TrimEndingDirectorySeparator(path) } })
+                : Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
         }
         catch (Exception e) when (e is System.ComponentModel.Win32Exception or InvalidOperationException or IOException)
         {
