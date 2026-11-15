@@ -54,6 +54,65 @@ static partial class Program
         }
         catch (SocketException e) { Require(e == last && asked.SequenceEqual(new[] { "192.0.2.1:443" }), "The last address's error, IPv4 only: " + string.Join(", ", asked)); }
 
+        // (Happy Eyeballs: an IPv6 address that never answers doesn't hold up an IPv4 one: IPv4 starts after the stagger, wins,
+        // and the IPv6 connect is stopped)
+        LauncherLog.Clear();
+        var v6Stopped = false;
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        stream = await Connections.OpenAsync("git.example", 443, Resolve, async (at, c) =>
+        {
+            if (at.AddressFamily == AddressFamily.InterNetworkV6)
+            {
+                try { await Task.Delay(Timeout.Infinite, c); }
+                catch (OperationCanceledException) { v6Stopped = true; throw; }
+            }
+            return new MemoryStream();
+        }, CancellationToken.None, stagger: TimeSpan.FromMilliseconds(50));
+        var took = clock.ElapsedMilliseconds;
+        for (var i = 0; i < 300 && !v6Stopped; i++) await Task.Delay(10);   // (its stop ends on its own thread)
+        lines = LauncherLog.Tail(10);
+        Require(stream is MemoryStream && took < 5000 && v6Stopped
+                && lines.Count == 3 && lines[1].Contains(" connect git.example 192.0.2.1:443: connected in ")
+                && lines[2].Contains(" connect git.example [2001:db8::1]:443: stopped after ") && lines[2].EndsWith(", 192.0.2.1:443 connected first"),
+                "A silent IPv6 address is overtaken by IPv4 after the stagger, and stopped: " + string.Join(" | ", lines));
+
+        // (the order: the name service's first, then the families taking turns)
+        var order = Connections.Interleave(new[] { IPAddress.Parse("2001:db8::1"), IPAddress.Parse("2001:db8::2"), IPAddress.Parse("2001:db8::3"),
+                                                   IPAddress.Parse("192.0.2.1"), IPAddress.Parse("192.0.2.2") });
+        Require(string.Join(" ", order) == "2001:db8::1 192.0.2.1 2001:db8::2 192.0.2.2 2001:db8::3", "Interleaved: " + string.Join(" ", order));
+        Require(string.Join(" ", Connections.Interleave(new[] { IPAddress.Parse("192.0.2.1"), IPAddress.Parse("192.0.2.2") })) == "192.0.2.1 192.0.2.2",
+                "One family: its own order.");
+
+        // (a connect that loses but connects later anyway: its stream is closed, not left open)
+        LauncherLog.Clear();
+        var late = new TaskCompletionSource<Stream>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var lateStream = new TrackedStream();
+        stream = await Connections.OpenAsync("git.example", 443, Resolve, (at, _) => at.AddressFamily == AddressFamily.InterNetworkV6
+            ? new ValueTask<Stream>(late.Task) : ValueTask.FromResult<Stream>(new MemoryStream()), CancellationToken.None, stagger: TimeSpan.FromMilliseconds(20));
+        late.SetResult(lateStream);
+        for (var i = 0; i < 300 && !lateStream.Disposed; i++) await Task.Delay(10);
+        Require(stream is MemoryStream, "IPv4 kept; the late IPv6 stream closed.");
+
+        // (the request gives up with two connects going: both stop, each with where its time went)
+        LauncherLog.Clear();
+        using (var timeout = new CancellationTokenSource(TimeSpan.FromMilliseconds(300)))
+            await ThrowsAsync<OperationCanceledException>(async () => await Connections.OpenAsync("git.example", 443, Resolve,
+                async (at, c) => { await Task.Delay(Timeout.Infinite, c); return Stream.Null; }, timeout.Token, stagger: TimeSpan.FromMilliseconds(50)),
+                "No address answers: the request's timeout.");
+        lines = LauncherLog.Tail(10);
+        Require(lines.Count == 3 && lines.Skip(1).All(l => l.Contains(": no answer, stopped after "))
+                && lines.Any(l => l.Contains("[2001:db8::1]:443")) && lines.Any(l => l.Contains("192.0.2.1:443")),
+                "Both connects stopped at the timeout, each logged: " + string.Join(" | ", lines));
+
+        // (every address refused at once: no stagger waited for; the last one's error, as .NET's own connect throws)
+        LauncherLog.Clear();
+        clock.Restart();
+        await ThrowsAsync<SocketException>(async () => await Connections.OpenAsync("git.example", 443, Resolve,
+            (_, _) => ValueTask.FromException<Stream>(new SocketException((int)SocketError.ConnectionRefused)), CancellationToken.None,
+            stagger: TimeSpan.FromSeconds(30)), "Every address refused.");
+        Require(clock.ElapsedMilliseconds < 5000 && LauncherLog.Tail(10).Count(l => l.Contains(": ConnectionRefused after ")) == 2,
+                "A failure starts the next address at once: " + string.Join(" | ", LauncherLog.Tail(10)));
+
         // (a name that does not resolve: logged, and still the name service's error)
         LauncherLog.Clear();
         await ThrowsAsync<SocketException>(async () => await Connections.OpenAsync("git.example", 443,
@@ -110,5 +169,16 @@ static partial class Program
             plain.Stop();
         }
         LauncherLog.Clear();
+    }
+
+    sealed class TrackedStream : MemoryStream
+    {
+        public bool Disposed { get; private set; }
+
+        protected override void Dispose(bool disposing)
+        {
+            Disposed = true;
+            base.Dispose(disposing);
+        }
     }
 }
