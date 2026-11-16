@@ -3,6 +3,7 @@
 #
 #   a push to main       the nightly: nightly-<commits on main>-<commit>, a pre-release, 5 minutes after the last of a few
 #                        merges in a row (and at least once an hour while they keep coming)
+#                        and none when the commits since the nightly before put nothing on its page (ci:, chore:)
 #   a tag vX.Y.Z-rc.N    a release candidate, a pre-release (the rc channel)
 #   a tag vX.Y.Z         a stable (the stable channel, and rc too). The launcher's first is v1.0.0
 #
@@ -81,6 +82,20 @@ jobs:
                   exit 0
                 fi
                 echo "::notice::main has moved on to ${head:0:8}, but the newest nightly is an hour old (${age}s): this one builds"
+              fi
+            fi
+            # (a nightly whose page would list nothing new since the nightly before, only ci: or chore: commits, is not
+            # made: the next one comes with what follows. git-cliff decides, as for the notes; no answer: it builds)
+            if [[ $GITHUB_EVENT_NAME == push ]]; then
+              news=yes
+              if cliff=$(python3 -I scripts/release.py git-cliff "$RUNNER_TEMP/cliff"); then
+                news=$(GIT_CLIFF=$cliff python3 -I scripts/release.py nightly-news) || news=yes
+              fi
+              if [[ $news == no ]]; then
+                echo "::notice::nothing for the notes since the newest nightly (ci: or chore: commits only): no nightly"
+                echo "tag=" >> "$GITHUB_OUTPUT"
+                echo "ref=$ref" >> "$GITHUB_OUTPUT"
+                exit 0
               fi
             fi
             tag=$(python3 -I scripts/release.py nightly-name)

@@ -213,6 +213,24 @@ class Bump(unittest.TestCase):
         self.assertRegex(name, r"^nightly-2-[0-9a-f]{8}$")
         self.assertEqual(release.channel_of(name, 1), "nightly")
 
+    def test_a_nightly_with_nothing_new_is_not_made(self):
+        # (only ci: or chore: commits since the newest nightly put nothing on its page, nightly-322-5bc54c6c: none is made.
+        # git-cliff decides, over the commits since that nightly; the first nightly is always made)
+        self.commit("fix: a")
+        with mock.patch.object(release, "git_cliff") as cliff, mock.patch.dict(release.PRODUCTS["launcher"], since=None):
+            self.assertTrue(release.nightly_news("launcher", root=str(self.dir)))
+            cliff.assert_not_called()
+            previous = release.nightly_name("launcher", root=str(self.dir))
+            self.git("tag", previous)
+            self.assertTrue(release.nightly_news("launcher", root=str(self.dir)))   # (HEAD's own nightly: a run made again)
+            cliff.assert_not_called()
+            self.commit("ci: b")
+            cliff.return_value = ""
+            self.assertFalse(release.nightly_news("launcher", root=str(self.dir)))
+            self.assertEqual(cliff.call_args.args, ("--strip", "all", previous + "..HEAD"))
+            cliff.return_value = "### Fixes\n\n- c"
+            self.assertTrue(release.nightly_news("launcher", root=str(self.dir)))
+
     def test_the_notes_start_after_the_previous_tag(self):
         self.git("tag", "v3.0.0")
         self.commit("feat: a")

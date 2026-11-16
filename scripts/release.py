@@ -16,6 +16,9 @@ Versions and notes:
         commits since the last stable call for (CI runs it before it builds anything)
     python -I scripts/release.py nightly-name
         nightly-<commits since the product's first commit>-<8 hex of HEAD>: the nightly's version
+    python -I scripts/release.py nightly-news
+        yes when HEAD brings something the notes list since the newest nightly on its history (git-cliff, cliff.toml: a ci:
+        or chore: commit is in no notes), else no: the release workflow makes no nightly with nothing new on its page
     python -I scripts/release.py nightly-age
         the seconds since the newest published nightly came out, or none: the release workflow builds a nightly at
         least once an hour while merges keep coming
@@ -267,6 +270,18 @@ def previous_nightly(tag, root=ROOT):
     found = [t for t in (git("tag", "--merged", "HEAD", "--list", "nightly-*", root=root) or "").split()
              if NIGHTLY.match(t) and t != tag]
     return max(found, key=lambda t: int(NIGHTLY.match(t).group(1)), default=None)
+
+
+def nightly_news(product, root=ROOT):
+    """Whether HEAD brings anything a nightly's notes list as new since the newest nightly on its history: git-cliff's
+    notes over those commits (cliff.toml) have an entry. Only ci: or chore: commits since: no, and no nightly is made
+    (they are in no notes); the next one comes with what follows. The first nightly: yes"""
+    previous = previous_nightly(nightly_name(product, root), root)
+    if previous is None:
+        return True
+    if git("rev-list", "--count", previous + "..HEAD", root=root) == "0":
+        return False
+    return any(line.startswith("- ") for line in git_cliff("--strip", "all", previous + "..HEAD", root=root).splitlines())
 
 
 RC_TAGS = r"^v[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$"   # (git-cliff --ignore-tags: the earlier release candidates in one list)
@@ -695,6 +710,7 @@ def main(argv=None):
     s.add_argument("--releases", help="the releases as Forgejo's API lists them (a JSON file), instead of asking it")
     s.add_argument("--main", default="origin/main")
     sub.add_parser("nightly-name")
+    sub.add_parser("nightly-news")
     sub.add_parser("nightly-age")
     s = sub.add_parser("notes")
     s.add_argument("tag")
@@ -754,6 +770,8 @@ def main(argv=None):
         print("%s: ok (%s channel)" % (a.tag, channel_of(a.tag, first)))
     elif a.cmd == "nightly-name":
         print(nightly_name(product))
+    elif a.cmd == "nightly-news":
+        print("yes" if nightly_news(product) else "no")
     elif a.cmd == "nightly-age":
         age = nightly_age(releases(repo_of(product)))
         print("none" if age is None else age)

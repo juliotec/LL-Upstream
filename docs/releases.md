@@ -63,6 +63,8 @@ launcher (`Core/ReleaseManifest.cs`, `Newest`) and in `scripts/release.py` (`new
 - **Pulling** a bad version is deleting its release, or setting it back to a draft: its channel then offers the one before
   by itself.
 - The **nightlies** past the newest 5 are deleted, with their tags, by the run that makes a new one. Nothing else is pruned.
+- A push to `main` whose commits since the newest nightly put nothing in its notes (only `ci:` or `chore:`, which
+  cliff.toml skips) makes **no nightly**: `release.py nightly-news` says no. The next one comes with what follows.
 - Anything else in the list is on no channel: a 2.x tag, a git describe name. (The builders' tools are not releases:
   they are packages, below.)
 - A nightly's count is the number of commits: for Longshot since the fork (e2a4d45, "Rename the project to Longshot"), for
