@@ -169,13 +169,12 @@
                         <Border Classes="chip quiet small" IsVisible="{Binding XessYourGpu}"><TextBlock Text="{c:T 'Your GPU'}"/></Border>
                       </StackPanel>
                       <WrapPanel>
-                        <TextBlock Classes="rdesc" Text="{c:T 'For Intel Arc and Iris Xe graphics. '}" TextWrapping="NoWrap"/>
+                        <TextBlock Classes="rdesc" Text="{c:T 'Best on Intel Arc, runs on other graphics too. '}" TextWrapping="NoWrap"/>
                         <StackPanel Orientation="Horizontal" Spacing="4" IsVisible="{Binding XessAccepted}">
                           <c:Icon Kind="check" Width="12" Height="12" Foreground="{StaticResource Go}" VerticalAlignment="Center"/>
                           <TextBlock FontSize="12" Foreground="{StaticResource Go}" Text="{c:T 'Intel\'s licence accepted'}"/>
                         </StackPanel>
-                        <TextBlock Classes="rdesc" Classes.bad="{Binding XessUnsupported}" Text="{Binding XessLine}" TextWrapping="NoWrap"
-                                   IsVisible="{Binding ShowXessLine}"/>
+                        <TextBlock Classes="rdesc" Text="{Binding XessLine}" TextWrapping="NoWrap" IsVisible="{Binding ShowXessLine}"/>
                       </WrapPanel>
                     </StackPanel>
                     <ToggleButton Grid.Column="1" Classes="switch" IsChecked="{Binding Xess}" IsEnabled="{Binding XessEnabled}" VerticalAlignment="Center"/>

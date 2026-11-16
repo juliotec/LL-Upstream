@@ -816,11 +816,9 @@ static partial class Program
                 && !SystemInfo.Offers([intel, rx9070], SystemInfo.DlssRuns) && !SystemInfo.Offers([gtx], SystemInfo.DlssRuns)
                 && !SystemInfo.Offers([rx580, intel], SystemInfo.FsrRuns), "On offer with a card that runs it, or with no card found; else not.");
         Gpu arc = new(SystemInfo.Intel, "Intel(R) Arc(TM) B580 Graphics"), irisXe = new(SystemInfo.Intel, "Intel(R) Iris(R) Xe Graphics");
-        Require(SystemInfo.XessRuns(arc) && SystemInfo.XessRuns(irisXe) && SystemInfo.XessRuns(intel) && SystemInfo.XessRuns(new Gpu(SystemInfo.Intel))
-                && !SystemInfo.XessRuns(rtx) && !SystemInfo.XessRuns(rx9070) && !SystemInfo.XessRuns(amd),
-                "Intel XeSS: Intel graphics, named or known only by its maker; not another maker's.");
-        Require(!Upscalers.Unsupported([rtx, arc], SystemInfo.XessRuns) && Upscalers.Unsupported([rtx, rx9070], SystemInfo.XessRuns)
-                && !Upscalers.Unsupported([], SystemInfo.XessRuns), "Intel XeSS: said in red without Intel graphics among the cards; no card found is not.");
+        Require(SystemInfo.XessIntel(arc) && SystemInfo.XessIntel(irisXe) && SystemInfo.XessIntel(intel) && SystemInfo.XessIntel(new Gpu(SystemInfo.Intel))
+                && !SystemInfo.XessIntel(rtx) && !SystemInfo.XessIntel(rx9070) && !SystemInfo.XessIntel(amd),
+                "Intel XeSS's Your GPU: Intel graphics, named or known only by its maker; not another maker's.");
 
         // (either switch turns on whatever this PC's cards, for OptiScaler: none that runs it is said in red, and the build fetches its
         // files all the same, as on a card that runs it)

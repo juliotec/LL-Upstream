@@ -77,9 +77,10 @@ public static class SystemInfo
         return Regex.IsMatch(name, @"\b(Vega|R[579]\s|HD\s*\d)", RegexOptions.IgnoreCase);
     }
 
-    /// Intel XeSS's cards: Intel graphics (Arc, Iris Xe and the UHD Graphics of the same generations). Whether a card's driver
-    /// has what XeSS asks for, the game finds out at its start and says in the Upscaler row's hint
-    public static bool XessRuns(Gpu gpu) => gpu.Vendor == Intel;
+    /// Intel graphics (Arc, Iris Xe and the UHD Graphics of the same generations), the cards XeSS is made for: the switch's
+    /// "Your GPU". Not whether it runs: other makers' cards run it too where their Vulkan driver has what XeSS asks for, which
+    /// the game finds out at its start and says in the Upscaler row's hint, so no card is said in red under XeSS's switch
+    public static bool XessIntel(Gpu gpu) => gpu.Vendor == Intel;
 
     /// Whether this PC runs an upscaler: one of its cards runs it, or no card was found (unknown). Else its switch says so in red,
     /// and still turns on (Upscalers.Unsupported)

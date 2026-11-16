@@ -6,7 +6,7 @@ namespace LongshotLauncher.Core;
 /// own don't run on
 public static class Upscalers
 {
-    /// None of this PC's cards runs it (SystemInfo.DlssRuns, FsrRuns, XessRuns): its switch's line is a warning. No card found is not one
+    /// None of this PC's cards runs it (SystemInfo.DlssRuns, FsrRuns; XeSS's driver needs only the game can tell): its switch's line is a warning. No card found is not one
     /// (SystemInfo.Offers: unknown, nothing said)
     public static bool Unsupported(IReadOnlyList<Gpu> gpus, Func<Gpu, bool> runs) => !SystemInfo.Offers(gpus, runs);
 

@@ -136,7 +136,9 @@ next time it starts. If `LongshotLauncher.exe` itself is missing, rename `Longsh
 2. **Game files**: the launcher looks for your dump on this PC; point it at the folder if it doesn't find it.
 3. **Settings**: where the game goes, the language, and DLSS, FSR 4 or, on Windows, Intel XeSS (their licences are shown
    first; with XeSS on, the build downloads Intel's XeSS library for the game's Upscaler row). A PC with no card that runs
-   one says so in red, and the switch still turns on: the build fetches its files for tools like OptiScaler. Your saves come
+   DLSS or FSR 4 says so in red, and the switch still turns on: the build fetches its files for tools like OptiScaler. XeSS
+   is never red: it runs on other makers' cards too where their driver has what it needs, which the game checks at its
+   start. Your saves come
    along: every build shares them. On Windows with Intel graphics, **Intel shader compiles** chooses how many shaders
    Intel's driver is given at once, for the build and the game: *One at a time* (recommended: two at once can crash
    Intel's driver) or *Side by side* (faster on a CPU with many cores). **Shader time limit** on *Longer* waits up to 30

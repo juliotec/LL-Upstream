@@ -141,9 +141,9 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
 
     // (every Windows build of the game has XeSS, which runs once Intel's libxess.dll is beside the game: the switch has the build
     // fetch it under Intel's licence. Intel publishes no XeSS library for Linux, so the row is Windows' alone. As DLSS and FSR 4,
-    // it turns on whatever this PC's cards, its line in red without Intel graphics: Upscalers)
-    public bool XessYourGpu => Job.Service.GpuCards.Any(SystemInfo.XessRuns);
-    public bool XessUnsupported => Upscalers.Unsupported(Job.Service.GpuCards, SystemInfo.XessRuns);
+    // it turns on whatever this PC's cards. Unlike theirs its line is never red: XeSS runs on other makers' cards too where their
+    // Vulkan driver has what it asks for, which only the game can tell, at its start: SystemInfo.XessIntel)
+    public bool XessYourGpu => Job.Service.GpuCards.Any(SystemInfo.XessIntel);
 
     /// This version's tools fetch Intel's library (MakeGameCommand.XessBuilds). Unknown tools (not found yet) are taken as able:
     /// the build says so in its log if they were not
@@ -171,9 +171,8 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
     /// The XeSS switch can be turned on: Windows, and this version's tools fetch Intel's library
     public bool XessEnabled => Windows && XessBuildable;
     public bool XessAccepted => Xess;
-    public bool ShowXessLine => !XessAccepted || XessUnsupported;
-    public string XessLine => XessUnsupported ? Tr.T("This PC has no Intel graphics.")
-        : !XessBuildable ? Tr.T("This version can't fetch it yet.")
+    public bool ShowXessLine => !XessAccepted;
+    public string XessLine => !XessBuildable ? Tr.T("This version can't fetch it yet.")
         : Xess ? "" : s.XessLicense ? Tr.T("Licence accepted earlier.") : Tr.T("Shows Intel's licence first.");
 
     // ---- (Linux) the player's FSR 4 library ----

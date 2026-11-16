@@ -88,7 +88,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
         log.Add($"Longshot Launcher {job.Service.OwnTag}: {job.Verb.Trim().ToLowerInvariant()} {job.Version} ({job.Channel})");
         log.Add($"settings: memory {(s.MemoryGb is int m ? m + " GB" : "automatic")}, workers {(s.BuildWorkers is int w ? w : "automatic")}, " +
                 $"{Languages.NameOf(s.Language)}{Upscaler(s.Dlss, "DLSS", SystemInfo.DlssRuns)}{Upscaler(s.Fsr, "FSR 4", SystemInfo.FsrRuns)}" +
-                $"{Upscaler(s.Xess && !job.Main.Linux, "XeSS", SystemInfo.XessRuns)}");
+                $"{(s.Xess && !job.Main.Linux ? ", XeSS" : "")}");
         if (start)
         {
             ticker = new DispatcherTimer(TimeSpan.FromSeconds(1), DispatcherPriority.Background, (_, _) => Update());
