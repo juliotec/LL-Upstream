@@ -182,6 +182,12 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
             if (request.Xess && request.XessLicense && !xess && !job.Main.Linux)   // (MakeGameCommand.XessBuilds)
                 log.Add("Intel XeSS: this version's tools can't fetch Intel's library, so the game folder gets none from this build.");
             Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(job.InstallDir))!);
+            // (Longshot#1010: tools under a folder Windows lets no program list stop at their first compile, unexplained)
+            if (MakeGameRun.Blocked(command, job.Service.Platform == Platform.Windows) is { } blocked)
+            {
+                Fail(blocked);
+                return;
+            }
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException)
         {

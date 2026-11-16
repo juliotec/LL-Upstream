@@ -113,9 +113,20 @@ public static class MakeGameRun
         return p.ExitCode;
     }
 
-    /// make_game.py --check run, and its answer
-    public static async Task<GameCheck> CheckAsync(MakeGameCommand command, CancellationToken cancel = default)
+    /// (Longshot#1010) Why the build tools can't start on Windows, said before they are run: they are under a folder Windows lets
+    /// no program list (Disk.Unlistable), where the compiler stops at once and the builder could only say "could not build a test
+    /// program". Null when nothing is in the way, and always on Linux. The words are English, as make_game.py's, and Problems
+    /// matches them (BlockedFolder)
+    public static string? Blocked(MakeGameCommand command, bool windows, Func<string, bool>? listable = null) =>
+        windows && Disk.Unlistable(command.WorkingDirectory, listable) is { } folder
+            ? string.Format(CultureInfo.InvariantCulture, "{0} {1}, a folder above Longshot's build tools, so they can't start. Move " +
+                            @"Longshot's folder out of it (for example to C:\Longshot) and start Longshot from there.", Problems.BlockedFolderWords, folder)
+            : null;
+
+    /// make_game.py --check run, and its answer. windows: the build tools are Windows' (Blocked)
+    public static async Task<GameCheck> CheckAsync(MakeGameCommand command, bool windows, CancellationToken cancel = default)
     {
+        if (Blocked(command, windows) is { } blocked) return new GameCheck(GameCheckStatus.CheckFailed, blocked, ThisPc: true);
         var lines = new List<string>();
         string? lastError = null;
         try

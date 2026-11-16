@@ -25,6 +25,19 @@ static partial class Program
                 "an exe the swap could not replace: not GameRunning (a folder that can't be written says it too)");
         Require(Problems.FromBuild("The builder's own compiler (tools/llvm-mingw) could not build a test program: x. Unpack the zip again " +
                                    "into a folder your antivirus allows.").Kind == ProblemKind.Antivirus, "the compiler can't build: Antivirus");
+        // (Longshot#1010: tools under C:\Users\<name>\Cookies, a junction Windows lets no program list. Said before they run, on
+        // Windows only, naming the highest such folder; and matched before Antivirus, whose words the builder's own may carry)
+        var cookies = Path.Combine(Path.GetPathRoot(Path.GetTempPath())!, "Users", "me", "Cookies");   // (this OS's paths)
+        var tools = Path.Combine(cookies, "Desktop", "Longshot", "LongshotLauncher-data", "toolchains", "n", "LongshotBuilder", "tools");
+        var command = new MakeGameCommand("python.exe", [], tools, new Dictionary<string, string?>());
+        bool Denies(string d) => !d.EndsWith("Cookies", StringComparison.Ordinal) && !d.EndsWith("Desktop", StringComparison.Ordinal);
+        var blocked = MakeGameRun.Blocked(command, windows: true, Denies);
+        Require(blocked != null && blocked.Contains("inside " + cookies + ",", StringComparison.Ordinal)
+                && Problems.FromBuild(blocked).Kind == ProblemKind.BlockedFolder, "tools under Cookies: BlockedFolder, naming Cookies");
+        Require(MakeGameRun.Blocked(command, windows: false, Denies) == null, "Linux: no folder check");
+        Require(MakeGameRun.Blocked(command, windows: true, _ => true) == null, "every folder listable: nothing in the way");
+        Require(Problems.FromBuild(Problems.BlockedFolderWords + @" C:\x. Unpack the zip again into a folder your antivirus allows.").Kind
+                == ProblemKind.BlockedFolder, "the builder's own words for it: BlockedFolder, not Antivirus");
         // (messages that name an antivirus, a free space or "not supported" among causes of their own: as make_game.py said them)
         Require(Problems.FromBuild(@"Could not clear C:\Longshot\work\gen ([WinError 32] in use). A file in it is in use: close any window " +
                                    "showing that folder, wait for your antivirus to finish, then try again.").Kind == ProblemKind.Unknown,

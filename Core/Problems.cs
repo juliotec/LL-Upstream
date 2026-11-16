@@ -19,6 +19,7 @@ public enum ProblemKind
     GpuLost,            // the graphics driver stopped answering (device lost)
     GameCrashed,        // the game closed with a crash report in its log
     GameRunning,        // the build was done, but Longshot ran from its folder at the swap (Windows)
+    BlockedFolder,      // the build tools are under a folder Windows lets no program list (Longshot#1010)
 }
 
 /// What a fix button does (the screen decides how)
@@ -34,6 +35,10 @@ public sealed record Problem(ProblemKind Kind, string Headline, string Detail, I
 public static partial class Problems
 {
     static readonly Fix BuildAgain = new(FixKind.BuildAgain, Tr.N("Build again"));
+
+    /// The words that start the message of build tools under a folder Windows lets no program list (MakeGameRun.Blocked, and
+    /// make_game.py check_mingw's in Longshot): BlockedFolder
+    public const string BlockedFolderWords = "Windows doesn't let programs look inside";
 
     /// The driver download page for a maker (SystemInfo's names); null for another
     public static string? DriverPage(string? vendor) => vendor switch
@@ -56,6 +61,13 @@ public static partial class Problems
     {
         var w = why ?? "";
         bool Has(string s) => w.Contains(s, StringComparison.OrdinalIgnoreCase);
+        // (MakeGameRun.Blocked, and make_game.py check_mingw when its compiler stops so: before Antivirus, which the builder's older
+        // words for it matched. Moving the folder is the fix, not the antivirus)
+        if (Has(BlockedFolderWords))
+            return new Problem(ProblemKind.BlockedFolder, Tr.N("Longshot is in a folder Windows protects"),
+                Tr.N("Windows doesn't let programs look inside one of the folders Longshot is in (such as C:\\Users\\<you>\\Cookies), " +
+                "so its build tools can't start. Move Longshot's folder somewhere else, for example C:\\Longshot, start Longshot " +
+                "from there and build again."), [BuildAgain]);
         // (make_game.py check_cpu: the compiler's files are gone; check_mingw: the compiler is not there or can't build)
         if (Has("antivirus most likely removed") || Has("a folder your antivirus allows"))
             return new Problem(ProblemKind.Antivirus, Tr.N("Your antivirus removed some of Longshot's files"),

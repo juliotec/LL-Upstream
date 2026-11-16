@@ -393,7 +393,7 @@ public sealed class FilesStepViewModel : ViewModelBase, IWizardPage
             while (!token.IsCancellationRequested && Files.FirstOrDefault(f => f.Check == null) is { } next)
             {
                 var command = MakeGameCommand.ForCheck(tools, next.File.Source, Service.Platform, Service.Home, LauncherService.LauncherPath, Service.Work);
-                var result = await Task.Run(() => MakeGameRun.CheckAsync(command, token), token);
+                var result = await Task.Run(() => MakeGameRun.CheckAsync(command, Service.Platform == Platform.Windows, token), token);
                 LauncherLog.Add($"game file check, {next.File.Name}: {result.Status}: {result.Text}");
                 next.Check = result;
                 if (picked == next && !next.Ok) Picked = null;

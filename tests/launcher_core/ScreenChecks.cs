@@ -182,11 +182,11 @@ static partial class Program
             }
             Require(gone, "The child process (a compiler) was stopped with the run.");
             var check = await MakeGameRun.CheckAsync(new MakeGameCommand("/bin/sh", new[] { "-c", "echo '@@check ok Supported.'" }, "/",
-                                                                          new Dictionary<string, string?>()));
+                                                                          new Dictionary<string, string?>()), windows: false);
             Require(check.Ok && check.Text == "Supported.", "A check run's answer.");
         }
         var missing = await MakeGameRun.CheckAsync(new MakeGameCommand(Path.Combine(scratch, "no-python"), Array.Empty<string>(), scratch,
-                                                                        new Dictionary<string, string?>()));
+                                                                        new Dictionary<string, string?>()), windows: false);
         Require(missing is { Status: GameCheckStatus.CheckFailed, ThisPc: true } && missing.Text.StartsWith("The build tools could not start"),
                 "Tools that do not start: this PC's, not the file's.");
     }

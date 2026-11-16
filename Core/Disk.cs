@@ -198,6 +198,36 @@ public static class Disk
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException) { return null; }
     }
 
+    /// (Longshot#1010) The highest folder at or above path that a program may not list, or null when each one may. The build's
+    /// clang and lld (LLVM) look up their own long name when they start (GetLongPathNameW), which lists every folder on the way,
+    /// and in one that denies it they stop with "permission denied" and nothing else. C:\Users\&lt;name&gt;\Cookies and the other
+    /// junctions Windows keeps for old programs deny everyone listing them, and a Desktop moved into one took a portable launcher
+    /// there. listable: the tests' stand-in for the disk
+    public static string? Unlistable(string path, Func<string, bool>? listable = null)
+    {
+        listable ??= Listable;
+        string full;
+        try { full = Path.GetFullPath(path); }
+        catch (Exception e) when (e is ArgumentException or NotSupportedException or PathTooLongException) { return null; }
+        var chain = new List<string>();
+        for (var at = full; at != null; at = Path.GetDirectoryName(at)) chain.Add(at);
+        chain.Reverse();   // (the drive first: the folder named is the one to move out of)
+        return chain.FirstOrDefault(d => !listable(d));
+    }
+
+    /// Whether a program may list folder: only a refusal counts (a folder not there, or another error, is not this one's to say)
+    static bool Listable(string folder)
+    {
+        try
+        {
+            using var entries = Directory.EnumerateFileSystemEntries(folder).GetEnumerator();
+            entries.MoveNext();
+            return true;
+        }
+        catch (UnauthorizedAccessException) { return false; }
+        catch (Exception e) when (e is IOException or ArgumentException or NotSupportedException) { return true; }
+    }
+
     /// The nearest folder at or above path that exists, as a full path; on Unix with its links followed, so it names the
     /// mount FreeBytes measures (on Bazzite /home is a link to /var/home); null when none does
     static string? Existing(string path)
