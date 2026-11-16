@@ -29,8 +29,8 @@ static class Program
             Console.WriteLine(SelfUpdate.CheckLine(SelfUpdate.OwnTag()));
             return 0;
         }
-        // (Windows' own DirectWrite for the window's fonts, not a DWriteCore.dll another program put on the PATH: FontCheck)
-        FontCheck.PreferSystemDirectWrite();
+        // (any DWriteCore.dll Skia would take before Windows' own DirectWrite, for the no-fonts message: FontCheck)
+        FontCheck.FindDWriteCore();
         var platform = Platforms.Current;
         // (started from the .old or .new an update cut short left, its own file gone: that file is put back and started instead)
         if (SelfUpdate.CurrentFile(platform) is { } file && SelfUpdate.LeftoverOf(file) is { } own && !File.Exists(own))

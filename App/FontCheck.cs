@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using SkiaSharp;
 
@@ -10,27 +11,22 @@ namespace LongshotLauncher;
 /// DirectWrite answered, for the report
 static class FontCheck
 {
-    /// The DWriteCore.dll Windows' search found before the start narrowed it (PreferSystemDirectWrite); null: none
+    /// The DWriteCore.dll Windows' search finds, which Skia asks for before Windows' own dwrite.dll (FindDWriteCore); null: none
     static string? strayDWriteCore;
 
-    /// Skia asks for DWriteCore.dll by name before Windows' own dwrite.dll, and keeps to it when it is found: a DWriteCore.dll that
-    /// another program left on the PATH (the Windows App SDK's) and that gives Skia no factory leaves it with no fonts at all.
-    /// DLLs named without a path are looked up in the launcher's folder and System32 only, from the start: no PATH, no current
-    /// folder. (.NET loads the launcher's own native libraries by their full path)
-    public static void PreferSystemDirectWrite()
+    /// Skia asks for DWriteCore.dll by name before Windows' own dwrite.dll, and keeps to it when it is found: the message names
+    /// any it would find. (DLLs are no longer looked up only in the launcher's folder and System32: no DWriteCore.dll was the
+    /// cause in #123, and Windows' own dwrite.dll failed to load all the same)
+    public static void FindDWriteCore()
     {
         if (!OperatingSystem.IsWindows()) return;
         try
         {
             var found = new System.Text.StringBuilder(1024);
             if (SearchPathW(null, "DWriteCore.dll", null, found.Capacity, found, IntPtr.Zero) is > 0 and < 1024) strayDWriteCore = found.ToString();
-            SetDefaultDllDirectories(0x200 /* LOAD_LIBRARY_SEARCH_APPLICATION_DIR */ | 0x800 /* LOAD_LIBRARY_SEARCH_SYSTEM32 */
-                                     | 0x400 /* LOAD_LIBRARY_SEARCH_USER_DIRS */);
         }
         catch (Exception e) when (e is DllNotFoundException or EntryPointNotFoundException) { }
     }
-
-    [DllImport("kernel32.dll")] static extern bool SetDefaultDllDirectories(uint directoryFlags);
 
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
     static extern int SearchPathW(string? path, string fileName, string? extension, int bufferLength, System.Text.StringBuilder buffer, IntPtr filePart);
@@ -43,14 +39,74 @@ static class FontCheck
     /// The message: what failed, what Skia and DirectWrite have, and where to report it
     public static string Message(Exception e) =>
         "The launcher cannot start: Windows gave it no fonts to draw its window with.\n\n" +
-        "Windows' DirectWrite, which every program's text goes through, did not give the launcher its fonts. Restarting the PC, " +
-        "or Windows' System File Checker (sfc /scannow, in a Terminal opened as administrator), may put it right.\n\n" +
+        "Windows' DirectWrite, which every program's text goes through, did not give the launcher its fonts. Security software " +
+        "that runs unknown programs with restrictions can cause this: if one is installed, allow the launcher in it.\n\n" +
         "Press Ctrl+C to copy this message, and send it with your report.\n\n" +
         $"{e.GetType().Name}: {e.Message}\n" +
         $"Skia: {SkiaFamilies()}\n" +
         $"DirectWrite: {DirectWrite()}\n" +
+        $"dwrite.dll from System32: {SystemDWrite()}\n" +
         $"DWriteCore: {strayDWriteCore ?? "none found"}\n" +
-        $"Windows: {Environment.OSVersion.Version}";
+        $"Restrictions: {Restrictions()}\n" +
+        $"Other modules: {OtherModules()}\n" +
+        $"Windows: {Environment.OSVersion.Version}, {RuntimeInformation.ProcessArchitecture} process";
+
+    /// dwrite.dll loaded by its full path, and Windows' own error when it is not: (only this process fails to load it on a PC
+    /// where PowerShell loads it and lists its fonts, #123)
+    static string SystemDWrite()
+    {
+        try
+        {
+            var path = Path.Combine(Environment.SystemDirectory, "dwrite.dll");
+            if (!File.Exists(path)) return "missing: " + path;
+            var module = LoadLibraryExW(path, IntPtr.Zero, 0);
+            if (module != IntPtr.Zero) return "loads";
+            var error = Marshal.GetLastPInvokeError();
+            return $"error {error} (0x{error:X}): {new System.ComponentModel.Win32Exception(error).Message}";
+        }
+        catch (Exception x) { return $"{x.GetType().Name}: {x.Message}"; }
+    }
+
+    /// What Windows holds this process to, when anything: signed images only, no remote or low-label images, no dynamic code
+    static string Restrictions()
+    {
+        try
+        {
+            var found = new List<string>();
+            var self = Process.GetCurrentProcess().Handle;
+            foreach (var (policy, name) in new[] { (2, "dynamic code"), (8, "signature"), (10, "image load"), (12, "child process"), (13, "side channel") })
+                if (GetProcessMitigationPolicy(self, policy, out var flags, sizeof(uint)) && flags != 0) found.Add($"{name} 0x{flags:X}");
+            return found.Count == 0 ? "none" : string.Join(", ", found);
+        }
+        catch (Exception x) { return $"{x.GetType().Name}: {x.Message}"; }
+    }
+
+    /// The DLLs in this process that are neither Windows' nor the launcher's own (.NET's, Skia's): what security software or an
+    /// overlay put in it
+    static string OtherModules()
+    {
+        try
+        {
+            var windows = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+            var own = Path.GetDirectoryName(typeof(SKFontManager).Assembly.Location is { Length: > 0 } l ? l : AppContext.BaseDirectory) ?? "";
+            var others = Process.GetCurrentProcess().Modules.Cast<ProcessModule>().Select(m => m.FileName)
+                .Where(f => !f.StartsWith(windows, StringComparison.OrdinalIgnoreCase) && !f.StartsWith(AppContext.BaseDirectory, StringComparison.OrdinalIgnoreCase)
+                            && (own.Length == 0 || !f.StartsWith(own, StringComparison.OrdinalIgnoreCase))
+                            && !Path.GetFileName(f).StartsWith("libSkiaSharp", StringComparison.OrdinalIgnoreCase)
+                            && !Path.GetFileName(f).StartsWith("libHarfBuzzSharp", StringComparison.OrdinalIgnoreCase)
+                            && !Path.GetFileName(f).StartsWith("av_libglesv2", StringComparison.OrdinalIgnoreCase)
+                            && !f.Equals(Environment.ProcessPath, StringComparison.OrdinalIgnoreCase))
+                .Take(12).ToList();
+            return others.Count == 0 ? "none" : string.Join("; ", others);
+        }
+        catch (Exception x) { return $"{x.GetType().Name}: {x.Message}"; }
+    }
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    static extern IntPtr LoadLibraryExW(string fileName, IntPtr file, uint flags);
+
+    [DllImport("kernel32.dll")]
+    static extern bool GetProcessMitigationPolicy(IntPtr process, int policy, out uint buffer, int length);
 
     static string SkiaFamilies()
     {
