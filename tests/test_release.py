@@ -26,6 +26,7 @@ import tempfile
 import threading
 import unittest
 from unittest import mock
+import urllib.error
 import urllib.parse
 import zipfile
 
@@ -369,6 +370,40 @@ class ReleasePage(unittest.TestCase):
                     self.assertNotIn("/download/launcher/" + other, page)
                 self.assertNotIn("releases/download", page)   # (no link to a builder file)
                 self.assertTrue(notes.strip().startswith("## " + tag))
+
+    def test_on_github_the_pages_link_the_launcher_on_github(self):
+        gh = "https://github.com/juliotec/LL-Upstream/releases"
+        rels = [{"tag_name": "nightly-50-aaaaaaaa", "draft": False, "prerelease": True,
+                 "assets": [{"name": "LongshotLauncher-nightly-50-aaaaaaaa" + s} for s in release.LAUNCHER_FILES.values()]},
+                {"tag_name": "nightly-57-4c35f2d9", "draft": False, "prerelease": True,
+                 "assets": [{"name": "LongshotLauncher-nightly-57-4c35f2d9" + s} for s in release.LAUNCHER_FILES.values()]
+                 + [{"name": "SHA256SUMS"}]}]
+        with mock.patch.dict(os.environ, {"RELEASE_FORGE": "github", "GITHUB_REPOSITORY": "juliotec/LL-Upstream"}):
+            # (the launcher's page: its own files on its GitHub repository)
+            page = release.release_page("nightly-57-4c35f2d9", "launcher", "## nightly-57-4c35f2d9\n",
+                                        [f % "nightly-57-4c35f2d9" if "%s" in f else f for f in self.LAUNCHER],
+                                        "juliotec/LL-Upstream")
+            base = gh + "/download/nightly-57-4c35f2d9/LongshotLauncher-nightly-57-4c35f2d9"
+            self.assertIn("### [🪟 &nbsp;Download for Windows](%s-windows-x64-setup.exe)" % base, page)
+            self.assertIn("### [🐧 &nbsp;Download for Linux (AppImage)](%s-x86_64.AppImage)" % base, page)
+            self.assertIn("[portable zip](%s-windows-x64-portable.zip)" % base, page)
+            self.assertNotIn("magicbean.dev", page.split("\n---\n", 1)[0])
+            # (Longshot's page: the files of the launcher's newest nightly)
+            with mock.patch.object(release.urllib.request, "urlopen", return_value=io.BytesIO(json.dumps(rels).encode())):
+                page = self.page("nightly-34-545618fc", "longshot", self.LONGSHOT)
+            head = page.split("\n---\n", 1)[0]
+            self.assertIn("### [🪟 &nbsp;Download the launcher for Windows](%s-windows-x64-setup.exe)" % base, head)
+            self.assertIn("### [🐧 &nbsp;Download the launcher for Linux (AppImage)](%s-x86_64.AppImage)" % base, head)
+            self.assertIn("[portable zip](%s-windows-x64-portable.zip) · [the launcher's newest nightly release](%s/tag/"
+                          "nightly-57-4c35f2d9)" % (base, gh), head)
+            self.assertNotIn("magicbean.dev", head)
+            self.assertNotIn("nightly-50", head)
+            # (GitHub not answering: the launcher's releases list, and the page is still made)
+            with mock.patch.object(release.urllib.request, "urlopen", side_effect=urllib.error.URLError("down")):
+                head = self.page("nightly-34-545618fc", "longshot", self.LONGSHOT).split("\n---\n", 1)[0]
+            self.assertIn("### [🪟 &nbsp;Download the launcher for Windows](%s)" % gh, head)
+            self.assertNotIn("magicbean.dev", head)
+
 
 
 NIGHTLY_OF = lambda tag: release.NIGHTLY.match(tag)
