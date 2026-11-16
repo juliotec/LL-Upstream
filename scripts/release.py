@@ -378,6 +378,8 @@ def page_header(tag, product, names, repo=None):
     the newest launcher of the same channel (rc to rc, nightly to nightly, stable to stable), and "don't download the files
     below" (above the builder files)"""
     channel = channel_of(tag, PRODUCTS[product]["first_major"]) or "nightly"
+    if on_github():
+        return github_page_header(tag, product, names, channel, repo)
     if product == "launcher":
         base = "%s/%s/releases/download/%s/" % (CDN, repo or repo_of(product), urllib.parse.quote(tag))
         url = {k: base + urllib.parse.quote(n) for k, suffix in LAUNCHER_FILES.items() for n in sorted(names)
@@ -399,6 +401,58 @@ def page_header(tag, product, names, repo=None):
         "### [🐧 &nbsp;Download the launcher for Linux (AppImage)](%s/linux)" % link, "",
         "Windows without installing: [portable zip](%s/windows-portable) · [the launcher's newest %s release](%s)"
         % (link, channel, link), "",
+        "**Don't download the files below:** they're the builder the launcher installs for you.", "", "---", ""])
+
+
+# (published on GitHub, RELEASE_FORGE=github: the pages link to the launcher on GitHub, not to longshot.magicbean.dev or
+# git-cdn, which serve MagicBeanDev's releases only)
+GITHUB_LAUNCHER = "juliotec/LL-Upstream"
+
+
+def github_launcher_release(channel):
+    """The newest release of GITHUB_LAUNCHER on channel ({tag_name, assets}), or None when GitHub does not answer"""
+    req = urllib.request.Request("https://api.github.com/repos/%s/releases?per_page=100" % GITHUB_LAUNCHER,
+                                 headers={"User-Agent": "longshot-release", "Accept": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r:
+            rels = json.loads(r.read())
+    except (urllib.error.URLError, OSError, ValueError):
+        return None
+    tag = newest(rels, channel, PRODUCTS["launcher"]["first_major"])
+    return next((r for r in rels if r["tag_name"] == tag), None)
+
+
+def launcher_links(repo, tag, names):
+    base = "https://github.com/%s/releases/download/%s/" % (repo, urllib.parse.quote(tag))
+    return {k: base + urllib.parse.quote(n) for k, suffix in LAUNCHER_FILES.items() for n in sorted(names)
+            if n.startswith("LongshotLauncher-") and n.endswith(suffix)}
+
+
+def github_page_header(tag, product, names, channel, repo=None):
+    """page_header on GitHub: the launcher's page links its own files on its repository; Longshot's links the files of
+    GITHUB_LAUNCHER's newest release of the same channel (its releases list when there is none or GitHub does not answer)"""
+    if product == "launcher":
+        url = launcher_links(repo or repo_of(product), tag, names)
+        lines = ["# ⬇️ Download Longshot Launcher", ""]
+        if "setup" in url:
+            lines += ["### [🪟 &nbsp;Download for Windows](%s)" % url["setup"], ""]
+        if "appimage" in url:
+            lines += ["### [🐧 &nbsp;Download for Linux (AppImage)](%s)" % url["appimage"], ""]
+        if "portable" in url:
+            lines += ["Windows without installing: [portable zip](%s)" % url["portable"], ""]
+        return "\n".join(lines + [
+            "Run it, point it at your own dump of the game (a `.nup`, or its romfs and exefs folders), and press **Build**. "
+            "It installs Longshot and keeps it and itself up to date. %s" % CHANNEL_SAYS[channel], "", "---", ""])
+    listing = "https://github.com/%s/releases" % GITHUB_LAUNCHER
+    rel = github_launcher_release(channel)
+    url = launcher_links(GITHUB_LAUNCHER, rel["tag_name"], [a["name"] for a in rel.get("assets", [])]) if rel else {}
+    page = "%s/tag/%s" % (listing, urllib.parse.quote(rel["tag_name"])) if rel else listing
+    lines = ["# 🎮 To play, get the Longshot Launcher", ""]
+    lines += ["### [🪟 &nbsp;Download the launcher for Windows](%s)" % url.get("setup", page), ""]
+    lines += ["### [🐧 &nbsp;Download the launcher for Linux (AppImage)](%s)" % url.get("appimage", page), ""]
+    lines += ["Windows without installing: [portable zip](%s) · [the launcher's newest %s release](%s)"
+              % (url.get("portable", page), channel, page), ""]
+    return "\n".join(lines + [
         "**Don't download the files below:** they're the builder the launcher installs for you.", "", "---", ""])
 
 
