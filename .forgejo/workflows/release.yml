@@ -1,7 +1,8 @@
 # The launcher's releases (docs/releases.md; how to make one: RELEASING.md). The same workflow as MagicBeanDev/Longshot's,
 # but for what is built: here the launcher itself, released apart from Longshot, on its own three channels.
 #
-#   a push to main       the nightly: nightly-<commits on main>-<commit>, a pre-release
+#   a push to main       the nightly: nightly-<commits on main>-<commit>, a pre-release, 5 minutes after the last of a few
+#                        merges in a row (and at least once an hour while they keep coming)
 #   a tag vX.Y.Z-rc.N    a release candidate, a pre-release (the rc channel)
 #   a tag vX.Y.Z         a stable (the stable channel, and rc too). The launcher's first is v1.0.0
 #
@@ -61,14 +62,26 @@ jobs:
             tag=${GITHUB_REF#refs/tags/}
             python3 -I scripts/release.py check-tag "$tag" --main origin/main
           else
-            # (a nightly whose commit is no longer main's skips itself: the release runs queue one at a time, and of a few
-            # merges in a row only the newest one builds; the one already running goes on)
-            head=$(git rev-parse origin/main)
-            if [[ $GITHUB_EVENT_NAME == push && $head != "$ref" ]]; then
-              echo "::notice::main has moved on to ${head:0:8}: this nightly skips, the newer one builds"
-              echo "tag=" >> "$GITHUB_OUTPUT"
-              echo "ref=$ref" >> "$GITHUB_OUTPUT"
-              exit 0
+            # (merges in a row build one nightly: the release runs queue one at a time, and a nightly whose commit is still
+            # main's waits 5 minutes for more. One whose commit is no longer main's, then or before, skips: the newer one
+            # builds. Unless the newest nightly is an hour old: while merges keep coming, a nightly still comes out each hour.
+            # The wait is on the quick runner, which has room for it (MagicBeanDev/Infra, runner/quick/config.yml))
+            if [[ $GITHUB_EVENT_NAME == push ]]; then
+              if [[ $(git rev-parse origin/main) == "$ref" ]]; then
+                sleep 300
+                git fetch -q origin main
+              fi
+              head=$(git rev-parse origin/main)
+              if [[ $head != "$ref" ]]; then
+                age=$(python3 -I scripts/release.py nightly-age) || age=none   # (no answer: it builds)
+                if [[ $age != none ]] && (( age < 3600 )); then
+                  echo "::notice::main has moved on to ${head:0:8}: this nightly skips, the newer one builds"
+                  echo "tag=" >> "$GITHUB_OUTPUT"
+                  echo "ref=$ref" >> "$GITHUB_OUTPUT"
+                  exit 0
+                fi
+                echo "::notice::main has moved on to ${head:0:8}, but the newest nightly is an hour old (${age}s): this one builds"
+              fi
             fi
             tag=$(python3 -I scripts/release.py nightly-name)
           fi

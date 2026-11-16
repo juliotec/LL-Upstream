@@ -10,6 +10,7 @@ Needs git and the openssl command line.
 """
 import base64
 import contextlib
+import datetime
 import hashlib
 import http.server
 import importlib.util
@@ -133,6 +134,15 @@ class Channels(unittest.TestCase):
         # (pulling a bad version: deleted, or back to a draft, the channel falls back to the one before)
         rels[-1]["draft"] = True
         self.assertEqual(release.newest(rels, "stable", 3), "v3.0.0")
+
+    def test_the_newest_nightlys_age(self):
+        # (the newest by count, published ones only, from published_at; none when there is none: the nightly then builds)
+        rels = [{"tag_name": t, "draft": d, "published_at": p} for t, d, p in (
+            ("nightly-9-aaaaaaaa", False, "2026-11-15T10:00:00Z"), ("nightly-12-bbbbbbbb", False, "2026-11-15T09:00:00+00:00"),
+            ("nightly-13-cccccccc", True, "2026-11-15T11:00:00Z"), ("v3.0.0", False, "2026-11-15T11:30:00Z"))]
+        noon = datetime.datetime(2026, 11, 15, 12, tzinfo=datetime.timezone.utc).timestamp()
+        self.assertEqual(release.nightly_age(rels, now=noon), 3 * 3600)
+        self.assertIsNone(release.nightly_age(rels[2:], now=noon))
 
 
 class Bump(unittest.TestCase):

@@ -16,6 +16,9 @@ Versions and notes:
         commits since the last stable call for (CI runs it before it builds anything)
     python -I scripts/release.py nightly-name
         nightly-<commits since the product's first commit>-<8 hex of HEAD>: the nightly's version
+    python -I scripts/release.py nightly-age
+        the seconds since the newest published nightly came out, or none: the release workflow builds a nightly at
+        least once an hour while merges keep coming
     python -I scripts/release.py notes <tag> [--out <file>]
         the release notes: git-cliff with cliff.toml, over the commits since the tag before (of the product's numbers); an rc
         after the first also lists what the earlier release candidates since the last stable brought
@@ -50,6 +53,7 @@ this is; $FORGEJO_API, $FORGEJO_UPLOAD_API):
 """
 import argparse
 import base64
+import datetime
 import hashlib
 import json
 import os
@@ -58,6 +62,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -228,6 +233,20 @@ def nightly_name(product, root=ROOT):
     since = PRODUCTS[product]["since"]
     count = git("rev-list", "--count", (since + "..HEAD") if since else "HEAD", root=root)
     return "nightly-%s-%s" % (count, git("rev-parse", "--short=8", "HEAD", root=root))
+
+
+def nightly_age(rels, now=None):
+    """The seconds since the newest published nightly came out (its published_at, else created_at), or None when there is
+    none: a nightly that waited for more merges still builds when the one before is an hour old"""
+    published = [r for r in rels if NIGHTLY.match(r["tag_name"]) and not r.get("draft")]
+    if not published:
+        return None
+    newest = max(published, key=lambda r: int(NIGHTLY.match(r["tag_name"]).group(1)))
+    stamp = newest.get("published_at") or newest.get("created_at")
+    if not stamp:
+        return None
+    when = datetime.datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+    return int((time.time() if now is None else now) - when.timestamp())
 
 
 def previous_tag(tag, first_major, root=ROOT):
@@ -676,6 +695,7 @@ def main(argv=None):
     s.add_argument("--releases", help="the releases as Forgejo's API lists them (a JSON file), instead of asking it")
     s.add_argument("--main", default="origin/main")
     sub.add_parser("nightly-name")
+    sub.add_parser("nightly-age")
     s = sub.add_parser("notes")
     s.add_argument("tag")
     s.add_argument("--out")
@@ -734,6 +754,9 @@ def main(argv=None):
         print("%s: ok (%s channel)" % (a.tag, channel_of(a.tag, first)))
     elif a.cmd == "nightly-name":
         print(nightly_name(product))
+    elif a.cmd == "nightly-age":
+        age = nightly_age(releases(repo_of(product)))
+        print("none" if age is None else age)
     elif a.cmd == "notes":
         text = notes(a.tag, product)
         if a.out:
