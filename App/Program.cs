@@ -146,6 +146,7 @@ static class Program
     }
 
     public static AppBuilder BuildAvaloniaApp() => AppBuilder.Configure<App>().UsePlatformDetect()
+        .With(App.Fonts())   // (the launcher's own Inter as the default font: a system without a default font's name starts too)
         .UseWaylandWithFallback()   // (native Wayland when there is a compositor: through XWayland, a scaled desktop draws the window blurry)
         // (the window's app_id and WM_CLASS: the name of the launcher's .desktop entries, so that a taskbar or dock shows their icon)
         .With(new WaylandPlatformOptions { AppId = Shortcuts.LauncherEntryName })

@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using Avalonia.Media;
 using LongshotLauncher.Core;
 using LongshotLauncher.ViewModels;
 
@@ -9,6 +10,14 @@ namespace LongshotLauncher;
 
 public sealed class App : Application
 {
+    /// The default font: the launcher's own Inter (App.axaml's Ui), not the system's. Without it Avalonia asks the system for its
+    /// default font's name and, when that comes back empty (some Windows 11 PCs), throws "Default font family name can't be null
+    /// or empty" before the first window: the launcher and its setup closed without a word (#123)
+    public const string DefaultFont = "avares://LongshotLauncher/Assets/Fonts#Inter";
+
+    /// The font options every AppBuilder of the launcher's App uses (Program, and tools/screenshots)
+    public static FontManagerOptions Fonts() => new() { DefaultFamilyName = DefaultFont };
+
     IDisposable? pokes;
 
     public override void Initialize() => AvaloniaXamlLoader.Load(this);

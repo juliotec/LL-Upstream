@@ -228,7 +228,7 @@ static class Program
             return 2;
         }
         Directory.CreateDirectory(outDir);
-        AppBuilder.Configure<App>().UseSkia().UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false }).SetupWithoutStarting();
+        AppBuilder.Configure<App>().UseSkia().With(App.Fonts()).UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false }).SetupWithoutStarting();
         Tr.Use(Tr.English);
         foreach (var scene in Scenes.Where(s => wanted.Count == 0 || wanted.Contains(s.Name)))
         {
