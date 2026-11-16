@@ -44,6 +44,10 @@ public sealed class LauncherService
         Platform = platform;
         Home = home;
         Registry = BuildRegistry.Load(home.Builds);
+        // (issue 140: a portable launcher's folder renamed, or one above it: its builds' paths follow it)
+        if (home.Portable && Registry.FollowHome())
+            try { Registry.Save(); }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
         Settings = LauncherSettings.Load(home.Settings);
         // (release lists, release files and packages through git-cdn.magicbean.dev first: CdnFetcher; LONGSHOT_LAUNCHER_NO_CDN=1 turns it off)
         var cdn = CdnFetcher.EnabledByEnvironment();

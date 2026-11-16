@@ -807,6 +807,37 @@ static partial class Program
         Require(forgot.SequenceEqual(new[] { deleted }) && lost.Builds.SequenceEqual(new[] { kept, unplugged, busy }) && lost.Default == kept,
                 "A folder deleted by hand leaves the list (the default passes on); an unplugged drive's and one being deleted stay.");
         Require(lost.ForgetGone().SequenceEqual(new[] { busy }) && lost.ForgetGone().Count == 0, "Nothing more to forget.");
+
+        // (issue 140: a portable launcher's folder renamed, or one above it: its builds, in its folder, follow it; one elsewhere,
+        // and one whose old path is still there (a copy of the folder), keep theirs. A list saved before Home: its home's name)
+        var games = Folder("portable");
+        var data = Path.Combine(games, "Zelda OOT", LauncherLayout.PortableData);
+        var portable = BuildRegistry.Load(Path.Combine(data, "builds.json"));
+        var inside = Path.Combine(data, "builds", "stable");
+        Game(inside, "v3.3.0");
+        var gameFile = Path.Combine(games, "Zelda OOT", "game.nup");
+        File.WriteAllText(gameFile, "authored");
+        var outside = Path.Combine(home, "unbuilt");
+        portable.Add(inside, "v3.3.0", null, makeDefault: true).Nup = gameFile;
+        portable.Add(outside, "v3.3.0", null);
+        portable.Save();
+        Require(!BuildRegistry.Load(Path.Combine(data, "builds.json")).FollowHome(), "A launcher where it was: nothing moves.");
+        var renamed = Path.Combine(games, "Zelda");
+        Directory.Move(Path.Combine(games, "Zelda OOT"), renamed);
+        var moved = BuildRegistry.Load(Path.Combine(renamed, LauncherLayout.PortableData, "builds.json"));
+        var movedHome = Path.Combine(renamed, LauncherLayout.PortableData);
+        Require(moved.FollowHome() && BuildRegistry.SameFolder(moved.Default!.Folder, Path.Combine(movedHome, "builds", "stable"))
+                && BuildRegistry.SameFolder(moved.Default.Nup!, Path.Combine(renamed, "game.nup"))
+                && moved.Builds.Any(x => BuildRegistry.SameFolder(x.Folder, outside)) && !moved.FollowHome(),
+                "A renamed portable folder: its build and game file follow it, a build elsewhere stays.");
+        File.WriteAllText(Path.Combine(movedHome, "builds.json"),
+            "{\"format\":1,\"builds\":[{\"id\":\"o\",\"folder\":" + JsonSerializer.Serialize(inside) + ",\"default\":true}]}");
+        var older = BuildRegistry.Load(Path.Combine(movedHome, "builds.json"));
+        Require(older.FollowHome() && BuildRegistry.SameFolder(older.Default!.Folder, Path.Combine(movedHome, "builds", "stable")),
+                "A list saved before Home: the old home is found by its name.");
+        Game(inside, "v3.3.0");
+        var copy = BuildRegistry.Load(Path.Combine(movedHome, "builds.json"));
+        Require(!copy.FollowHome() && BuildRegistry.SameFolder(copy.Default!.Folder, inside), "A copy whose first is still there keeps its paths.");
     }
 
     static void SettingsChecks()

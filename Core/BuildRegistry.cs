@@ -38,6 +38,9 @@ public sealed class BuildEntry
 public sealed class RegistryFile
 {
     public int Format { get; set; } = 1;
+    /// (issue 140) The launcher's home when the list was saved, for FollowHome; null in a list saved before it (an older launcher
+    /// reads past it)
+    public string? Home { get; set; }
     public List<BuildEntry> Builds { get; set; } = new();
 }
 
@@ -48,10 +51,12 @@ public sealed class BuildRegistry
     readonly string path;
     readonly List<BuildEntry> builds;
     readonly Func<DateTimeOffset> now;
+    readonly string? savedHome;
 
-    BuildRegistry(string path, List<BuildEntry> builds, Func<DateTimeOffset>? now, bool existed, string? problem)
+    BuildRegistry(string path, List<BuildEntry> builds, Func<DateTimeOffset>? now, bool existed, string? problem, string? savedHome = null)
     {
         this.path = path;
+        this.savedHome = savedHome;
         this.builds = builds;
         this.now = now ?? (() => DateTimeOffset.UtcNow);
         Existed = existed;
@@ -83,7 +88,7 @@ public sealed class BuildRegistry
                 if (b.Id.Length == 0) b.Id = NewId();
                 if (!Versions.IsChannel(b.Channel)) b.Channel = Versions.TrackOf(b.Version);
             }
-            return new BuildRegistry(path, list, now, true, null);
+            return new BuildRegistry(path, list, now, true, null, file.Home);
         }
         catch (Exception e) when (e is JsonException or IOException or UnauthorizedAccessException or NotSupportedException)
         {
@@ -105,6 +110,58 @@ public sealed class BuildRegistry
         // (a Windows path read on Linux, as in a test of Windows paths, compares as Windows compares it)
         var windows = OperatingSystem.IsWindows() || a.Contains('\\') || b.Contains('\\');
         return string.Equals(Norm(a), Norm(b), windows ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
+    }
+
+    /// (issue 140) A portable launcher's folder renamed or moved, or a folder above it: the list kept the paths it had, so its builds
+    /// in the launcher's folder were "not built: its game is missing" until the old name came back. A path that was in the folder
+    /// the launcher and its data are in (the home's parent) is taken to the same place in that folder's new path, when it is not on
+    /// the disk and the new one is (a copy of the launcher's folder whose first is still there keeps the first's paths). The home
+    /// before: the one the list was saved in (Home); in a list saved before that, the path up to its last folder of the home's
+    /// name (LongshotLauncher-data). True when a path changed (Save keeps it)
+    public bool FollowHome()
+    {
+        var here = Path.GetDirectoryName(Path.GetFullPath(path));
+        if (here == null) return false;
+        var changed = false;
+        foreach (var b in builds)
+        {
+            var was = savedHome ?? HomeIn(b.Folder, Path.GetFileName(here));
+            if (was == null || SameFolder(was, here)) continue;
+            string? Moved(string? p) => Rebased(p, Path.GetDirectoryName(was), Path.GetDirectoryName(here));
+            if (Moved(b.Folder) is { } folder) { b.Folder = folder; changed = true; }
+            if (Moved(b.Nup) is { } nup) { b.Nup = nup; changed = true; }
+            if (Moved(b.Romfs) is { } romfs) { b.Romfs = romfs; changed = true; }
+            if (Moved(b.Exefs) is { } exefs) { b.Exefs = exefs; changed = true; }
+        }
+        return changed;
+    }
+
+    /// The last folder named name that holds path (a home of that name), or null
+    static string? HomeIn(string path, string name)
+    {
+        try
+        {
+            for (var d = Path.GetDirectoryName(Path.GetFullPath(path)); !string.IsNullOrEmpty(d); d = Path.GetDirectoryName(d))
+                if (string.Equals(Path.GetFileName(d), name, StringComparison.OrdinalIgnoreCase)) return d;
+        }
+        catch (Exception e) when (e is ArgumentException or NotSupportedException or PathTooLongException) { }
+        return null;
+    }
+
+    /// path, in from, at the same place in to: when path is not on the disk and that is; null otherwise
+    static string? Rebased(string? path, string? from, string? to)
+    {
+        if (path is not { Length: > 0 } || string.IsNullOrEmpty(from) || string.IsNullOrEmpty(to)) return null;
+        try
+        {
+            var full = Path.GetFullPath(path);
+            var rest = Path.GetRelativePath(from, full);
+            if (rest == "." || rest == ".." || rest.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal) || Path.IsPathRooted(rest))
+                return null;
+            var moved = Path.Combine(to, rest);
+            return !Path.Exists(full) && Path.Exists(moved) ? moved : null;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException) { return null; }
     }
 
     public BuildEntry? Find(string id) => builds.FirstOrDefault(b => b.Id == id);
@@ -297,7 +354,7 @@ public sealed class BuildRegistry
     public void Save()
     {
         Normalize();
-        AtomicFile.Write(path, JsonSerializer.Serialize(new RegistryFile { Builds = builds }, CoreJson.Default.RegistryFile));
+        AtomicFile.Write(path, JsonSerializer.Serialize(new RegistryFile { Home = Path.GetDirectoryName(Path.GetFullPath(path)), Builds = builds }, CoreJson.Default.RegistryFile));
     }
 
     /// A build's game folder deleted from the disk: only a folder make_game.py made (its stamp or bin/longshot), never another
