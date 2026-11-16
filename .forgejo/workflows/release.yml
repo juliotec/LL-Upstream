@@ -118,6 +118,15 @@ jobs:
       - uses: https://github.com/actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
           dotnet-version: '10.0.x'
+      # (Wine for the check below, about 20 s of apt, installed in the background while package.sh builds; the check waits
+      # for it. Detached (setsid, every descriptor elsewhere), so this step ends at once; its status is written last, by mv)
+      - name: Wine (installed in the background)
+        run: |
+          sudo=; [[ $(id -u) == 0 ]] || sudo=sudo
+          DEBIAN_FRONTEND=noninteractive setsid nohup bash -c '$0 dpkg --add-architecture i386 || true
+            $0 apt-get update -qq && $0 apt-get install -y -qq --no-install-recommends wine wine64
+            echo $? > "$1.tmp" && mv "$1.tmp" "$1.status"' "${sudo:-env}" "$RUNNER_TEMP/wine-apt" \
+            > "$RUNNER_TEMP/wine-apt.log" 2>&1 < /dev/null &
       - name: The Windows setup, the portable zip and the AppImage
         env:
           WINE_CHECK_EXE: ${{ runner.temp }}/wine-check/LongshotLauncher.exe
@@ -128,11 +137,10 @@ jobs:
         env:
           TAG: ${{ needs.version.outputs.tag }}
         run: |
-          export DEBIAN_FRONTEND=noninteractive
-          sudo=; [[ $(id -u) == 0 ]] || sudo=sudo
-          $sudo dpkg --add-architecture i386 || true
-          $sudo apt-get update -qq
-          $sudo apt-get install -y -qq --no-install-recommends wine wine64 >/dev/null
+          # (the background install: its status, and its log when it failed; one that never ends stops here in 10 minutes)
+          for _ in $(seq 600); do [[ -f $RUNNER_TEMP/wine-apt.status ]] && break; sleep 1; done
+          status=$(cat "$RUNNER_TEMP/wine-apt.status" 2>/dev/null || echo "no end in 10 minutes")
+          [[ $status == 0 ]] || { cat "$RUNNER_TEMP/wine-apt.log"; echo "::error::Wine's install failed ($status)"; exit 1; }
           wine=$(command -v wine64 || command -v wine)
           export WINEDEBUG=-all WINEPREFIX="$RUNNER_TEMP/wine"
           "$wine" wineboot --init >/dev/null 2>&1 || true
@@ -175,14 +183,23 @@ jobs:
           ref: ${{ needs.version.outputs.ref }}
           fetch-depth: 0
           persist-credentials: false
+      # (the launchers from Forgejo's own address, RELEASE_UPLOAD_API on this runner's network, where the artifacts are on
+      # its disk: through its public address behind Cloudflare, as download-artifact fetches them, they came at about
+      # 2 MB/s, 79 s of this job's 127 (nightly-100). When that fails (no variable, an API that answers otherwise), the
+      # download-artifact steps below fetch them as before)
+      - id: artifacts
+        name: The launchers, from Forgejo's own address
+        continue-on-error: true
+        run: python3 -I scripts/release.py artifacts files --run "$GITHUB_RUN_ID" LongshotLauncher
       # (from Forgejo's public address behind Cloudflare, as the build jobs' upload: fetched once more when it failed)
       - id: download_2
+        if: steps.artifacts.outcome == 'failure'
         continue-on-error: true
         uses: https://data.forgejo.org/forgejo/download-artifact@d8d0a99033603453ad2255e58720b460a0555e1e # v4
         with:
           name: LongshotLauncher
           path: files
-      - if: steps.download_2.outcome == 'failure'
+      - if: steps.artifacts.outcome == 'failure' && steps.download_2.outcome == 'failure'
         uses: https://data.forgejo.org/forgejo/download-artifact@d8d0a99033603453ad2255e58720b460a0555e1e # v4
         with:
           name: LongshotLauncher

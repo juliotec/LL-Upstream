@@ -18,6 +18,7 @@ import io
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import sys
@@ -26,6 +27,7 @@ import threading
 import unittest
 from unittest import mock
 import urllib.parse
+import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location("release", ROOT / "scripts" / "release.py")
@@ -767,6 +769,86 @@ class TokenStaysHome(unittest.TestCase):
             os.environ.pop("FORGEJO_UPLOAD_API", None)
             self.assertEqual(release.download(url), b"the sums")
         self.assertEqual(seen, {"forge": "token secret", "store": None})
+
+
+class Artifacts(unittest.TestCase):
+    """artifacts: the build jobs' files, the named artifacts of the run, each unpacked into the folder, from the address
+    without Cloudflare (FORGEJO_UPLOAD_API) though the run's list links them under the public one; nothing written when
+    one is missing or holds a file that is not a plain name"""
+
+    def setUp(self):
+        def zipped(files):
+            buf = io.BytesIO()
+            with zipfile.ZipFile(buf, "w") as z:
+                for name, data in files.items():
+                    z.writestr(name, data)
+            return buf.getvalue()
+        zips = {7: zipped({"Longshot-v3.0.0-x86_64.AppImage": b"\x7fELF image"}),
+                8: zipped({"LongshotBuilder-v3.0.0-windows-x64.zip": b"PK builder"}),
+                9: zipped({"../escape": b"out of the folder"})}
+        listing = [{"id": i, "name": n, "expired": False, "archive_download_url":
+                    "https://public.invalid/api/v1/repos/MagicBeanDev/Test/actions/artifacts/%d/zip" % i}
+                   for i, n in ((7, "Longshot-linux-x86_64"), (8, "LongshotBuilder-windows"), (9, "bad"))]
+        seen = self.seen = []
+
+        class Forge(http.server.BaseHTTPRequestHandler):
+            def log_message(self, *a):
+                pass
+
+            def do_GET(self):
+                seen.append((self.path, self.headers.get("Authorization")))
+                zip_of = re.match(r"^/api/v1/repos/MagicBeanDev/Test/actions/artifacts/(\d+)/zip$", self.path)
+                if self.path.startswith("/api/v1/repos/MagicBeanDev/Test/actions/runs/42/artifacts"):
+                    data = json.dumps(listing).encode()
+                elif zip_of and int(zip_of.group(1)) in zips:
+                    data = zips[int(zip_of.group(1))]
+                else:
+                    self.send_response(404)
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                    return
+                self.send_response(200)
+                self.send_header("Content-Length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+
+        server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Forge)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        self.dir = Path(tempfile.mkdtemp(prefix="release-artifacts-"))
+        self.addCleanup(shutil.rmtree, self.dir, True)
+        patcher = mock.patch.dict(os.environ, {"FORGEJO_UPLOAD_API": "http://127.0.0.1:%d/api/v1" % server.server_port,
+                                               "RELEASE_TOKEN": "t", "GITHUB_REPOSITORY": "MagicBeanDev/Test"})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        os.environ.pop("FORGEJO_API", None)
+        self.out = self.dir / "files"
+
+    def artifacts(self, *names):
+        return run("artifacts", self.out, "--run", 42, *names)
+
+    def test_the_builders_from_the_address_without_cloudflare(self):
+        code, _ = self.artifacts("Longshot-linux-x86_64", "LongshotBuilder-windows")
+        self.assertEqual(code, 0)
+        self.assertEqual(sorted(p.name for p in self.out.iterdir()),
+                         ["Longshot-v3.0.0-x86_64.AppImage", "LongshotBuilder-v3.0.0-windows-x64.zip"])
+        self.assertEqual((self.out / "Longshot-v3.0.0-x86_64.AppImage").read_bytes(), b"\x7fELF image")
+        self.assertEqual([path for path, _ in self.seen], ["/api/v1/repos/MagicBeanDev/Test/actions/runs/42/artifacts?limit=50",
+                                                           "/api/v1/repos/MagicBeanDev/Test/actions/artifacts/7/zip",
+                                                           "/api/v1/repos/MagicBeanDev/Test/actions/artifacts/8/zip"])
+        self.assertEqual({token for _, token in self.seen}, {"token t"})
+
+    def test_a_name_the_run_lacks_writes_nothing(self):
+        with self.assertRaises(SystemExit):
+            self.artifacts("Longshot-linux-x86_64", "LongshotBuilder-nothing")
+        self.assertFalse(self.out.exists())
+
+    def test_a_file_that_is_not_a_plain_name_writes_nothing(self):
+        with self.assertRaises(SystemExit):
+            self.artifacts("Longshot-linux-x86_64", "bad")
+        self.assertFalse(self.out.exists())
+        self.assertFalse((self.dir / "escape").exists())
 
 
 if __name__ == "__main__":

@@ -53,11 +53,15 @@ this is; $FORGEJO_API, $FORGEJO_UPLOAD_API):
         that fails those checks stops it
     python -I scripts/release.py channels
         what each channel offers now, as the launcher reads it
+    python -I scripts/release.py artifacts <folder> --run <run id> <name>...
+        the build jobs' files: the named artifacts of a workflow run (CI: $GITHUB_RUN_ID), each unpacked into <folder>, from
+        the address without Cloudflare when $FORGEJO_UPLOAD_API names one (through Cloudflare they come at about 1 MB/s)
 """
 import argparse
 import base64
 import datetime
 import hashlib
+import io
 import json
 import os
 import re
@@ -69,6 +73,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import zipfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SERVER = "https://git.magicbean.dev"
@@ -659,6 +664,42 @@ class _TokenStaysHome(urllib.request.HTTPRedirectHandler):
 _OPENER = urllib.request.build_opener(_TokenStaysHome)
 
 
+def artifacts(run_id, names, out, product, limit=4 << 30):
+    """The named artifacts of workflow run run_id (its build jobs' files: upload-artifact's), each unpacked into out. From
+    the address without Cloudflare when FORGEJO_UPLOAD_API names one, as download does: through Cloudflare, as
+    download-artifact fetches them, they come at about 1 MB/s, a minute and more for a builder. Each name must be the run's
+    once, and each file in it a plain name that no other has; nothing is written into out until every one is fetched"""
+    repo = repo_of(product)
+    # (the run's list; Forgejo gives each artifact's archive_download_url under its public address, which download changes)
+    listed = api("GET", "/repos/%s/actions/runs/%d/artifacts?limit=50" % (repo, run_id), upload=True) or []
+    items = (listed.get("artifacts") or []) if isinstance(listed, dict) else listed
+    files = {}
+    for name in names:
+        found = [a for a in items if a.get("name") == name and not a.get("expired")]
+        if len(found) != 1:
+            fail("run %d has %d artifacts named %s, not one" % (run_id, len(found), name))
+        data = download(found[0]["archive_download_url"], limit=limit)
+        try:
+            with zipfile.ZipFile(io.BytesIO(data)) as z:
+                for info in z.infolist():
+                    if info.is_dir():
+                        continue
+                    base = info.filename
+                    if not base or base != os.path.basename(base) or "\\" in base or base in (".", ".."):
+                        fail("%s: %r is not a plain file name" % (name, info.filename))
+                    if base in files:
+                        fail("%s: %s is in two artifacts" % (name, base))
+                    files[base] = z.read(info)
+        except zipfile.BadZipFile as e:
+            fail("%s: not a zip (%s)" % (name, e))
+        print("%s: %d MB" % (name, len(data) >> 20), flush=True)
+    os.makedirs(out, exist_ok=True)
+    for base, data in sorted(files.items()):
+        with open(os.path.join(out, base), "wb") as f:
+            f.write(data)
+    return sorted(files)
+
+
 def released_as(commit, product, root=ROOT, but=None):
     """The tag of the published release CI made of commit (a nightly, or for a stable its release candidate), or None.
     Forgejo's list says a release's tag, git (the tags fetched) which commit it is. CI publishes a release only when every
@@ -744,6 +785,10 @@ def main(argv=None):
     s.add_argument("--not", dest="but")
     s = sub.add_parser("git-cliff")
     s.add_argument("folder")
+    s = sub.add_parser("artifacts")
+    s.add_argument("out")
+    s.add_argument("--run", type=int, required=True)
+    s.add_argument("names", nargs="+")
     a = p.parse_args(argv)
     product = a.product or product_of()
     first = PRODUCTS[product]["first_major"]
@@ -837,6 +882,9 @@ def main(argv=None):
         prune(a.keep, product)
     elif a.cmd == "git-cliff":
         print(fetch_git_cliff(a.folder))
+    elif a.cmd == "artifacts":
+        for name in artifacts(a.run, a.names, a.out, product):
+            print(os.path.join(a.out, name))
     elif a.cmd == "released-as":
         if not re.match(r"^[0-9a-f]{40}$", a.commit):
             fail("%s: a full commit hash is needed" % a.commit)
