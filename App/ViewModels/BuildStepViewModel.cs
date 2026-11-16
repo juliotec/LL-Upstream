@@ -195,6 +195,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
             return;
         }
         running = true;
+        Current = this;
         watch.Start();
         ticker?.Start();
         Task.Run(async () =>
@@ -342,10 +343,16 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
             Complete();
             return;
         }
-        var why = progress.Error ?? lastError ?? Tr.F("make_game.py stopped with exit code {0} without saying why.", code);
+        // (.NET gives a child a signal ended 128 + the signal: 143 is SIGTERM, from outside the launcher, whose own Stop is a
+        // cancel. A step the system killed is make_game's own error, "the system stopped it", and a failure)
+        var terminated = code == 128 + 15;
+        var why = progress.Error ?? lastError ?? (terminated
+            ? Tr.T("make_game.py was stopped by a signal (SIGTERM) from outside the launcher.")
+            : Tr.F("make_game.py stopped with exit code {0} without saying why.", code));
+        var outcome = terminated ? BuildReports.Terminated : BuildReports.Failed;
         if (seeded is not { } taken)
         {
-            Fail(why);
+            Fail(why, outcome);
             return;
         }
         // (put back on a pool thread: Undo may wait up to ShaderCaches.UndoWait for a file something the build started still
@@ -354,7 +361,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
         Task.Run(() => taken.Undo()).ContinueWith(t => Ui.Post(() =>
         {
             if (t.IsCompletedSuccessfully) log.Add(Seeded.Said(t.Result));
-            Fail(why);
+            Fail(why, outcome);
         }), TaskScheduler.Default);
     }
 
@@ -418,23 +425,26 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
     {
         running = false;
         ticker?.Stop();
+        Summarize(BuildReports.Cancelled);
         cancel.Cancel();
         Job.Main.ShowHome();
         Job.Main.ShowToast(Tr.T("Build stopped."));
     }
 
-    void Fail(string why)
+    void Fail(string why, string outcome = BuildReports.Failed)
     {
         running = false;
         ticker?.Stop();
+        Summarize(outcome);
         var at = progress.Stages.FirstOrDefault(s => s.Id == progress.Current) ?? progress.Stages.LastOrDefault(s => s.State == StageState.Done);
         var name = at != null ? Tr.T(Names.GetValueOrDefault(at.Id, at.Title)) : Tr.T("the build");
         var pct = (int)Math.Floor(progress.Overall * 100);
-        Job.Main.Navigate(new ProblemViewModel(this, why, name, pct));
+        Job.Main.Navigate(new ProblemViewModel(this, why, name, pct, outcome));
     }
 
     void Complete()
     {
+        Summarize(BuildReports.Completed);
         var job = Job;
         var service = job.Service;
         var registry = service.Registry;
@@ -496,20 +506,92 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
     /// last 200 lines, then the launcher's log
     public string Report(string why)
     {
-        var s = Job.Service.Settings;
         var more = new List<string>
         {
             $"build: {Job.Verb.Trim()} {Job.Version} ({Job.Channel})",
-            $"PC: {SystemInfo.MemoryGb()} GB, {SystemInfo.Threads()} threads" +
-            (Job.Service.Gpus.Count > 0 ? ", " + string.Join(" and ", Job.Service.Gpus) + " GPU" : ""),
-            $"settings: memory {(s.MemoryGb is int m ? m + " GB" : "automatic")}, workers {(s.BuildWorkers is int w ? w : "automatic")}, " +
-            $"DLSS {(dlss ? "on" : "off")}, FSR 4 {(fsr ? "on" : s.Fsr ? "asked, not built" : "off")}, " +
-            $"XeSS {(xess ? "on" : s.Xess ? "asked, not fetched" : "off")}",
+            "PC: " + PcLine(),
+            "settings: " + SettingsLine(),
             "",
             "build log, its last 200 lines:",
         };
         more.AddRange(log.Last(200));
         return Job.Main.Report("the build stopped: " + why, more);
+    }
+
+    /// The report Send on the problem page sends (BuildReports), with the build's last error line; auto: the statistics' summary
+    public BuildReports.Failure Failure(string why, string outcome = BuildReports.Failed, bool auto = false) =>
+        new(Job.Service.OwnTag, Job.Version, Job.Channel,
+            BuildReports.KindOf(update: Job.Kind == JobKind.Update, rebuild: Job.Kind == JobKind.Rebuild, older: Job.Older),
+            BugReport.System(), PcLine(), SettingsLine(), why,
+            lastError, auto ? [] : log.Last(BuildReports.LogLines).ToList(), outcome, Job.Service.Cpu, Stages(), auto);
+
+    /// Each stage's progress and time (BuildProgress.Times), the tools' download timed by step 1, where it ran (kept: they were
+    /// already on this PC)
+    IReadOnlyDictionary<string, (double Progress, double Seconds, bool Kept)> Stages()
+    {
+        var times = progress.Times().ToDictionary(kv => kv.Key, kv => kv.Value);
+        if (times.ContainsKey("download"))
+            times["download"] = (1, Math.Round(Job.ToolsDownloaded ? Job.ToolsTime.TotalSeconds : 0, 1), !Job.ToolsDownloaded);
+        return times;
+    }
+
+    /// The build that is running, if any: what the launcher's SIGTERM reports (Terminated)
+    public static BuildStepViewModel? Current { get; private set; }
+    readonly BuildReports.Once summarized = new();
+
+    /// With Settings' "Send performance statistics" ticked: how the build ended, sent on its own (BuildReports, Auto), once a
+    /// build. Not for the screenshots' replays. On the window's thread
+    void Summarize(string outcome)
+    {
+        if (Summary(outcome) is { } json) _ = BuildReports.SendAsync(BuildReports.Http, json, CancellationToken.None);
+    }
+
+    /// The summary to send, made on the window's thread (it reads the stages); null when none is sent: the statistics unticked, a
+    /// screenshot's replay, or the build already summarized (once only, whichever thread ends it first: BuildReports.Once)
+    string? Summary(string outcome)
+    {
+        if (Current == this) Current = null;
+        if (fixedTime != null || !Job.Service.Settings.SendPerformanceStatistics || !summarized.Claim()) return null;
+        return BuildReports.Json(Failure("", outcome, auto: true), null);
+    }
+
+    /// The launcher was sent SIGTERM while this build ran, on the signal's thread: its summary made on the window's thread (waited
+    /// for, at most 1 s: this thread reads none of the window's data) and sent (its answer waited for, at most 2 s), then the
+    /// build stopped: whatever is thrown on the way is caught, and the build is stopped all the same
+    public void Terminated()
+    {
+        try
+        {
+            var json = BuildReports.OnWindow<string>(Ui.Post, () =>
+            {
+                running = false;
+                return Summary(BuildReports.Terminated);
+            }, TimeSpan.FromSeconds(1));
+            if (json != null) BuildReports.SendAsync(BuildReports.Http, json, CancellationToken.None).Wait(TimeSpan.FromSeconds(2));
+        }
+        catch (Exception e)
+        {
+            LauncherLog.Add($"build summary: not sent at SIGTERM: {e.GetType().Name}: {e.Message}");
+        }
+        finally
+        {
+            try { cancel.Cancel(); }
+            catch (Exception e) when (e is AggregateException or ObjectDisposedException) { }
+        }
+    }
+
+    /// This PC's memory, threads and graphics cards
+    string PcLine() =>
+        $"{SystemInfo.MemoryGb()} GB, {SystemInfo.Threads()} threads" +
+        (Job.Service.Gpus.Count > 0 ? ", " + string.Join(" and ", Job.Service.Gpus) + " GPU" : "");
+
+    /// The build's memory, workers and upscalers
+    string SettingsLine()
+    {
+        var s = Job.Service.Settings;
+        return $"memory {(s.MemoryGb is int m ? m + " GB" : "automatic")}, workers {(s.BuildWorkers is int w ? w : "automatic")}, " +
+               $"DLSS {(dlss ? "on" : "off")}, FSR 4 {(fsr ? "on" : s.Fsr ? "asked, not built" : "off")}, " +
+               $"XeSS {(xess ? "on" : s.Xess ? "asked, not fetched" : "off")}";
     }
 }
 
@@ -636,16 +718,21 @@ public sealed class ReadyViewModel : ViewModelBase, IWizardPage
 public sealed class ProblemViewModel : ViewModelBase, IWizardPage
 {
     readonly BuildStepViewModel build;
+    readonly string outcome;   // (failed, or terminated: make_game.py ended by SIGTERM, BuildReports)
     bool showLog;
 
-    public ProblemViewModel(BuildStepViewModel build, string why, string stage, int percent)
+    public ProblemViewModel(BuildStepViewModel build, string why, string stage, int percent, string outcome = BuildReports.Failed)
     {
         this.build = build;
+        this.outcome = outcome;
         Why = why;
         Stage = stage;
         Percent = percent;
         ToggleLogCommand = new Command(() => ShowLog = !ShowLog);
         CopyCommand = new Command(() => _ = Copy());
+        SendCommand = new Command(() => _ = Send(), () => CanSend);
+        ToggleSentCommand = new Command(() => ShowSent = !ShowSent);
+        SeeCommand = new Command(() => { if (answer?.Link is { } link) build.Job.Main.Host?.Open(link); });
         BackCommand = new Command(() => build.Job.Main.Navigate(build.Job.Settings ?? new SettingsStepViewModel(build.Job)));
         RetryCommand = new Command(() => build.Job.Main.Navigate(new BuildStepViewModel(build.Job)));
         Problem = Problems.FromBuild(why);
@@ -680,6 +767,11 @@ public sealed class ProblemViewModel : ViewModelBase, IWizardPage
 
     public Command ToggleLogCommand { get; }
     public Command CopyCommand { get; }
+    /// Send to the team: the report (SentText) to Longshot-api's /telemetry/build (BuildReports)
+    public Command SendCommand { get; }
+    public Command ToggleSentCommand { get; }
+    /// See it: the report's comment on the build issue
+    public Command SeeCommand { get; }
     public Command BackCommand { get; }
     public Command RetryCommand { get; }
     public Command OfferCommand { get; }
@@ -707,6 +799,45 @@ public sealed class ProblemViewModel : ViewModelBase, IWizardPage
     {
         if (build.Job.Main.Host is { } host) await host.CopyAsync(build.Report(Why));
         build.Job.Main.ShowToast(Tr.T("Copied: the version, this PC's memory and GPU, the settings and the log's last 200 lines."));
+    }
+
+    /// Everything Send sends, as it sends it (BuildReports.Json)
+    public string SentText => sentText ??= BuildReports.Json(build.Failure(Why, outcome), null);
+    string? sentText;
+    bool showSent, sending;
+    BuildReports.Answer? answer;
+
+    public bool ShowSent { get => showSent; set { if (Set(ref showSent, value)) Raise(nameof(SentButton)); } }
+    public string SentButton => showSent ? Tr.T("Hide what is sent") : Tr.T("Show what is sent");
+    /// Send is there until the report was sent (once a page), and not while it is being sent
+    public bool CanSend => !sending && answer?.Outcome != BuildReports.Outcome.Sent;
+    public string SendLabel => sending ? Tr.T("Sending…") : answer?.Outcome == BuildReports.Outcome.Sent ? Tr.T("Sent") : Tr.T("Send to the team");
+    /// What became of Send, under it ("" before it is pressed)
+    public string SendSaid => answer switch
+    {
+        null => Tr.T("Posts the report below publicly on Longshot's build-failures issue at git.magicbean.dev, for the team. Nothing is sent until you press it."),
+        { Outcome: BuildReports.Outcome.Sent } => Tr.T("Sent. Thank you: the team sees how often this happens and on which PCs."),
+        { Outcome: BuildReports.Outcome.Busy } => Tr.T("The server has had many new reports this hour. Try again later."),
+        { Outcome: BuildReports.Outcome.Refused } a => Tr.F("The server refused the report: {0}", a.Detail ?? ""),
+        { } a => Tr.F("The report could not be sent: {0}", a.Detail ?? ""),
+    };
+    public bool HasLink => answer?.Link != null;
+
+    async Task Send()
+    {
+        sending = true;
+        RaiseAll(nameof(CanSend), nameof(SendLabel));
+        SendCommand.Changed();
+        try
+        {
+            answer = await BuildReports.SendAsync(BuildReports.Http, SentText, CancellationToken.None);
+        }
+        finally
+        {
+            sending = false;
+            RaiseAll(nameof(CanSend), nameof(SendLabel), nameof(SendSaid), nameof(HasLink));
+            SendCommand.Changed();
+        }
     }
 }
 

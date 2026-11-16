@@ -99,6 +99,20 @@
         <CheckBox Classes="tick" Content="{c:T 'Check for updates when the launcher starts'}" IsChecked="{Binding CheckUpdates}"/>
         <CheckBox Classes="tick" Content="{c:T 'Download the build tools of an update as soon as it is out (about 500 MB). Nothing updates until you choose to.'}"
                   IsChecked="{Binding DownloadUpdatesEarly}" IsEnabled="{Binding CheckUpdates}"/>
+        <StackPanel Spacing="4">
+          <CheckBox Classes="tick" Content="{c:T 'Send performance statistics'}" IsChecked="{Binding SendPerformanceStatistics}"/>
+          <TextBlock FontSize="12" Foreground="{StaticResource InkSoft}" TextWrapping="Wrap" Margin="28,0,0,0"
+                     Text="{c:T 'How your frames went in each area, and how each build ended and how long its steps took, with your GPU, CPU, OS and settings, so the team can see where Longshot stutters or builds slowly. No paths, names or saves. Sent for a game when it next starts, for a build when it ends.'}"/>
+          <CheckBox Classes="tick" Margin="28,4,0,0" Content="{c:T 'Keep a copy of what was sent'}"
+                    IsChecked="{Binding KeepSentPerformanceStatistics}" IsEnabled="{Binding SendPerformanceStatistics}"/>
+          <TextBlock FontSize="12" Foreground="{StaticResource InkSoft}" TextWrapping="Wrap" Margin="56,0,0,0"
+                     Text="{c:T 'In perf_sent, in the game folder, so you can read exactly what went to the team.'}"/>
+        </StackPanel>
+        <StackPanel Spacing="4">
+          <CheckBox Classes="tick" Content="{c:T 'Send crash reports automatically'}" IsChecked="{Binding SendCrashReportsAutomatically}"/>
+          <TextBlock FontSize="12" Foreground="{StaticResource InkSoft}" TextWrapping="Wrap" Margin="28,0,0,0"
+                     Text="{c:T 'After a crash, the game posts its report publicly on Longshot\'s crash issue at git.magicbean.dev, for the team, without showing its crash window: the version, your GPU, CPU, OS and settings, and the end of the log, with no paths or names. If it cannot be sent, the window shows as usual.'}"/>
+        </StackPanel>
       </StackPanel>
     </ScrollViewer>
   </DockPanel>

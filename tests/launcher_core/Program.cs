@@ -86,6 +86,9 @@ static partial class Program
         await BusyChecks(Path.GetFullPath(Path.Combine(fixtures, "..", "..")));
         IconChecks(Path.GetFullPath(Path.Combine(fixtures, "..", "..")));
         ProblemChecks();
+        PerfChecks();
+        CrashReportChecks();
+        await BuildReportChecks();
         TranslationChecks();
         checks += SavesChecks.Count;
         Console.WriteLine($"launcher core: {checks} checks passed");

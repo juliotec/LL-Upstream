@@ -15,6 +15,24 @@ public static class SystemInfo
 
     public static int Threads() => Environment.ProcessorCount;
 
+    /// The CPU's name on Linux: /proc/cpuinfo's first "model name" (cpuinfo: that file's text, the tests' stand-in), spaces
+    /// made single; null when it has none (ARM's lists no name). Windows' is read from its registry (App/WindowsCpu.cs)
+    public static string? CpuName(string? cpuinfo = null)
+    {
+        try
+        {
+            cpuinfo ??= File.ReadAllText("/proc/cpuinfo");
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return null; }
+        foreach (var line in cpuinfo.Split('\n'))
+        {
+            var colon = line.IndexOf(':');
+            if (colon > 0 && line[..colon].Trim() == "model name" &&
+                Regex.Replace(line[(colon + 1)..], @"\s+", " ").Trim() is { Length: > 0 } name) return name;
+        }
+        return null;
+    }
+
     /// Build workers when the setting is Automatic: every CPU thread but one, so the PC stays usable while it builds (make_game's
     /// own automatic takes them all)
     public static int AutomaticWorkers() => Math.Max(1, Threads() - 1);

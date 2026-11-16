@@ -79,6 +79,14 @@ public sealed class BuildStage
     public bool Kept { get; internal set; }
 
     internal double From, Size;
+    /// When its latest run started and ended (BuildProgress.Now): null before it started, and while it runs for the end
+    internal DateTime? Began, Ended;
+    /// The seconds of its earlier runs, when make_game ran it again
+    internal double Earlier;
+
+    /// How long it ran, in seconds, its runs added up (not the stages between them): until now while it runs, 0 when it never
+    /// started
+    public double Seconds(DateTime now) => Began is { } b ? Earlier + Math.Max(0, ((Ended ?? now) - b).TotalSeconds) : 0;
 
     /// Its share of the overall bar, 0..1 (the stages this build has add up to 1)
     public double Weight => Size;
@@ -118,6 +126,9 @@ public sealed class BuildProgress
 
     readonly List<BuildStage> stages = new();
     BuildStage? current;
+
+    /// The clock the stages' times are read from (a test's own)
+    public Func<DateTime> Now { get; init; } = () => DateTime.UtcNow;
 
     /// download: the tools are downloaded first; shaders: this build prepares the shaders; update: make_game --update (its
     /// read step reads the files the folder keeps); threads: the CPU threads the build may use (the stages' shares of the bar)
@@ -161,12 +172,22 @@ public sealed class BuildProgress
     {
         var stage = stages.FirstOrDefault(s => s.Id == id);
         if (stage == null) return;   // (a stage this build does not show: the bar stays where it is)
-        if (current != null && current != stage && current.State == StageState.Running) current.State = StageState.Done;
+        var now = Now();
+        if (current != null && current != stage && current.State == StageState.Running) End(current, now);
         // (stages before it that never said so are done too: an older make_game, or one with nothing to do)
         foreach (var s in stages.TakeWhile(s => s != stage))
-            if (s.State is StageState.Waiting or StageState.Running) s.State = StageState.Done;
+            if (s.State is StageState.Waiting or StageState.Running) End(s, now);
         current = stage;
         stage.State = StageState.Running;
+        // (make_game may run a stage again: its earlier runs are kept, and this one timed from its own start, so the stages between
+        // are not counted in it and the stages' seconds add up to no more than the build took)
+        if (stage.Began is { } began && stage.Ended is { } ended)
+        {
+            stage.Earlier += Math.Max(0, (ended - began).TotalSeconds);
+            stage.Began = now;
+        }
+        stage.Began ??= now;
+        stage.Ended = null;
         Set(stage.From);
     }
 
@@ -176,7 +197,7 @@ public sealed class BuildProgress
         if (stages.FirstOrDefault(s => s.Id == "download") is not { } d) return;
         if (current != d) Begin("download");
         Set(d.From + d.Size * Math.Clamp(fraction, 0, 1));
-        if (fraction >= 1) d.State = StageState.Done;   // (downloaded: none of it is left to count down)
+        if (fraction >= 1) End(d, Now());   // (downloaded: none of it is left to count down)
     }
 
     // (the read's unpacking says no @@progress: nx2/nup.py says the title's size first, "title 0: ... romfs 186587 files, 26.24 GB",
@@ -245,9 +266,36 @@ public sealed class BuildProgress
                 break;
             case MakeGameLine.Error e:
                 Error = e.Text;
-                if (current != null && current.State == StageState.Running) current.State = StageState.Waiting;
+                if (current != null && current.State == StageState.Running)
+                {
+                    current.State = StageState.Waiting;
+                    current.Ended ??= Now();   // (where it stopped: its time stops with it)
+                }
                 break;
         }
+    }
+
+    /// A stage done, its time ended (a stage that never started has none)
+    static void End(BuildStage s, DateTime now)
+    {
+        s.State = StageState.Done;
+        if (s.Began != null) s.Ended ??= now;
+    }
+
+    /// How far a stage got, 0..1: a done one 1, one not started 0, else where the bar is within its share
+    public double Fraction(BuildStage s) => s.State switch
+    {
+        StageState.Done => 1,
+        _ when s.Began == null || s.Size <= 0 => 0,
+        _ => Math.Clamp((Overall - s.From) / s.Size, 0, 1),
+    };
+
+    /// What the build reports say of each stage, by its id: how far it got (Fraction), how long it ran and whether it kept an
+    /// earlier build's work (its time then says nothing of this PC's pace), each as of now
+    public IReadOnlyDictionary<string, (double Progress, double Seconds, bool Kept)> Times()
+    {
+        var now = Now();
+        return stages.ToDictionary(s => s.Id, s => (Math.Round(Fraction(s), 3), Math.Round(s.Seconds(now), 1), s.Kept));
     }
 
     void Note()
@@ -270,7 +318,7 @@ public sealed class BuildProgress
                     s.State = StageState.Skipped;
                     s.Note ??= "Left to the game's first start";
                 }
-                else s.State = StageState.Done;
+                else End(s, Now());
             }
         current = null;
         Finished = true;

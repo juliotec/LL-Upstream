@@ -1,0 +1,173 @@
+using System.Net;
+using System.Text.Json.Nodes;
+using LongshotLauncher.Core;
+
+/// A failed build's report (BuildReports): what it holds, the home folder taken out, the log's last lines only, and what each of
+/// the server's answers becomes, from a fake server (never Longshot-api's)
+static partial class Program
+{
+    sealed class AnswerWith(HttpStatusCode status, string body, Action<HttpRequestMessage, string>? seen = null) : HttpMessageHandler
+    {
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancel)
+        {
+            seen?.Invoke(request, request.Content is { } c ? await c.ReadAsStringAsync(cancel) : "");
+            return new HttpResponseMessage(status) { Content = new StringContent(body) };
+        }
+    }
+
+    sealed class NoServer : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancel) =>
+            throw new HttpRequestException("No such host is known.");
+    }
+
+    static async Task BuildReportChecks()
+    {
+        var home = OperatingSystem.IsWindows() ? @"C:\Users\Ana" : "/home/ana";
+        var sep = OperatingSystem.IsWindows() ? @"\" : "/";
+        var log = Enumerable.Range(1, BuildReports.LogLines + 50).Select(i => $"line {i}").Append($"reading {home}{sep}Longshot{sep}x.bars").ToList();
+        var failure = new BuildReports.Failure("v3.4.0", "v2.4.1", "Release", BuildReports.Update, "Windows 11, X64, .NET 10.0.0",
+            "32 GB, 16 threads, AMD Radeon RX 7800 XT GPU", "memory automatic, workers automatic, DLSS off, FSR 4 off, XeSS off",
+            $"File not found: {home}{sep}Longshot{sep}x.bars", null, log);
+        var json = BuildReports.Json(failure, home);
+        var report = JsonNode.Parse(json)!;
+        Require(report["v"]!.GetValue<int>() == 1 && report["launcher"]!.GetValue<string>() == "v3.4.0" &&
+                report["version"]!.GetValue<string>() == "v2.4.1" && report["kind"]!.GetValue<string>() == "update" &&
+                report["error"]!.GetValue<string>() == "", "A build report holds the versions, what the build was, and an empty error.");
+        // (what the build was as an id of its own, not the start button's words: Build, Update to, Go back to, Rebuild)
+        Require(BuildReports.KindOf(update: false, rebuild: false, older: false) == "first build" &&
+                BuildReports.KindOf(update: true, rebuild: false, older: false) == "update" &&
+                BuildReports.KindOf(update: true, rebuild: false, older: true) == "go back" &&
+                BuildReports.KindOf(update: false, rebuild: true, older: false) == "rebuild",
+            "A report's kind: first build, update, go back or rebuild.");
+        var lines = report["log"]!.AsArray();
+        Require(lines.Count == BuildReports.LogLines && lines[^1]!.GetValue<string>().StartsWith("reading ~", StringComparison.Ordinal),
+            "A build report keeps the log's last 200 lines, the home folder as ~.");
+        Require(!json.Contains("Ana", StringComparison.Ordinal), "No user name in a build report: " + json[..200]);
+
+        // (each text cut to the server's limit, on a whole character, so the report fits and Show what is sent is what goes)
+        Require(BuildReports.Cut("abc", 3) == "abc" && BuildReports.Cut("abcd", 3) == "abc", "A text longer than its limit is cut to it.");
+        Require(BuildReports.Cut("ab\U0001F600", 3) == "ab" && BuildReports.Cut("ab\U0001F600c", 4) == "ab\U0001F600",
+            "A cut never leaves half of a surrogate pair.");
+        var longText = new string('x', 5000);
+        var homeLine = new string('x', 290) + home + sep + "x.bars";
+        var wide = new BuildReports.Failure(new string('1', 100), new string('2', 100), new string('3', 100), new string('k', 100),
+            new string('o', 1000), new string('p', 1000), new string('s', 1000), longText, longText,
+            Enumerable.Repeat(longText, BuildReports.LogLines - 1).Append(homeLine).ToList(), Cpu: new string('c', 1000));
+        var wideJson = BuildReports.Json(wide, home);
+        var cut = JsonNode.Parse(wideJson)!;
+        int Length(string field) => cut[field]!.GetValue<string>().Length;
+        Require(Length("launcher") == 40 && Length("version") == 40 && Length("channel") == 40 && Length("kind") == 20 && Length("os") == 200
+                && Length("cpu") == 120 && Length("pc") == 300 && Length("settings") == 400 && Length("why") == 300 && Length("error") == 300,
+            "Each field cut to the server's limit: 40 for the versions and the channel, 20 the kind, 200 the OS, 120 the CPU, 300 the PC, " +
+            "400 the settings, 300 why and the error.");
+        var cutLog = cut["log"]!.AsArray().Select(l => l!.GetValue<string>()).ToList();
+        Require(cutLog.Count == BuildReports.LogLines && cutLog.Take(BuildReports.LogLines - 1).All(l => l.Length == 300),
+            "Each log line cut to 300, all 200 kept when they fit.");
+        Require(cutLog[^1] == new string('x', 290) + "~" + sep + "x.bars" && !wideJson.Contains("Ana", StringComparison.Ordinal),
+            "The home folder taken out before a line is cut: no cut leaves part of the user's name.");
+        Require(System.Text.Encoding.UTF8.GetByteCount(wideJson) <= BuildReports.MaxBytes, "A report of long lines fits in 128 KiB.");
+        var script = Enumerable.Range(0, BuildReports.LogLines).Select(i => i + new string('字', 400)).ToList();
+        var scriptJson = BuildReports.Json(wide with { Log = script }, home);
+        var scriptLog = JsonNode.Parse(scriptJson)!["log"]!.AsArray();
+        Require(System.Text.Encoding.UTF8.GetByteCount(scriptJson) <= BuildReports.MaxBytes && scriptLog.Count is > 0 and < BuildReports.LogLines
+                && scriptLog[^1]!.GetValue<string>().StartsWith("199", StringComparison.Ordinal),
+            "Lines of 3 bytes a character: the oldest left out until the report fits in 128 KiB, the newest kept.");
+
+        string? sentTo = null, sentBody = null;
+        var created = new HttpClient(new AnswerWith(HttpStatusCode.Created,
+            $$"""{"comment": "{{BuildReports.IssuePrefix}}90#issuecomment-1", "new": true}""", (r, b) => (sentTo, sentBody) = (r.RequestUri?.ToString(), b)));
+        var answer = await BuildReports.SendAsync(created, json, CancellationToken.None);
+        Require(answer.Outcome == BuildReports.Outcome.Sent && answer.Link == BuildReports.IssuePrefix + "90#issuecomment-1" &&
+                sentTo == BuildReports.Address && sentBody == json, "Sent: posted to /telemetry/build, and its comment to see.");
+        Require(BuildReports.Address.StartsWith("https://data-services.magicbean.dev/", StringComparison.Ordinal),
+            "Build reports go to Longshot-api on its magicbean.dev name.");
+        var elsewhere = new HttpClient(new AnswerWith(HttpStatusCode.OK, """{"comment": "https://evil.example/x", "new": false}"""));
+        answer = await BuildReports.SendAsync(elsewhere, json, CancellationToken.None);
+        Require(answer.Outcome == BuildReports.Outcome.Sent && answer.Link == null, "A comment off the build issue is not offered.");
+        answer = await BuildReports.SendAsync(new HttpClient(new AnswerWith(HttpStatusCode.TooManyRequests, "{}")), json, CancellationToken.None);
+        Require(answer.Outcome == BuildReports.Outcome.Busy, "429: the server is busy.");
+        answer = await BuildReports.SendAsync(new HttpClient(new AnswerWith(HttpStatusCode.BadRequest, """{"error": "why is missing"}""")), json, CancellationToken.None);
+        Require(answer.Outcome == BuildReports.Outcome.Refused && answer.Detail == "why is missing", "400: refused, with the server's reason.");
+        answer = await BuildReports.SendAsync(new HttpClient(new AnswerWith(HttpStatusCode.NotFound, "not json")), json, CancellationToken.None);
+        Require(answer.Outcome == BuildReports.Outcome.Refused && answer.Detail == "HTTP 404", "404 (the relay switched off): refused.");
+        answer = await BuildReports.SendAsync(new HttpClient(new AnswerWith(HttpStatusCode.BadGateway, "")), json, CancellationToken.None);
+        Require(answer.Outcome == BuildReports.Outcome.Unreachable, "502: not sent, try again.");
+        answer = await BuildReports.SendAsync(new HttpClient(new NoServer()), json, CancellationToken.None);
+        Require(answer.Outcome == BuildReports.Outcome.Unreachable && answer.Detail == "No such host is known.", "No answer: not sent, and why.");
+        BuildStatisticsChecks(home);
+    }
+
+    /// How a build ended and each stage's progress and time (BuildProgress.Times), the CPU's name, and the statistics' summary: the
+    /// same fields without the log, why or error line
+    static void BuildStatisticsChecks(string home)
+    {
+        var at = new DateTime(2026, 11, 16, 1, 0, 0, DateTimeKind.Utc);
+        var p = new BuildProgress(download: false, shaders: false) { Now = () => at };
+        p.Feed("@@stage read Reading your game files");
+        at = at.AddSeconds(200);
+        p.Feed("@@stage lift Translating the game to PC code");
+        at = at.AddSeconds(100);
+        p.Feed("@@stage compile Compiling");
+        p.Feed("@@progress 0.25");
+        at = at.AddSeconds(60.04);
+        var times = p.Times();
+        Require(times["read"] == (1, 200, false) && times["lift"] == (1, 100, false),
+            "A stage that ended: all of it, and its time from its start to the next one's: " + string.Join(", ", times));
+        Require(times["compile"].Progress == 0.25 && times["compile"].Seconds == 60, "The running stage: how far it is, its time until now.");
+        Require(times["finish"] == (0, 0, false), "A stage not started: none of it, no time.");
+        p.Feed("@@error compile failed");
+        at = at.AddSeconds(30);
+        Require(p.Times()["compile"].Seconds == 60, "A stage the build stopped in: its time stops with it.");
+
+        // (a stage make_game runs again: its runs added up, not the stages between them)
+        var q = new BuildProgress(download: false, shaders: false) { Now = () => at };
+        q.Feed("@@stage read Reading your game files");
+        at = at.AddSeconds(50);
+        q.Feed("@@stage lift Translating the game to PC code");
+        at = at.AddSeconds(100);
+        q.Feed("@@stage read Reading your game files");
+        at = at.AddSeconds(20);
+        q.Feed("@@stage lift Translating the game to PC code");
+        at = at.AddSeconds(10);
+        var again = q.Times();
+        Require(again["read"].Seconds == 70 && again["lift"].Seconds == 110,
+            "A stage run again: its runs added up, the stages between not counted in it: " + string.Join(", ", again));
+
+        Require(SystemInfo.CpuName("processor\t: 0\nmodel name\t: AMD Ryzen 7  6800H with Radeon Graphics\nflags\t: fpu\n") ==
+                "AMD Ryzen 7 6800H with Radeon Graphics", "The CPU's name from /proc/cpuinfo, spaces made single.");
+        Require(SystemInfo.CpuName("processor\t: 0\nBogoMIPS\t: 48.00\n") == null, "No model name (ARM): no CPU name.");
+
+        var stages = new Dictionary<string, (double, double, bool)> { ["read"] = (1, 212.4, true), ["compile"] = (0.37, 401, false) };
+        var failure = new BuildReports.Failure("v3.4.0", "v2.4.1", "Release", BuildReports.Update, "Linux", "32 GB, 16 threads", "workers automatic",
+            "the build stopped", "error: x", ["line 1"], BuildReports.Terminated, "AMD Ryzen 7 6800H", stages);
+        var sent = JsonNode.Parse(BuildReports.Json(failure, home))!;
+        Require(sent["outcome"]!.GetValue<string>() == "terminated" && sent["cpu"]!.GetValue<string>() == "AMD Ryzen 7 6800H" &&
+                !sent["auto"]!.GetValue<bool>() && sent["log"]!.AsArray().Count == 1 && sent["why"]!.GetValue<string>() == "the build stopped",
+            "Send's report: how the build ended, the CPU, the log and why.");
+        var compile = sent["stages"]!["compile"]!;
+        Require(compile["progress"]!.GetValue<double>() == 0.37 && compile["seconds"]!.GetValue<double>() == 401 &&
+                !compile["kept"]!.GetValue<bool>() && sent["stages"]!["read"]!["kept"]!.GetValue<bool>(),
+            "Each stage by its id: its progress, its seconds and whether it kept an earlier build's work.");
+        var summary = JsonNode.Parse(BuildReports.Json(failure with { Outcome = BuildReports.Cancelled, Auto = true }, home))!;
+        Require(summary["auto"]!.GetValue<bool>() && summary["outcome"]!.GetValue<string>() == "cancelled" &&
+                summary["log"]!.AsArray().Count == 0 && summary["why"]!.GetValue<string>() == "" &&
+                summary["error"]!.GetValue<string>() == "" && summary["stages"]!["compile"] != null,
+            "The statistics' summary: how it ended and the stages, no log, why or error line.");
+
+        // (the launcher's SIGTERM: the summary sent once, whichever thread ends the build first, and made on the window's thread,
+        // so the signal's thread reads none of the window's data; nothing it does throws, so the build is always stopped)
+        var once = new BuildReports.Once();
+        var claims = Enumerable.Range(0, 64).AsParallel().Count(_ => once.Claim());
+        Require(claims == 1 && !once.Claim(), "A build's summary claimed once only, by one of many threads at once.");
+        Require(BuildReports.OnWindow<string>(run => run(), () => "made", TimeSpan.FromSeconds(1)) == "made",
+            "Made on the window's thread: what it made.");
+        var waited = System.Diagnostics.Stopwatch.StartNew();
+        Require(BuildReports.OnWindow<string>(_ => { }, () => "made", TimeSpan.FromMilliseconds(50)) == null && waited.Elapsed < TimeSpan.FromSeconds(5),
+            "A window's thread that doesn't make it in time: none, and no wait past the time given.");
+        Require(BuildReports.OnWindow<string>(run => run(), () => throw new InvalidOperationException("Collection was modified"), TimeSpan.FromSeconds(1)) == null,
+            "A summary that throws on the window's thread: none, nothing thrown to the signal's thread.");
+        Require(BuildReports.OnWindow<string>(_ => throw new InvalidOperationException("no window"), () => "made", TimeSpan.FromSeconds(1)) == null,
+            "A window's thread that can't be posted to: none, nothing thrown.");
+    }
+}

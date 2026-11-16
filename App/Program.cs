@@ -87,6 +87,11 @@ static class Program
             catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.Security.SecurityException
                                           or System.ComponentModel.Win32Exception or InvalidOperationException) { }
         }
+        // (SIGTERM while a build runs, the PC shutting down or a task manager: the build's summary sent, with the statistics ticked,
+        // before the launcher ends as it did. BuildStepViewModel.Terminated)
+        using var sigterm = OperatingSystem.IsWindows() ? null
+            : System.Runtime.InteropServices.PosixSignalRegistration.Create(System.Runtime.InteropServices.PosixSignal.SIGTERM,
+                                                                             _ => ViewModels.BuildStepViewModel.Current?.Terminated());
         try { return BuildAvaloniaApp().StartWithClassicDesktopLifetime(args); }
         // (a PC whose DirectWrite gives the window no fonts: said, with what DirectWrite answered, not a silent crash. FontCheck)
         catch (Exception e) when (FontCheck.IsFontFailure(e))

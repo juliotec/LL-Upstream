@@ -57,6 +57,15 @@ public sealed class LauncherSettings
     /// Download an update's build tools as soon as the update check finds it, before the player starts the update (ToolsPrefetch):
     /// ~500 MB a version, so off unless chosen. A first build's tools always start early (LONGSHOT_LAUNCHER_NO_PREFETCH=1 stops both)
     public bool DownloadUpdatesEarly { get; set; }
+    /// Send performance statistics: every build's game measures how its frames went and the launcher sends the summaries to the
+    /// team (PerfReports); off by default
+    public bool SendPerformanceStatistics { get; set; }
+    /// Keep a copy of what was sent: each summary sent is kept as sent in the game folder's perf_sent/, for the player to read
+    /// (keep_sent=0 in longshot_perf.ini when off, which also deletes the copies); on by default
+    public bool KeepSentPerformanceStatistics { get; set; } = true;
+    /// Send crash reports automatically: after a crash the game sends its report without showing its crash window
+    /// (CrashReports: longshot_crash.ini send=1 in each game folder); off by default, when the window asks
+    public bool SendCrashReportsAutomatically { get; set; }
     /// Each build folder's log already shown on the problem page, by its write time: a crash is shown once
     public Dictionary<string, long> SeenCrashLogs { get; set; } = new();
     /// When the launcher first looked for crashes (UTC ticks; null: not yet): a log from before then is not offered, so the first

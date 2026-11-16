@@ -235,6 +235,43 @@ public sealed class SettingsViewModel : ViewModelBase
         }
     }
 
+    /// The player's answer for every build; each folder takes it before its game next starts (PerfReports.BeforePlay)
+    public bool SendPerformanceStatistics
+    {
+        get => s.SendPerformanceStatistics;
+        set
+        {
+            s.SendPerformanceStatistics = value;
+            Save();
+            Raise();
+        }
+    }
+
+    /// Keep a copy of what was sent, in each game folder's perf_sent/ (PerfReports.BeforePlay writes it with the tick)
+    public bool KeepSentPerformanceStatistics
+    {
+        get => s.KeepSentPerformanceStatistics;
+        set
+        {
+            s.KeepSentPerformanceStatistics = value;
+            Save();
+            Raise();
+        }
+    }
+
+    /// Send crash reports automatically, without the game's crash window; each folder takes it before its game next starts
+    /// (CrashReports.BeforePlay)
+    public bool SendCrashReportsAutomatically
+    {
+        get => s.SendCrashReportsAutomatically;
+        set
+        {
+            s.SendCrashReportsAutomatically = value;
+            Save();
+            Raise();
+        }
+    }
+
     public string Version => "Longshot Launcher " + Versions.Shown(Main.Service.OwnTag);
 
     public Command DoneCommand { get; }

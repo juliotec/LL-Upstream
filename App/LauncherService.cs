@@ -32,6 +32,9 @@ public sealed class LauncherService
     public IReadOnlyList<Gpu> GpuCards { get; set; }
     /// The makers of this PC's graphics cards, each once
     public IReadOnlyList<string> Gpus => GpuCards.Select(g => g.Vendor).Distinct().ToList();
+    /// This PC's CPU name (WindowsCpu, SystemInfo.CpuName), read once, the first time it is asked for; "" when the system names none
+    public string Cpu => cpu ??= (OperatingSystem.IsWindows() ? WindowsCpu.Read() : SystemInfo.CpuName()) ?? "";
+    string? cpu;
     /// The Intel shader compiles choice applies on this PC (SystemInfo.IntelCompilesApply): Windows with Intel graphics
     public bool IntelCompilesApply => SystemInfo.IntelCompilesApply(Platform, GpuCards);
     /// Whether the update check has answered (or was not asked: offline)
@@ -246,6 +249,10 @@ public sealed class LauncherService
         if (CarrySettings(folder) is { } carried) said = said == null ? carried : said + " " + carried;
         if (OperatingSystem.IsWindows())
             foreach (var line in CarryDriverSettings(folder)) said = said == null ? line : said + " " + line;
+        // (the performance statistics: the folder's tick made the player's answer, and what the last sessions left sent)
+        PerfReports.BeforePlay(folder, Settings.SendPerformanceStatistics, Settings.KeepSentPerformanceStatistics, Tools);
+        // (the crash reports: the folder's file made the player's answer, for the crash helper to read after a crash)
+        CrashReports.BeforePlay(folder, Settings.SendCrashReportsAutomatically);
         using var _ = Process.Start(GamePlay.StartInfo(folder, Platform, user: user,
                                                        intelSideBySide: Settings.IntelSideBySide && IntelCompilesApply,
                                                        intelLongerLimits: Settings.IntelLongerLimits && IntelCompilesApply));
