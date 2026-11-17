@@ -161,6 +161,17 @@ static class Program
             Platform.Windows, NightliesListed, m => new SettingsViewModel(m),
             m => m.Modal = new FreeSpaceViewModel((SettingsViewModel)m.Page,
                                                   ([3_100_000_000, 1_640_000_000, 410_000_000, 0, 2_900_000_000, 3_280_000_000], 9_800_000_000, 1))),
+        // (a completely cold build: offered after a failed build, then ticked in step 2's Advanced for the player to read and start)
+        new("build-failed", "The build stopped on a message the launcher doesn't know: Build again, or Try a completely cold build", Platform.Windows, null,
+            m => new ProblemViewModel(Build(m, showLog: false), "clang stopped with exit code 1 compiling sa/gen/code_412.c", "Compiling", 41)),
+        new("settings-cold", "Step 2's Advanced with a completely cold build ticked: what it deletes and what it costs", Platform.Windows, null,
+            m =>
+            {
+                var step = Settings(m);
+                step.AdvancedOpen = true;
+                step.Cold = true;
+                return step;
+            }, ScrollToEnd: true),
         new("hookshot-import-problem", "Importing Hookshot's saves failed, Copy for a bug report", Platform.Windows, null, _ => null,
             m => m.Modal = new HookshotImportViewModel(m) { Problem = @"The saves could not be copied: Access to the path 'C:\Users\Player\Saved Games\Longshot\slot1' is denied." }),
         // (the settings tick: off, Longshot's game options replace Lichii's; on, Lichii keeps its own option.sav)

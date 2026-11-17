@@ -403,6 +403,13 @@ Calls made here, most of them the design mockup's; each can be changed:
   pipeline notes (`longshot_pipelines.bin`), which hold the list the build shipped and only a build writes again. Each
   version then prepares its shaders again at its next start. The settings say what is kept and why, with the shader
   caches' size beside the build files'.
+- **A completely cold build** (step 2's Advanced, for that build only; the problem page after a failed build offers it as
+  *Try a completely cold build*, which opens step 2 with it ticked) uses nothing earlier builds kept: before make_game.py
+  starts it deletes the build files and both stores, and the build's folder's shader caches with their pipeline notes
+  (`ColdBuild.Clear`; make_game.py writes the notes again). It takes no caches from the build it replaces and no game
+  files from another build (`LONGSHOT_ROMFS_FROM`), so the .nup is read again. It takes as long as a first build, and
+  switching to another version afterwards builds slower, its stores gone. Never while Longshot runs; saves, settings
+  and mods stay. The bug report's settings line says `cold build`.
 - **The shortcuts** Ready makes (desktop, Start menu / applications menu), ticked by default and made as Ready shows,
   start `--play`, the default build, so they follow "Play starts this version" and updates. A portable launcher's ticks
   start as the shortcuts that start it already are, and it makes or removes them only when ticked; it never writes over

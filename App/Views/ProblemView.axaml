@@ -47,6 +47,12 @@
               <TextBlock Foreground="{StaticResource InkSoft}" TextWrapping="Wrap"
                          Text="{c:T '• Then build again: what was built so far is kept, so it starts where it stopped.'}"/>
             </StackPanel>
+            <!-- a completely cold build (step 2's Advanced, ticked there for the player to read and start) -->
+            <WrapPanel Margin="0,12,0,0" IsVisible="{Binding CanCold}">
+              <TextBlock Foreground="{StaticResource InkSoft}" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,10,0"
+                         Text="{c:T 'Keeps failing? A completely cold build uses nothing earlier builds kept.'}"/>
+              <Button Classes="link" Content="{c:T 'Try a completely cold build'}" Command="{Binding ColdCommand}" VerticalAlignment="Center"/>
+            </WrapPanel>
             <Border IsVisible="{Binding ShowLog}" Margin="0,14,0,0" MaxHeight="110" CornerRadius="10" BorderBrush="{StaticResource GlassLine}"
                     BorderThickness="1" Background="#33000000">
               <ScrollViewer Padding="12,10" HorizontalScrollBarVisibility="Auto">

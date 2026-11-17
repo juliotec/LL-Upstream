@@ -47,6 +47,10 @@ public sealed class BuildJob
     public bool ToolsEarly { get; set; }
     public TimeSpan ToolsTime { get; set; }
     public bool AdvancedOpen { get; set; }
+    /// A completely cold build (Advanced, or the problem page's Try a completely cold build): before make_game.py starts, the
+    /// build files and both stores go (Disk.FreeWork), and this build's folder's shader caches with their pipeline notes
+    /// (ShaderCaches.Clear); no caches are taken from the build it replaces, nor game files from another build. For this build only
+    public bool Cold { get; set; }
     public readonly CancellationTokenSource Cancel = new();
 
     public FilesStepViewModel? Files { get; set; }

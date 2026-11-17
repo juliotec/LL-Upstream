@@ -162,8 +162,9 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
         var job = Job;
         var s = job.Service.Settings;
         var file = job.Picked!;
-        // (a version you have already built from this .nup gives the new one its game files: BuildRegistry.SameGameFiles)
-        var romfsFrom = file.Source is BuildSource.Nup nup ? job.Service.Registry.SameGameFiles(nup.Path, job.InstallDir)?.Folder : null;
+        // (a version you have already built from this .nup gives the new one its game files: BuildRegistry.SameGameFiles. Not
+        // for a cold build: they are read from the .nup again)
+        var romfsFrom = !job.Cold && file.Source is BuildSource.Nup nup ? job.Service.Registry.SameGameFiles(nup.Path, job.InstallDir)?.Folder : null;
         // (DLSS, FSR 4 and XeSS as the player chose them, whatever this PC's cards: Upscalers.Chosen)
         var request = Upscalers.Chosen(
             new BuildRequest(file.Source, job.InstallDir, s.Language, job.Service.Work, s.BuildWorkers ?? SystemInfo.AutomaticWorkers(), s.MemoryGb, true,
@@ -200,6 +201,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
         ticker?.Start();
         Task.Run(async () =>
         {
+            if (job.Cold && !ClearForCold()) return;
             Seeded? seeded;
             try { seeded = Seed(); }
             catch (OperationCanceledException) { return; }   // (stopped before the build started: Keep left nothing taken)
@@ -249,6 +251,11 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
     {
         var job = Job;
         if (job.Kind != JobKind.Update || job.Replaces is not { } old || job.Tools is not { } tools) return null;
+        if (job.Cold)
+        {
+            Ui.Post(() => log.Add("shader caches: none taken, a completely cold build"));
+            return null;
+        }
         // (an update in its build's own folder, BuildRegistry.FolderOf, has them where they are already)
         if (BuildRegistry.SameFolder(old.Folder, job.InstallDir))
         {
@@ -301,6 +308,37 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
         }
         Ui.Post(() => log.Add(said));
         return kept is { What: CachesKept.Kept } taken ? new Seeded(old.Folder, job.InstallDir, taken) : null;
+    }
+
+    /// A completely cold build's start (BuildJob.Cold, ColdBuild.Clear): what earlier builds kept deleted before make_game.py
+    /// starts, said in the log. Run on a pool thread; false: the build fails, nothing started (Longshot runs, or a file could not
+    /// be deleted)
+    bool ClearForCold()
+    {
+        var job = Job;
+        Ui.Post(() =>
+        {
+            seeding = Tr.T("Deleting what earlier builds kept");
+            Update();
+        });
+        string? failed = null;
+        try
+        {
+            if (ColdBuild.Clear(job.Service.Work, job.InstallDir) is { } cleared)
+                Ui.Post(() => log.Add($"cold build: deleted {cleared.Work >> 20} MB of build files and stores, {cleared.Caches >> 20} MB of shader caches"));
+            else failed = Tr.T("Save and close Longshot first: a completely cold build clears the shader caches.");
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            failed = Tr.F("A completely cold build could not delete what earlier builds kept: {0}", e.Message);
+        }
+        Ui.Post(() =>
+        {
+            seeding = null;
+            Update();
+            if (failed != null) Fail(failed);
+        });
+        return failed == null;
     }
 
     public void Line(string line)
@@ -617,7 +655,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
         var s = Job.Service.Settings;
         return $"memory {(s.MemoryGb is int m ? m + " GB" : "automatic")}, workers {(s.BuildWorkers is int w ? w : "automatic")}, " +
                $"DLSS {(dlss ? "on" : "off")}, FSR 4 {(fsr ? "on" : s.Fsr ? "asked, not built" : "off")}, " +
-               $"XeSS {(xess ? "on" : s.Xess ? "asked, not fetched" : "off")}";
+               $"XeSS {(xess ? "on" : s.Xess ? "asked, not fetched" : "off")}" + (Job.Cold ? ", cold build" : "");
     }
 }
 
@@ -783,6 +821,21 @@ public sealed class ProblemViewModel : ViewModelBase, IWizardPage
         // (Build again is the screen's own button; the others go to the step that has the choice)
         Offer = Problem.Fixes.FirstOrDefault(f => f.Kind is FixKind.PickOtherFiles or FixKind.ChooseOtherFolder or FixKind.LowerBuildMemory);
         OfferCommand = new Command(TakeOffer, () => Offer != null);
+        ColdCommand = new Command(TryCold, () => CanCold);
+    }
+
+    /// Try a completely cold build: offered unless this one was cold already
+    public bool CanCold => !build.Job.Cold;
+    public Command ColdCommand { get; }
+
+    /// Step 2 with a completely cold build ticked and Advanced open, so the player reads what it deletes before starting it
+    void TryCold()
+    {
+        var job = build.Job;
+        var settings = job.Settings ?? new SettingsStepViewModel(job);
+        settings.Cold = true;
+        settings.AdvancedOpen = true;
+        job.Main.Navigate(settings);
     }
 
     /// What went wrong in plain words (launcher/Core/Problems.cs), from make_game.py's last message

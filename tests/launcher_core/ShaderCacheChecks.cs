@@ -306,6 +306,19 @@ static partial class Program
         Require(ShaderCaches.Clear(game, notes: true, running: () => false) == 135 + "the shipped list".Length && !File.Exists(At("longshot_pipelines.bin"))
                 && File.Exists(At("longshot_log.txt")) && File.Exists(Path.Combine(game, "user", "save", "slot0.bin")),
                 "A cold build clears the pipeline notes too, and nothing else.");
+        // (a completely cold build's start: the build files and both stores, the caches with their notes; nothing while Longshot
+        // runs; the player's own files in either folder stay)
+        var work = Folder("cold-work");
+        Touch(Path.Combine(work, "objcache", "a.o"), new string('o', 30));
+        Touch(Path.Combine(work, Disk.LiftStore, "k", "c.c"), new string('c', 20));
+        Touch(Path.Combine(work, "My notes.txt"), "keep");
+        Fill();
+        Require(ColdBuild.Clear(work, game, running: () => true) == null && File.Exists(Path.Combine(work, "objcache", "a.o")) && File.Exists(At("longshot_programs.bin")),
+                "A cold build deletes nothing while Longshot runs.");
+        var cleared = ColdBuild.Clear(work, game, running: () => false);
+        Require(cleared == new ColdBuild.Cleared(50, 135 + "the shipped list".Length) && Disk.WorkBytes(work) == 0 && File.Exists(Path.Combine(work, "My notes.txt"))
+                && !File.Exists(At("longshot_pipelines.bin")) && File.Exists(At("longshot_log.txt")) && File.Exists(Path.Combine(game, "user", "save", "slot0.bin")),
+                "A cold build starts from nothing earlier builds kept, and keeps the player's files: " + cleared);
         // (a cache/ that is a link: another folder's, never cleared from here)
         var other = Folder("clear-caches-other");
         Touch(Path.Combine(other, "longshot_programs.bin"), "theirs");

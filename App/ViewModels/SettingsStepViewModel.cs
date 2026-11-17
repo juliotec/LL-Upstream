@@ -363,10 +363,27 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
     public string WorkFull => Job.Service.Work;
 
     public string AdvancedDesc => AdvancedOpen ? Tr.T("For a PC that slows down or runs out of memory while building.")
+        : Job.Cold ? Tr.T("A completely cold build: nothing kept from earlier builds")
         : Tr.F("Memory {0}, {1}, build files on {2}",
                s.MemoryGb is int m ? Tr.F("{0} GB", m) : Tr.F("automatic of {0} GB", MemoryGb),
                s.BuildWorkers is int w ? Tr.P(w, "1 worker", "{0} workers") : Tr.F("{0} of {1} workers (automatic)", SystemInfo.AutomaticWorkers(), Threads),
                Disk.DriveName(WorkFull));
+
+    /// A completely cold build, for this build only (BuildJob.Cold)
+    public bool Cold
+    {
+        get => Job.Cold;
+        set
+        {
+            Job.Cold = value;
+            RaiseAll(nameof(Cold), nameof(ColdDesc), nameof(AdvancedDesc));
+        }
+    }
+
+    public string ColdDesc => Tr.Sentences(
+        Tr.T("For a build that keeps failing, or a game that misbehaves after one."),
+        Tr.T("First deletes the build files, both stores and this version's shader caches, so nothing kept from an earlier build is used."),
+        Tr.T("It takes as long as a first build, and switching to your other versions builds slower afterwards. Your saves and settings stay."));
 
     async Task ChangeWorkAsync()
     {
@@ -408,6 +425,12 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
         if (GameFolder.IsBuilt(Job.InstallDir, Main.Platform) && Saves.Running(Main.Platform).Contains(Saves.Longshot.Display))
         {
             Main.ShowToast(Tr.T("Save and close Longshot first: this replaces the game in its folder."));
+            return;
+        }
+        // (a cold build clears the shader caches, which a running game holds: ShaderCaches.Clear refuses then)
+        if (Job.Cold && Saves.Running(Main.Platform).Contains(Saves.Longshot.Display))
+        {
+            Main.ShowToast(Tr.T("Save and close Longshot first: a completely cold build clears the shader caches."));
             return;
         }
         var file = Job.Picked;

@@ -310,6 +310,15 @@
                 </StackPanel>
                 <Button Grid.Column="1" Classes="small" Content="{c:T 'Change…'}" Command="{Binding ChangeWorkCommand}" VerticalAlignment="Center"/>
               </Grid>
+              <!-- a completely cold build: for a build that keeps failing or a game that misbehaves after one -->
+              <Border Classes="divider"/>
+              <Grid Classes="srow" ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                <StackPanel VerticalAlignment="Center" Spacing="1">
+                  <TextBlock Classes="rtitle" Text="{c:T 'Completely cold build'}"/>
+                  <TextBlock Classes="rdesc" Text="{Binding ColdDesc}" TextWrapping="Wrap"/>
+                </StackPanel>
+                <ToggleButton Grid.Column="1" Classes="switch" IsChecked="{Binding Cold}" VerticalAlignment="Center"/>
+              </Grid>
             </StackPanel>
           </StackPanel>
         </Border>
