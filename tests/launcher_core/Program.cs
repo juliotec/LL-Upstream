@@ -90,6 +90,7 @@ static partial class Program
         SaveEditorChecks(fixtures);
         HookshotSettingsChecks();
         SettingsCarryChecks();
+        ShownProfileChecks();
         DriverSettingsChecks();
         EditBackupsChecks();
         Utf8Checks();

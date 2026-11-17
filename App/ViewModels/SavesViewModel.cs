@@ -141,12 +141,11 @@ public sealed class SavesViewModel : ViewModelBase
     {
         var now = DateTime.Now;
         var rows = new List<SaveRowViewModel> { new() { IsGroup = true, Name = "Longshot", First = true } };
-        var set = Saves.Shared(Env);
         var slots = Service.SaveSlots();
         rows.Add(new SaveRowViewModel
         {
             Name = Tr.T("Every build"), Shared = true, IsThis = true,
-            Where = SaveViews.Short(set.Found ? set.Profiles[0].Path : Env.SaveFolder),
+            Where = SaveViews.Short(Saves.ShownProfile(Env) ?? Env.SaveFolder),
             Summary = SaveText.Long(slots, now),
         });
         rows.Add(new SaveRowViewModel { IsGroup = true, Name = Tr.T("Emulators and ports") });

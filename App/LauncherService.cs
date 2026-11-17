@@ -497,11 +497,7 @@ public sealed class LauncherService
 
     /// Longshot's save folder, the same for every build (Saves.Shared): the one the Saves page lists and the save editor edits; null
     /// when there is none
-    public string? SaveFolder()
-    {
-        var set = Saves.Shared(SaveEnv);
-        return set.Found ? set.Profiles[0].Path : null;
-    }
+    public string? SaveFolder() => Saves.ShownProfile(SaveEnv);
 
     /// Longshot's save slots, the same for every build
     public IReadOnlyList<SaveSlot> SaveSlots() => SaveFolder() is { } folder ? Saves.Describe(folder) : Array.Empty<SaveSlot>();

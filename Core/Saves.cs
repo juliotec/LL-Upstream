@@ -338,6 +338,13 @@ public static class Saves
     /// made by hand) is never read by the game, so an import never goes there and never has to choose between them
     public static string ImportTarget(SaveEnvironment env) => SharedSavePath(env, UserId);
 
+    /// The profile of Longshot's save the Saves page lists and the save editor edits: the game's (UserId) when it is there, else the
+    /// first one found (Shared); null when there is none. A stray profile beside the game's sorts first and is never read by the game
+    public static string? ShownProfile(SaveEnvironment env) =>
+        Shared(env) is { Found: true } set
+            ? (set.Profiles.FirstOrDefault(p => string.Equals(p.Id, UserId, StringComparison.OrdinalIgnoreCase)) ?? set.Profiles[0]).Path
+            : null;
+
     /// Every emulator's saves, grouped by the folder they come from (the emulators that share Eden's folder in one group), as
     /// list_all shows them: a group with nothing names the folders it looked in
     public static IReadOnlyList<SaveSet> Emulator(SaveEnvironment env)

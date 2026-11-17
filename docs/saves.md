@@ -248,7 +248,7 @@ default build's own tools with that version's Python, asks it for JSON (`--json`
 **What it needs.** A build the launcher made, whose version's tools are still on this PC and have the editor (a version from
 before it has none: Progress is off, and the page says so), and the game's files in the build's folder (`romfs`, which the editor
 reads the game's own lists from: its names, chests, Gold Skulltulas, dungeons, quests). Nothing of the game is kept by the
-launcher or leaves the PC. The page edits the save the Saves page lists; a save written by another game version is shown and not
+launcher or leaves the PC. The page edits the save the Saves page lists (the profile the game opens, even when a stray one beside it sorts first); a save written by another game version is shown and not
 edited (edit it with the build that wrote it).
 
 **What it shows.** The slot's place, hearts, rupees, the game's clock and when it was saved; then every category with how many the
