@@ -717,7 +717,7 @@ public static class Saves
 
     /// The per-player files the game keeps beside save\ in its user folder (host/nn_hid.c, gpu/render/rx_present_fx.cpp): brought
     /// along with the save that is kept, when the shared folder has none of its own yet
-    static readonly string[] PlayerFiles = { "mouse_sens.txt", "present.txt" };
+    internal static readonly string[] PlayerFiles = { "mouse_sens.txt", "present.txt" };
 
     /// The saves of the old user folders (OldUserFolders) into the shared one, so that every build plays the same adventure,
     /// merged slot by slot and never over a slot of the shared save (issue #146: keeping one whole folder cost every other slot).
@@ -1054,7 +1054,7 @@ public static class Saves
     }
 
     /// copy holds the same files as save, byte for byte, and nothing else; false when either cannot be read
-    static bool CopiedWhole(string save, string copy)
+    internal static bool CopiedWhole(string save, string copy)
     {
         try
         {

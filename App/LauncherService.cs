@@ -129,6 +129,55 @@ public sealed class LauncherService
     public string BuildsFolder => string.IsNullOrWhiteSpace(Settings.BuildsFolder) && Home.Portable ? Home.PortableBuilds : Settings.BuildsFolderOrDefault();
     public string Work => string.IsNullOrWhiteSpace(Settings.Work) ? Home.Work : Settings.Work;
 
+    /// (A portable launcher with no build listed yet) the installed launcher's builds and saves on this PC, to offer
+    /// (OtherLauncher.InstalledOne); null when there is none, or nothing in it
+    public OtherLauncher? InstalledLauncher()
+    {
+        if (!Home.Portable || Registry.Builds.Count > 0) return null;
+        try { return OtherLauncher.InstalledOne(Platform, Environment.GetEnvironmentVariable, Home.Root) is { HasAnything: true } o ? o : null; }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException) { return null; }
+    }
+
+    /// Another launcher's builds listed here and its saves copied in where there are none (OtherLauncher.TakeInto), saved
+    public OtherTaken TakeIn(OtherLauncher other)
+    {
+        var taken = other.TakeInto(Registry, SaveEnv, () => Saves.Running(Platform));
+        foreach (var b in taken.Added) LauncherLog.Add($"build {b.Version} in {b.Folder} listed from the launcher in {other.Home}");
+        if (taken.Added.Count > 0)
+        {
+            remeasure = true;
+            Registry.Save();
+        }
+        return taken;
+    }
+
+    /// "Add a build folder…": a game folder, a folder of them (a builds folder), or a launcher's data folder
+    /// (LongshotLauncher-data: its builds, and its saves where there are none here) listed. The rows added (none: nothing new
+    /// in it) and what it says of the saves
+    public OtherTaken AddFolder(string picked)
+    {
+        if (OtherLauncher.At(picked, Platform, Environment.GetEnvironmentVariable) is { } other) return TakeIn(other);
+        var added = new List<BuildEntry>();
+        foreach (var dir in OtherLauncher.GamesIn(picked, Platform))
+        {
+            if (Registry.FindByFolder(dir) != null) continue;
+            var version = GameFolder.Version(dir);
+            var b = Registry.Add(dir, version, OtherLauncher.ChannelNamed(dir, version));
+            LauncherLog.Add($"build {b.Version} in {b.Folder} added by the player");
+            added.Add(b);
+        }
+        if (added.Count > 0)
+        {
+            remeasure = true;
+            Registry.Save();
+        }
+        return new OtherTaken(added, false, null);
+    }
+
+    /// A game, or another launcher's data, in picked (AddFolder found it, though everything in it may be listed already)
+    public bool Finds(string picked) =>
+        OtherLauncher.At(picked, Platform, Environment.GetEnvironmentVariable) is { HasAnything: true } || OtherLauncher.GamesIn(picked, Platform).Count > 0;
+
     /// A folder the command line named (--launch), listed if it is not yet
     public BuildEntry Ensure(string folder)
     {

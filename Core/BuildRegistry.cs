@@ -105,6 +105,19 @@ public sealed class BuildRegistry
         }
     }
 
+    /// The builds another launcher's builds.json lists, read only (nothing written beside it, as Load does with a broken one):
+    /// none when it is absent or cannot be read (OtherLauncher)
+    public static IReadOnlyList<BuildEntry> Peek(string path)
+    {
+        try
+        {
+            if (!File.Exists(path)) return [];
+            var file = JsonSerializer.Deserialize(File.ReadAllText(path), CoreJson.Default.RegistryFile);
+            return file is { Format: 1, Builds: { } list } ? list.Where(b => b?.Folder is { Length: > 0 }).ToList() : [];
+        }
+        catch (Exception e) when (e is JsonException or IOException or UnauthorizedAccessException or NotSupportedException) { return []; }
+    }
+
     static string NewId() => Guid.NewGuid().ToString("N")[..12];
 
     public static bool SameFolder(string a, string b)

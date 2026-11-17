@@ -770,5 +770,39 @@
   "Open saves folder": "Otwórz folder zapisów",
   "Open builds folder": "Otwórz folder kompilacji",
   "Not made yet: the first build makes it": "Jeszcze nie istnieje: utworzy go pierwsza kompilacja",
-  "The saves folder could not be made: {0}": "Nie udało się utworzyć folderu zapisów: {0}"
+  "The saves folder could not be made: {0}": "Nie udało się utworzyć folderu zapisów: {0}",
+  "Your installed launcher's builds and saves": "Buildy i zapisy z zainstalowanego launchera",
+  "Use them": "Użyj ich",
+  "Built it already? Add its folder…": "Już zbudowane? Dodaj jego folder…",
+  "Add a build folder…": "Dodaj folder buildu…",
+  "A game folder, a folder of them, or a portable launcher's LongshotLauncher-data: listed where it is": "Folder gry, folder z kilkoma albo LongshotLauncher-data przenośnego launchera: dodany do listy tam, gdzie jest",
+  "The launcher installed on this PC has {0} and saves ({1}). Use them here? Its builds stay where they are; its saves are copied.": "Launcher zainstalowany na tym PC ma {0} i zapisy ({1}). Użyć ich tutaj? Jego buildy zostają tam, gdzie są; jego zapisy zostaną skopiowane.",
+  "The launcher installed on this PC has {0}. Use them here? They stay where they are.": "Launcher zainstalowany na tym PC ma {0}. Użyć ich tutaj? Zostają tam, gdzie są.",
+  "The launcher installed on this PC has saves ({0}). Copy them here?": "Launcher zainstalowany na tym PC ma zapisy ({0}). Skopiować je tutaj?",
+  "A Longshot game folder, a folder of them, or a portable launcher's LongshotLauncher-data": "Folder gry Longshot, folder z kilkoma albo LongshotLauncher-data przenośnego launchera",
+  "No Longshot game to play in {0}. Pick a game folder (it holds the game Longshot built), a folder of them, or a portable launcher's LongshotLauncher-data.": "W {0} nie ma gry Longshot do uruchomienia. Wybierz folder gry (zawiera grę zbudowaną przez Longshot), folder z kilkoma albo LongshotLauncher-data przenośnego launchera.",
+  "The builds could not be listed: {0}": "Nie udało się dodać buildów do listy: {0}",
+  "Saves copied.": "Zapisy skopiowane.",
+  "This launcher has saves of its own already, so the ones in {0} were not copied over them: Manage saves imports them, after a backup.": "Ten launcher ma już własne zapisy, więc te z {0} nie zostały na nie skopiowane: Zarządzaj zapisami importuje je po utworzeniu kopii zapasowej.",
+  "Longshot is running, so the saves in {0} were not copied: close it, then import them from Manage saves.": "Longshot jest uruchomiony, więc zapisy z {0} nie zostały skopiowane: zamknij go, a potem zaimportuj je w Zarządzaj zapisami.",
+  "The saves in {0} could not be copied: {1}": "Nie udało się skopiować zapisów z {0}: {1}",
+  "{0} builds": {
+    "one": "{0} build",
+    "few": "{0} buildy",
+    "many": "{0} buildów",
+    "other": "{0} buildu"
+  },
+  "{0} builds listed.": {
+    "one": "Dodano do listy {0} build.",
+    "few": "Dodano do listy {0} buildy.",
+    "many": "Dodano do listy {0} buildów.",
+    "other": "Dodano do listy {0} buildu."
+  },
+  "{0} builds listed, and their saves copied.": {
+    "one": "Dodano do listy {0} build i skopiowano jego zapisy.",
+    "few": "Dodano do listy {0} buildy i skopiowano ich zapisy.",
+    "many": "Dodano do listy {0} buildów i skopiowano ich zapisy.",
+    "other": "Dodano do listy {0} buildu i skopiowano ich zapisy."
+  },
+  "Everything in {0} is listed already.": "Wszystko z {0} jest już na liście."
 }

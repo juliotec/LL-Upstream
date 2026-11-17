@@ -146,5 +146,22 @@
   "This PC could not look up {0}'s address. Check that it is online, and that no VPN, filter or DNS setting blocks the site.": "Esta computadora no pudo encontrar la dirección de {0}. Verifica que esté conectada a Internet y que ninguna VPN, filtro o configuración de DNS bloquee el sitio.",
   "The secure connection to {0} failed. Check that this PC's date and time are right; an antivirus or a network that inspects HTTPS can also cause this.": "La conexión segura con {0} falló. Verifica que la fecha y la hora de esta computadora sean correctas; un antivirus o una red que inspeccione el HTTPS también puede causarlo.",
   "Could not connect to {0}. Check that this PC is online, and that no firewall, VPN or antivirus blocks the site.": "No se pudo conectar con {0}. Verifica que esta computadora esté conectada a Internet y que ningún firewall, VPN o antivirus bloquee el sitio.",
-  "This PC is set to go through the proxy {1}, which did not answer, so {0} was not reached. Check the proxy settings, or turn the proxy off.": "Esta computadora está configurada para pasar por el proxy {1}, que no respondió, así que no se llegó a {0}. Revisa la configuración del proxy o desactívalo."
+  "This PC is set to go through the proxy {1}, which did not answer, so {0} was not reached. Check the proxy settings, or turn the proxy off.": "Esta computadora está configurada para pasar por el proxy {1}, que no respondió, así que no se llegó a {0}. Revisa la configuración del proxy o desactívalo.",
+  "Built it already? Add its folder…": "¿Ya la compilaste? Agrega su carpeta…",
+  "Add a build folder…": "Agregar una carpeta de compilación…",
+  "A game folder, a folder of them, or a portable launcher's LongshotLauncher-data: listed where it is": "Una carpeta del juego, una carpeta con varias o la LongshotLauncher-data de un launcher portable: se agrega a la lista donde está",
+  "The launcher installed on this PC has {0} and saves ({1}). Use them here? Its builds stay where they are; its saves are copied.": "El launcher instalado en esta computadora tiene {0} y partidas ({1}). ¿Usarlas aquí? Sus compilaciones se quedan donde están; sus partidas se copian.",
+  "The launcher installed on this PC has {0}. Use them here? They stay where they are.": "El launcher instalado en esta computadora tiene {0}. ¿Usarlas aquí? Se quedan donde están.",
+  "The launcher installed on this PC has saves ({0}). Copy them here?": "El launcher instalado en esta computadora tiene partidas ({0}). ¿Copiarlas aquí?",
+  "The builds could not be listed: {0}": "No se pudieron agregar las compilaciones a la lista: {0}",
+  "{0} builds listed.": {
+    "one": "{0} compilación agregada a la lista.",
+    "many": "{0} de compilaciones agregadas a la lista.",
+    "other": "{0} compilaciones agregadas a la lista."
+  },
+  "{0} builds listed, and their saves copied.": {
+    "one": "{0} compilación agregada a la lista y sus partidas copiadas.",
+    "many": "{0} de compilaciones agregadas a la lista y sus partidas copiadas.",
+    "other": "{0} compilaciones agregadas a la lista y sus partidas copiadas."
+  }
 }

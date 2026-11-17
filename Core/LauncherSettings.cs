@@ -52,6 +52,8 @@ public sealed class LauncherSettings
     public bool HookshotSavesAsked { get; set; }
     /// The player answered the offer to import NX2navi's saves (imported, or Not now)
     public bool Nx2naviSavesAsked { get; set; }
+    /// (A portable launcher) The player answered the offer to use the installed launcher's builds and saves (used, or Not now)
+    public bool InstalledLauncherAsked { get; set; }
     /// The old versions' folders the player chose to keep when the home offered to delete them (Leftovers): not offered again
     public List<string> KeptFolders { get; set; } = new();
     /// The instances' folders named after a version the player chose to keep as they are when the home offered to rename them

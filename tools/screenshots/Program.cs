@@ -124,6 +124,12 @@ static class Program
             m => m.Home.ShowRenames(m.Service.Registry.Builds
                 .Select(b => new InstanceFolders.Move(b, b.Folder, $"/home/player/Games/Longshot/{b.Channel}/{b.Version}")).ToList()),
             PressDetails: true),
+        // (a portable launcher with no build yet, on a PC whose installed launcher has some: use them here?)
+        new("home-installed-offer", "A portable launcher's empty home offering the installed launcher's builds and saves", Platform.Windows, null, _ => null,
+            m => m.Home.InstalledOffer = Tr.F("The launcher installed on this PC has {0} and saves ({1}). Use them here? Its builds stay where they are; its saves are copied.",
+                                              Tr.P(2, "1 build", "{0} builds"), "2 slots, saved yesterday 22:14")),
+        new("home-add-folder", "Your instances: Add a build folder… beside Build another version", Platform.Windows,
+            s => s.Registry.Add(@"C:\Users\Player\Games\Longshot\stable", "v3.0.0", Versions.Stable, makeDefault: true), _ => null),
         new("tools-failed", "Step 1, the tools' download failed, Copy for a bug report", Platform.Windows, null,
             m => Files(m, "git.magicbean.dev did not answer in time. The server may be down or busy, or the network slow or blocking it: try again in a few minutes.")),
         // (Linux paths: a Windows path is not split into its folder and name on the Linux PCs the screenshots are drawn on)

@@ -73,6 +73,7 @@ static partial class Program
         LeftoverChecks();
         UnlistedChecks();
         InstanceFolderChecks();
+        OtherLauncherChecks();
         DeleteSaveChecks();
         SettingsChecks(Path.GetFullPath(Path.Combine(fixtures, "..", "..")));
         ProgressChecks();

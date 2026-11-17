@@ -145,6 +145,34 @@
         </StackPanel>
       </Grid>
     </Border>
+    <!-- a portable launcher with no build yet: the installed launcher's builds and saves on this PC, offered once -->
+    <Border DockPanel.Dock="Top" IsVisible="{Binding HasInstalledOffer}" Margin="0,0,0,6" Padding="16,12,14,12" CornerRadius="10"
+            BorderBrush="#4D5FB08A" BorderThickness="1">
+      <Grid ColumnDefinitions="30,*,Auto" ColumnSpacing="14">
+        <Border Width="30" Height="30" CornerRadius="15" Background="{StaticResource GoSoft}" VerticalAlignment="Center">
+          <c:Icon Kind="folder" Width="16" Height="16" Foreground="{StaticResource Go}"/>
+        </Border>
+        <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+          <TextBlock Text="{c:T 'Your installed launcher\'s builds and saves'}" FontWeight="SemiBold"/>
+          <!-- one line; Details shows the whole text (a tooltip alone would not reach a touch screen: the Steam Deck) -->
+          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+            <TextBlock Classes="note" Text="{Binding InstalledOffer}" MaxLines="1" TextTrimming="CharacterEllipsis"
+                       IsVisible="{Binding !#InstalledMore.IsChecked}" ToolTip.Tip="{Binding InstalledOffer}"/>
+            <TextBlock Classes="note" Text="{Binding InstalledOffer}" TextWrapping="Wrap" IsVisible="{Binding #InstalledMore.IsChecked}"/>
+            <ToggleButton Grid.Column="1" x:Name="InstalledMore" Classes="details">
+              <Panel>
+                <TextBlock Text="{c:T 'Details'}" IsVisible="{Binding !#InstalledMore.IsChecked}"/>
+                <TextBlock Text="{c:T 'Less'}" IsVisible="{Binding #InstalledMore.IsChecked}"/>
+              </Panel>
+            </ToggleButton>
+          </Grid>
+        </StackPanel>
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <Button Classes="small" Content="{c:T 'Not now'}" Command="{Binding NotNowInstalledCommand}"/>
+          <Button Classes="small" Content="{c:T 'Use them'}" Command="{Binding UseInstalledCommand}"/>
+        </StackPanel>
+      </Grid>
+    </Border>
     <!-- old versions' folders updates left on the disk: Keep or Delete -->
     <Border DockPanel.Dock="Top" IsVisible="{Binding HasLeftoverOffer}" Margin="0,0,0,6" Padding="16,12,14,12" CornerRadius="10"
             BorderBrush="#4D5FB08A" BorderThickness="1">
@@ -280,6 +308,13 @@
                    Text="{Binding CheckWhy}" IsVisible="{Binding HasCheckWhy}"/>
         <TextBlock Classes="faint" HorizontalAlignment="Center" Margin="0,8,0,0"
                    Text="{c:T 'You need your dump of the game: a .nup or .nx file, or its romfs and exefs folders.'}"/>
+        <!-- built already, by another launcher (installed or portable) or in a folder moved since: listed where it is -->
+        <Button Classes="link" HorizontalAlignment="Center" Margin="0,10,0,0" Command="{Binding AddFolderCommand}">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <c:Icon Kind="folder" Width="14" Height="14"/>
+            <TextBlock Text="{c:T 'Built it already? Add its folder…'}"/>
+          </StackPanel>
+        </Button>
       </StackPanel>
 
       <!-- the default version, and every version -->
@@ -391,12 +426,20 @@
         <StackPanel Grid.Row="1" Grid.Column="1" VerticalAlignment="Top" Margin="0,8,0,0">
           <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,12">
             <TextBlock Classes="label" Text="{c:T 'YOUR INSTANCES'}" Margin="0" VerticalAlignment="Center"/>
-            <Button Grid.Column="1" Classes="link" Command="{Binding ChannelCommand}">
-              <StackPanel Orientation="Horizontal" Spacing="6">
-                <c:Icon Kind="plus" Width="14" Height="14"/>
-                <TextBlock Text="{c:T 'Build another version'}"/>
-              </StackPanel>
-            </Button>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="18">
+              <Button Classes="link" Command="{Binding AddFolderCommand}" ToolTip.Tip="{c:T 'A game folder, a folder of them, or a portable launcher\'s LongshotLauncher-data: listed where it is'}">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <c:Icon Kind="folder" Width="14" Height="14"/>
+                  <TextBlock Text="{c:T 'Add a build folder…'}"/>
+                </StackPanel>
+              </Button>
+              <Button Classes="link" Command="{Binding ChannelCommand}">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <c:Icon Kind="plus" Width="14" Height="14"/>
+                  <TextBlock Text="{c:T 'Build another version'}"/>
+                </StackPanel>
+              </Button>
+            </StackPanel>
           </Grid>
           <Border Classes="card">
             <ScrollViewer MaxHeight="370" VerticalScrollBarVisibility="Auto">

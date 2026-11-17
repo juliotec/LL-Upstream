@@ -186,6 +186,15 @@ public sealed class HomeViewModel : ViewModelBase
             try { Service.SaveSettings(); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
             Nx2naviOffer = null;
         });
+        UseInstalledCommand = new Command(UseInstalled, () => !UpdateLauncherCommand.IsBusy && !deletingLeftovers && !renaming && deleting.Count == 0);
+        NotNowInstalledCommand = new Command(() =>
+        {
+            Service.Settings.InstalledLauncherAsked = true;
+            try { Service.SaveSettings(); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+            InstalledOffer = null;
+        });
+        // (not while a version is deleted: its gather and this copy share the save folder; the update check is no reason)
+        AddFolderCommand = new Command(() => _ = AddFolderAsync(), () => !UpdateLauncherCommand.IsBusy && !deletingLeftovers && !renaming && deleting.Count == 0);
         KeepLeftoversCommand = new Command(KeepLeftovers, () => !deletingLeftovers);
         DeleteLeftoversCommand = new Command(() => _ = DeleteLeftoversAsync(), () => !deletingLeftovers);
         KeepNamesCommand = new Command(KeepNames, () => !renaming);
@@ -481,6 +490,8 @@ public sealed class HomeViewModel : ViewModelBase
         ChannelCommand.Changed();
         UpdateDefaultCommand.Changed();
         GoCommand.Changed();
+        AddFolderCommand.Changed();
+        UseInstalledCommand.Changed();
         RaiseAll(nameof(CanStartBuild), nameof(ShowCheckLine), nameof(ShowStatus), nameof(ShowStatusReport));
     }
     public Command ImportHookshotCommand { get; }
@@ -516,6 +527,84 @@ public sealed class HomeViewModel : ViewModelBase
             }
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or SaveFailure) { }
+    }
+
+    // ---- another launcher's builds and saves: a portable launcher's offer of the installed one's, and Add a build folder… ----
+
+    public Command UseInstalledCommand { get; }
+    public Command NotNowInstalledCommand { get; }
+    /// Lists a game folder, a folder of them, or a launcher's data folder (LongshotLauncher-data) the player picks
+    public Command AddFolderCommand { get; }
+
+    OtherLauncher? installed;
+    string? installedOffer;
+    public string? InstalledOffer
+    {
+        get => installedOffer;
+        set { if (Set(ref installedOffer, value)) Raise(nameof(HasInstalledOffer)); }
+    }
+    public bool HasInstalledOffer => installedOffer != null;
+
+    /// A portable launcher with no build yet, on a PC whose installed launcher has builds or saves: use them here? (once)
+    void OfferInstalled()
+    {
+        InstalledOffer = null;
+        if (Service.Settings.InstalledLauncherAsked || Service.InstalledLauncher() is not { } other) return;
+        installed = other;
+        var profiles = other.SavesFitIn(Service.SaveEnv) ? other.Profiles : [];   // (saves only when they could be copied in)
+        var builds = other.Builds.Count > 0 ? Tr.P(other.Builds.Count, "1 build", "{0} builds") : null;
+        var saves = profiles.Count > 0 ? SaveText.Long(Saves.Describe(profiles[0].Path), DateTime.Now) : null;
+        if (builds == null && saves == null) return;
+        InstalledOffer = builds != null && saves != null
+            ? Tr.F("The launcher installed on this PC has {0} and saves ({1}). Use them here? Its builds stay where they are; its saves are copied.", builds, saves)
+            : builds != null ? Tr.F("The launcher installed on this PC has {0}. Use them here? They stay where they are.", builds)
+            : Tr.F("The launcher installed on this PC has saves ({0}). Copy them here?", saves!);
+    }
+
+    void UseInstalled()
+    {
+        if (installed is not { } other) return;
+        var busy = false;
+        Taken(() =>
+        {
+            var done = Service.TakeIn(other);
+            busy = done.Busy;
+            return done;
+        });
+        if (busy) return;   // (the offer stays: another gather held the saves; Use them again copies them)
+        Service.Settings.InstalledLauncherAsked = true;
+        try { Service.SaveSettings(); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+        InstalledOffer = null;
+    }
+
+    async Task AddFolderAsync()
+    {
+        if (Main.Host is not { } host) return;
+        if (await host.PickFolderAsync(Tr.T("A Longshot game folder, a folder of them, or a portable launcher's LongshotLauncher-data"),
+                                       Service.BuildsFolder) is not { } picked) return;
+        if (!Taken(() => Service.AddFolder(picked)))
+            Notice = Service.Finds(picked)
+                ? Tr.F("Everything in {0} is listed already.", picked)
+                : Tr.F("No Longshot game to play in {0}. Pick a game folder (it holds the game Longshot built), a folder of them, or a portable launcher's LongshotLauncher-data.", picked);
+    }
+
+    /// What taking another launcher's builds and saves did, on the home; false when it found nothing new
+    bool Taken(Func<OtherTaken> take)
+    {
+        OtherTaken done;
+        try { done = take(); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            Notice = Tr.F("The builds could not be listed: {0}", e.Message);
+            return true;
+        }
+        if (done.Added.Count > 0)
+            Main.ShowToast(done.SavesCopied ? Tr.P(done.Added.Count, "1 build listed, and its saves copied.", "{0} builds listed, and their saves copied.")
+                                            : Tr.P(done.Added.Count, "1 build listed.", "{0} builds listed."));
+        else if (done.SavesCopied) Main.ShowToast(Tr.T("Saves copied."));
+        if (done.SavesLeft != null) Notice = done.SavesLeft;
+        Refresh();
+        return done.Added.Count > 0 || done.SavesCopied || done.SavesLeft != null;
     }
 
     // ---- the old versions' folders updates left on the disk: Keep or Delete ----
@@ -796,6 +885,7 @@ public sealed class HomeViewModel : ViewModelBase
                                 string.Join(", ", relisted.Select(b => Versions.Shown(b.Version)))));
         OfferHookshot();
         OfferNx2navi();
+        OfferInstalled();
         OfferLeftovers();
         OfferRenames();
         Refresh();
@@ -941,7 +1031,12 @@ public sealed class HomeViewModel : ViewModelBase
     /// A build's folder being deleted (tens of GB: seconds to minutes): its row shows it, and nothing starts on it meanwhile
     public void Deleting(BuildEntry b, bool on)
     {
-        if (on ? deleting.Add(b.Id) : deleting.Remove(b.Id)) Refresh();
+        if (on ? deleting.Add(b.Id) : deleting.Remove(b.Id))
+        {
+            AddFolderCommand.Changed();
+            UseInstalledCommand.Changed();
+            Refresh();
+        }
     }
 
     /// What's new from a build's version to its update, with Update in the dialog

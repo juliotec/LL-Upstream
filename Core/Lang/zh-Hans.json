@@ -716,5 +716,30 @@
   "Open saves folder": "打开存档文件夹",
   "Open builds folder": "打开构建文件夹",
   "Not made yet: the first build makes it": "尚未创建：首次构建时创建",
-  "The saves folder could not be made: {0}": "无法创建存档文件夹：{0}"
+  "The saves folder could not be made: {0}": "无法创建存档文件夹：{0}",
+  "Your installed launcher's builds and saves": "已安装启动器的构建和存档",
+  "Use them": "使用",
+  "Built it already? Add its folder…": "已经构建过？添加它的文件夹…",
+  "Add a build folder…": "添加构建文件夹…",
+  "A game folder, a folder of them, or a portable launcher's LongshotLauncher-data: listed where it is": "游戏文件夹、包含多个游戏的文件夹，或便携版启动器的 LongshotLauncher-data：在原位置列出",
+  "The launcher installed on this PC has {0} and saves ({1}). Use them here? Its builds stay where they are; its saves are copied.": "此电脑上已安装的启动器有 {0} 和存档（{1}）。在这里使用吗？构建保留在原位置；存档会被复制。",
+  "The launcher installed on this PC has {0}. Use them here? They stay where they are.": "此电脑上已安装的启动器有 {0}。在这里使用吗？它们保留在原位置。",
+  "The launcher installed on this PC has saves ({0}). Copy them here?": "此电脑上已安装的启动器有存档（{0}）。复制到这里吗？",
+  "A Longshot game folder, a folder of them, or a portable launcher's LongshotLauncher-data": "Longshot 游戏文件夹、包含多个游戏的文件夹，或便携版启动器的 LongshotLauncher-data",
+  "No Longshot game to play in {0}. Pick a game folder (it holds the game Longshot built), a folder of them, or a portable launcher's LongshotLauncher-data.": "{0} 中没有可玩的 Longshot 游戏。请选择游戏文件夹（其中有 Longshot 构建的游戏）、包含多个游戏的文件夹，或便携版启动器的 LongshotLauncher-data。",
+  "The builds could not be listed: {0}": "无法列出这些构建：{0}",
+  "Saves copied.": "存档已复制。",
+  "This launcher has saves of its own already, so the ones in {0} were not copied over them: Manage saves imports them, after a backup.": "此启动器已有自己的存档，因此没有用 {0} 中的存档覆盖它们：“管理存档”会在备份后导入它们。",
+  "Longshot is running, so the saves in {0} were not copied: close it, then import them from Manage saves.": "Longshot 正在运行，因此 {0} 中的存档没有复制：请关闭它，然后在“管理存档”中导入。",
+  "The saves in {0} could not be copied: {1}": "无法复制 {0} 中的存档：{1}",
+  "{0} builds": {
+    "other": "{0} 个构建"
+  },
+  "{0} builds listed.": {
+    "other": "已列出 {0} 个构建。"
+  },
+  "{0} builds listed, and their saves copied.": {
+    "other": "已列出 {0} 个构建，并复制了存档。"
+  },
+  "Everything in {0} is listed already.": "{0} 中的所有内容都已列出。"
 }

@@ -21,6 +21,11 @@ does (for Lichii, Eden, NX2navi and the rest) without the launcher.
 **Open saves folder** on the Saves page shows that `save` folder in the file manager (it is made first when there is none
 yet, as an import makes it), to look at the saves or copy them by hand while Longshot is closed.
 
+Going from the installed launcher to a portable one, the portable launcher offers the installed one's saves (and builds)
+when it starts with none; going the other way, *Add a build folder…* on the home takes the portable launcher's
+`LongshotLauncher-data`. Either copies the saves only into a save folder with nothing in it yet; otherwise import them
+with *Choose a folder*, which backs up the save it replaces.
+
 Every build uses the same saves, on both systems, so a new build or an update starts where you left off, and there is nothing
 to copy between builds. The launcher starts every build with `--user <that folder>` (on Linux, not while the build's folder
 has a `user/` of its own: the game moves an old one into the shared folder by itself, and keeps a link you made). On Linux the

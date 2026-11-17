@@ -109,6 +109,12 @@ There is no installer program: the launcher installs itself.
   default the builds and the save backups too. It never writes the registry, and makes no shortcut unless you tick one
   when a build is ready. The portable
   zip has the `portable` file in it already, so it never asks.
+- **Switching between them.** An installed launcher and a portable one each keep their own list of builds and (on Windows)
+  their own saves. A portable launcher that starts with no build offers the installed launcher's builds and saves on this
+  PC: its builds are listed where they are, and its saves are copied in if the portable launcher has none yet. The other way,
+  *Add a build folder…* on the home takes a game folder, a folder of them, or a portable launcher's `LongshotLauncher-data`
+  (its builds, and its saves where there are none yet). A save is never copied over another: *Manage saves* imports one, after a
+  backup.
 
 **Uninstalling** (Windows): *Settings > Apps > Installed apps > Longshot Launcher > Uninstall*, which runs
 `LongshotLauncher.exe --uninstall`. It removes the program, its Start menu shortcut, the *Longshot* shortcuts it made, and
