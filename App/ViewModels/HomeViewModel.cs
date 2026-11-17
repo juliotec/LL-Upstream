@@ -527,6 +527,7 @@ public sealed class HomeViewModel : ViewModelBase
     {
         var notes = new List<string>();
         if (Service.Registry.Problem is { } broken) notes.Add(Tr.F("The list of builds could not be read (kept as builds.json.broken): {0}", broken));
+        if (Service.Settings.Problem is { } unreadable) notes.Add(Tr.F("The launcher's settings could not be read (kept as settings.json.broken): {0}", unreadable));
         if (start.Problem != null) notes.Add(start.Problem);
         if (start.Folder != null && start.Kind == StartKind.Launch)
         {

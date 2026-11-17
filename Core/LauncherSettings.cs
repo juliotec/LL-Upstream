@@ -103,12 +103,21 @@ public sealed class LauncherSettings
     /// The launcher's language: the one picked, else the system's (its name for it: de-DE, pt_BR.UTF-8), else English
     public string UiLanguageOr(string? system) => UiLanguage ?? Tr.Pick(system) ?? Tr.English;
 
-    /// The saved settings, or the defaults when there are none or they cannot be read
+    /// Why settings.json could not be read (it was set aside as settings.json.broken, and these are the defaults); null when it
+    /// was fine or absent. Not saved
+    [JsonIgnore]
+    public string? Problem { get; private set; }
+
+    /// The saved settings, or the defaults when there are none or they cannot be read. A file that cannot be read is kept beside it
+    /// as settings.json.broken (Problem says why), as BuildRegistry keeps builds.json: the next save writes the defaults over it, and
+    /// the builds folder, the build files' folder and the kept folders would go with it unseen
     public static LauncherSettings Load(string path)
     {
+        if (!File.Exists(path)) return new LauncherSettings();
         try
         {
-            var s = JsonSerializer.Deserialize(File.ReadAllText(path), CoreJson.Default.LauncherSettings) ?? new LauncherSettings();
+            var s = JsonSerializer.Deserialize(File.ReadAllText(path), CoreJson.Default.LauncherSettings)
+                    ?? throw new JsonException("settings.json is empty");
             if (s.Format < CurrentFormat)
             {
                 // (format 1 saved its own default, "stable", for every player who never picked: that one is not a pick)
@@ -119,7 +128,9 @@ public sealed class LauncherSettings
         }
         catch (Exception e) when (e is JsonException or IOException or UnauthorizedAccessException or NotSupportedException)
         {
-            return new LauncherSettings();
+            // (copied, not moved, as builds.json is: each load at start sees the same file and says so, until a save replaces it)
+            try { File.Copy(path, path + ".broken", overwrite: true); } catch (Exception) { }
+            return new LauncherSettings { Problem = e.Message };
         }
     }
 

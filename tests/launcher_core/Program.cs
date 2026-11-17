@@ -72,7 +72,7 @@ static partial class Program
         RegistryChecks();
         LeftoverChecks();
         DeleteSaveChecks();
-        SettingsChecks();
+        SettingsChecks(Path.GetFullPath(Path.Combine(fixtures, "..", "..")));
         ProgressChecks();
         LogChecks();
         CommandChecks();
@@ -846,7 +846,7 @@ static partial class Program
         Require(!copy.FollowHome() && BuildRegistry.SameFolder(copy.Default!.Folder, inside), "A copy whose first is still there keeps its paths.");
     }
 
-    static void SettingsChecks()
+    static void SettingsChecks(string repo)
     {
         var path = Path.Combine(Folder("settings"), "settings.json");
         var d = LauncherSettings.Load(path);
@@ -878,7 +878,8 @@ static partial class Program
         Require(!u.Dlss && u.DefaultChannel == null && u.MemoryGb == null, "Saved values outside their range are not taken.");
         // (the "Prepare shaders now" switch is gone, every build prepares them: a settings.json from before still loads)
         File.WriteAllText(path, """{"prepareShaders":false,"language":"fr"}""");
-        Require(LauncherSettings.Load(path).Language == "fr", "A settings.json with the old prepareShaders is read, the field ignored.");
+        Require(LauncherSettings.Load(path) is { Language: "fr", Problem: null } && !File.Exists(path + ".broken"),
+                "A settings.json with the old prepareShaders is read, the field ignored, and not set aside.");
         // (Intel shader compiles: Auto by default; a launcher from before Auto saved Side by side as intelSideBySide true, and its
         // One at a time, which set nothing, as false: Side by side and Auto. The old field is not written again)
         Require(d.IntelCompiles == GamePlay.IntelCompilesAuto, "Intel shader compiles defaults to Auto.");
@@ -893,6 +894,26 @@ static partial class Program
                 "One at a time round trips, and the old intelSideBySide is not written.");
         File.WriteAllText(path, "nope");
         Require(LauncherSettings.Load(path) is { CheckUpdates: true, Language: null }, "Unreadable settings are the defaults.");
+        // (a settings.json that cannot be read is kept beside it as settings.json.broken, as a broken builds.json is: the next save
+        // writes the defaults over it, and the builds folder, the build files' folder and the kept folders were lost with it)
+        var unread = Encoding.UTF8.GetBytes("{\"buildsFolder\": \"D:\\\\Games\\\\Longshot\", \"work\": \"E:\\\\work\", \"keptFolders\": [\"D:\\\\old");
+        File.WriteAllBytes(path, unread);
+        var fresh = LauncherSettings.Load(path);
+        Require(fresh is { CheckUpdates: true, BuildsFolder: null, Work: null } && fresh.KeptFolders.Count == 0, "A cut-off settings.json loads as the defaults.");
+        Require(fresh.Problem is { Length: > 0 }, "A cut-off settings.json says why it was not read, for the home's notice.");
+        Require(File.Exists(path + ".broken") && File.ReadAllBytes(path + ".broken").SequenceEqual(unread),
+                "An unreadable settings.json is kept as settings.json.broken, byte for byte.");
+        fresh.Save(path);
+        Require(File.ReadAllBytes(path + ".broken").SequenceEqual(unread) && LauncherSettings.Load(path) is { BuildsFolder: null, Problem: null },
+                "The save after it writes the defaults and leaves the kept copy as it was.");
+        Require(!File.ReadAllText(path).Contains("problem", StringComparison.OrdinalIgnoreCase), "Problem is not saved.");
+        File.WriteAllText(path, "null");
+        Require(LauncherSettings.Load(path).Problem != null, "A settings.json of null is unreadable too, as an empty builds.json is.");
+        var absent = Path.Combine(Folder("settings-absent"), "settings.json");
+        Require(LauncherSettings.Load(absent).Problem == null && !File.Exists(absent + ".broken"), "No settings.json yet is the first start, not a broken one.");
+        var homeSource = File.ReadAllText(Path.Combine(repo, "App", "ViewModels", "HomeViewModel.cs"));
+        Require(homeSource.Contains("if (Service.Settings.Problem is { } unreadable) notes.Add(Tr.F(\"The launcher's settings could not be read (kept as settings.json.broken): {0}\", unreadable));"),
+                "The home says the settings were set aside, beside the list of builds' notice.");
 
         // (the channel new builds start on: the launcher's own until the player picks one)
         var none = new LauncherSettings();

@@ -93,6 +93,7 @@
   "Checking the download…": "Prüfe den Download…",
   "Downloading the new launcher… {0}%": "Lade den neuen Launcher herunter… {0} %",
   "The list of builds could not be read (kept as builds.json.broken): {0}": "Die Build-Liste konnte nicht gelesen werden (aufbewahrt als builds.json.broken): {0}",
+  "The launcher's settings could not be read (kept as settings.json.broken): {0}": "Die Einstellungen des Launchers konnten nicht gelesen werden (aufbewahrt als settings.json.broken): {0}",
   "Checking for updates…": "Suche nach Updates…",
   "Updates were not checked: {0}": "Updates wurden nicht geprüft: {0}",
   "Could not reach git.magicbean.dev: updates were not checked.": "git.magicbean.dev ist nicht erreichbar: Updates wurden nicht geprüft.",

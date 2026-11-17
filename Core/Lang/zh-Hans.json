@@ -90,6 +90,7 @@
   "Checking the download…": "正在校验下载内容…",
   "Downloading the new launcher… {0}%": "正在下载新启动器… {0}%",
   "The list of builds could not be read (kept as builds.json.broken): {0}": "无法读取构建列表（已保留为 builds.json.broken）：{0}",
+  "The launcher's settings could not be read (kept as settings.json.broken): {0}": "无法读取启动器设置（已保留为 settings.json.broken）：{0}",
   "Checking for updates…": "正在检查更新…",
   "Updates were not checked: {0}": "未检查更新：{0}",
   "Could not reach git.magicbean.dev: updates were not checked.": "无法连接 git.magicbean.dev，未检查更新。",
