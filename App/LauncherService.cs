@@ -254,7 +254,7 @@ public sealed class LauncherService
         // (the crash reports: the folder's file made the player's answer, for the crash helper to read after a crash)
         CrashReports.BeforePlay(folder, Settings.SendCrashReportsAutomatically);
         using var _ = Process.Start(GamePlay.StartInfo(folder, Platform, user: user,
-                                                       intelSideBySide: Settings.IntelSideBySide && IntelCompilesApply,
+                                                       intelCompiles: IntelCompilesApply ? Settings.IntelCompiles : GamePlay.IntelCompilesAuto,
                                                        intelLongerLimits: Settings.IntelLongerLimits && IntelCompilesApply));
         return said;
     }

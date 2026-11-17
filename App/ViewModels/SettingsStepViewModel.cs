@@ -207,25 +207,36 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
     /// Shown where it applies: Windows with Intel graphics (LauncherService.IntelCompilesApply)
     public bool ShowIntelCompiles => Job.Service.IntelCompilesApply;
 
-    public IReadOnlyList<Choice> IntelCompileChoices { get; } =
-        new[] { new Choice(0, Tr.T("One at a time")), new Choice(1, Tr.T("Side by side")) };
+    /// (in the game's order and numbers, GamePlay.IntelCompilesAuto...: Auto leaves the game's own row to choose)
+    public IReadOnlyList<Choice> IntelCompileChoices { get; } = new[]
+    {
+        new Choice(GamePlay.IntelCompilesAuto, Tr.T("Auto")), new Choice(GamePlay.IntelCompilesSideBySide, Tr.T("Side by side")),
+        new Choice(GamePlay.IntelCompilesOneAtATime, Tr.T("One at a time")),
+    };
 
     public Choice IntelCompiles
     {
-        get => IntelCompileChoices[s.IntelSideBySide ? 1 : 0];
+        get => IntelCompileChoices.FirstOrDefault(c => c.Value == s.IntelCompiles) ?? IntelCompileChoices[0];
         set
         {
-            if (value == null || (value.Value == 1) == s.IntelSideBySide) return;
-            s.IntelSideBySide = value.Value == 1;
+            if (value?.Value is not int v || v == s.IntelCompiles) return;
+            s.IntelCompiles = v;
             Save();
             RaiseAll(nameof(IntelCompiles), nameof(IntelCompilesDesc));
         }
     }
 
-    // (Longshot's README, Intel laptops: the driver faulted or froze the PC with two compiles at once, issue 496)
-    public string IntelCompilesDesc => s.IntelSideBySide
-        ? Tr.T("Faster shader builds, but Intel's driver can crash or freeze the PC. For the build and the game.")
-        : Tr.T("Recommended: slower, but safe for Intel's driver. For the build and the game.");
+    // (Longshot's README, Intel laptops: the driver faulted or froze the PC with two compiles at once, issue 496; Auto is the
+    // game's intel_compiles.h, side by side where it was measured. Side by side and One at a time fix the game's own row)
+    public string IntelCompilesDesc => s.IntelCompiles switch
+    {
+        GamePlay.IntelCompilesSideBySide =>
+            Tr.T("Faster shader builds, but Intel's driver can crash or freeze the PC. For the build and the game, over its own setting."),
+        GamePlay.IntelCompilesOneAtATime =>
+            Tr.T("Slower, but safe for Intel's driver. For the build and the game, over its own setting."),
+        _ => Tr.T("Recommended: the game's own choice, side by side on the Arc B-series and one at a time on other Intel graphics. "
+                  + "Changeable in the game."),
+    };
 
     public IReadOnlyList<Choice> IntelLimitChoices { get; } = new[] { new Choice(0, Tr.T("Normal")), new Choice(1, Tr.T("Longer")) };
 

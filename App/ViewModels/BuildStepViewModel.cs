@@ -167,7 +167,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
         // (DLSS, FSR 4 and XeSS as the player chose them, whatever this PC's cards: Upscalers.Chosen)
         var request = Upscalers.Chosen(
             new BuildRequest(file.Source, job.InstallDir, s.Language, job.Service.Work, s.BuildWorkers ?? SystemInfo.AutomaticWorkers(), s.MemoryGb, true,
-                             RomfsFrom: romfsFrom, IntelSideBySide: s.IntelSideBySide && job.Service.IntelCompilesApply,
+                             RomfsFrom: romfsFrom, IntelCompiles: job.Service.IntelCompilesApply ? s.IntelCompiles : GamePlay.IntelCompilesAuto,
                              IntelLongerLimits: s.IntelLongerLimits && job.Service.IntelCompilesApply),
             s, job.Service.Platform);
         dlss = request.Dlss && request.DlssLicense;

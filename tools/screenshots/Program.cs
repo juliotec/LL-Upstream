@@ -60,7 +60,7 @@ static class Program
             s =>
             {
                 s.GpuCards = [new Gpu(SystemInfo.Intel, "Intel(R) Iris(R) Xe Graphics")];
-                s.Settings.IntelSideBySide = true;
+                s.Settings.IntelCompiles = GamePlay.IntelCompilesSideBySide;
                 s.Settings.IntelLongerLimits = true;
             },
             m => Settings(m)),

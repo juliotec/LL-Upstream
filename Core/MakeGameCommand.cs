@@ -13,13 +13,13 @@ public abstract record BuildSource
 
 /// A build's choices (the wizard's settings step, LauncherSettings). Out is not used by an update (the folder is the update's).
 /// RomfsFrom: another game folder built from the same .nup (BuildRegistry.SameGameFiles), whose game files make_game links in
-/// instead of reading the .nup again (LONGSHOT_ROMFS_FROM). IntelSideBySide: Intel shader compiles on Side by side;
-/// IntelLongerLimits: Shader time limit on Longer (LauncherSettings, where they apply). Xess: Intel's XeSS library fetched
+/// instead of reading the .nup again (LONGSHOT_ROMFS_FROM). IntelCompiles: Intel shader compiles (GamePlay.IntelCompilesAuto,
+/// SideBySide, OneAtATime); IntelLongerLimits: Shader time limit on Longer (LauncherSettings, where they apply). Xess: Intel's XeSS library fetched
 /// under Intel's licence (XessLicense), Windows only
 public sealed record BuildRequest(
     BuildSource Source, string? Out, string? Language = null, string? Work = null, int? Jobs = null, int? MemoryGb = null,
     bool PrepareShaders = true, bool Dlss = false, bool DlssLicense = false, bool Fsr = false, bool FsrLicense = false,
-    string? RomfsFrom = null, bool IntelSideBySide = false, bool IntelLongerLimits = false, bool Xess = false,
+    string? RomfsFrom = null, int IntelCompiles = GamePlay.IntelCompilesAuto, bool IntelLongerLimits = false, bool Xess = false,
     bool XessLicense = false);
 
 /// make_game.py as the 2.x Builders start it (Runner.Info and MainWindow.Run on Windows; builder/linux/AppRun and
@@ -103,9 +103,9 @@ public sealed record MakeGameCommand(
             ["LONGSHOT_ROMFS_FROM"] = r.Source is BuildSource.Nup ? r.RomfsFrom : null,
         };
         if (windows && r.Jobs is int workers) env["LONGSHOT_JOBS"] = workers.ToString(CultureInfo.InvariantCulture);
-        // (Intel shader compiles, Side by side: the shader preparation make_game starts takes it from its environment, as the
-        // game does. One at a time sets nothing, so one set on the PC still applies)
-        if (windows && r.IntelSideBySide) env[GamePlay.IntelSideBySideVar] = "1";
+        // (Intel shader compiles, Side by side or One at a time: the shader preparation make_game starts takes it from its
+        // environment, as the game does. Auto sets nothing, so the game's own Auto, or one set on the PC, applies)
+        if (windows && GamePlay.IntelCompilesValue(r.IntelCompiles) is string compiles) env[GamePlay.IntelCompilesVar] = compiles;
         if (windows && r.IntelLongerLimits)
             foreach (var (name, value) in GamePlay.IntelLongerLimits) env[name] = value;
         if (windows)
@@ -195,8 +195,17 @@ public static class GamePlay
 {
     static readonly string[] Dropped = { "LONGSHOT_", "PYTHON", "APPDIR", "APPIMAGE", "ARGV0", "OWD" };   // (make_game.GAME_ENV_DROP)
 
-    /// Longshot's switch for Intel shader compiles on Side by side, over its in-game row (README, Intel laptops)
-    public const string IntelSideBySideVar = "RX_VK_NO_INTEL_SERIAL";
+    /// Longshot's switch for Intel shader compiles, over its in-game row for the run (README, Intel laptops): 1 Side by side,
+    /// 0 One at a time. While it is set the game shows that row fixed, so Auto leaves it unset and the row free
+    public const string IntelCompilesVar = "RX_VK_NO_INTEL_SERIAL";
+
+    /// The launcher's Intel shader compiles choice, numbered as the game's row (gpu/vk/vk_menu.h intel_compiles): Auto, the
+    /// game's own (side by side on the Arc B-series from driver 101.9154, one at a time on other Intel graphics: intel_compiles.h)
+    public const int IntelCompilesAuto = 0, IntelCompilesSideBySide = 1, IntelCompilesOneAtATime = 2;
+
+    /// RX_VK_NO_INTEL_SERIAL for a choice; null for Auto, which sets nothing
+    public static string? IntelCompilesValue(int choice) =>
+        choice == IntelCompilesSideBySide ? "1" : choice == IntelCompilesOneAtATime ? "0" : null;
 
     /// Shader time limit, Longer: Longshot's waits on a driver that seems stuck, made longer for Intel's compiler one at a time,
     /// which can sit on one compile for most of a minute (Longshot issue 407: 57 s; its preparation was stopped at 300 s
@@ -207,17 +216,17 @@ public static class GamePlay
         ("RX_VK_PREPARE_STALL_S", "1800"), ("RX_VK_PRECOMPILE_STALL_S", "180"), ("RX_VK_PREDICT_STALL_S", "180"),
     };
 
-    /// The environment the game starts with, from the launcher's. intelSideBySide: Intel shader compiles on Side by side;
+    /// The environment the game starts with, from the launcher's. intelCompiles: Intel shader compiles (IntelCompilesAuto...);
     /// intelLongerLimits: Shader time limit on Longer (both Windows only)
     public static Dictionary<string, string> Environment(Platform platform, IReadOnlyDictionary<string, string> current,
-                                                         bool intelSideBySide = false, bool intelLongerLimits = false)
+                                                         int intelCompiles = IntelCompilesAuto, bool intelLongerLimits = false)
     {
         var env = platform == Platform.Windows
             ? new Dictionary<string, string>(current, StringComparer.OrdinalIgnoreCase)
             : current.Where(kv => !Dropped.Any(p => kv.Key.StartsWith(p, StringComparison.Ordinal)) && kv.Key != "LD_LIBRARY_PATH")
                 .ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.Ordinal);
         env["LONGSHOT_NO_UPDATE_CHECK"] = "1";   // (the launcher already checked for updates: the game does not ask again)
-        if (platform == Platform.Windows && intelSideBySide) env[IntelSideBySideVar] = "1";
+        if (platform == Platform.Windows && IntelCompilesValue(intelCompiles) is string compiles) env[IntelCompilesVar] = compiles;
         if (platform == Platform.Windows && intelLongerLimits)
             foreach (var (name, value) in IntelLongerLimits) env[name] = value;
         return env;
@@ -243,7 +252,7 @@ public static class GamePlay
     /// user: Longshot's user folder, which every build shares (UserFolder), given to the game as --user. Every build takes --user,
     /// the ones from before the launcher too; without it the game keeps its saves in its own folder's user\ on Windows
     public static ProcessStartInfo StartInfo(string folder, Platform platform, IReadOnlyDictionary<string, string>? current = null, string? user = null,
-                                             bool intelSideBySide = false, bool intelLongerLimits = false)
+                                             int intelCompiles = IntelCompilesAuto, bool intelLongerLimits = false)
     {
         current ??= System.Environment.GetEnvironmentVariables().Cast<System.Collections.DictionaryEntry>()
             .ToDictionary(e => (string)e.Key, e => (string?)e.Value ?? "");
@@ -254,7 +263,7 @@ public static class GamePlay
             si.ArgumentList.Add(user);
         }
         si.Environment.Clear();
-        foreach (var (k, v) in Environment(platform, current, intelSideBySide, intelLongerLimits)) si.Environment[k] = v;
+        foreach (var (k, v) in Environment(platform, current, intelCompiles, intelLongerLimits)) si.Environment[k] = v;
         return si;
     }
 }

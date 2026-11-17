@@ -876,6 +876,18 @@ static partial class Program
         // (the "Prepare shaders now" switch is gone, every build prepares them: a settings.json from before still loads)
         File.WriteAllText(path, """{"prepareShaders":false,"language":"fr"}""");
         Require(LauncherSettings.Load(path).Language == "fr", "A settings.json with the old prepareShaders is read, the field ignored.");
+        // (Intel shader compiles: Auto by default; a launcher from before Auto saved Side by side as intelSideBySide true, and its
+        // One at a time, which set nothing, as false: Side by side and Auto. The old field is not written again)
+        Require(d.IntelCompiles == GamePlay.IntelCompilesAuto, "Intel shader compiles defaults to Auto.");
+        File.WriteAllText(path, """{"intelSideBySide":true}""");
+        Require(LauncherSettings.Load(path).IntelCompiles == GamePlay.IntelCompilesSideBySide, "An old Side by side is still Side by side.");
+        File.WriteAllText(path, """{"intelSideBySide":false}""");
+        Require(LauncherSettings.Load(path).IntelCompiles == GamePlay.IntelCompilesAuto, "An old One at a time, which set nothing, is Auto.");
+        File.WriteAllText(path, """{"intelCompiles":9}""");
+        Require(LauncherSettings.Load(path).IntelCompiles == GamePlay.IntelCompilesAuto, "An Intel shader compiles value outside the three: Auto.");
+        new LauncherSettings { IntelCompiles = GamePlay.IntelCompilesOneAtATime }.Save(path);
+        Require(LauncherSettings.Load(path).IntelCompiles == GamePlay.IntelCompilesOneAtATime && !File.ReadAllText(path).Contains("intelSideBySide"),
+                "One at a time round trips, and the old intelSideBySide is not written.");
         File.WriteAllText(path, "nope");
         Require(LauncherSettings.Load(path) is { CheckUpdates: true, Language: null }, "Unreadable settings are the defaults.");
 
@@ -1110,13 +1122,16 @@ static partial class Program
                 && MakeGameCommand.For(lin, request with { Source = new BuildSource.Folders("/d/romfs", "/d/exefs"), Out = "/g", RomfsFrom = "/o" },
                                        Platform.Linux, home, "/L").Environment["LONGSHOT_ROMFS_FROM"] == null,
                 "LONGSHOT_ROMFS_FROM: the folder for a .nup, removed otherwise.");
-        // (Intel shader compiles, Side by side: Longshot's switch for the build's shader preparation, on Windows only; One at a time
-        // sets nothing, so one set on the PC still applies)
-        Require(MakeGameCommand.For(win, request with { IntelSideBySide = true }, Platform.Windows, home, "L", _ => false)
+        // (Intel shader compiles: Longshot's switch for the build's shader preparation, on Windows only, 1 Side by side and 0 One at
+        // a time; Auto sets nothing, so the game's own Auto, or one set on the PC, applies)
+        Require(MakeGameCommand.For(win, request with { IntelCompiles = GamePlay.IntelCompilesSideBySide }, Platform.Windows, home, "L", _ => false)
                        .Environment["RX_VK_NO_INTEL_SERIAL"] == "1"
+                && MakeGameCommand.For(win, request with { IntelCompiles = GamePlay.IntelCompilesOneAtATime }, Platform.Windows, home, "L", _ => false)
+                       .Environment["RX_VK_NO_INTEL_SERIAL"] == "0"
                 && !w.Environment.ContainsKey("RX_VK_NO_INTEL_SERIAL")
-                && !MakeGameCommand.For(lin, request with { IntelSideBySide = true }, Platform.Linux, home, "/L").Environment.ContainsKey("RX_VK_NO_INTEL_SERIAL"),
-                "Intel shader compiles: RX_VK_NO_INTEL_SERIAL=1 for a Windows build on Side by side, nothing otherwise.");
+                && !MakeGameCommand.For(lin, request with { IntelCompiles = GamePlay.IntelCompilesSideBySide }, Platform.Linux, home, "/L")
+                       .Environment.ContainsKey("RX_VK_NO_INTEL_SERIAL"),
+                "Intel shader compiles: RX_VK_NO_INTEL_SERIAL 1 or 0 for a Windows build on Side by side or One at a time, nothing on Auto or Linux.");
         // (Shader time limit, Longer: Longshot's three waits on a stuck driver, for a Windows build only; Normal sets none)
         var longer = MakeGameCommand.For(win, request with { IntelLongerLimits = true }, Platform.Windows, home, "L", _ => false).Environment;
         Require(longer["RX_VK_PREPARE_STALL_S"] == "1800" && longer["RX_VK_PRECOMPILE_STALL_S"] == "180" && longer["RX_VK_PREDICT_STALL_S"] == "180"
@@ -1137,10 +1152,13 @@ static partial class Program
         Require(game.Keys.OrderBy(k => k).SequenceEqual(new[] { "HOME", "LONGSHOT_NO_UPDATE_CHECK", "PATH" }) && game["LONGSHOT_NO_UPDATE_CHECK"] == "1",
                 "Linux Play drops the AppImage's and the tools' environment.");
         Require(GamePlay.Environment(Platform.Windows, env).ContainsKey("LONGSHOT_TOOLS"), "Windows Play keeps the environment, as the Builder's.");
-        Require(GamePlay.Environment(Platform.Windows, env, intelSideBySide: true)["RX_VK_NO_INTEL_SERIAL"] == "1"
+        // (Auto must set nothing: while RX_VK_NO_INTEL_SERIAL is set the game shows its own Intel shader compiles row fixed)
+        Require(GamePlay.Environment(Platform.Windows, env, intelCompiles: GamePlay.IntelCompilesSideBySide)["RX_VK_NO_INTEL_SERIAL"] == "1"
+                && GamePlay.Environment(Platform.Windows, env, intelCompiles: GamePlay.IntelCompilesOneAtATime)["RX_VK_NO_INTEL_SERIAL"] == "0"
+                && !GamePlay.Environment(Platform.Windows, env, intelCompiles: GamePlay.IntelCompilesAuto).ContainsKey("RX_VK_NO_INTEL_SERIAL")
                 && !GamePlay.Environment(Platform.Windows, env).ContainsKey("RX_VK_NO_INTEL_SERIAL")
-                && !GamePlay.Environment(Platform.Linux, env, intelSideBySide: true).ContainsKey("RX_VK_NO_INTEL_SERIAL"),
-                "Play with Intel shader compiles on Side by side: RX_VK_NO_INTEL_SERIAL=1 on Windows only.");
+                && !GamePlay.Environment(Platform.Linux, env, intelCompiles: GamePlay.IntelCompilesSideBySide).ContainsKey("RX_VK_NO_INTEL_SERIAL"),
+                "Play with Intel shader compiles: RX_VK_NO_INTEL_SERIAL 1 or 0 on Windows for Side by side or One at a time, nothing on Auto.");
         var playLonger = GamePlay.Environment(Platform.Windows, env, intelLongerLimits: true);
         Require(GamePlay.IntelLongerLimits.All(v => playLonger[v.Name] == v.Value) && !playLonger.ContainsKey("RX_VK_NO_INTEL_SERIAL")
                 && GamePlay.IntelLongerLimits.All(v => !GamePlay.Environment(Platform.Windows, env).ContainsKey(v.Name)

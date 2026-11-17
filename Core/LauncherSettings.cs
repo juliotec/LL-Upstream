@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace LongshotLauncher.Core;
 
@@ -27,9 +28,12 @@ public sealed class LauncherSettings
     /// (Windows) Intel XeSS: the build fetches Intel's libxess.dll into the game folder, under Intel's licence (XessLicense)
     public bool Xess { get; set; }
     public bool XessLicense { get; set; }
-    /// (Windows, Intel graphics) Intel shader compiles: Side by side hands Intel's compiler several shaders at once, in the build's
-    /// shader preparation and in play (RX_VK_NO_INTEL_SERIAL=1, SystemInfo.IntelCompilesApply); false: One at a time, the game's
-    /// default, whose own Intel shader compiles row then decides
+    /// (Windows, Intel graphics) Intel shader compiles, numbered as the game's row (GamePlay.IntelCompilesAuto, SideBySide,
+    /// OneAtATime), for the build's shader preparation and in play (SystemInfo.IntelCompilesApply). Auto sets nothing, so the
+    /// game's own Auto decides and its in-game row stays free; the other two set RX_VK_NO_INTEL_SERIAL, which fixes that row
+    public int IntelCompiles { get; set; }
+    /// (read only: the launcher before Auto saved Side by side as true, and its One at a time, which set nothing, as false)
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool IntelSideBySide { get; set; }
     /// (Windows, Intel graphics) Shader time limit, Longer: the waits on a driver that seems stuck made longer, for the build's
     /// shader preparation and in play (GamePlay.IntelLongerLimits); false: Normal, Longshot's own
@@ -129,6 +133,9 @@ public sealed class LauncherSettings
         if (!DlssLicense) Dlss = false;   // (a tick saved before its license was accepted is not one)
         if (!FsrLicense && !FsrLinuxNotice) Fsr = false;
         if (!XessLicense) Xess = false;
+        if (IntelSideBySide && IntelCompiles == GamePlay.IntelCompilesAuto) IntelCompiles = GamePlay.IntelCompilesSideBySide;
+        IntelSideBySide = false;
+        if (IntelCompiles is < GamePlay.IntelCompilesAuto or > GamePlay.IntelCompilesOneAtATime) IntelCompiles = GamePlay.IntelCompilesAuto;
         SeenCrashLogs ??= new();
         return this;
     }

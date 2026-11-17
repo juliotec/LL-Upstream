@@ -140,8 +140,10 @@ next time it starts. If `LongshotLauncher.exe` itself is missing, rename `Longsh
    is never red: it runs on other makers' cards too where their driver has what it needs, which the game checks at its
    start. Your saves come
    along: every build shares them. On Windows with Intel graphics, **Intel shader compiles** chooses how many shaders
-   Intel's driver is given at once, for the build and the game: *One at a time* (recommended: two at once can crash
-   Intel's driver) or *Side by side* (faster on a CPU with many cores). **Shader time limit** on *Longer* waits up to 30
+   Intel's driver is given at once, for the build and the game: *Auto* (recommended: the game's own choice, side by side
+   on the Arc B-series and one at a time on other Intel graphics, and the game's Intel shader compiles row stays free to
+   change), *Side by side* (faster on a CPU with many cores, but can crash Intel's driver) or *One at a time*. Side by side
+   and One at a time hold the game's row at that value. **Shader time limit** on *Longer* waits up to 30
    minutes, not 5, on a driver that seems stuck before the shader preparation gives up, and 3 minutes, not 30 seconds,
    for the last pipelines: for a slow Intel GPU whose build says the GPU driver stopped responding.
 4. **Build**: about 15 to 30 minutes the first time, shaders included. An update compiles only what changed.
