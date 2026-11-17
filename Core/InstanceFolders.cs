@@ -54,6 +54,15 @@ public static class InstanceFolders
         return Parent(track) is { } builds && BuildRegistry.SameFolder(builds, buildsFolder);
     }
 
+    /// The channel a game folder's name says it was built on: its track's folder's (builds/nightly/&lt;version&gt;), else, for one
+    /// from before the layout right in the builds folder, its own (builds/rc); " (2)" and on left out either way (builds/rc (2),
+    /// builds/nightly (2)/&lt;version&gt;). Null when the name is no channel (Longshot, a name the player gave)
+    public static string? ChannelNamed(string folder, string buildsFolder)
+    {
+        var named = InLayout(folder, buildsFolder) ? Parent(folder) : folder;
+        return named != null && Base(Name(named)) is var b && Versions.IsChannel(b) ? b : null;
+    }
+
     /// folder is named for that version on that track: &lt;track&gt;/&lt;version&gt;, either with " (2)" and on
     public static bool NamedFor(string folder, string channel, string? version) =>
         Parent(folder) is { } track && Base(Name(track)) == LauncherSettings.TrackFolder(channel)

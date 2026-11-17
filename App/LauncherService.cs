@@ -366,10 +366,12 @@ public sealed class LauncherService
         Leftovers.Find(BuildsFolder, Registry.Builds.Select(b => b.Folder), Platform, Settings.KeptFolders, new[] { Home.Root });
 
     /// The games in the builds folder a row should have, listed: first a row that lost the game its update built in a new folder
-    /// takes it back (Leftovers.LostUpdate), then each game whose row went is listed again (Leftovers.Relist, #141). Saved once,
-    /// the tools pruned once (after both: a tool a game listed again uses stays); the rows given a game, returned
+    /// takes it back (Leftovers.LostUpdate), then, once (Leftovers.ShouldRelist), each game whose row went is listed again
+    /// (Leftovers.Relist, #141). Nothing when builds.json could not be read: it is never written over then. Saved once, the tools
+    /// pruned once (after both: a tool a game listed again uses stays); the rows given a game, returned
     public IReadOnlyList<BuildEntry> Relist()
     {
+        if (Registry.Problem != null) return Array.Empty<BuildEntry>();
         var keep = new[] { Home.Root };
         var moved = new List<BuildEntry>();
         foreach (var b in Registry.Builds.ToList())
@@ -378,7 +380,19 @@ public sealed class LauncherService
             LauncherLog.Add($"{b.Version} in {b.Folder} has no game; its update's {found.Version} in {found.Folder} is listed in its place");
             moved.Add(Registry.Replace(b.Id, found.Folder, found.Version, b.Channel));
         }
-        var added = Leftovers.Relist(Registry, BuildsFolder, Platform, keep, Settings.KeptFolders);
+        var added = Array.Empty<BuildEntry>() as IReadOnlyList<BuildEntry>;
+        // (settings that could not be read count as relisted before: their flag is lost, and a sweep at each start would undo the
+        // player's removals; nor are they written over to remember it)
+        if (Leftovers.ShouldRelist(Registry, Settings.RelistedLostBuilds || Settings.Problem != null))
+        {
+            added = Leftovers.Relist(Registry, BuildsFolder, Platform, keep, Settings.KeptFolders);
+            if (!Settings.RelistedLostBuilds && Settings.Problem == null)
+            {
+                Settings.RelistedLostBuilds = true;
+                try { SaveSettings(); }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+            }
+        }
         foreach (var b in added) LauncherLog.Add($"build {b.Version} in {b.Folder} was in no row of the list: listed again");
         if (moved.Count + added.Count == 0) return moved;
         remeasure = true;

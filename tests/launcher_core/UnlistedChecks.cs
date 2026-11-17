@@ -75,13 +75,74 @@ static partial class Program
         Require(Leftovers.Relist(reg4, builds4, p).Count == 1 && reg4.Builds.Single() is { Version: "v3.0.0", Channel: Versions.Candidate } r4 && r4.Folder == rcStable,
                 "A folder named rc holding a stable release is listed on rc: " + reg4.Builds.FirstOrDefault()?.Channel);
 
-        // (a row whose game is not there (an unplugged drive, an antivirus) never has an older game of its channel listed beside it)
+        // (a row whose game is not there (an unplugged drive: the folder that held it is not there either; an antivirus) never has
+        // an older game of its channel listed beside it)
         var builds5 = Folder("unlisted-row-gone");
         Built(builds5, "v3.0.0-rc.3", "v3.0.0-rc.3");
         var reg5 = BuildRegistry.Load(Path.Combine(Folder("unlisted-home5"), "builds.json"));
-        reg5.Add(Path.Combine(Folder("unplugged"), "rc"), "v3.0.0-rc.5", Versions.Candidate);
+        reg5.Add(Path.Combine(Folder("unplugged"), "drive-not-there", "rc"), "v3.0.0-rc.5", Versions.Candidate);
         Require(Leftovers.Relist(reg5, builds5, p).Count == 0 && reg5.Builds.Count == 1,
-                "An older game is not listed beside a row of its channel whose game is not there.");
+                "An older game is not listed beside a row of its channel whose drive is not there.");
+
+        // (#187's review, 6: a row whose folder was deleted by hand (the folder that held it is there: BuildRegistry.Gone, which
+        // ForgetGone drops at the home's Refresh) counts as gone already, whether Relist or ForgetGone runs first)
+        var builds5b = Folder("unlisted-row-deleted");
+        var rc3 = Built(builds5b, "v3.0.0-rc.3", "v3.0.0-rc.3");
+        var reg5b = BuildRegistry.Load(Path.Combine(Folder("unlisted-home5b"), "builds.json"));
+        reg5b.Add(Path.Combine(builds5b, "rc"), "v3.0.0-rc.5", Versions.Candidate);
+        Require(Leftovers.Relist(reg5b, builds5b, p) is [{ Version: "v3.0.0-rc.3" } a5b] && a5b.Folder == rc3,
+                "A row whose folder was deleted by hand does not hold back the older game of its channel: the same at the first start as at the next.");
+
+        // (#187's review, 3 and 4: the channel a row is on decides, each row's own. builds/rc and builds/stable both at v3.0.0 are
+        // two instances, stable first (the default when the list has none), rc on rc; Find offers neither)
+        var builds7 = Folder("unlisted-same-version");
+        var st7 = Built(builds7, "stable", "v3.0.0");
+        var rc7 = Built(builds7, "rc", "v3.0.0");
+        var reg7 = BuildRegistry.Load(Path.Combine(Folder("unlisted-home7"), "builds.json"));
+        var added7 = Leftovers.Relist(reg7, builds7, p);
+        Require(added7.Count == 2 && reg7.Builds.SingleOrDefault(b => b.Folder == st7)?.Channel == Versions.Stable
+                && reg7.Builds.SingleOrDefault(b => b.Folder == rc7)?.Channel == Versions.Candidate && reg7.Default?.Folder == st7,
+                "One version in builds/stable and builds/rc: both listed, each on its folder's channel, the stable one the default (got: "
+                + string.Join(", ", reg7.Builds.Select(b => Path.GetFileName(b.Folder) + " " + b.Channel + (b.Default ? " default" : ""))) + ").");
+        Require(Leftovers.Find(builds7, reg7.Builds.Select(b => b.Folder), p).Count == 0, "Neither is offered for deletion.");
+
+        // (a stable row at v3.0.0 holds back no rc-channel game: rows of another channel don't count)
+        var builds8 = Folder("unlisted-other-channel");
+        var rc8 = Built(builds8, "rc", "v3.0.0-rc.5");
+        var reg8 = BuildRegistry.Load(Path.Combine(Folder("unlisted-home8"), "builds.json"));
+        var st8 = reg8.Add(Built(builds8, "stable", "v3.0.0"), "v3.0.0", Versions.Stable);
+        Require(Leftovers.Relist(reg8, builds8, p) is [{ Channel: Versions.Candidate } a8] && a8.Folder == rc8 && reg8.Default?.Id == st8.Id,
+                "A stable row does not hold back the rc channel's own game, and the default the list had stays.");
+
+        // (#187's review, 5: a second build's folder, builds/rc (2) or builds/nightly (2)/<version>, is on the channel its name says)
+        var builds9 = Folder("unlisted-numbered");
+        var rc9 = Built(builds9, "rc (2)", "v3.0.0");
+        var n9 = Built(Path.Combine(builds9, "nightly (2)"), "nightly-400-12345678", "nightly-400-12345678");
+        var reg9 = BuildRegistry.Load(Path.Combine(Folder("unlisted-home9"), "builds.json"));
+        Leftovers.Relist(reg9, builds9, p);
+        Require(reg9.Builds.SingleOrDefault(b => b.Folder == rc9)?.Channel == Versions.Candidate
+                && reg9.Builds.SingleOrDefault(b => b.Folder == n9)?.Channel == Versions.Nightly,
+                "builds/rc (2) holding a stable release stays on rc, builds/nightly (2)/<version> on nightly (got: "
+                + string.Join(", ", reg9.Builds.Select(b => Path.GetFileName(b.Folder) + " " + b.Channel)) + ").");
+
+        // (#187's review, 1, 2 and 7: a recovery, once. A first start, or a builds.json that was lost: yes. A launcher that never ran
+        // it: once. After that, never: a build the player took off the list stays off. And never when builds.json could not be read,
+        // which would be written over)
+        var home10 = Folder("unlisted-once");
+        var list10 = Path.Combine(home10, "builds.json");
+        Require(Leftovers.ShouldRelist(BuildRegistry.Load(list10), relistedBefore: true), "No builds.json (a first start, or a lost one): listed again.");
+        var reg10 = BuildRegistry.Load(list10);
+        var b10 = reg10.Add(Built(Folder("unlisted-once-builds"), "rc", "v3.0.0-rc.5"), "v3.0.0-rc.5", Versions.Candidate);
+        reg10.Save();
+        Require(Leftovers.ShouldRelist(BuildRegistry.Load(list10), relistedBefore: false), "A list that never had it done: once.");
+        reg10.Remove(b10.Id);
+        reg10.Save();
+        Require(!Leftovers.ShouldRelist(BuildRegistry.Load(list10), relistedBefore: true),
+                "Done once: a build taken off the list (Delete with its folder left, or a folder deleted by hand) is not listed again.");
+        File.WriteAllText(list10, "{ \"format\": 2, \"builds\": [] }");
+        var broken10 = BuildRegistry.Load(list10);
+        Require(broken10.Problem != null && !Leftovers.ShouldRelist(broken10, relistedBefore: false),
+                "A builds.json that could not be read (a newer launcher's) is never relisted into, so never written over.");
 
         // (a portable launcher's lost update: its builds folder is in its home, which is no reason to leave the game unlisted)
         var lostRow = new BuildEntry { Id = "a", Folder = Path.Combine(builds, "gone"), Version = "v3.0.0-rc.4", Channel = Versions.Candidate };
@@ -107,5 +168,18 @@ static partial class Program
                 "The older nightly stays unlisted, and the track's folder is no game.");
         var offered6 = Leftovers.Find(builds6, reg6.Builds.Select(b => b.Folder), p).Select(l => l.Folder).ToList();
         Require(offered6.SequenceEqual(new[] { n305 }), "The older nightly in the track's folder is offered for deletion (got: " + string.Join(", ", offered6) + ").");
+    }
+
+    /// LauncherService.Relist in its source: nothing when builds.json could not be read, and Leftovers.Relist only when
+    /// ShouldRelist says so (not at every start), remembered in the settings
+    static void RelistSourceChecks(string repo)
+    {
+        var service = File.ReadAllText(Path.Combine(repo, "App", "LauncherService.cs"));
+        var body = service[service.IndexOf("public IReadOnlyList<BuildEntry> Relist()", StringComparison.Ordinal)..];
+        body = body[..body.IndexOf("\n    }", StringComparison.Ordinal)];
+        Require(body.Contains("if (Registry.Problem != null) return") && body.Contains("Leftovers.ShouldRelist(Registry,")
+                && body.IndexOf("Leftovers.ShouldRelist(", StringComparison.Ordinal) < body.IndexOf("Leftovers.Relist(", StringComparison.Ordinal)
+                && body.Contains("Settings.RelistedLostBuilds = true"),
+                "LauncherService.Relist lists lost games again only when ShouldRelist says so, remembers it, and does nothing on a list it could not read.");
     }
 }

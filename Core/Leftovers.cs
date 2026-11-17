@@ -26,28 +26,40 @@ public static class Leftovers
                                                IEnumerable<string>? kept = null, IEnumerable<string>? keep = null)
     {
         var listed = builds.ToList();
-        var homes = (keep ?? Array.Empty<string>()).ToList();
-        var keptList = (kept ?? Array.Empty<string>()).ToList();
-        var found = new List<Leftover>();
-        IEnumerable<string> dirs;
-        // (right in the builds folder, and in its tracks' folders: builds/nightly/<version>, InstanceFolders.Folders)
-        dirs = InstanceFolders.Folders(buildsFolder, platform);
-        foreach (var dir in dirs.OrderBy(d => d, StringComparer.Ordinal))
+        return Unlisted(buildsFolder, listed, (keep ?? Array.Empty<string>()).ToList(), platform, (kept ?? Array.Empty<string>()).ToList(),
+                        dir => GameFolder.IsGameFolder(dir, platform) && PlayerLeftNothing(dir)
+                               && !NewestOfItsChannel(dir, GameFolder.Version(dir), listed, platform))
+               .Select(f => new Leftover(f.Dir, f.Version)).ToList();
+    }
+
+    /// The folders an instance can be in buildsFolder (right in it, and in its tracks' folders: builds/nightly/&lt;version&gt;,
+    /// InstanceFolders.Folders), in ordinal order, with the version their stamp names: no link, no listed build's folder nor one
+    /// holding or in one, none holding the launcher's home (homes), none the player kept (kept), and passing want. One that cannot
+    /// be read is left out. The one scan Find, LostUpdate and Relist share
+    static IEnumerable<(string Dir, string? Version)> Unlisted(string buildsFolder, IReadOnlyList<string> listed, IReadOnlyList<string> homes,
+                                                               Platform platform, IReadOnlyList<string> kept, Func<string, bool> want)
+    {
+        foreach (var dir in InstanceFolders.Folders(buildsFolder, platform).Order(StringComparer.Ordinal))
         {
+            string? version;
             try
             {
-                if (new DirectoryInfo(dir).LinkTarget != null || !GameFolder.IsGameFolder(dir, platform)) continue;
-                if (Taken(dir, listed, homes)) continue;
-                if (keptList.Any(k => BuildRegistry.SameFolder(k, dir))) continue;
-                if (!PlayerLeftNothing(dir)) continue;
-                var version = GameFolder.Version(dir);
-                if (NewestOfItsChannel(dir, version, listed, platform)) continue;
-                found.Add(new Leftover(dir, version));
+                if (new DirectoryInfo(dir).LinkTarget != null || Taken(dir, listed, homes)) continue;
+                if (kept.Any(k => BuildRegistry.SameFolder(k, dir)) || !want(dir)) continue;
+                version = GameFolder.Version(dir);
             }
-            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { continue; }
+            yield return (dir, version);
         }
-        return found;
     }
+
+    /// Whether the home lists again the games whose row went (Relist). A recovery, once: when the list was not there (the first
+    /// start, or a builds.json that was lost), and once on a launcher that never ran it (#141: rows a portable launcher lost
+    /// before #153). Never at every start, which would undo the player's own removals (Delete, a folder deleted by hand), and
+    /// never when the list could not be read: listing games in it would write builds.json over the one set aside as
+    /// builds.json.broken (a newer launcher's list, or a damaged one)
+    public static bool ShouldRelist(BuildRegistry registry, bool relistedBefore) =>
+        registry.Problem == null && (!registry.Existed || !relistedBefore);
 
     /// A game no listed build matches: it plays, and no listed build that plays has its channel's version as new as it. Not an
     /// old version an update left but the newest game of its channel, which an older launcher's update built in a new folder and
@@ -73,21 +85,12 @@ public static class Leftovers
     {
         if (GameFolder.IsBuilt(row.Folder, platform)) return null;
         var channel = UpdatePolicy.ChannelOf(row.Channel, row.Version);
-        var all = listed.ToList();
-        var homes = (keep ?? Array.Empty<string>()).ToList();
-        IEnumerable<string> dirs;
-        dirs = InstanceFolders.Folders(buildsFolder, platform);
         Leftover? best = null;
-        foreach (var dir in dirs)
+        foreach (var (dir, version) in Unlisted(buildsFolder, listed.ToList(), (keep ?? Array.Empty<string>()).ToList(), platform,
+                                                Array.Empty<string>(), d => GameFolder.IsBuilt(d, platform)))
         {
-            try
-            {
-                if (new DirectoryInfo(dir).LinkTarget != null || !GameFolder.IsBuilt(dir, platform)) continue;
-                if (Taken(dir, all, homes)) continue;
-                if (GameFolder.Version(dir) is not { } v || !OnChannel(v, channel) || !Versions.Newer(v, row.Version)) continue;
-                if (best == null || Versions.Newer(v, best.Version)) best = new Leftover(dir, v);
-            }
-            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+            if (version is not { } v || !OnChannel(v, channel) || !Versions.Newer(v, row.Version)) continue;
+            if (best == null || Versions.Newer(v, best.Version)) best = new Leftover(dir, v);
         }
         return best;
     }
@@ -98,48 +101,47 @@ public static class Leftovers
     /// with builds.json). Each one that plays, with a version in its stamp, that is no listed build's folder nor holds one or the
     /// launcher's home (keep; a portable launcher's builds folder is in its home: no reason), nor kept by the player when the home
     /// offered it for deletion (kept), whose version is a release or a nightly, and that is its channel's newest that no listed
-    /// build plays (NewestOfItsChannel, Find's rule for what is never offered for deletion) nor any row has (its game there or not).
-    /// Of two on one channel, the newer: the
-    /// older stays unlisted, an old version Find offers as before. In the order stable, release candidate, nightly, so that the
-    /// first, the default when the list was empty, is a release; on the channel its folder is named after (rc, stable, nightly:
-    /// LauncherSettings.FolderFor) when its version is one that channel follows, else its version's. The entries added; registry
-    /// is not saved
+    /// build plays nor any row of its channel has (its game there or not), each row on its own channel. Of two on one channel, the
+    /// newer: the older stays unlisted, an old version Find offers as before. Its channel: the one its folder's name says
+    /// (InstanceFolders.ChannelNamed: builds/rc/&lt;version&gt;, builds/rc, builds/rc (2)) when its version is one that channel follows,
+    /// else its version's. In the order of Versions.Channels (stable, release candidate, nightly), so that the first, the default
+    /// when the list has none, is a release; the default the list has stays. A row whose folder was deleted outside the launcher
+    /// (BuildRegistry.Gone: ForgetGone drops it at the home's Refresh) counts as gone already, so the result does not depend on
+    /// which ran first. The entries added; registry is not saved. Run it when ShouldRelist says so, not at every start
     public static IReadOnlyList<BuildEntry> Relist(BuildRegistry registry, string buildsFolder, Platform platform, IEnumerable<string>? keep = null,
                                                    IEnumerable<string>? kept = null)
     {
-        var listed = registry.Builds.Select(b => b.Folder).ToList();
-        var homes = (keep ?? Array.Empty<string>()).ToList();
-        var keptList = (kept ?? Array.Empty<string>()).ToList();
-        var found = new List<(string Dir, string Version)>();
-        var dirs = InstanceFolders.Folders(buildsFolder, platform);
-        foreach (var dir in dirs)
-        {
-            try
-            {
-                if (new DirectoryInfo(dir).LinkTarget != null || !GameFolder.IsBuilt(dir, platform)) continue;
-                if (Taken(dir, listed, homes) || keptList.Any(k => BuildRegistry.SameFolder(k, dir))) continue;
-                if (GameFolder.Version(dir) is { } v && (Versions.IsRelease(v) || Versions.TrackOf(v) == Versions.Nightly)) found.Add((dir, v));
-            }
-            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
-        }
-        int Rank(string version) => Versions.TrackOf(version) switch { Versions.Stable => 0, Versions.Candidate => 1, _ => 2 };
-        // (the newest first within a channel, so that an older one meets the newer one already listed)
-        found.Sort((a, b) => Rank(a.Version) != Rank(b.Version) ? Rank(a.Version).CompareTo(Rank(b.Version))
-                             : Versions.Newer(a.Version, b.Version) ? -1 : Versions.Newer(b.Version, a.Version) ? 1 : string.CompareOrdinal(a.Dir, b.Dir));
+        var found = Unlisted(buildsFolder, registry.Builds.Select(b => b.Folder).ToList(), (keep ?? Array.Empty<string>()).ToList(), platform,
+                             (kept ?? Array.Empty<string>()).ToList(), d => GameFolder.IsBuilt(d, platform))
+            .Where(f => f.Version is { } v && (Versions.IsRelease(v) || Versions.TrackOf(v) == Versions.Nightly))
+            .Select(f => (f.Dir, Version: f.Version!, Channel: ChannelOf(f.Dir, f.Version!, buildsFolder)))
+            // (the newest first within a channel, so that an older one meets the newer one already listed)
+            .OrderBy(f => Rank(f.Channel)).ThenByDescending(f => f.Version, Comparer<string>.Create(Versions.Compare))
+            .ThenBy(f => f.Dir, StringComparer.Ordinal).ToList();
+        // (every row, its game there or not: a row on an unplugged drive, or whose game an antivirus took, never brings an older
+        // one back beside it; read once, and the ones listed here join it)
+        var rows = registry.Builds.Where(b => !BuildRegistry.Gone(b.Folder))
+                                  .Select(b => (Channel: UpdatePolicy.ChannelOf(b.Channel, b.Version), b.Version)).ToList();
         var added = new List<BuildEntry>();
-        foreach (var (dir, version) in found)
+        foreach (var (dir, version, channel) in found)
         {
-            if (!NewestOfItsChannel(dir, version, listed, platform)) continue;
-            // (nor when a row of its channel has a version as new, its game there or not: a row on an unplugged drive, or whose
-            // game an antivirus took, never brings an older one back beside it)
-            if (registry.Builds.Any(b => b.Version is { } rv && OnChannel(rv, Versions.TrackOf(version)) && !Versions.Newer(version, rv))) continue;
-            // (the channel its folder is in: builds/nightly/<version>'s track's folder, or an old one's own name, builds/nightly)
-            var name = Path.GetFileName(Path.TrimEndingDirectorySeparator(
-                InstanceFolders.InLayout(dir, buildsFolder) ? Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(dir))! : dir));
-            added.Add(registry.Add(dir, version, Versions.IsChannel(name) && OnChannel(version, name) ? name : null));
-            listed.Add(dir);
+            if (rows.Any(r => r.Channel == channel && r.Version is { } rv && !Versions.Newer(version, rv))) continue;
+            added.Add(registry.Add(dir, version, channel));
+            rows.Add((channel, version));
         }
         return added;
+    }
+
+    /// The channel a game folder was built on: the one its name says (InstanceFolders.ChannelNamed) when its version is one that
+    /// channel follows, else its version's
+    static string ChannelOf(string dir, string version, string buildsFolder) =>
+        InstanceFolders.ChannelNamed(dir, buildsFolder) is { } named && OnChannel(version, named) ? named : Versions.TrackOf(version);
+
+    /// A channel's place in Versions.Channels (stable, release candidate, nightly)
+    static int Rank(string channel)
+    {
+        for (var i = 0; i < Versions.Channels.Count; i++) if (Versions.Channels[i] == channel) return i;
+        return Versions.Channels.Count;
     }
 
     /// dir is a build's folder, holds one or is in one (builds), or holds the launcher's home (homes: one way only, a portable

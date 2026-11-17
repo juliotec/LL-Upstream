@@ -57,6 +57,9 @@ public sealed class LauncherSettings
     /// The instances' folders named after a version the player chose to keep as they are when the home offered to rename them
     /// after their track (InstanceFolders): not offered again
     public List<string> KeptFolderNames { get; set; } = new();
+    /// The home has once listed again the games whose row went (Leftovers.Relist, #141): from then on only when builds.json was
+    /// not there (Leftovers.ShouldRelist), so a build the player took off the list stays off
+    public bool RelistedLostBuilds { get; set; }
     /// Where new builds go, each in its own folder (FolderFor); null: DefaultBuildsFolder
     public string? BuildsFolder { get; set; }
     /// Ask git.magicbean.dev for each channel's newest version when the launcher starts

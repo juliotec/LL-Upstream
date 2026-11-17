@@ -859,6 +859,7 @@ static partial class Program
     {
         StepTwoFolderSourceChecks(repo);
         HomeLayoutSourceChecks(repo);
+        RelistSourceChecks(repo);
         var path = Path.Combine(Folder("settings"), "settings.json");
         var d = LauncherSettings.Load(path);
         Require(!d.Dlss && d.DefaultChannel == null && d.MemoryGb == null, "The defaults.");
