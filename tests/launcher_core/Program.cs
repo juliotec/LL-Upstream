@@ -91,6 +91,7 @@ static partial class Program
         HookshotSettingsChecks();
         SettingsCarryChecks();
         DriverSettingsChecks();
+        EditBackupsChecks();
         Utf8Checks();
         await ScreenChecks();
         await BusyChecks(Path.GetFullPath(Path.Combine(fixtures, "..", "..")));

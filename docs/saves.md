@@ -287,7 +287,8 @@ together, a version deleted), and **Restore from a backup…** on the Saves page
 and its size: "Before an import from Lichii", "The save of Lichii before an export to it, to restore into Longshot" (an
 export's backup is the other program's old save, and a restore puts it into Longshot, not back into that program),
 "v3.0.0-rc.5's own save, before the versions' saves were brought together" (a gather's backup holds one per version folder;
-its `shared (set aside)` folder reads as the shared save), "nightly's own save, before it was deleted". A folder the launcher
+its `shared (set aside)` folder reads as the shared save), "nightly's own save, before it was deleted", "Before an edit in
+Progress" (the save editor's own backup, `edit-<player>-<date>-<time>`). A folder the launcher
 did not name is listed by its name, at its folder's time; one with no save, a copy's hidden staging and the files there are
 left out.
 

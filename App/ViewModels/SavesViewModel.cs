@@ -747,6 +747,7 @@ public sealed class BackupsViewModel : ViewModelBase
                 var p => Tr.F("{0}'s own save, before the versions' saves were brought together", p),
             },
             BackupKind.Delete => b.Part is { } part ? Tr.F("{0}'s own save, before it was deleted", part) : Tr.T("A version's own save, before it was deleted"),
+            BackupKind.Edit => Tr.T("Before an edit in Progress"),
             _ => Path.GetFileName(b.Folder),
         };
         // (a backup with several profiles and not the game's: each named, as the import names one)

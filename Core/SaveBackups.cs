@@ -4,9 +4,9 @@ using System.Text.RegularExpressions;
 namespace LongshotLauncher.Core;
 
 /// What made a backup, from its folder's name: a copy's (Saves.Copy: import, export, hookshot, restore and the like, the
-/// command first), the saves brought together (Saves.Gather: gather), a version deleted (Saves.BackUpForDelete: delete), or a
-/// folder the launcher did not name (Other)
-public enum BackupKind { Import, Export, Hookshot, Restore, Gather, Delete, Other }
+/// command first), the saves brought together (Saves.Gather: gather), a version deleted (Saves.BackUpForDelete: delete), a slot
+/// edited in Progress (the save editor: edit), or a folder the launcher did not name (Other)
+public enum BackupKind { Import, Export, Hookshot, Restore, Gather, Delete, Edit, Other }
 
 /// One save kept in the backups folder, which Restore can put back: the backup folder it is in (one per copy, named for what
 /// made it and when), the save folder in it (a gather's or a delete's backup holds one per version folder: Part names it), what
@@ -37,6 +37,7 @@ public static class SaveBackups
         "restore" => BackupKind.Restore,
         "gather" => BackupKind.Gather,
         "delete" => BackupKind.Delete,
+        "edit" => BackupKind.Edit,
         _ => BackupKind.Other,
     };
 
