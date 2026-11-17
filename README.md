@@ -409,7 +409,7 @@ Calls made here, most of them the design mockup's; each can be changed:
   times"). The top of each range is an estimate for slower PCs, not a measurement. Step 3's time left is make_game's
   `@@eta` in the compile, else the pace so far. **Measure again** and update these after a change to the lift, the compile
   flags, the shader preparation or the toolchain, and before each release, the way that section describes.
-- **Disk space**: step 2 wants 45 GB free where the game goes (the 2.x Builders' figure), and stops Build below it.
+- **Disk space**: step 2 wants about 60 GB free where the game goes, the same figure as Longshot's requirements, and stops Build below it.
 - **Slots are shown as "Slot N"** with the time they were saved: the place a slot was saved at (caption.sav) is not read.
 - **"Your GPU"** comes from `/sys/class/drm` on Linux; on Windows the chip is not shown yet.
 

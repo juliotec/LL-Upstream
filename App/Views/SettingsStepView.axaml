@@ -305,7 +305,7 @@
                   <TextBlock Classes="rtitle" Text="{c:T 'Build files'}"/>
                   <WrapPanel>
                     <TextBlock Classes="mono path" Foreground="{StaticResource InkSoft}" Text="{Binding Work}" ToolTip.Tip="{Binding WorkFull}" VerticalAlignment="Center"/>
-                    <TextBlock Classes="rdesc" Text="{c:T ', 45 GB while building'}" TextWrapping="NoWrap" VerticalAlignment="Center"/>
+                    <TextBlock Classes="rdesc" Text="{c:T ', 60 GB while building'}" TextWrapping="NoWrap" VerticalAlignment="Center"/>
                   </WrapPanel>
                 </StackPanel>
                 <Button Grid.Column="1" Classes="small" Content="{c:T 'Change…'}" Command="{Binding ChangeWorkCommand}" VerticalAlignment="Center"/>

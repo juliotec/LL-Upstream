@@ -3,9 +3,11 @@ namespace LongshotLauncher.Core;
 /// Space on the disk: what a folder holds, what is free where a build goes, and what a build needs
 public static class Disk
 {
-    /// What a build needs while it builds: the game folder and the build files (the 2.x Builders' "Needs 45 GB"). The stores
-    /// (MakeGameCommand) add at most a new translation's copy while it runs (~1.6 GB): what they keep is on the disk already
-    public const long BuildBytes = 45L << 30;
+    /// What a build needs free while it builds. The same about-60-GB figure as Longshot's requirements and as the
+    /// advisory check (SystemRequirements): step 2 stops Build below it. The 2.x builders said 45 GB; that let Build
+    /// start while the requirements card already said about 60 GB was needed. The stores (MakeGameCommand) add at most
+    /// a new translation's copy while it runs (~1.6 GB): what they keep is on the disk already.
+    public const long BuildBytes = 60L << 30;
 
     /// What a build makes in its build files folder (make_game.py --work) that Free up space lets go, as the 2.x Builder's
     /// Storage.Freeable: the compiled objects and their system headers' stamp, the translation, the unpacked exefs and the check's

@@ -24,7 +24,7 @@ public static class SystemRequirements
         if (threads <= 0) unknown.Add(Tr.T("CPU thread count could not be checked"));
         else if (threads < 6) warnings.Add(Tr.F("{0} CPU threads; a 6-core CPU is suggested", threads));
         if (freeBytes is null) unknown.Add(Tr.T("Free disk space could not be checked"));
-        else if (freeBytes < 60L << 30) warnings.Add(Tr.F("{0} GB free; about 60 GB needed for building", FormattableString.Invariant($"{freeBytes.Value / (double)(1L << 30):0.#}")));
+        else if (freeBytes < Disk.BuildBytes) warnings.Add(Tr.F("{0} GB free; about 60 GB needed for building", FormattableString.Invariant($"{freeBytes.Value / (double)(1L << 30):0.#}")));
         if (gpus is null) unknown.Add(Tr.T("GPU support could not be checked; requires Vulkan 1.3 and 4 GB VRAM"));
         else if (!gpus.Any(g => g.Vulkan13)) failures.Add(Tr.T("No Vulkan 1.3 GPU found; check your graphics driver"));
         else

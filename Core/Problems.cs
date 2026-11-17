@@ -86,7 +86,7 @@ public static partial class Problems
         // (the system's own words: Linux's ENOSPC, Windows' ERROR_DISK_FULL)
         if (Has("No space left") || Has("not enough space") || Has("disk full"))
             return new Problem(ProblemKind.DiskFull, Tr.N("The drive is full"),
-                Tr.N("The build needs about 45 GB free while it runs. Free up space on that drive, or build to another drive."),
+                Tr.N("The build needs about 60 GB free while it runs. Free up space on that drive, or build to another drive."),
                 [new Fix(FixKind.ChooseOtherFolder, Tr.N("Build to another folder")), BuildAgain]);
         if (Has("ran out of memory") || Has("MemoryError") || Has("out of memory"))
             return new Problem(ProblemKind.BuildMemory, Tr.N("Your PC ran out of memory while building"),

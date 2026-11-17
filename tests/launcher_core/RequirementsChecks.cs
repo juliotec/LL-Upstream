@@ -4,7 +4,7 @@ static partial class Program
 {
     static void RequirementsChecks()
     {
-        RequirementResult Check(IReadOnlyList<GpuRequirement>? gpus, bool os = true, int ram = 16, long? disk = 60L << 30) =>
+        RequirementResult Check(IReadOnlyList<GpuRequirement>? gpus, bool os = true, int ram = 16, long? disk = Disk.BuildBytes) =>
             SystemRequirements.Evaluate(os, ram, 12, disk, gpus);
         var good = new[] { new GpuRequirement(true, 8UL << 30, true) };
         Require(Check([new(true, 4UL << 30, false)]).Detail.Contains("4 GB VRAM")
@@ -26,7 +26,8 @@ static partial class Program
         Require(!Check(good).Detail.Contains("AVX2"), "No CPU feature is required: Longshot builds and runs without AVX2.");
         Require(Check(good, ram: 8).Status == RequirementStatus.Yellow, "Low RAM estimates warn without blocking.");
         Require(Check(good, disk: null).Status == RequirementStatus.Gray, "Unknown disk space warns.");
-        Require(Check(good, disk: (60L << 30) - 1).Status == RequirementStatus.Yellow, "Less than 60 GiB warns.");
+        Require(Disk.BuildBytes == 60L << 30, "Build stops at the published about-60-GB requirement.");
+        Require(Check(good, disk: Disk.BuildBytes - 1).Status == RequirementStatus.Yellow, "Less than 60 GiB warns.");
         Require(Check([new(true, 4UL << 30)]).Status == RequirementStatus.Yellow, "4 GiB meets minimum but calls for a lower preset.");
         Require(Check([new(false, 16UL << 30), new(true, 2UL << 30)]).Status == RequirementStatus.Yellow,
             "Vulkan and memory must belong to the same GPU.");
