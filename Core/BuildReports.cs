@@ -2,6 +2,7 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 
 namespace LongshotLauncher.Core;
 
@@ -14,13 +15,18 @@ namespace LongshotLauncher.Core;
 ///   time, and the build log's last LogLines lines, with the home folder as ~ (BugReport.Scrub). No game file, no save.
 /// - With Settings' "Send performance statistics" ticked (the player's yes to statistics, off by default), every build's end on
 ///   its own (Auto): completed, failed, stopped by the player (cancelled) or by a signal (terminated), with the same fields but
-///   no log, why or error line. The server only counts those, for Prometheus: no comment.
+///   no log; a failed or terminated one says why it stopped and its last error line, with every path and game file's name taken
+///   out (Diagnostic), so the dashboards tell its failures apart. The server only counts those, for Prometheus: no comment.
+///
+/// Every report names its client (Client), apart from the launcher's version.
 ///
 /// The launcher sends it itself, not the version's tools as for a crash or the performance statistics: a build that failed may
 /// have failed in those tools.
 public static class BuildReports
 {
     public const string Address = "https://data-services.magicbean.dev/telemetry/build";
+    /// Who sent the report, beside the launcher's version (the server counts a report without one as Longshot's)
+    public const string Client = "Longshot";
     /// The build log's lines a report carries (the server keeps as many)
     public const int LogLines = 200;
     /// Where a sent report's comment may be: a link the answer gives elsewhere is not offered
@@ -39,7 +45,8 @@ public static class BuildReports
         update ? older ? GoBack : Update : rebuild ? Rebuild : FirstBuild;
 
     /// What a report says of a build. Kind: KindOf. Stages: each stage's progress (0..1), seconds and whether it kept an earlier
-    /// build's work (BuildProgress.Times). Auto: sent on its own, with the statistics ticked (no log, why or error)
+    /// build's work (BuildProgress.Times). Auto: sent on its own, with the statistics ticked (no log; why and the error line only for a
+    /// failed or terminated build, through Diagnostic)
     public sealed record Failure(string Launcher, string Version, string Channel, string Kind, string System, string Pc,
                                  string Settings, string Why, string? Error, IReadOnlyList<string> Log,
                                  string Outcome = Failed, string Cpu = "",
@@ -62,6 +69,15 @@ public static class BuildReports
         return text[..Math.Max(0, end)];
     }
 
+    static readonly Regex Paths = new("""(?:~|[A-Za-z]:)?[\\/][^\s'"<>]+""", RegexOptions.Compiled);
+    static readonly Regex GameFiles = new("""(?i)\b[^\s'"<>]*\.(?:nup|bars|sarc|msbt|bfstm|bfsar|zs|nca|nsp|xci|romfs|exefs|dat)\b""",
+                                          RegexOptions.Compiled);
+
+    /// A diagnostic as a summary sent on its own carries it (the player saw nothing before it went): every path as [path] and
+    /// every game file's name as [game file], cut to the server's limit
+    public static string Diagnostic(string? text) =>
+        string.IsNullOrWhiteSpace(text) ? "" : Cut(GameFiles.Replace(Paths.Replace(text.Trim(), "[path]"), "[game file]"), TextLength);
+
     static readonly JsonSerializerOptions Options = new()
     {
         WriteIndented = true,
@@ -74,6 +90,9 @@ public static class BuildReports
     {
         home ??= Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         string Kept(string? text, int max) => Cut(BugReport.Scrub(text ?? "", home), max);
+        // (on its own, only a build that failed says why: a completed or cancelled one may still hold an earlier error line)
+        string Reason(string? text) => !f.Auto ? Kept(text, TextLength)
+            : f.Outcome is Failed or Terminated ? Diagnostic(BugReport.Scrub(text ?? "", home)) : "";
         List<string> log = f.Auto ? [] : (f.Log.Count > LogLines ? f.Log.Skip(f.Log.Count - LogLines) : f.Log)
             .Select(l => Kept(l, LogLineLength)).ToList();
         string Written(IEnumerable<string> lines)
@@ -84,6 +103,7 @@ public static class BuildReports
             var report = new JsonObject
             {
                 ["v"] = 1,
+                ["client"] = Client,
                 ["launcher"] = Kept(f.Launcher, VersionLength),
                 ["version"] = Kept(f.Version, VersionLength),
                 ["channel"] = Kept(f.Channel, VersionLength),
@@ -94,8 +114,8 @@ public static class BuildReports
                 ["cpu"] = Kept(f.Cpu, CpuLength),
                 ["pc"] = Kept(f.Pc, PcLength),
                 ["settings"] = Kept(f.Settings, SettingsLength),
-                ["why"] = f.Auto ? "" : Kept(f.Why, TextLength),
-                ["error"] = f.Auto ? "" : Kept(f.Error, TextLength),
+                ["why"] = Reason(f.Why),
+                ["error"] = Reason(f.Error),
                 ["stages"] = stages,
                 ["log"] = new JsonArray(lines.Select(l => (JsonNode?)JsonValue.Create(l)).ToArray()),
             };

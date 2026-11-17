@@ -435,7 +435,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
     {
         SetRunning(false);
         ticker?.Stop();
-        Summarize(outcome);
+        Summarize(outcome, why);
         var at = progress.Stages.FirstOrDefault(s => s.Id == progress.Current) ?? progress.Stages.LastOrDefault(s => s.State == StageState.Done);
         var name = at != null ? Tr.T(Names.GetValueOrDefault(at.Id, at.Title)) : Tr.T("the build");
         var pct = (int)Math.Floor(progress.Overall * 100);
@@ -555,18 +555,18 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
 
     /// With Settings' "Send performance statistics" ticked: how the build ended, sent on its own (BuildReports, Auto), once a
     /// build. Not for the screenshots' replays. On the window's thread
-    void Summarize(string outcome)
+    void Summarize(string outcome, string why = "")
     {
-        if (Summary(outcome) is { } json) _ = BuildReports.SendAsync(BuildReports.Http, json, CancellationToken.None);
+        if (Summary(outcome, why) is { } json) _ = BuildReports.SendAsync(BuildReports.Http, json, CancellationToken.None);
     }
 
     /// The summary to send, made on the window's thread (it reads the stages); null when none is sent: the statistics unticked, a
     /// screenshot's replay, or the build already summarized (once only, whichever thread ends it first: BuildReports.Once)
-    string? Summary(string outcome)
+    string? Summary(string outcome, string why = "")
     {
         if (Current == this) Current = null;
         if (fixedTime != null || !Job.Service.Settings.SendPerformanceStatistics || !summarized.Claim()) return null;
-        return BuildReports.Json(Failure("", outcome, auto: true), null);
+        return BuildReports.Json(Failure(why, outcome, auto: true), null);
     }
 
     /// The launcher was sent SIGTERM while this build ran, on the signal's thread: its summary made on the window's thread (waited

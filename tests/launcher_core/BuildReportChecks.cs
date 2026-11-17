@@ -142,6 +142,8 @@ static partial class Program
         var failure = new BuildReports.Failure("v3.4.0", "v2.4.1", "Release", BuildReports.Update, "Linux", "32 GB, 16 threads", "workers automatic",
             "the build stopped", "error: x", ["line 1"], BuildReports.Terminated, "AMD Ryzen 7 6800H", stages);
         var sent = JsonNode.Parse(BuildReports.Json(failure, home))!;
+        Require(sent["client"]!.GetValue<string>() == BuildReports.Client && BuildReports.Client == "Longshot",
+            "Every report names its client, apart from the launcher's version.");
         Require(sent["outcome"]!.GetValue<string>() == "terminated" && sent["cpu"]!.GetValue<string>() == "AMD Ryzen 7 6800H" &&
                 !sent["auto"]!.GetValue<bool>() && sent["log"]!.AsArray().Count == 1 && sent["why"]!.GetValue<string>() == "the build stopped",
             "Send's report: how the build ended, the CPU, the log and why.");
@@ -153,7 +155,23 @@ static partial class Program
         Require(summary["auto"]!.GetValue<bool>() && summary["outcome"]!.GetValue<string>() == "cancelled" &&
                 summary["log"]!.AsArray().Count == 0 && summary["why"]!.GetValue<string>() == "" &&
                 summary["error"]!.GetValue<string>() == "" && summary["stages"]!["compile"] != null,
-            "The statistics' summary: how it ended and the stages, no log, why or error line.");
+            "The statistics' summary of a cancelled build: how it ended and the stages, no log, why or error line.");
+        var failed = failure with
+        {
+            Outcome = BuildReports.Failed, Auto = true, Why = $"lift failed in {home}/Longshot/build/romfs/Actor.sarc",
+            Error = @"error: can't open C:\Games\Longshot\data.nup",
+        };
+        var auto = JsonNode.Parse(BuildReports.Json(failed, home))!;
+        Require(auto["why"]!.GetValue<string>() == "lift failed in [path]" &&
+                auto["error"]!.GetValue<string>() == "error: can't open [path]" && auto["log"]!.AsArray().Count == 0,
+            "A failed build's summary says why and its error line, every path and game file's name taken out: " +
+            auto["why"] + " / " + auto["error"]);
+        Require(BuildReports.Diagnostic("compile stopped: Main.bfstm missing") == "compile stopped: [game file] missing" &&
+                BuildReports.Diagnostic("  ") == "" && BuildReports.Diagnostic(new string('x', 400)).Length == BuildReports.TextLength,
+            "A diagnostic loses game files' names and is cut to the server's limit.");
+        var done = JsonNode.Parse(BuildReports.Json(failed with { Outcome = BuildReports.Completed }, home))!;
+        Require(done["why"]!.GetValue<string>() == "" && done["error"]!.GetValue<string>() == "",
+            "A completed build's summary carries no error line, even one left from earlier in the build.");
 
         // (the launcher's SIGTERM: the summary sent once, whichever thread ends the build first, and made on the window's thread,
         // so the signal's thread reads none of the window's data; nothing it does throws, so the build is always stopped)
