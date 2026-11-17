@@ -337,7 +337,7 @@ public sealed class LauncherService
         if (Platform != Platform.Windows) return (null, null);
         try
         {
-            return (Saves.Gather(SaveEnv, Saves.OldUserFolders(SaveEnv, BuildFolders(), null)), null);
+            return (Saves.GatherAlone(SaveEnv, Saves.OldUserFolders(SaveEnv, BuildFolders(), null)), null);
         }
         catch (Exception e) when (e is SaveFailure or IOException or UnauthorizedAccessException) { return (null, e.Message); }
     }
@@ -377,17 +377,22 @@ public sealed class LauncherService
         Disk.Measure(leftovers.Select(l => l.Folder).ToList()).Sum(s => s.Frees);
 
     /// An old version's folder deleted (BuildRegistry.DeleteFolder: a game folder only, never one that holds a build's or the
-    /// launcher's home)
-    public void DeleteLeftover(Leftover leftover) =>
-        BuildRegistry.DeleteFolder(leftover.Folder, Platform, Registry.Builds.Select(b => b.Folder).Append(Home.Root).ToList());
+    /// launcher's home). Returns where the save it still held was copied first (null: it held none)
+    public string? DeleteLeftover(Leftover leftover) =>
+        BuildRegistry.DeleteFolder(leftover.Folder, Platform, Registry.Builds.Select(b => b.Folder).Append(Home.Root).ToList(), null, SaveEnv);
 
     /// What deleting a build's folder must leave: the other builds' folders and the launcher's home (BuildRegistry.DeleteFolder)
     public IReadOnlyList<string> KeepOf(BuildEntry b) => Registry.Builds.Where(x => x.Id != b.Id).Select(x => x.Folder).Append(Home.Root).ToList();
 
+    /// A build's game folder deleted as the home's Delete does it (BuildRegistry.DeleteGame): the save it holds itself brought
+    /// into the shared one, or backed up, first. running: what runs now (Saves.Running)
+    public DeletedGame DeleteGame(BuildEntry b, IReadOnlyList<string> running) =>
+        BuildRegistry.DeleteGame(SaveEnv, b.Folder, Platform, KeepOf(b), () => running);
+
     /// The build out of the list; with deleteFiles, its game folder from the disk too (only a game folder: BuildRegistry.DeleteFolder)
     public void Remove(BuildEntry b, bool deleteFiles)
     {
-        if (deleteFiles) BuildRegistry.DeleteFolder(b.Folder, Platform, KeepOf(b));
+        if (deleteFiles) BuildRegistry.DeleteFolder(b.Folder, Platform, KeepOf(b), null, SaveEnv);
         Registry.Remove(b.Id);
         remeasure = true;   // (the game files it shared with another build are that one's alone now: Measure)
         Registry.Save();

@@ -415,7 +415,8 @@ public static class Saves
     }
 
     /// The tests' way to make a copy fail where a full disk or a locked file would: called with "file" before each file is copied
-    /// and "swap" between the two renames that put the copy in place; whatever it throws is what the copy meets
+    /// and "swap" between the two renames that put the copy in place; whatever it throws is what the copy meets. Also "rename"
+    /// before Gather renames an old save aside (a file in use), and "backup" before BackUpForDelete copies a save
     internal static Action<string>? Fault { get; set; }
 
     static void CopyTree(string from, string to, Func<string, bool>? skip = null, bool faults = true)
@@ -758,6 +759,7 @@ public static class Saves
             for (var n = 2; Directory.Exists(to) || File.Exists(to); n++) to = System.IO.Path.Combine(u, $"save.moved-{stamp}-{n}");
             try
             {
+                Fault?.Invoke("rename");
                 Directory.Move(System.IO.Path.Combine(u, "save"), to);
                 moved.Add(u);
             }
@@ -863,5 +865,116 @@ public static class Saves
             foreach (var c in older) slots.Add(new GatheredSlot(rel, c.Slot, users[c.Side], users[c.Side] == shared, null, true, true));
         }
         return (slots, fromOther);
+    }
+
+    // ---- before a version's folder is deleted ----
+
+    /// How long a gather waits for another one to finish (GatherAlone)
+    internal static TimeSpan GatherWait { get; set; } = TimeSpan.FromSeconds(10);
+
+    /// Gather, one at a time on this PC: the launcher's start, Play, Delete and a desktop shortcut's --play (a launcher process of
+    /// its own) may each run one, and they share the folders beside the shared save (Beside). Each holds the gather lock
+    /// (HoldGatherLock) while it runs; one that cannot get it within GatherWait is refused (SaveFailure), changing nothing
+    public static SaveGathered? GatherAlone(SaveEnvironment env, IReadOnlyList<string> oldUsers, Func<IReadOnlyList<string>>? running = null,
+                                           Func<DateTime>? now = null)
+    {
+        if (env.Platform != Platform.Windows) return null;   // (Gather does nothing there)
+        using var held = HoldGatherLock(env);
+        return Gather(env, oldUsers, running, now);
+    }
+
+    /// The gather lock: Longshot's user folder's .longshot-gather.lock, opened by one process at a time (FileShare.None: a share
+    /// lock on Windows, an exclusive flock on Linux), whatever thread or process asks; released when the stream is closed, or
+    /// by the system when the process ends. SaveFailure when another holds it still after GatherWait
+    internal static FileStream HoldGatherLock(SaveEnvironment env)
+    {
+        Directory.CreateDirectory(env.LongshotUser);
+        var path = System.IO.Path.Combine(env.LongshotUser, ".longshot-gather.lock");
+        var until = DateTime.UtcNow + GatherWait;
+        while (true)
+        {
+            try { return new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None); }
+            catch (IOException) when (DateTime.UtcNow < until) { Thread.Sleep(50); }
+            catch (IOException)
+            {
+                throw new SaveFailure("Another Longshot Launcher is bringing the saves together right now, so this one did not: the next start tries again.");
+            }
+        }
+    }
+
+    /// The save a game folder still holds itself: its user\save when any file is in it, and neither user\ nor user\save is a
+    /// link (deleting the folder removes a link and never follows it: Toolchains.DeleteTree). A folder that cannot be read counts
+    /// as holding one. Null: deleting the folder takes no save with it. A save Gather took in is renamed save.moved-*, its backup
+    /// kept: not one of these
+    public static string? SaveIn(string gameFolder)
+    {
+        var user = System.IO.Path.Combine(System.IO.Path.GetFullPath(gameFolder), "user");
+        var save = System.IO.Path.Combine(user, "save");
+        try
+        {
+            if (IsLinked(user) || IsLinked(save)) return null;
+            if (!Directory.Exists(save))
+            {
+                // (a user\ that cannot be listed may hide its save\: this throws, and it counts as holding one)
+                if (Directory.Exists(user)) _ = Directory.EnumerateFileSystemEntries(user).Any();
+                return null;
+            }
+            return Directory.EnumerateFiles(save, "*", SearchOption.AllDirectories).Any() ? save : null;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return save; }   // (cannot tell: kept)
+    }
+
+    /// The save a game folder still holds (SaveIn) copied whole before the folder is deleted, to
+    /// &lt;backups&gt;/delete-&lt;yyyyMMdd-HHmmss&gt;/&lt;the folder's name&gt;, and the copy checked file by file against it: where the copy
+    /// is. A copy made before with the same files (a retry, or the folder deleted after the home's Delete took one) is used
+    /// again rather than a new one. SaveFailure, which says why, when no checked copy could be made: the folder must stay
+    public static string BackUpForDelete(SaveEnvironment env, string gameFolder, string save, Func<DateTime>? now = null)
+    {
+        var name = Base(System.IO.Path.GetFullPath(gameFolder)) is { Length: > 0 } b ? b : "build";
+        try
+        {
+            if (Directory.Exists(env.BackupRoot))
+                foreach (var d in Directory.EnumerateDirectories(env.BackupRoot, "delete-*").Order(StringComparer.Ordinal).Reverse())
+                    if (CopiedWhole(save, System.IO.Path.Combine(d, name))) return System.IO.Path.Combine(d, name);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+        var stamp = (now ?? (() => DateTime.Now))().ToString("yyyyMMdd-HHmmss", System.Globalization.CultureInfo.InvariantCulture);
+        var root = System.IO.Path.Combine(env.BackupRoot, "delete-" + stamp);
+        for (var n = 2; Directory.Exists(root) || File.Exists(root); n++) root = System.IO.Path.Combine(env.BackupRoot, $"delete-{stamp}-{n}");
+        var copy = System.IO.Path.Combine(root, name);
+        try
+        {
+            Fault?.Invoke("backup");
+            if (Inside(Real(System.IO.Path.GetFullPath(gameFolder)), Real(root)))
+                throw new IOException("the backup folder is inside that folder");
+            CopyTree(save, copy, faults: false);
+            if (!CopiedWhole(save, copy)) throw new IOException("the copy differs from the save");
+            return copy;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            DeleteTree(root);
+            throw new SaveFailure(Tr.F("the save in {0} could not be backed up ({1}), so the folder was left as it was.", save, e.Message));
+        }
+    }
+
+    /// copy holds the same files as save, byte for byte, and nothing else; false when either cannot be read
+    static bool CopiedWhole(string save, string copy)
+    {
+        try
+        {
+            if (!Directory.Exists(save) || !Directory.Exists(copy)) return false;
+            List<string> Files(string root) => Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories)
+                .Select(f => System.IO.Path.GetRelativePath(root, f)).Order(StringComparer.Ordinal).ToList();
+            var names = Files(save);
+            if (!names.SequenceEqual(Files(copy), StringComparer.Ordinal)) return false;
+            foreach (var n in names)
+            {
+                var (a, c) = (System.IO.Path.Combine(save, n), System.IO.Path.Combine(copy, n));
+                if (new FileInfo(a).Length != new FileInfo(c).Length || !File.ReadAllBytes(a).AsSpan().SequenceEqual(File.ReadAllBytes(c))) return false;
+            }
+            return true;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return false; }
     }
 }

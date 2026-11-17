@@ -433,10 +433,21 @@ public sealed class HomeViewModel : ViewModelBase
         BusyChanged();
         Main.ShowToast(Tr.P(doing.Count, "Deleting the old version…", "Deleting the {0} old versions…"));
         var failed = new List<string>();
+        var saved = new List<string>();
         foreach (var l in doing)
         {
-            try { await Task.Run(() => Service.DeleteLeftover(l)); }
-            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { failed.Add(Tr.F("{0} could not be deleted: {1}", l.Folder, e.Message)); }
+            try
+            {
+                // (a save in it, which Find left out, may have come since: copied to the backups first, BuildRegistry.DeleteFolder)
+                if (await Task.Run(() => Service.DeleteLeftover(l)) is { } backup)
+                    saved.Add(Tr.F("The save in {0} is backed up in {1}.", Path.Combine(l.Folder, "user", "save"), backup));
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                if (e is FolderNotDeleted { Backup: { } backup })
+                    saved.Add(Tr.F("The save in {0} is backed up in {1}.", Path.Combine(l.Folder, "user", "save"), backup));
+                failed.Add(Tr.F("{0} could not be deleted: {1}", l.Folder, e.Message));
+            }
         }
         deletingLeftovers = false;
         KeepLeftoversCommand.Changed();
@@ -444,8 +455,8 @@ public sealed class HomeViewModel : ViewModelBase
         BusyChanged();
         leftovers = Array.Empty<Leftover>();
         RaiseAll(nameof(HasLeftoverOffer), nameof(LeftoverOffer));
-        if (failed.Count > 0) Notice = string.Join("\n", failed);
-        else Main.ShowToast(frees is long b && b > 0
+        if (failed.Count > 0 || saved.Count > 0) Notice = string.Join("\n", saved.Concat(failed));
+        if (failed.Count == 0) Main.ShowToast(frees is long b && b > 0
             ? Tr.P(doing.Count, "Deleted the old version, {1} freed.", "Deleted the {0} old versions, {1} freed.", Durations.Size(b))
             : Tr.P(doing.Count, "Deleted the old version.", "Deleted the {0} old versions."));
         Refresh();
@@ -825,7 +836,8 @@ public sealed class DeleteViewModel : ViewModelBase
         var entry = build.Entry;
         var files = GameFolderHere;
         // (a running game holds its files: on Windows the delete would stop half-way through the folder)
-        if (files && Saves.Running(service.Platform).Contains(Saves.Longshot.Display))
+        var running = files ? Saves.Running(service.Platform) : Array.Empty<string>();
+        if (running.Contains(Saves.Longshot.Display))
         {
             Main.Home.Notice = Tr.F("Close Longshot first: {0} is not deleted while a game runs.", build.Version);
             return;
@@ -834,12 +846,20 @@ public sealed class DeleteViewModel : ViewModelBase
         {
             if (files)
             {
-                // (tens of GB: off the window's thread, the folder first and the row once it is gone)
-                var keep = service.KeepOf(entry);
+                // (tens of GB: off the window's thread, the folder first and the row once it is gone; the row marked first, so that
+                // nothing starts on it meanwhile. The save the folder holds itself goes first: a Windows build started outside the
+                // launcher saves there. Brought into the shared one, or backed up, never deleted: BuildRegistry.DeleteGame)
                 Main.ShowToast(Tr.F("Deleting {0}…", build.Version));
                 Main.Home.Deleting(entry, true);
-                try { await Task.Run(() => BuildRegistry.DeleteFolder(entry.Folder, service.Platform, keep)); }
+                DeletedGame done;
+                try { done = await Task.Run(() => service.DeleteGame(entry, running)); }
                 finally { Main.Home.Deleting(entry, false); }
+                if (done.Said() is { } said) Main.Home.Notice = said;
+                if (!done.Deleted)
+                {
+                    Main.Home.Refresh();
+                    return;
+                }
             }
             // (the default goes to a release when there is one left, as the mockup: Registry.Remove takes the first otherwise)
             var wasDefault = build.IsDefault;

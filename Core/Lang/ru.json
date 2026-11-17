@@ -136,6 +136,8 @@
   "Deleted {0}, {1} freed.": "{0} удалена, освобождено {1}.",
   "Deleted {0}.": "{0} удалена.",
   "{0} could not be deleted: {1}": "Не удалось удалить {0}: {1}",
+  "the save in {0} could not be backed up ({1}), so the folder was left as it was.": "не удалось сделать резервную копию сохранения в {0} ({1}), поэтому папка оставлена как есть.",
+  "The save in {0} is backed up in {1}.": "Резервная копия сохранения из {0} находится в {1}.",
   "Cannot be imported: {0}": "Невозможно импортировать: {0}",
   "No Hookshot save in ~/.local/share/hookshot. If yours are somewhere else, choose the folder.": "В ~/.local/share/hookshot нет сохранений Hookshot. Если ваши лежат в другом месте, выберите папку.",
   "No Hookshot save in Games\\Hookshot in your user folder. If your Hookshot game folder is somewhere else, choose it.": "В Games\\Hookshot в вашей папке пользователя нет сохранений Hookshot. Если папка игры Hookshot находится в другом месте, выберите её.",

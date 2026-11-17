@@ -29,6 +29,7 @@
   "Could not check for updates: {0}": "No se pudieron buscar actualizaciones: {0}",
   "It follows the launcher until you pick one in Settings.": "Sigue al launcher hasta que elijas uno en Configuración.",
   "{0} could not be deleted: {1}": "No se pudo eliminar {0}: {1}",
+  "the save in {0} could not be backed up ({1}), so the folder was left as it was.": "no se pudo hacer una copia de seguridad de la partida guardada en {0} ({1}), así que la carpeta se dejó como estaba.",
   "Longshot already has a save in {0}. Replace it with Hookshot's ({1})? Longshot's save is backed up first.": "Longshot ya tiene una partida en {0}. ¿Reemplazarla por la de Hookshot ({1})? Antes se hace una copia de seguridad de la de Longshot.",
   "Imported {0} save slots from Hookshot. Longshot's earlier save is in {1}": {
     "one": "Se importó 1 ranura de guardado de Hookshot. La partida anterior de Longshot está en {1}",

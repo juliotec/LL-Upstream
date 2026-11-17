@@ -69,6 +69,7 @@ static partial class Program
         await PrefetchChecks();
         RegistryChecks();
         LeftoverChecks();
+        DeleteSaveChecks();
         SettingsChecks();
         ProgressChecks();
         LogChecks();

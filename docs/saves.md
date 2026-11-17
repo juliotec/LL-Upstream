@@ -56,6 +56,17 @@ shared folder by itself (`Saves.Gather`):
   finds it there. A folder an update left behind (no longer listed) is then offered for deletion on the home, `save.moved-*`
   with it: the backup above keeps its save.
 - **Never while Longshot runs:** the next start tries again. A failure changes nothing and says why.
+- **Deleting a version takes its save in first.** Before a version's folder is deleted (*Delete* on its row), a save in its
+  own `user\save` (a build started outside the launcher, from Explorer, the taskbar or Steam, saves there) is brought into
+  the shared one as above, backed up. A save still there afterwards (the gather failed or could not rename it; or Linux,
+  where nothing is gathered) is copied whole to the backups first, `delete-<yyyyMMdd-HHmmss>\<game folder name>`, and the copy
+  checked file by file; the home says where it is, also when the delete then stops half-way (a file in use). A copy that
+  cannot be made leaves the folder as it was, and the home says why; so does a folder the launcher does not delete, before
+  its save is touched. Deleting an old version's folder from the home's offer does the same (`BuildRegistry.DeleteGame`,
+  `DeleteFolder`).
+- **One at a time.** The launcher's start, Play, Delete and a desktop shortcut's Play (a launcher of its own) each bring the
+  saves together holding one lock, `.longshot-gather.lock` in Longshot's user folder; one that waits for it more than 10
+  seconds changes nothing and says so (`Saves.GatherAlone`).
 
 ## Importing
 

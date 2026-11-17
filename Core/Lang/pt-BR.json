@@ -133,6 +133,8 @@
   "Deleted {0}, {1} freed.": "{0} excluída, {1} liberados.",
   "Deleted {0}.": "{0} excluída.",
   "{0} could not be deleted: {1}": "Não foi possível excluir {0}: {1}",
+  "the save in {0} could not be backed up ({1}), so the folder was left as it was.": "não foi possível fazer backup do jogo salvo em {0} ({1}), então a pasta foi deixada como estava.",
+  "The save in {0} is backed up in {1}.": "Há backup do jogo salvo de {0} em {1}.",
   "Cannot be imported: {0}": "Não pode ser importado: {0}",
   "No Hookshot save in ~/.local/share/hookshot. If yours are somewhere else, choose the folder.": "Nenhum jogo salvo do Hookshot em ~/.local/share/hookshot. Se os seus estiverem em outro lugar, escolha a pasta.",
   "No Hookshot save in Games\\Hookshot in your user folder. If your Hookshot game folder is somewhere else, choose it.": "Nenhum jogo salvo do Hookshot em Games\\Hookshot na sua pasta de usuário. Se a sua pasta do jogo do Hookshot estiver em outro lugar, escolha-a.",

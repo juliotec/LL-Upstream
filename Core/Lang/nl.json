@@ -130,6 +130,8 @@
   "Deleted {0}, {1} freed.": "{0} verwijderd, {1} vrijgemaakt.",
   "Deleted {0}.": "{0} verwijderd.",
   "{0} could not be deleted: {1}": "{0} kon niet worden verwijderd: {1}",
+  "the save in {0} could not be backed up ({1}), so the folder was left as it was.": "van de save in {0} kon geen back-up worden gemaakt ({1}), dus de map is gelaten zoals hij was.",
+  "The save in {0} is backed up in {1}.": "Van de save in {0} is een back-up gemaakt in {1}.",
   "Cannot be imported: {0}": "Kan niet worden geïmporteerd: {0}",
   "No Hookshot save in ~/.local/share/hookshot. If yours are somewhere else, choose the folder.": "Geen Hookshot-save in ~/.local/share/hookshot. Staan de jouwe ergens anders, kies dan de map.",
   "No Hookshot save in Games\\Hookshot in your user folder. If your Hookshot game folder is somewhere else, choose it.": "Geen Hookshot-save in Games\\Hookshot in je gebruikersmap. Staat je Hookshot-spelmap ergens anders, kies die dan.",

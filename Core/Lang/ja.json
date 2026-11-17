@@ -127,6 +127,8 @@
   "Deleted {0}, {1} freed.": "{0} を削除し、{1} を解放しました。",
   "Deleted {0}.": "{0} を削除しました。",
   "{0} could not be deleted: {1}": "{0} を削除できませんでした: {1}",
+  "the save in {0} could not be backed up ({1}), so the folder was left as it was.": "{0} のセーブデータをバックアップできなかったため ({1})、フォルダーはそのままにしました。",
+  "The save in {0} is backed up in {1}.": "{0} のセーブデータは {1} にバックアップしてあります。",
   "Cannot be imported: {0}": "インポートできません: {0}",
   "No Hookshot save in ~/.local/share/hookshot. If yours are somewhere else, choose the folder.": "~/.local/share/hookshot に Hookshot のセーブデータがありません。別の場所にある場合は、そのフォルダーを選んでください。",
   "No Hookshot save in Games\\Hookshot in your user folder. If your Hookshot game folder is somewhere else, choose it.": "ユーザーフォルダーの Games\\Hookshot に Hookshot のセーブデータがありません。Hookshot のゲームフォルダーが別の場所にある場合は、それを選んでください。",

@@ -360,9 +360,31 @@ public sealed class BuildRegistry
     /// A build's game folder deleted from the disk: only a folder make_game.py made (its stamp or bin/longshot), never another
     /// folder a list entry might name. Not a link either (deleting it would free nothing), nor the home folder or one that holds
     /// it, nor one that holds a folder of keep: the other builds and the launcher's home. (A 2.x install in ~/Games/Longshot holds
-    /// the launcher's own builds, ~/Games/Longshot/&lt;channel&gt;, while that is the builds folder.) The entry itself is removed with
-    /// Remove
-    public static void DeleteFolder(string folder, Platform platform, IEnumerable<string>? keep = null, Func<string, string?>? getenv = null)
+    /// the launcher's own builds, ~/Games/Longshot/&lt;channel&gt;, while that is the builds folder.) A save the folder still holds in
+    /// its user\save (Saves.SaveIn: a Windows build started outside the launcher saves there) is never deleted with it: it is
+    /// copied whole to saves' backups first and the copy checked (Saves.BackUpForDelete), and the folder stays when that fails, or
+    /// when no saves are given; nor is a folder that holds the shared saves deleted. Returns where that copy is (null: there was
+    /// no save in it). The entry itself is removed with Remove
+    public static string? DeleteFolder(string folder, Platform platform, IEnumerable<string>? keep = null, Func<string, string?>? getenv = null,
+                                       SaveEnvironment? saves = null, Func<DateTime>? now = null)
+    {
+        var full = MayDelete(folder, platform, keep, getenv, saves);
+        string? backup = null;
+        if (Saves.SaveIn(full) is { } save)
+        {
+            if (saves == null)
+                throw new IOException($"This folder still holds a save, in {save}, so the launcher does not delete it: {folder}");
+            try { backup = Saves.BackUpForDelete(saves, full, save, now); }
+            catch (SaveFailure e) { throw new IOException(e.Message, e); }
+        }
+        // (a delete that stops half-way, a file in use: the copy of the save is named still, as it may be gone from the folder now)
+        try { Toolchains.DeleteTree(full); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { throw new FolderNotDeleted(e.Message, backup, e); }
+        return backup;
+    }
+
+    /// DeleteFolder's refusals, before anything is touched: the full path of a folder it may delete, else IOException, why not
+    static string MayDelete(string folder, Platform platform, IEnumerable<string>? keep, Func<string, string?>? getenv, SaveEnvironment? saves)
     {
         var full = Path.GetFullPath(folder);
         if (Path.GetPathRoot(full) == full) throw new IOException("Will not delete a drive's root: " + folder);
@@ -374,7 +396,38 @@ public sealed class BuildRegistry
             throw new IOException("This folder holds your home folder, so the launcher does not delete it: " + folder);
         if ((keep ?? Array.Empty<string>()).FirstOrDefault(k => Holds(full, k)) is { } other)
             throw new IOException($"This folder holds {other}, which the launcher keeps, so it does not delete it: {folder}");
-        Toolchains.DeleteTree(full);
+        if (saves != null && Holds(Saves.Real(full), Saves.Real(saves.LongshotUser)))
+            throw new IOException($"This folder holds {saves.LongshotUser}, Longshot's saves, so the launcher does not delete it: {folder}");
+        return full;
+    }
+
+    /// What the home's Delete does with a version's game folder (DeleteFolder), the save the folder holds itself first: on
+    /// Windows brought into the shared one (Saves.Gather on that folder alone, backed up; a build started outside the launcher
+    /// saves there, and the gather at the launcher's start may have been skipped or have failed), and whatever is still there
+    /// then (the gather failed, could not rename it, or Linux, where nothing is gathered) copied to the backups before the
+    /// folder goes. running: what runs now (Saves.Running)
+    public static DeletedGame DeleteGame(SaveEnvironment saves, string folder, Platform platform, IEnumerable<string>? keep,
+                                         Func<IReadOnlyList<string>> running, Func<DateTime>? now = null, Func<string, string?>? getenv = null)
+    {
+        // (a folder DeleteFolder refuses is left as it was: its save not gathered, nor renamed aside)
+        try { MayDelete(folder, platform, keep, getenv, saves); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return new DeletedGame(folder, false, null, null, null, e.Message); }
+        SaveGathered? gathered = null;
+        string? gatherProblem = null;
+        if (saves.Platform == Platform.Windows && Saves.SaveIn(folder) != null)
+        {
+            try { gathered = Saves.GatherAlone(saves, new[] { Path.Combine(Path.GetFullPath(folder), "user") }, running, now); }
+            catch (Exception e) when (e is SaveFailure or IOException or UnauthorizedAccessException) { gatherProblem = e.Message; }
+        }
+        try
+        {
+            var backup = DeleteFolder(folder, platform, keep, getenv, saves, now);
+            return new DeletedGame(folder, true, gathered, gatherProblem, backup, null);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            return new DeletedGame(folder, false, gathered, gatherProblem, (e as FolderNotDeleted)?.Backup, e.Message);
+        }
     }
 
     /// path is folder or somewhere under it
@@ -389,5 +442,29 @@ public sealed class BuildRegistry
         }
         var sep = windows ? "\\" : "/";
         return Norm(path).StartsWith(Norm(folder) + sep, windows ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
+    }
+}
+
+/// A game folder BuildRegistry.DeleteFolder began to delete and could not finish (a file in use): Backup is where the save it
+/// held was copied first (null: it held none), named still, as the folder may have lost its save already
+public sealed class FolderNotDeleted(string message, string? backup, Exception inner) : IOException(message, inner)
+{
+    public string? Backup { get; } = backup;
+}
+
+/// What BuildRegistry.DeleteGame did: whether the folder is gone (Problem: why not), the gather of its own save into the shared
+/// one (Gathered; GatherProblem: why it failed), and where the copy of the save it still held went (Backup; null: none was needed)
+public sealed record DeletedGame(string Folder, bool Deleted, SaveGathered? Gathered, string? GatherProblem, string? Backup, string? Problem)
+{
+    /// What the home says of it, null when nothing needs saying (the toast says it was deleted): what the gather did or why it
+    /// could not, where the save the folder held is backed up, why the folder is still there
+    public string? Said()
+    {
+        var lines = new List<string>();
+        if (Gathered != null) lines.Add(SaveText.Gathered(Gathered));
+        if (GatherProblem != null) lines.Add(Tr.F("Your saves were not brought together: {0}", GatherProblem));
+        if (Backup != null) lines.Add(Tr.F("The save in {0} is backed up in {1}.", Path.Combine(Folder, "user", "save"), Backup));
+        if (!Deleted) lines.Add(Tr.F("{0} could not be deleted: {1}", Folder, Problem));
+        return lines.Count == 0 ? null : string.Join("\n", lines);
     }
 }

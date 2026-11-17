@@ -127,6 +127,8 @@
   "Deleted {0}, {1} freed.": "已刪除 {0}，釋放了 {1}。",
   "Deleted {0}.": "已刪除 {0}。",
   "{0} could not be deleted: {1}": "無法刪除 {0}：{1}",
+  "the save in {0} could not be backed up ({1}), so the folder was left as it was.": "無法備份 {0} 中的存檔（{1}），因此資料夾保持原樣。",
+  "The save in {0} is backed up in {1}.": "{0} 中的存檔已備份到 {1}。",
   "Cannot be imported: {0}": "無法匯入：{0}",
   "No Hookshot save in ~/.local/share/hookshot. If yours are somewhere else, choose the folder.": "~/.local/share/hookshot 中沒有 Hookshot 存檔。如果你的存檔在別處，請選擇那個資料夾。",
   "No Hookshot save in Games\\Hookshot in your user folder. If your Hookshot game folder is somewhere else, choose it.": "你的使用者資料夾中的 Games\\Hookshot 裡沒有 Hookshot 存檔。如果你的 Hookshot 遊戲資料夾在別處，請選擇它。",
