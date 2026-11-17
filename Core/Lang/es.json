@@ -63,6 +63,7 @@
   "Building {0} stopped in {1}, {2}% of the way through. It said: {3}": "La compilación de {0} se ha detenido en «{1}», al {2} %. Mensaje: {3}",
   "Copied: the version, this PC's memory and GPU, the settings and the log's last 200 lines.": "Copiado: la versión, la memoria y la GPU de este PC, los ajustes y las últimas 200 líneas del registro.",
   "{0} is out": "Ya ha salido {0}",
+  "Update available": "Actualización disponible",
   "Built {0}": "Compilado: {0}",
   "not built": "sin compilar",
   ", ": ", ",
@@ -70,16 +71,15 @@
   "The launcher could not update itself: {0}": "El launcher no se ha podido actualizar: {0}",
   "not built: its game is missing": "sin compilar: falta su juego",
   "Your default version. {0}.": "Tu versión predeterminada. {0}.",
-  "{0} is out on the {1} channel.": "Ya ha salido {0} en el canal {1}.",
-  "{0} versions use {1} in {2}.": {
-    "one": "1 versión ocupa {1} en {2}.",
-    "many": "{0} versiones ocupan {1} en {2}.",
-    "other": "{0} versiones ocupan {1} en {2}."
+  "{0} instances use {1} in {2}.": {
+    "one": "1 instancia ocupa {1} en {2}.",
+    "many": "{0} instancias ocupan {1} en {2}.",
+    "other": "{0} instancias ocupan {1} en {2}."
   },
-  "{0} versions in {1}.": {
-    "one": "1 versión en {1}.",
-    "many": "{0} versiones en {1}.",
-    "other": "{0} versiones en {1}."
+  "{0} instances in {1}.": {
+    "one": "1 instancia en {1}.",
+    "many": "{0} instancias en {1}.",
+    "other": "{0} instancias en {1}."
   },
   "{0} versions were deleted outside the launcher, so they are no longer listed.": {
     "one": "1 versión se eliminó fuera del launcher, así que ya no aparece en la lista.",
@@ -679,8 +679,6 @@
   "Installed": "Instalada",
   "default": "predeterminada",
   "newest": "la más reciente",
-  "none installed": "nada instalado",
-  "{0} installed": "{0} instalada",
   "Installed. {0}.": "Instalada. {0}.",
   "Nothing on this track yet: it is built into a folder of its own, in about 15 to 30 minutes.": "Todavía no hay nada en este canal: se compila en una carpeta propia, en unos 15 a 30 minutos.",
   "Its versions show once git.magicbean.dev answers.": "Sus versiones aparecen cuando git.magicbean.dev responde.",

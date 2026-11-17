@@ -61,6 +61,7 @@
   "Building {0} stopped in {1}, {2}% of the way through. It said: {3}": "{0} のビルドが {1} で停止しました（{2}% 完了）。メッセージ: {3}",
   "Copied: the version, this PC's memory and GPU, the settings and the log's last 200 lines.": "コピーしました: バージョン、この PC のメモリと GPU、設定、ログの最後の 200 行。",
   "{0} is out": "{0} が公開されました",
+  "Update available": "アップデートあり",
   "Built {0}": "{0} にビルド",
   "not built": "未ビルド",
   ", ": "、",
@@ -68,12 +69,11 @@
   "The launcher could not update itself: {0}": "ランチャーを更新できませんでした: {0}",
   "not built: its game is missing": "未ビルド: ゲームが見つかりません",
   "Your default version. {0}.": "デフォルトのバージョンです。{0}。",
-  "{0} is out on the {1} channel.": "{1} チャンネルで {0} が公開されました。",
-  "{0} versions use {1} in {2}.": {
-    "other": "{0} 個のバージョンが {2} で {1} を使用しています。"
+  "{0} instances use {1} in {2}.": {
+    "other": "{0} 個のインスタンスが {2} で {1} を使用しています。"
   },
-  "{0} versions in {1}.": {
-    "other": "{1} に {0} 個のバージョンがあります。"
+  "{0} instances in {1}.": {
+    "other": "{1} に {0} 個のインスタンスがあります。"
   },
   "{0} versions were deleted outside the launcher, so they are no longer listed.": {
     "other": "{0} 個のバージョンがランチャー以外で削除されたため、一覧から外しました。"
@@ -643,8 +643,6 @@
   "Installed": "インストール済み",
   "default": "デフォルト",
   "newest": "最新",
-  "none installed": "未インストール",
-  "{0} installed": "{0} をインストール済み",
   "Installed. {0}.": "インストール済み。{0}。",
   "Nothing on this track yet: it is built into a folder of its own, in about 15 to 30 minutes.": "このトラックにはまだ何もありません。専用のフォルダーにビルドされます（約 15～30 分）。",
   "Its versions show once git.magicbean.dev answers.": "git.magicbean.dev が応答すると、バージョンが表示されます。",

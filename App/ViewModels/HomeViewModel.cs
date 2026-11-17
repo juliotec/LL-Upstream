@@ -22,10 +22,8 @@ public sealed class BuildItemViewModel : ViewModelBase
         PlayCommand = new Command(() => home.Play(this), () => IsBuilt && !IsDeleting);
         SetDefaultCommand = new Command(() => home.SetDefault(this), () => !IsDeleting);
         DeleteCommand = new Command(() => home.AskDelete(this), () => !IsDeleting);
-        UpdateCommand = new Command(() => home.UpdateBuild(this), () => !IsDeleting && home.CanStartBuild);
         SavesCommand = new Command(() => home.Main.ShowSaves(), () => !IsDeleting);
         FolderCommand = new Command(() => home.Main.Host?.Open(Entry.Folder));
-        NotesCommand = new Command(() => home.ShowNotes(this), () => HasUpdate);
     }
 
     /// Its folder is being deleted (DeleteViewModel): the row says so with a spinner until it goes
@@ -43,7 +41,6 @@ public sealed class BuildItemViewModel : ViewModelBase
     public bool IsBuilt { get; }
     public string? Update { get; }
     public bool HasUpdate => Update != null;
-    public string UpdateLine => Update == null ? "" : Tr.F("{0} is out", Versions.Shown(Update));
 
     /// "Built 3 Nov, 38.4 GB" (no saves count: every build shares them)
     public string Meta
@@ -70,51 +67,36 @@ public sealed class BuildItemViewModel : ViewModelBase
     public bool ShowOtherActions => selected && !IsDefault;
     public bool ShowDefaultNote => selected && IsDefault;
     public bool ShowRing => !IsDefault;
-    public bool ShowMeta => !HasUpdate && !IsDeleting;
-    public bool ShowUpdateLine => HasUpdate && !IsDeleting;
+    public bool ShowMeta => !IsDeleting;
+    /// "Update available" on the row: the hero's Update and What's new act on it once it is picked
+    public bool ShowUpdateBadge => HasUpdate && !IsDeleting;
     public string DeletingText => Tr.F("Deleting {0}…", Version);
     public bool IsFirst { get; set; }
     public Avalonia.Thickness Separator => IsFirst ? default : new Avalonia.Thickness(0, 1, 0, 0);
 
     public void RaiseMeta() => Raise(nameof(Meta));
 
-    /// Whether a build can start from it now (the home's checks and the launcher's update)
-    public void RaiseCommands() => UpdateCommand.Changed();
-
     public Command SelectCommand { get; }
     public Command PlayCommand { get; }
     public Command SetDefaultCommand { get; }
     public Command DeleteCommand { get; }
-    public Command UpdateCommand { get; }
-    /// What's new in its update (ReleaseNotesViewModel)
-    public Command NotesCommand { get; }
     public Command SavesCommand { get; }
     public Command FolderCommand { get; }
 }
 
-/// One track in the hero's Track dropdown: stable, rc or nightly, with what is installed on it. The three are made once and
-/// kept: a dropdown given new items drops its selection after the pick was shown again
+/// One track in the hero's Track dropdown: stable, rc or nightly, by its name only (what it holds is the Version field's). The
+/// three are made once and kept: a dropdown given new items drops its selection after the pick was shown again
 public sealed class TrackChoice(string id, string name) : ViewModelBase
 {
-    string installed = "";
-
     public string Id => id;
     public string Name => Tr.T(name);
-    /// "Nightly 188 · a00c485c installed", or "none installed"
-    public string Installed
-    {
-        get => installed;
-        set => Set(ref installed, value);
-    }
-    public bool IsCandidate => id == Versions.Candidate;
-    public bool IsNightly => id == Versions.Nightly;
 }
 
 /// One version in the hero's Version dropdown (VersionPick.Of): a check when it is installed on the track, and whether it is the
 /// default or the track's newest. Kept while its track is picked, so the version picked stays the dropdown's selection
 public sealed class VersionChoice(string tag) : ViewModelBase
 {
-    bool installed;
+    bool installed, hasUpdate;
     string note = "";
 
     public string Tag => tag;
@@ -129,11 +111,18 @@ public sealed class VersionChoice(string tag) : ViewModelBase
         get => note;
         set => Set(ref note, value);
     }
+    /// Its build has a newer version on its channel: "Update available" in place of the note
+    public bool HasUpdate
+    {
+        get => hasUpdate;
+        set => Set(ref hasUpdate, value);
+    }
 
-    public void Show(TrackVersion version, bool isDefault)
+    public void Show(TrackVersion version, bool isDefault, bool hasUpdate)
     {
         Installed = version.Installed;
         Note = isDefault ? Tr.T("default") : version.Newest ? Tr.T("newest") : "";
+        HasUpdate = hasUpdate;
     }
 }
 
@@ -170,7 +159,7 @@ public sealed class HomeViewModel : ViewModelBase
         UpdateDefaultCommand = new Command(() => { if (HeroItem is { } d) UpdateBuild(d); }, () => CanStartBuild && HeroItem is { IsDeleting: false });
         SavesDefaultCommand = new Command(() => Main.ShowSaves());
         CancelLauncherUpdateCommand = new Command(() => UpdateLauncherCommand.Cancel());
-        NotesDefaultCommand = new Command(() => { if (HeroItem is { } d) ShowNotes(d); });
+        NotesDefaultCommand = new Command(() => { if (TrackUpdateItem is { } d) ShowNotes(d); });
         LauncherNotesCommand = new Command(ShowLauncherNotes, () => HasLauncherUpdate);
         // (not while the launcher updates itself: a check forgets the update it is putting in place)
         CheckForUpdatesCommand = new Command(() =>
@@ -335,7 +324,6 @@ public sealed class HomeViewModel : ViewModelBase
             pickTrack = Default?.Entry is { } d ? VersionPick.TrackOf(d) : Service.DefaultChannel;
             pickTag = Default?.Entry.Version;
         }
-        foreach (var t in Tracks) t.Installed = InstalledOn(t.Id, builds);
         var versions = Service.VersionsOn(pickTrack);
         // (a pick no longer there, or a track just picked: its build's version, the default's first, else its newest)
         if (pickTag == null || versions.All(v => v.Tag != pickTag))
@@ -350,23 +338,18 @@ public sealed class HomeViewModel : ViewModelBase
             var item = at.c ?? new VersionChoice(versions[i].Tag);
             if (at.c == null) TrackVersions.Insert(i, item);
             else if (at.n != i) TrackVersions.Move(at.n, i);
-            item.Show(versions[i], defaultId != null && versions[i].Build?.Id == defaultId);
+            var build = versions[i].Build;
+            item.Show(versions[i], defaultId != null && build?.Id == defaultId,
+                      build != null && Builds.Any(x => x.Entry.Id == build.Id && x.HasUpdate));
         }
         Raise(nameof(HasTrackVersions));
         RaisePick();
     }
 
-    /// "Nightly 188 · a00c485c installed" (each of them, a track with several builds), or "none installed"
-    static string InstalledOn(string track, IEnumerable<BuildEntry> builds)
-    {
-        var have = VersionPick.On(track, builds).Select(b => b.Version is { } v ? Versions.Shown(v) : b.Name).Distinct().ToList();
-        return have.Count == 0 ? Tr.T("none installed") : Tr.F("{0} installed", string.Join(Tr.T(", "), have));
-    }
-
     void RaisePick()
     {
         RaiseAll(nameof(PickTrack), nameof(PickVersion), nameof(GoText), nameof(GoIsPlay), nameof(GoIsBuild), nameof(ShowRemove),
-                 nameof(HeroNote), nameof(HeroHasUpdate), nameof(HeroUpdate));
+                 nameof(HeroNote), nameof(HeroHasUpdate), nameof(PickHasUpdate), nameof(HasTrackUpdate), nameof(TrackUpdate));
         GoCommand.Changed();
         RemoveCommand.Changed();
         UpdateDefaultCommand.Changed();
@@ -398,10 +381,22 @@ public sealed class HomeViewModel : ViewModelBase
     }
 
     public string HeroSaves => Default is { } d ? SaveText.Short(d.Saves, DateTime.Now) : "";
-    public bool HeroHasUpdate => HeroItem?.HasUpdate == true;
-    public string HeroUpdate => HeroItem is { Update: { } u } d ? Tr.F("{0} is out on the {1} channel.", u, ChannelPickerViewModel.NameOf(d.Channel)) : "";
+    /// Update available beside the Version field: the version picked is installed and its build has a newer version
+    public bool PickHasUpdate => PickVersion?.HasUpdate == true;
 
-    /// "3 versions use 116.7 GB in D:\Games\Longshot."
+    /// Update beside Play: the version picked is installed and its build has a newer version
+    public bool HeroHasUpdate => HeroItem?.HasUpdate == true;
+
+    /// The picked track's build with a newer version: the one picked when it has one, else the track's default, else its first.
+    /// Its newest version shows opposite the title, with What's new in it
+    BuildItemViewModel? TrackUpdateItem => HeroItem is { HasUpdate: true } h ? h
+        : pickTrack == null ? null
+        : Builds.Where(b => b.HasUpdate && !b.IsDeleting && VersionPick.TrackOf(b.Entry) == pickTrack).OrderByDescending(b => b.IsDefault).FirstOrDefault();
+    public bool HasTrackUpdate => TrackUpdateItem != null;
+    /// "Nightly 429 · 6112edb6 is out"
+    public string TrackUpdate => TrackUpdateItem is { Update: { } u } ? Tr.F("{0} is out", Versions.Shown(u)) : "";
+
+    /// "3 instances use 116.7 GB in D:\Games\Longshot."
     public string Footer
     {
         get
@@ -410,8 +405,8 @@ public sealed class HomeViewModel : ViewModelBase
             // (a game file hard-linked into several builds counted once: BuildEntry.Counted)
             var known = Builds.Where(b => b.Entry.Bytes != null).Sum(b => b.Entry.Counted ?? b.Entry.Bytes!.Value);
             var folder = ShownPath.Of(Service.BuildsFolder);
-            return known > 0 ? Tr.P(n, "1 version uses {1} in {2}.", "{0} versions use {1} in {2}.", Durations.Size(known), folder)
-                : Tr.P(n, "1 version in {1}.", "{0} versions in {1}.", folder);
+            return known > 0 ? Tr.P(n, "1 instance uses {1} in {2}.", "{0} instances use {1} in {2}.", Durations.Size(known), folder)
+                : Tr.P(n, "1 instance in {1}.", "{0} instances in {1}.", folder);
         }
     }
 
@@ -486,7 +481,6 @@ public sealed class HomeViewModel : ViewModelBase
         ChannelCommand.Changed();
         UpdateDefaultCommand.Changed();
         GoCommand.Changed();
-        foreach (var b in Builds) b.RaiseCommands();
         RaiseAll(nameof(CanStartBuild), nameof(ShowCheckLine), nameof(ShowStatus), nameof(ShowStatusReport));
     }
     public Command ImportHookshotCommand { get; }

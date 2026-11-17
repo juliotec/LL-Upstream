@@ -40,6 +40,39 @@ static partial class Program
                     $"A home banner is one line with Details ({more}).");
         Require(System.Text.RegularExpressions.Regex.Matches(view, "MaxLines=\"1\" TextTrimming=\"CharacterEllipsis\"").Count >= 6,
                 "Each banner's line is one line, cut with an ellipsis.");
+        HomeUpdateSourceChecks(repo, view);
+    }
+
+    /// A newer version shows once in each place: Update available beside the version and on its row, Update (with its icon, Play's
+    /// size) beside Play, and the newest version with What's new opposite the title; no Update button or "is out" line on a row
+    static void HomeUpdateSourceChecks(string repo, string view)
+    {
+        var home = File.ReadAllText(Path.Combine(repo, "App", "ViewModels", "HomeViewModel.cs"));
+        var app = File.ReadAllText(Path.Combine(repo, "App", "App.axaml"));
+        Require(!view.Contains("{Binding UpdateCommand}") && !view.Contains("{Binding UpdateLine}") && !view.Contains("{Binding NotesCommand}")
+                && !home.Contains("public Command UpdateCommand") && !home.Contains("UpdateLine"),
+                "A row has no Update button, no \"is out\" line and no What's new of its own: the hero's act on the row picked.");
+        Require(view.Contains("<Border Classes=\"chip small update\" IsVisible=\"{Binding ShowUpdateBadge}\"><TextBlock Text=\"{c:T 'Update available'}\"/></Border>")
+                && view.Contains("<Border Grid.Column=\"2\" Classes=\"chip small update\" IsVisible=\"{Binding HasUpdate}\">")
+                && view.Contains("<Border Grid.Column=\"1\" Classes=\"chip small update\" IsVisible=\"{Binding PickHasUpdate}\">")
+                && view.Contains("<ComboBox.SelectionBoxItemTemplate>")
+                && view.Contains("Text=\"{Binding Note}\" VerticalAlignment=\"Center\" IsVisible=\"{Binding !HasUpdate}\"")
+                && app.Contains("<Style Selector=\"Border.chip.update\">"),
+                "Update available is one badge: on the row, on the Version field's label row (the version never cut), and in place of the note in the list.");
+        Require(System.Text.RegularExpressions.Regex.IsMatch(view, "<DataTemplate x:DataType=\"vm:TrackChoice\">\\s*<TextBlock Text=\"\\{Binding Name\\}\"[^>]*/>\\s*</DataTemplate>")
+                && !home.Contains("InstalledOn("),
+                "The Track dropdown shows the track's name only, without its versions or a channel tag.");
+        Require(System.Text.RegularExpressions.Regex.IsMatch(view, "Classes=\"primary tall hero\"[^>]*Command=\"\\{Binding UpdateDefaultCommand\\}\"[^>]*>\\s*<StackPanel Orientation=\"Horizontal\" Spacing=\"8\">\\s*<c:Icon Kind=\"arrowUp\" Width=\"18\" Height=\"18\"/>")
+                && System.Text.RegularExpressions.Regex.IsMatch(app, "<Style Selector=\"Button.hero\">\\s*<Setter Property=\"Height\" Value=\"50\"/>\\s*<Setter Property=\"Padding\" Value=\"34,0\"/>"),
+                "Update beside Play has its arrow and Play's height and padding.");
+        Require(view.Contains("IsVisible=\"{Binding HasTrackUpdate}\"") && view.Contains("Text=\"{Binding TrackUpdate}\"")
+                && view.Contains("Command=\"{Binding NotesDefaultCommand}\" VerticalAlignment=\"Center\"/>")
+                && !view.Contains("{Binding HeroUpdate}") && !home.Contains("is out on the {1} channel")
+                && home.Contains("NotesDefaultCommand = new Command(() => { if (TrackUpdateItem is { } d) ShowNotes(d); });"),
+                "The picked track's newest version and What's new are opposite the title, once, by their shown name.");
+        Require(home.Contains("Tr.P(n, \"1 instance uses {1} in {2}.\", \"{0} instances use {1} in {2}.\"")
+                && home.Contains("Tr.P(n, \"1 instance in {1}.\", \"{0} instances in {1}.\""),
+                "The footer counts instances, as the list's heading says.");
     }
 
     static void InstanceFolderChecks()

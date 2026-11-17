@@ -288,40 +288,63 @@
       <Grid IsVisible="{Binding HasBuilds}" ColumnDefinitions="300,*" RowDefinitions="Auto,Auto" ColumnSpacing="44"
             VerticalAlignment="Center">
         <TextBlock Classes="title" Text="Longshot"/>
+        <!-- opposite the title: the picked track's newest version when its build has an update, and What's new in it
+             (ReleaseNotesViewModel: every version since the build's, newest first); nothing there otherwise -->
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Margin="0,8,0,0"
+                    IsVisible="{Binding HasTrackUpdate}">
+          <c:Icon Kind="arrowUp" Width="15" Height="15" Foreground="{StaticResource BrandInk}" VerticalAlignment="Center"/>
+          <TextBlock FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource BrandInk}" Text="{Binding TrackUpdate}"
+                     TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+          <Button Classes="link" Content="{c:T 'What\'s new'}" Command="{Binding NotesDefaultCommand}" VerticalAlignment="Center"/>
+        </StackPanel>
         <StackPanel Grid.Row="1" VerticalAlignment="Top">
-          <!-- the track, then one of its versions (VersionPick): a check beside the installed one, the button below for the pick -->
+          <!-- the track (its name only: what it holds is the Version field's), then one of its versions (VersionPick): a check
+               beside the installed one, Update available beside it when its build has a newer version, the button below -->
           <TextBlock Classes="label" Text="{c:T 'TRACK'}" Margin="0,12,0,6"/>
           <ComboBox Width="NaN" Height="44" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
                     ItemsSource="{Binding Tracks}" SelectedItem="{Binding PickTrack}">
             <ComboBox.ItemTemplate>
               <DataTemplate x:DataType="vm:TrackChoice">
-                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
-                  <TextBlock Text="{Binding Name}" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                  <TextBlock Grid.Column="1" Classes="faint" Text="{Binding Installed}" TextTrimming="CharacterEllipsis"
-                             HorizontalAlignment="Right" VerticalAlignment="Center"/>
-                  <Border Grid.Column="2" Classes="tag" Classes.rc="{Binding IsCandidate}" Classes.nightly="{Binding IsNightly}" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding Id}"/>
-                  </Border>
-                </Grid>
+                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" VerticalAlignment="Center"/>
               </DataTemplate>
             </ComboBox.ItemTemplate>
           </ComboBox>
-          <TextBlock Classes="label" Text="{c:T 'VERSION'}" Margin="0,10,0,6"/>
+          <!-- (the field's badge on its label's row, so the version itself is never cut; the list has room for it on the row) -->
+          <Grid ColumnDefinitions="*,Auto" Margin="0,10,0,6">
+            <TextBlock Classes="label" Text="{c:T 'VERSION'}" Margin="0" VerticalAlignment="Center"/>
+            <Border Grid.Column="1" Classes="chip small update" IsVisible="{Binding PickHasUpdate}">
+              <TextBlock Text="{c:T 'Update available'}"/>
+            </Border>
+          </Grid>
           <ComboBox Width="NaN" Height="44" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
                     ItemsSource="{Binding TrackVersions}" SelectedItem="{Binding PickVersion}" IsEnabled="{Binding HasTrackVersions}">
+            <ComboBox.SelectionBoxItemTemplate>
+              <DataTemplate x:DataType="vm:VersionChoice">
+                <Grid ColumnDefinitions="16,*,Auto" ColumnSpacing="8">
+                  <c:Icon Kind="check" Width="14" Height="14" Foreground="{StaticResource Go}" VerticalAlignment="Center"
+                          IsVisible="{Binding Installed}" ToolTip.Tip="{c:T 'Installed'}"/>
+                  <TextBlock Grid.Column="1" Text="{Binding Shown}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                  <TextBlock Grid.Column="2" Classes="faint" Text="{Binding Note}" VerticalAlignment="Center" IsVisible="{Binding !HasUpdate}"/>
+                </Grid>
+              </DataTemplate>
+            </ComboBox.SelectionBoxItemTemplate>
             <ComboBox.ItemTemplate>
               <DataTemplate x:DataType="vm:VersionChoice">
                 <Grid ColumnDefinitions="16,*,Auto" ColumnSpacing="8">
                   <c:Icon Kind="check" Width="14" Height="14" Foreground="{StaticResource Go}" VerticalAlignment="Center"
                           IsVisible="{Binding Installed}" ToolTip.Tip="{c:T 'Installed'}"/>
                   <TextBlock Grid.Column="1" Text="{Binding Shown}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
-                  <TextBlock Grid.Column="2" Classes="faint" Text="{Binding Note}" VerticalAlignment="Center"/>
+                  <TextBlock Grid.Column="2" Classes="faint" Text="{Binding Note}" VerticalAlignment="Center" IsVisible="{Binding !HasUpdate}"/>
+                  <Border Grid.Column="2" Classes="chip small update" IsVisible="{Binding HasUpdate}">
+                    <TextBlock Text="{c:T 'Update available'}"/>
+                  </Border>
                 </Grid>
               </DataTemplate>
             </ComboBox.ItemTemplate>
           </ComboBox>
-          <!-- the pick's button: Play when it is installed, else Update to, Go back to or Build; its update beside Play -->
-          <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,14,0,0">
+          <!-- the pick's button: Play when it is installed, else Update to, Go back to or Build; Update beside Play, the same size
+               and with its icon, when the build has a newer version (it takes the room left, its words cut rather than the row) -->
+          <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12" Margin="0,14,0,0">
             <Button Classes="go" Command="{Binding GoCommand}" IsVisible="{Binding GoIsPlay}">
               <StackPanel Orientation="Horizontal" Spacing="8">
                 <c:Icon Kind="play" Width="18" Height="18"/>
@@ -331,19 +354,18 @@
             <Button Classes="primary tall" Command="{Binding GoCommand}" IsVisible="{Binding GoIsBuild}">
               <TextBlock Text="{Binding GoText}" TextTrimming="CharacterEllipsis" MaxWidth="260"/>
             </Button>
-            <Button Classes="primary tall" Content="{c:T 'Update'}" Command="{Binding UpdateDefaultCommand}" IsVisible="{Binding HeroHasUpdate}"/>
-          </StackPanel>
+            <Button Grid.Column="1" Classes="primary tall hero" HorizontalAlignment="Left" Command="{Binding UpdateDefaultCommand}"
+                    IsVisible="{Binding HeroHasUpdate}">
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <c:Icon Kind="arrowUp" Width="18" Height="18"/>
+                <TextBlock Text="{c:T 'Update'}" TextTrimming="CharacterEllipsis"/>
+              </StackPanel>
+            </Button>
+          </Grid>
           <!-- what it does: the installed version's line, the build a version replaces in its folder, or a new build's -->
           <TextBlock Classes="note" Text="{Binding HeroNote}" TextWrapping="Wrap" Margin="0,8,0,0"/>
-          <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,10,0,0" IsVisible="{Binding HeroHasUpdate}">
-            <c:Icon Kind="arrowUp" Width="15" Height="15" Foreground="{StaticResource BrandInk}" VerticalAlignment="Center"/>
-            <TextBlock FontSize="13" Foreground="{StaticResource BrandInk}" Text="{Binding HeroUpdate}" VerticalAlignment="Center"
-                       TextWrapping="Wrap"/>
-          </StackPanel>
-          <!-- What's new in it: every version since the picked one's, newest first (ReleaseNotesViewModel); Remove, the row's Delete -->
+          <!-- Remove: the row's Delete -->
           <StackPanel Orientation="Horizontal" Spacing="16" Margin="0,6,0,0">
-            <Button Classes="link" Margin="21,0,0,0" Content="{c:T 'What\'s new'}" Command="{Binding NotesDefaultCommand}"
-                    IsVisible="{Binding HeroHasUpdate}"/>
             <Button Classes="link smaller" Command="{Binding RemoveCommand}" IsVisible="{Binding ShowRemove}" Foreground="{StaticResource Bad}">
               <StackPanel Orientation="Horizontal" Spacing="6">
                 <c:Icon Kind="trash" Width="13" Height="13"/>
@@ -400,25 +422,16 @@
                                   <c:Spinner Width="12" Height="12" VerticalAlignment="Center"/>
                                   <TextBlock Classes="faint" Text="{Binding DeletingText}"/>
                                 </StackPanel>
-                                <StackPanel Orientation="Horizontal" Spacing="4" IsVisible="{Binding ShowUpdateLine}">
-                                  <c:Icon Kind="arrowUp" Width="12" Height="12" Foreground="{StaticResource BrandInk}" VerticalAlignment="Center"/>
-                                  <TextBlock FontSize="12" FontWeight="Medium" Foreground="{StaticResource BrandInk}" Text="{Binding UpdateLine}"/>
-                                </StackPanel>
                               </StackPanel>
+                              <!-- (an update: only the badge here; the hero's Update and What's new act on it once the row is picked) -->
                               <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                <Border Classes="chip small update" IsVisible="{Binding ShowUpdateBadge}"><TextBlock Text="{c:T 'Update available'}"/></Border>
                                 <Border Classes="chip quiet" IsVisible="{Binding IsDefault}"><TextBlock Text="{c:T 'Default'}"/></Border>
                                 <Border Classes="tag" Classes.rc="{Binding IsCandidate}" Classes.nightly="{Binding IsNightly}">
                                   <TextBlock Text="{Binding Channel}"/>
                                 </Border>
                               </StackPanel>
                             </Grid>
-                          </Button>
-                          <Button Grid.Column="1" Classes="primary small" Margin="0,0,14,0" Command="{Binding UpdateCommand}"
-                                  IsVisible="{Binding HasUpdate}" VerticalAlignment="Center">
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                              <c:Icon Kind="arrowUp" Width="14" Height="14"/>
-                              <TextBlock Text="{c:T 'Update'}"/>
-                            </StackPanel>
                           </Button>
                           <!-- (the left side wraps, so the buttons on the right always show whole in the 960-wide window) -->
                           <Grid Grid.Row="1" Grid.ColumnSpan="2" ColumnDefinitions="*,Auto" ColumnSpacing="8" Margin="50,0,12,12" IsVisible="{Binding ShowActions}">
@@ -441,8 +454,6 @@
                               </Button>
                             </WrapPanel>
                             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                              <Button Classes="link smaller" Margin="0,0,6,0" Content="{c:T 'What\'s new'}" Command="{Binding NotesCommand}"
-                                      IsVisible="{Binding HasUpdate}"/>
                               <Button Classes="small" Command="{Binding SavesCommand}" ToolTip.Tip="{c:T 'Import or export your saves, which every version shares'}">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                   <c:Icon Kind="disk" Width="14" Height="14"/>

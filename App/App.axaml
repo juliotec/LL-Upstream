@@ -200,6 +200,12 @@
     <Style Selector="Border.chip.ink">
       <Setter Property="TextElement.Foreground" Value="{StaticResource Ink}"/>
     </Style>
+    <!-- "Update available": a build with a newer version on its channel (the home's Version field and list, and its row) -->
+    <Style Selector="Border.chip.update">
+      <Setter Property="Background" Value="{StaticResource BrandSoft}"/>
+      <Setter Property="BorderBrush" Value="#503D63E6"/>
+      <Setter Property="TextElement.Foreground" Value="{StaticResource BrandInk}"/>
+    </Style>
 
     <!-- a build's channel: release (green), rc (amber), nightly (blue) -->
     <Style Selector="Border.tag">
@@ -328,6 +334,14 @@
     <Style Selector="Button.tall">
       <Setter Property="Height" Value="50"/>
       <Setter Property="Padding" Value="26,0"/>
+    </Style>
+    <!-- a button beside Play on the home (Update): Play's size, padding, corners and type, in its own colour -->
+    <Style Selector="Button.hero">
+      <Setter Property="Height" Value="50"/>
+      <Setter Property="Padding" Value="34,0"/>
+      <Setter Property="CornerRadius" Value="10"/>
+      <Setter Property="FontSize" Value="16"/>
+      <Setter Property="FontWeight" Value="Bold"/>
     </Style>
     <!-- a button's label while its work runs (Controls.BusyContent, Core/BusyCommand.cs): the spinner and what it is doing -->
     <Style Selector="c|BusyContent">

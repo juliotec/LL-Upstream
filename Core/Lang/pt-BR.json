@@ -61,6 +61,7 @@
   "Building {0} stopped in {1}, {2}% of the way through. It said: {3}": "A compilação de {0} parou em \"{1}\", com {2}% concluído. Mensagem: {3}",
   "Copied: the version, this PC's memory and GPU, the settings and the log's last 200 lines.": "Copiado: a versão, a memória e a GPU deste PC, as configurações e as últimas 200 linhas do log.",
   "{0} is out": "{0} foi lançado",
+  "Update available": "Atualização disponível",
   "Built {0}": "Compilado: {0}",
   "not built": "não compilado",
   ", ": ", ",
@@ -68,16 +69,15 @@
   "The launcher could not update itself: {0}": "O launcher não conseguiu se atualizar: {0}",
   "not built: its game is missing": "não compilado: o jogo dele está faltando",
   "Your default version. {0}.": "Sua versão padrão. {0}.",
-  "{0} is out on the {1} channel.": "{0} foi lançado no canal {1}.",
-  "{0} versions use {1} in {2}.": {
-    "one": "{0} versão ocupa {1} em {2}.",
-    "many": "{0} versões ocupam {1} em {2}.",
-    "other": "{0} versões ocupam {1} em {2}."
+  "{0} instances use {1} in {2}.": {
+    "one": "{0} instância ocupa {1} em {2}.",
+    "many": "{0} instâncias ocupam {1} em {2}.",
+    "other": "{0} instâncias ocupam {1} em {2}."
   },
-  "{0} versions in {1}.": {
-    "one": "{0} versão em {1}.",
-    "many": "{0} versões em {1}.",
-    "other": "{0} versões em {1}."
+  "{0} instances in {1}.": {
+    "one": "{0} instância em {1}.",
+    "many": "{0} instâncias em {1}.",
+    "other": "{0} instâncias em {1}."
   },
   "{0} versions were deleted outside the launcher, so they are no longer listed.": {
     "one": "{0} versão foi excluída fora do launcher, então não aparece mais na lista.",
@@ -677,8 +677,6 @@
   "Installed": "Instalada",
   "default": "padrão",
   "newest": "mais recente",
-  "none installed": "nada instalado",
-  "{0} installed": "{0} instalada",
   "Installed. {0}.": "Instalada. {0}.",
   "Nothing on this track yet: it is built into a folder of its own, in about 15 to 30 minutes.": "Ainda não há nada neste canal: ela é compilada em uma pasta própria, em cerca de 15 a 30 minutos.",
   "Its versions show once git.magicbean.dev answers.": "As versões aparecem assim que o git.magicbean.dev responder.",

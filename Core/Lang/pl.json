@@ -61,6 +61,7 @@
   "Building {0} stopped in {1}, {2}% of the way through. It said: {3}": "Budowanie {0} zatrzymało się na etapie: {1}, po {2}%. Komunikat: {3}",
   "Copied: the version, this PC's memory and GPU, the settings and the log's last 200 lines.": "Skopiowano: wersję, pamięć i GPU tego komputera, ustawienia oraz ostatnie 200 wierszy dziennika.",
   "{0} is out": "Nowa wersja: {0}",
+  "Update available": "Dostępna aktualizacja",
   "Built {0}": "Zbudowano {0}",
   "not built": "niezbudowana",
   ", ": ", ",
@@ -68,18 +69,17 @@
   "The launcher could not update itself: {0}": "Launcher nie mógł się zaktualizować: {0}",
   "not built: its game is missing": "niezbudowana: brakuje jej gry",
   "Your default version. {0}.": "Twoja domyślna wersja. {0}.",
-  "{0} is out on the {1} channel.": "Nowa wersja na kanale {1}: {0}.",
-  "{0} versions use {1} in {2}.": {
-    "one": "{0} wersja zajmuje {1} w {2}.",
-    "few": "{0} wersje zajmują {1} w {2}.",
-    "many": "{0} wersji zajmuje {1} w {2}.",
-    "other": "{0} wersji zajmuje {1} w {2}."
+  "{0} instances use {1} in {2}.": {
+    "one": "{0} instancja zajmuje {1} w {2}.",
+    "few": "{0} instancje zajmują {1} w {2}.",
+    "many": "{0} instancji zajmuje {1} w {2}.",
+    "other": "{0} instancji zajmuje {1} w {2}."
   },
-  "{0} versions in {1}.": {
-    "one": "{0} wersja w {1}.",
-    "few": "{0} wersje w {1}.",
-    "many": "{0} wersji w {1}.",
-    "other": "{0} wersji w {1}."
+  "{0} instances in {1}.": {
+    "one": "{0} instancja w {1}.",
+    "few": "{0} instancje w {1}.",
+    "many": "{0} instancji w {1}.",
+    "other": "{0} instancji w {1}."
   },
   "{0} versions were deleted outside the launcher, so they are no longer listed.": {
     "one": "{0} wersja została usunięta poza launcherem, więc nie ma jej już na liście.",
@@ -694,8 +694,6 @@
   "Installed": "Zainstalowana",
   "default": "domyślna",
   "newest": "najnowsza",
-  "none installed": "nic nie zainstalowano",
-  "{0} installed": "Zainstalowano: {0}",
   "Installed. {0}.": "Zainstalowana. {0}.",
   "Nothing on this track yet: it is built into a folder of its own, in about 15 to 30 minutes.": "Na tym kanale nic jeszcze nie ma: zostanie zbudowana we własnym folderze, w około 15–30 minut.",
   "Its versions show once git.magicbean.dev answers.": "Jego wersje pojawią się, gdy git.magicbean.dev odpowie.",

@@ -61,6 +61,7 @@
   "Building {0} stopped in {1}, {2}% of the way through. It said: {3}": "La création de {0} s'est arrêtée à l'étape « {1} », à {2} %. Message : {3}",
   "Copied: the version, this PC's memory and GPU, the settings and the log's last 200 lines.": "Copié : la version, la mémoire et le GPU de ce PC, les paramètres et les 200 dernières lignes du journal.",
   "{0} is out": "{0} est disponible",
+  "Update available": "Mise à jour disponible",
   "Built {0}": "Créé : {0}",
   "not built": "non créé",
   ", ": ", ",
@@ -68,16 +69,15 @@
   "The launcher could not update itself: {0}": "Le lanceur n'a pas pu se mettre à jour : {0}",
   "not built: its game is missing": "non créé : son jeu est introuvable",
   "Your default version. {0}.": "Votre version par défaut. {0}.",
-  "{0} is out on the {1} channel.": "{0} est disponible sur le canal {1}.",
-  "{0} versions use {1} in {2}.": {
-    "one": "{0} version utilise {1} dans {2}.",
-    "many": "{0} de versions utilisent {1} dans {2}.",
-    "other": "{0} versions utilisent {1} dans {2}."
+  "{0} instances use {1} in {2}.": {
+    "one": "{0} instance utilise {1} dans {2}.",
+    "many": "{0} d’instances utilisent {1} dans {2}.",
+    "other": "{0} instances utilisent {1} dans {2}."
   },
-  "{0} versions in {1}.": {
-    "one": "{0} version dans {1}.",
-    "many": "{0} de versions dans {1}.",
-    "other": "{0} versions dans {1}."
+  "{0} instances in {1}.": {
+    "one": "{0} instance dans {1}.",
+    "many": "{0} d’instances dans {1}.",
+    "other": "{0} instances dans {1}."
   },
   "{0} versions were deleted outside the launcher, so they are no longer listed.": {
     "one": "{0} version a été supprimée hors du lanceur : elle n’est plus listée.",
@@ -677,8 +677,6 @@
   "Installed": "Installée",
   "default": "par défaut",
   "newest": "la plus récente",
-  "none installed": "rien d’installé",
-  "{0} installed": "{0} installée",
   "Installed. {0}.": "Installée. {0}.",
   "Nothing on this track yet: it is built into a folder of its own, in about 15 to 30 minutes.": "Rien sur ce canal pour l’instant : elle est construite dans un dossier à elle, en 15 à 30 minutes environ.",
   "Its versions show once git.magicbean.dev answers.": "Ses versions s’affichent dès que git.magicbean.dev répond.",

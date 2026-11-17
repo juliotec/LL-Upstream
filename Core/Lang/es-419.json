@@ -20,7 +20,6 @@
   "Copied: the version, this PC's memory and GPU, the settings and the log's last 200 lines.": "Copiado: la versión, la memoria y la GPU de esta computadora, la configuración y las últimas 200 líneas del registro.",
   "{0} is out": "Ya salió {0}",
   "The launcher could not update itself: {0}": "El launcher no se pudo actualizar: {0}",
-  "{0} is out on the {1} channel.": "Ya salió {0} en el canal {1}.",
   "Found {0} in Hookshot. Copy them into Longshot? Hookshot keeps its own.": "Se encontraron {0} en Hookshot. ¿Copiarlas a Longshot? Hookshot conserva las suyas.",
   "A new launcher is out": "Salió un nuevo launcher",
   "Longshot Launcher {0} is out (you have {1}).": "Salió Longshot Launcher {0} (tienes la {1}).",

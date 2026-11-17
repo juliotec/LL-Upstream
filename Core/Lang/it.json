@@ -61,6 +61,7 @@
   "Building {0} stopped in {1}, {2}% of the way through. It said: {3}": "La creazione di {0} si è interrotta durante \"{1}\", al {2}%. Messaggio: {3}",
   "Copied: the version, this PC's memory and GPU, the settings and the log's last 200 lines.": "Copiati: la versione, la memoria e la GPU di questo PC, le impostazioni e le ultime 200 righe del log.",
   "{0} is out": "È uscito {0}",
+  "Update available": "Aggiornamento disponibile",
   "Built {0}": "Creata: {0}",
   "not built": "non creata",
   ", ": ", ",
@@ -68,16 +69,15 @@
   "The launcher could not update itself: {0}": "Il launcher non è riuscito ad aggiornarsi: {0}",
   "not built: its game is missing": "non creata: manca il gioco",
   "Your default version. {0}.": "La tua versione predefinita. {0}.",
-  "{0} is out on the {1} channel.": "È uscito {0} sul canale {1}.",
-  "{0} versions use {1} in {2}.": {
-    "one": "{0} versione usa {1} in {2}.",
-    "many": "{0} di versioni usano {1} in {2}.",
-    "other": "{0} versioni usano {1} in {2}."
+  "{0} instances use {1} in {2}.": {
+    "one": "{0} istanza usa {1} in {2}.",
+    "many": "{0} di istanze usano {1} in {2}.",
+    "other": "{0} istanze usano {1} in {2}."
   },
-  "{0} versions in {1}.": {
-    "one": "{0} versione in {1}.",
-    "many": "{0} di versioni in {1}.",
-    "other": "{0} versioni in {1}."
+  "{0} instances in {1}.": {
+    "one": "{0} istanza in {1}.",
+    "many": "{0} di istanze in {1}.",
+    "other": "{0} istanze in {1}."
   },
   "{0} versions were deleted outside the launcher, so they are no longer listed.": {
     "one": "{0} versione è stata eliminata fuori dal launcher, quindi non è più elencata.",
@@ -677,8 +677,6 @@
   "Installed": "Installata",
   "default": "predefinita",
   "newest": "la più recente",
-  "none installed": "niente installato",
-  "{0} installed": "{0} installata",
   "Installed. {0}.": "Installata. {0}.",
   "Nothing on this track yet: it is built into a folder of its own, in about 15 to 30 minutes.": "Ancora niente su questo canale: viene compilata in una cartella tutta sua, in circa 15-30 minuti.",
   "Its versions show once git.magicbean.dev answers.": "Le sue versioni compaiono appena git.magicbean.dev risponde.",

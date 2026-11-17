@@ -61,6 +61,7 @@
   "Building {0} stopped in {1}, {2}% of the way through. It said: {3}": "建置 {0} 在「{1}」階段停止，進度 {2}%。錯誤訊息：{3}",
   "Copied: the version, this PC's memory and GPU, the settings and the log's last 200 lines.": "已複製：版本、這台電腦的記憶體和 GPU、設定，以及記錄檔的最後 200 行。",
   "{0} is out": "{0} 已推出",
+  "Update available": "有可用更新",
   "Built {0}": "建置於 {0}",
   "not built": "未建置",
   ", ": "、",
@@ -68,12 +69,11 @@
   "The launcher could not update itself: {0}": "啟動器無法自行更新：{0}",
   "not built: its game is missing": "未建置：缺少遊戲",
   "Your default version. {0}.": "你的預設版本。{0}。",
-  "{0} is out on the {1} channel.": "{1}通道已推出 {0}。",
-  "{0} versions use {1} in {2}.": {
-    "other": "{0} 個版本佔用 {2} 中的 {1}。"
+  "{0} instances use {1} in {2}.": {
+    "other": "{0} 個實例佔用 {2} 中的 {1}。"
   },
-  "{0} versions in {1}.": {
-    "other": "{1} 中有 {0} 個版本。"
+  "{0} instances in {1}.": {
+    "other": "{1} 中有 {0} 個實例。"
   },
   "{0} versions were deleted outside the launcher, so they are no longer listed.": {
     "other": "有 {0} 個版本已在啟動器之外被刪除，因此不再列出。"
@@ -643,8 +643,6 @@
   "Installed": "已安裝",
   "default": "預設",
   "newest": "最新",
-  "none installed": "未安裝",
-  "{0} installed": "已安裝 {0}",
   "Installed. {0}.": "已安裝。{0}。",
   "Nothing on this track yet: it is built into a folder of its own, in about 15 to 30 minutes.": "此通道還沒有任何版本：將建置到獨立的資料夾中，大約需要 15 到 30 分鐘。",
   "Its versions show once git.magicbean.dev answers.": "git.magicbean.dev 回應後即會顯示其版本。",

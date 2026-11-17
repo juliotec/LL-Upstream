@@ -61,6 +61,7 @@
   "Building {0} stopped in {1}, {2}% of the way through. It said: {3}": "Сборка {0} остановилась на этапе «{1}», выполнено {2}%. Сообщение: {3}",
   "Copied: the version, this PC's memory and GPU, the settings and the log's last 200 lines.": "Скопировано: версия, память и GPU этого ПК, настройки и последние 200 строк журнала.",
   "{0} is out": "Новая версия: {0}",
+  "Update available": "Доступно обновление",
   "Built {0}": "Собрано {0}",
   "not built": "не собрана",
   ", ": ", ",
@@ -68,18 +69,17 @@
   "The launcher could not update itself: {0}": "Лаунчер не смог обновиться: {0}",
   "not built: its game is missing": "не собрана: нет файлов игры",
   "Your default version. {0}.": "Ваша версия по умолчанию. {0}.",
-  "{0} is out on the {1} channel.": "Новая версия на канале «{1}»: {0}.",
-  "{0} versions use {1} in {2}.": {
-    "one": "{0} версия занимает {1} в {2}.",
-    "few": "{0} версии занимают {1} в {2}.",
-    "many": "{0} версий занимают {1} в {2}.",
-    "other": "{0} версии занимают {1} в {2}."
+  "{0} instances use {1} in {2}.": {
+    "one": "{0} экземпляр занимает {1} в {2}.",
+    "few": "{0} экземпляра занимают {1} в {2}.",
+    "many": "{0} экземпляров занимают {1} в {2}.",
+    "other": "{0} экземпляра занимают {1} в {2}."
   },
-  "{0} versions in {1}.": {
-    "one": "{0} версия в {1}.",
-    "few": "{0} версии в {1}.",
-    "many": "{0} версий в {1}.",
-    "other": "{0} версии в {1}."
+  "{0} instances in {1}.": {
+    "one": "{0} экземпляр в {1}.",
+    "few": "{0} экземпляра в {1}.",
+    "many": "{0} экземпляров в {1}.",
+    "other": "{0} экземпляра в {1}."
   },
   "{0} versions were deleted outside the launcher, so they are no longer listed.": {
     "one": "{0} версия удалена не через лаунчер, поэтому её больше нет в списке.",
@@ -694,8 +694,6 @@
   "Installed": "Установлена",
   "default": "по умолчанию",
   "newest": "самая новая",
-  "none installed": "ничего не установлено",
-  "{0} installed": "Установлена: {0}",
   "Installed. {0}.": "Установлена. {0}.",
   "Nothing on this track yet: it is built into a folder of its own, in about 15 to 30 minutes.": "На этом канале пока ничего нет: сборка пойдёт в отдельную папку, примерно за 15–30 минут.",
   "Its versions show once git.magicbean.dev answers.": "Его версии появятся, когда git.magicbean.dev ответит.",

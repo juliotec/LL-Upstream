@@ -61,6 +61,7 @@
   "Building {0} stopped in {1}, {2}% of the way through. It said: {3}": "Der Build von {0} wurde bei {1} gestoppt, nach {2} %. Meldung: {3}",
   "Copied: the version, this PC's memory and GPU, the settings and the log's last 200 lines.": "Kopiert: die Version, Arbeitsspeicher und GPU dieses PCs, die Einstellungen und die letzten 200 Zeilen des Logs.",
   "{0} is out": "{0} ist da",
+  "Update available": "Update verfügbar",
   "Built {0}": "Gebaut {0}",
   "not built": "nicht gebaut",
   ", ": ", ",
@@ -68,14 +69,13 @@
   "The launcher could not update itself: {0}": "Der Launcher konnte sich nicht aktualisieren: {0}",
   "not built: its game is missing": "nicht gebaut: das Spiel fehlt",
   "Your default version. {0}.": "Deine Standardversion. {0}.",
-  "{0} is out on the {1} channel.": "{0} ist im Kanal {1} erschienen.",
-  "{0} versions use {1} in {2}.": {
-    "one": "1 Version belegt {1} in {2}.",
-    "other": "{0} Versionen belegen {1} in {2}."
+  "{0} instances use {1} in {2}.": {
+    "one": "1 Instanz belegt {1} in {2}.",
+    "other": "{0} Instanzen belegen {1} in {2}."
   },
-  "{0} versions in {1}.": {
-    "one": "1 Version in {1}.",
-    "other": "{0} Versionen in {1}."
+  "{0} instances in {1}.": {
+    "one": "1 Instanz in {1}.",
+    "other": "{0} Instanzen in {1}."
   },
   "{0} versions were deleted outside the launcher, so they are no longer listed.": {
     "one": "1 Version wurde außerhalb des Launchers gelöscht und wird nicht mehr aufgeführt.",
@@ -660,8 +660,6 @@
   "Installed": "Installiert",
   "default": "Standard",
   "newest": "neueste",
-  "none installed": "nichts installiert",
-  "{0} installed": "{0} installiert",
   "Installed. {0}.": "Installiert. {0}.",
   "Nothing on this track yet: it is built into a folder of its own, in about 15 to 30 minutes.": "Auf diesem Kanal ist noch nichts: Sie wird in einen eigenen Ordner gebaut, in etwa 15 bis 30 Minuten.",
   "Its versions show once git.magicbean.dev answers.": "Seine Versionen erscheinen, sobald git.magicbean.dev antwortet.",

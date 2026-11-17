@@ -168,13 +168,27 @@ static class Program
             _ => null, m => m.Home.Select(m.Home.Builds.First(b => !b.IsDefault))),
         new("home-versions", "The Version dropdown open: the nightly track's versions, a check beside the installed one",
             Platform.Windows, NightliesListed, _ => null, OpenDropdown: 1),
-        new("home-tracks", "The Track dropdown open: what each track has installed", Platform.Windows,
+        new("home-tracks", "The Track dropdown open: the tracks by name", Platform.Windows,
             s =>
             {
                 NightliesListed(s);
                 s.Registry.Add(@"C:\Users\Player\Games\Longshot\stable", "v3.0.0", Versions.Stable);
             },
             _ => null, OpenDropdown: 0),
+        // (a newer version shown once in each place: the nightly build behind its track's newest, Update available beside the
+        // version and on its row, Update beside Play, the newest and What's new opposite the title; a row on another track too)
+        new("home-nightly-update", "A nightly build with a newer nightly out: Update beside Play, Update available, What's new opposite the title",
+            Platform.Windows, NightlyBehind, _ => null),
+        new("home-versions-update", "The Version dropdown open on a track whose build has a newer version: Update available on its row",
+            Platform.Windows, NightlyBehind, _ => null, OpenDropdown: 1),
+        new("home-row-update", "A build on another track with a newer version: only Update available on its row", Platform.Windows,
+            s =>
+            {
+                NightlyBehind(s);
+                s.Registry.Add(@"C:\Users\Player\Games\Longshot\stable\v3.0.0", "v3.0.0", Versions.Stable, makeDefault: true);
+                s.SetNewest(Versions.Stable, "v3.0.0");
+            },
+            _ => null),
         new("home-go-back", "An older nightly picked: Go back to it, built in the nightly build's place", Platform.Windows, NightliesListed,
             _ => null, m => m.Home.PickVersion = m.Home.TrackVersions.First(v => v.Tag == "nightly-187-9e6f231d")),
         new("home-build-track", "A track with no build picked: Build its newest, into a folder of its own", Platform.Windows,
@@ -525,6 +539,23 @@ static class Program
     static void NightliesListed(LauncherService service)
     {
         service.Registry.Add(@"C:\Users\Player\Games\Longshot\nightly\nightly-189-aa95d35f", "nightly-189-aa95d35f", Versions.Nightly, makeDefault: true);
+        service.SetNewest(Versions.Nightly, "nightly-189-aa95d35f");
+        ListedRelease Nightly(string tag, string at) =>
+            new(tag, false, true, DateTimeOffset.Parse(at, System.Globalization.CultureInfo.InvariantCulture), ReleaseNotes.PageOf(Product.Longshot, tag), "", []);
+        service.Releases.Listed =
+        [
+            Nightly("nightly-189-aa95d35f", "2026-11-15T11:10:00Z"),
+            Nightly("nightly-188-a00c485c", "2026-11-15T10:10:00Z"),
+            Nightly("nightly-187-9e6f231d", "2026-11-15T09:22:00Z"),
+            Nightly("nightly-182-5274fb72", "2026-11-14T08:07:00Z"),
+            Nightly("nightly-179-70087604", "2026-11-13T07:01:00Z"),
+        ];
+    }
+
+    /// The nightly releases NightliesListed has, with the build two nightlies behind: its track's newest is out
+    static void NightlyBehind(LauncherService service)
+    {
+        service.Registry.Add(@"C:\Users\Player\Games\Longshot\nightly\nightly-187-9e6f231d", "nightly-187-9e6f231d", Versions.Nightly, makeDefault: true);
         service.SetNewest(Versions.Nightly, "nightly-189-aa95d35f");
         ListedRelease Nightly(string tag, string at) =>
             new(tag, false, true, DateTimeOffset.Parse(at, System.Globalization.CultureInfo.InvariantCulture), ReleaseNotes.PageOf(Product.Longshot, tag), "", []);

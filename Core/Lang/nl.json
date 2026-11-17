@@ -61,6 +61,7 @@
   "Building {0} stopped in {1}, {2}% of the way through. It said: {3}": "Het bouwen van {0} stopte bij {1}, na {2}%. Melding: {3}",
   "Copied: the version, this PC's memory and GPU, the settings and the log's last 200 lines.": "Gekopieerd: de versie, het geheugen en de GPU van deze pc, de instellingen en de laatste 200 regels van het logboek.",
   "{0} is out": "{0} is uit",
+  "Update available": "Update beschikbaar",
   "Built {0}": "Gebouwd {0}",
   "not built": "niet gebouwd",
   ", ": ", ",
@@ -68,14 +69,13 @@
   "The launcher could not update itself: {0}": "De launcher kon zichzelf niet bijwerken: {0}",
   "not built: its game is missing": "niet gebouwd: het spel ontbreekt",
   "Your default version. {0}.": "Je standaardversie. {0}.",
-  "{0} is out on the {1} channel.": "{0} is uit op het kanaal {1}.",
-  "{0} versions use {1} in {2}.": {
-    "one": "1 versie gebruikt {1} in {2}.",
-    "other": "{0} versies gebruiken {1} in {2}."
+  "{0} instances use {1} in {2}.": {
+    "one": "1 instantie gebruikt {1} in {2}.",
+    "other": "{0} instanties gebruiken {1} in {2}."
   },
-  "{0} versions in {1}.": {
-    "one": "1 versie in {1}.",
-    "other": "{0} versies in {1}."
+  "{0} instances in {1}.": {
+    "one": "1 instantie in {1}.",
+    "other": "{0} instanties in {1}."
   },
   "{0} versions were deleted outside the launcher, so they are no longer listed.": {
     "one": "1 versie is buiten de launcher verwijderd en staat niet meer in de lijst.",
@@ -660,8 +660,6 @@
   "Installed": "Geïnstalleerd",
   "default": "standaard",
   "newest": "nieuwste",
-  "none installed": "niets geïnstalleerd",
-  "{0} installed": "{0} geïnstalleerd",
   "Installed. {0}.": "Geïnstalleerd. {0}.",
   "Nothing on this track yet: it is built into a folder of its own, in about 15 to 30 minutes.": "Nog niets op dit kanaal: hij wordt in een eigen map gebouwd, in zo’n 15 tot 30 minuten.",
   "Its versions show once git.magicbean.dev answers.": "De versies verschijnen zodra git.magicbean.dev antwoordt.",
