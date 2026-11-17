@@ -606,7 +606,7 @@ public sealed class StopBuildViewModel(BuildStepViewModel build) : ViewModelBase
 /// The build finished: Play, Open folder, the shortcuts, whether Play starts this version
 public sealed class ReadyViewModel : ViewModelBase, IWizardPage
 {
-    bool desktop = true, menu = true;
+    bool desktop, menu;
 
     public ReadyViewModel(MainViewModel main, BuildEntry entry, JobKind kind, string? from, TimeSpan took, string? problem, bool older = false)
     {
@@ -633,7 +633,14 @@ public sealed class ReadyViewModel : ViewModelBase, IWizardPage
         });
         FolderCommand = new Command(() => Main.Host?.Open(Entry.Folder));
         HomeCommand = new Command(Main.ShowHome);
-        WriteShortcuts();
+        // (both ticked and made as it opens, by the launcher that owns the shortcuts; a portable one's ticks are the shortcuts that
+        // start it, made or removed only when the player ticks, so it writes nothing of its own accord: Shortcuts.MadeAtReady, #161)
+        if (Shortcuts.MadeAtReady(Program.Layout))
+        {
+            desktop = menu = true;
+            WriteShortcuts();
+        }
+        else (desktop, menu) = OwnShortcuts();
     }
 
     public MainViewModel Main { get; }
@@ -694,14 +701,25 @@ public sealed class ReadyViewModel : ViewModelBase, IWizardPage
         }
     }
 
-    /// The shortcuts start the launcher's Play of the default build, so they follow "Play starts this version" and updates
+    /// The shortcuts that start this launcher already (a portable one's ticks)
+    (bool, bool) OwnShortcuts()
+    {
+        if (Main.Host == null) return (false, false);
+        try { return Main.Linux ? Shortcuts.LinuxOwn(LauncherService.LauncherPath) : WindowsShortcuts.Own(LauncherService.LauncherPath); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return (false, false); }
+    }
+
+    /// The shortcuts start the launcher's Play of the default build, so they follow "Play starts this version" and updates. One
+    /// that starts another launcher is left as it is, unless this one takes over (Shortcuts.TakesOver), and the toast says so
     void WriteShortcuts()
     {
         if (Main.Host == null) return;
         try
         {
-            if (Main.Linux) Shortcuts.WriteLinux(LauncherService.LauncherPath, null, desktop, menu);
-            else WindowsShortcuts.Write(LauncherService.LauncherPath, desktop, menu);
+            var left = Main.Linux ? Shortcuts.WriteLinux(LauncherService.LauncherPath, null, desktop, menu)
+                : WindowsShortcuts.Write(LauncherService.LauncherPath, desktop, menu);
+            if (left.Count > 0)
+                Main.ShowToast(Tr.F("{0} starts another Longshot Launcher, so it was left as it is.", string.Join(", ", left.Select(ShownPath.Of))));
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception or InvalidOperationException)
         {

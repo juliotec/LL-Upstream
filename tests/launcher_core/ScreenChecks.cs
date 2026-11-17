@@ -774,6 +774,81 @@ static partial class Program
                 "Slot counts and numbers.");
     }
 
+    /// A portable launcher's shortcuts: it never takes over, nor removes, the ones another launcher made (#161)
+    static void PortableShortcutChecks()
+    {
+        var root = Folder("portable shortcuts");
+        var home = Path.Combine(root, "home");
+        Directory.CreateDirectory(Path.Combine(home, "Desktop"));
+        Func<string, string?> env = k => k switch { "HOME" => home, "XDG_DATA_HOME" => Path.Combine(root, "data"), _ => null };
+        var (d, m) = Shortcuts.LinuxPaths(env);
+        var other = Path.Combine(root, "Applications", "LongshotLauncher-x86_64.AppImage");
+        Touch(other, "ELF");
+        var portable = Path.Combine(root, "USB stick", "LongshotLauncher-x86_64.AppImage");
+        Touch(portable, "ELF");
+        Directory.CreateDirectory(portable + ".home");
+        Require(LauncherLayout.Of(Platform.Linux, portable, env).Kind == LauncherKind.Portable, "The AppImage with its .home folder is portable.");
+        Shortcuts.WriteLinux(other, null, desktop: true, menu: true, getenv: env);
+        var (desktopBefore, menuBefore) = (File.ReadAllText(d), File.ReadAllText(m));
+        // (both ticked: what the Ready screen of every launcher did as it opened)
+        Shortcuts.WriteLinux(portable, null, desktop: true, menu: true, getenv: env);
+        Require(File.ReadAllText(d) == desktopBefore && File.ReadAllText(m) == menuBefore,
+                "A portable launcher took over the shortcuts another launcher made (#161).");
+        Shortcuts.WriteLinux(portable, null, desktop: false, menu: false, getenv: env);
+        Require(File.ReadAllText(d) == desktopBefore && File.ReadAllText(m) == menuBefore,
+                "A portable launcher's unticked boxes removed the shortcuts another launcher made.");
+        Require(Shortcuts.WriteLinux(portable, null, desktop: true, menu: true, getenv: env).SequenceEqual(new[] { d, m })
+                && Shortcuts.WriteLinux(portable, null, desktop: false, menu: true, getenv: env).SequenceEqual(new[] { m }),
+                "The ticked ones left as they are are named (the Ready screen's toast says so).");
+
+        // (whose launcher a shortcut starts: the .desktop file's Exec read back as Quote wrote it)
+        var odd = "/home/a b/\"q\" $x `y` 100% back\\slash/ゲーム.AppImage";
+        var entry = Path.Combine(root, "odd.desktop");
+        File.WriteAllText(entry, Shortcuts.DesktopEntry(odd, "/games/v3", null));
+        Require(Shortcuts.LinuxTarget(entry) == odd && Shortcuts.LinuxTarget(d) == other && Shortcuts.LinuxTarget(Path.Combine(root, "none.desktop")) == null,
+                "The program a shortcut starts, read back from its Exec (none when there is no shortcut).");
+        File.WriteAllText(entry, "[Desktop Entry]\nExec=/usr/bin/longshot --play\n");
+        Require(Shortcuts.LinuxTarget(entry) == "/usr/bin/longshot", "An Exec not quoted: its first word.");
+        File.WriteAllText(entry, "[Desktop Entry]\nName=Longshot\n");
+        Require(Shortcuts.LinuxTarget(entry) == "", "No Exec: a shortcut that starts no launcher it can name.");
+
+        // (who makes them, and which it may touch)
+        var installedExe = Path.Combine(root, "Local", "Programs", "LongshotLauncher", "LongshotLauncher.exe");
+        Func<string, string?> winEnv = k => k == "LOCALAPPDATA" ? Path.Combine(root, "Local") : null;
+        var usbExe = Path.Combine(root, "USB stick", "LongshotLauncher-nightly-100-5f30eea3-windows-x64-setup.exe");
+        Touch(usbExe, "MZ");
+        Touch(Path.Combine(root, "USB stick", LauncherLayout.PortableMarker), "");
+        var portableLayout = LauncherLayout.Of(Platform.Linux, portable, env);
+        var winPortable = LauncherLayout.Of(Platform.Windows, usbExe, winEnv);
+        var winInstalled = LauncherLayout.Of(Platform.Windows, installedExe, winEnv);
+        var winPlain = LauncherLayout.Of(Platform.Windows, Path.Combine(root, "checkout", "bin", "LongshotLauncher.exe"), winEnv);
+        var appImage = LauncherLayout.Of(Platform.Linux, other, env);
+        Require(winPortable.Kind == LauncherKind.Portable && winInstalled.Kind == LauncherKind.Installed && winPlain.Kind == LauncherKind.Plain
+                && appImage.Kind == LauncherKind.Plain, "The layouts checked.");
+        Require(!Shortcuts.MadeAtReady(portableLayout) && !Shortcuts.MadeAtReady(winPortable)
+                && Shortcuts.MadeAtReady(winInstalled) && Shortcuts.MadeAtReady(winPlain) && Shortcuts.MadeAtReady(appImage),
+                "Ready makes the shortcuts as it opens, both ticked, for every launcher but a portable one (its Run portable promises none).");
+        Require(Shortcuts.TakesOver(winInstalled) && Shortcuts.TakesOver(appImage)
+                && !Shortcuts.TakesOver(winPortable) && !Shortcuts.TakesOver(winPlain) && !Shortcuts.TakesOver(portableLayout),
+                "The installed launcher and the AppImage take over the shortcuts; a portable copy, or a Windows one not installed, never does.");
+        Require(Shortcuts.MayTouch(null, portable, false) && Shortcuts.MayTouch(portable, portable, false)
+                && !Shortcuts.MayTouch(other, portable, false) && Shortcuts.MayTouch(other, portable, true)
+                && Shortcuts.MayTouch(Path.Combine(root, "gone.AppImage"), portable, false),
+                "May touch: no shortcut, its own, one to a launcher that is gone, any when it takes over; never another launcher's.");
+
+        // (its own ticks: none yet; the other launcher gone, its ticks make them, then they are its own; unticked, removed)
+        Require(Shortcuts.LinuxOwn(portable, env) == (false, false), "None of the shortcuts start the portable launcher yet.");
+        File.Delete(other);
+        Require(Shortcuts.WriteLinux(portable, null, desktop: true, menu: true, getenv: env).Count == 0 && Shortcuts.LinuxTarget(d) == portable
+                && Shortcuts.LinuxOwn(portable, env) == (true, true), "Ticked, with the launcher they started gone: the portable launcher's own.");
+        Shortcuts.WriteLinux(portable, null, desktop: false, menu: true, getenv: env);
+        Require(!File.Exists(d) && Shortcuts.LinuxOwn(portable, env) == (false, true), "Its own, unticked: removed.");
+        // (the AppImage that is not portable takes them back)
+        Touch(other, "ELF");
+        Shortcuts.WriteLinux(other, null, desktop: true, menu: true, getenv: env);
+        Require(Shortcuts.LinuxTarget(m) == other && Shortcuts.LinuxTarget(d) == other, "The launcher that owns the shortcuts takes them back.");
+    }
+
     static void ShortcutChecks()
     {
         // (the quoting's backslashes doubled again for the file's string escapes: an argument's " is \\" in the file, its \ is \\\\)
@@ -795,6 +870,7 @@ static partial class Program
         Require(!File.Exists(d) && File.Exists(m), "Unticked: removed.");
         Require(File.ReadAllText(m).Contains("Exec=\"/apps/Longshot.AppImage\" --play\n") && File.ReadAllText(m).Contains("Icon=/i.png\n")
                 && !File.ReadAllText(m).Contains("Path="), "With no folder: Play of the default build.");
+        PortableShortcutChecks();
 
         // (SystemInfo: the GPU makers from /sys/class/drm)
         var drm = Folder("drm");

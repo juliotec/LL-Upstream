@@ -56,6 +56,7 @@
   "Start menu entry": "スタート メニューの項目",
   "Play now starts {0}.": "今後は「プレイ」で {0} が起動します。",
   "The shortcuts could not be made: {0}": "ショートカットを作成できませんでした: {0}",
+  "{0} starts another Longshot Launcher, so it was left as it is.": "{0} は別の Longshot Launcher を起動するため、そのままにしました。",
   "make_game.py stopped": "make_game.py が停止しました",
   "Building {0} stopped in {1}, {2}% of the way through. It said: {3}": "{0} のビルドが {1} で停止しました（{2}% 完了）。メッセージ: {3}",
   "Copied: the version, this PC's memory and GPU, the settings and the log's last 200 lines.": "コピーしました: バージョン、この PC のメモリと GPU、設定、ログの最後の 200 行。",

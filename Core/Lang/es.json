@@ -58,6 +58,7 @@
   "Start menu entry": "Entrada en el menú Inicio",
   "Play now starts {0}.": "Jugar ahora inicia {0}.",
   "The shortcuts could not be made: {0}": "No se han podido crear los accesos directos: {0}",
+  "{0} starts another Longshot Launcher, so it was left as it is.": "{0} inicia otro Longshot Launcher, así que se ha dejado como estaba.",
   "make_game.py stopped": "make_game.py se ha detenido",
   "Building {0} stopped in {1}, {2}% of the way through. It said: {3}": "La compilación de {0} se ha detenido en «{1}», al {2} %. Mensaje: {3}",
   "Copied: the version, this PC's memory and GPU, the settings and the log's last 200 lines.": "Copiado: la versión, la memoria y la GPU de este PC, los ajustes y las últimas 200 líneas del registro.",

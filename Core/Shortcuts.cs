@@ -53,13 +53,72 @@ public static class Shortcuts
         return (Path.Combine(home, "Desktop", "longshot.desktop"), Path.Combine(data, "applications", "longshot.desktop"));
     }
 
-    /// The Linux shortcuts made (or removed) as the two ticks say; the desktop one only when there is a Desktop folder
-    public static void WriteLinux(string launcher, string? folder, bool desktop, bool menu, string? icon = null, Func<string, string?>? getenv = null)
+    /// Whether the Ready screen makes the shortcuts as it opens, both ticked: yes for the launcher that owns them (installed, the
+    /// AppImage, a build from a checkout); not for a portable one, which promises to write nothing outside its folder (#161).
+    /// Its ticks start as its own shortcuts are (ones that start it), and it makes or removes them only when the player ticks,
+    /// so it never makes again one the player deleted
+    public static bool MadeAtReady(LauncherLayout layout) => layout.Kind != LauncherKind.Portable;
+
+    /// Whether this launcher takes over the game's shortcuts that start another launcher: the installed Windows launcher (they
+    /// are its own, even when a portable copy pointed them elsewhere) and the AppImage that is not portable. A portable launcher
+    /// never does, nor on Windows a copy that is not installed (a build from a checkout, a launcher on its own
+    /// LONGSHOT_LAUNCHER_HOME)
+    public static bool TakesOver(LauncherLayout layout) =>
+        layout.Platform == Platform.Windows ? layout.Kind == LauncherKind.Installed : layout.Kind != LauncherKind.Portable;
+
+    /// Whether launcher may make, write over or remove the shortcut that starts target (null: there is no shortcut): one that
+    /// starts launcher itself, or a launcher that is no longer there; any, when it takes over (TakesOver)
+    public static bool MayTouch(string? target, string launcher, bool takesOver) =>
+        takesOver || target == null || Starts(target, launcher) || !File.Exists(target);
+
+    /// Whether a shortcut's target is launcher (the same path, in any case on Windows)
+    public static bool Starts(string? target, string launcher)
+    {
+        if (string.IsNullOrEmpty(target)) return false;
+        try
+        {
+            return string.Equals(Path.GetFullPath(target), Path.GetFullPath(launcher),
+                                 OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
+        }
+        catch (Exception e) when (e is ArgumentException or NotSupportedException or PathTooLongException) { return false; }
+    }
+
+    /// The program a .desktop file at path starts (its Exec's first argument, unquoted as Quote wrote it); "" when it names none
+    /// that can be read, null when there is no file
+    public static string? LinuxTarget(string path)
+    {
+        if (!File.Exists(path)) return null;
+        var exec = File.ReadLines(path).FirstOrDefault(l => l.StartsWith("Exec=", StringComparison.Ordinal))?["Exec=".Length..];
+        if (exec is not ['"', ..]) return exec?.Split(' ')[0] ?? "";
+        var sb = new StringBuilder();
+        for (var i = 1; i < exec.Length;)
+        {
+            if (exec.AsSpan(i).StartsWith(@"\\\\")) { sb.Append('\\'); i += 4; }
+            else if (exec.AsSpan(i).StartsWith(@"\\") && i + 2 < exec.Length && exec[i + 2] is '"' or '`' or '$') { sb.Append(exec[i + 2]); i += 3; }
+            else if (exec.AsSpan(i).StartsWith("%%")) { sb.Append('%'); i += 2; }
+            else if (exec[i] == '"') return sb.ToString();
+            else sb.Append(exec[i++]);
+        }
+        return "";
+    }
+
+    /// The Linux shortcuts made (or removed) as the two ticks say; the desktop one only when there is a Desktop folder. One
+    /// that starts another launcher is left as it is unless this one takes over (TakesOver, MayTouch). Returns those left
+    /// that were ticked
+    public static IReadOnlyList<string> WriteLinux(string launcher, string? folder, bool desktop, bool menu, string? icon = null,
+                                                   Func<string, string?>? getenv = null)
     {
         var (d, m) = LinuxPaths(getenv);
         var text = DesktopEntry(launcher, folder, icon);
+        var takesOver = TakesOver(LauncherLayout.Of(Platform.Linux, launcher, getenv ?? Environment.GetEnvironmentVariable));
+        var left = new List<string>();
         foreach (var (path, want) in new[] { (d, desktop), (m, menu) })
         {
+            if (!MayTouch(LinuxTarget(path), launcher, takesOver))
+            {
+                if (want) left.Add(path);
+                continue;
+            }
             if (!want)
             {
                 if (File.Exists(path)) File.Delete(path);
@@ -71,6 +130,14 @@ public static class Shortcuts
             if (!OperatingSystem.IsWindows())
                 File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute | UnixFileMode.GroupRead | UnixFileMode.OtherRead);
         }
+        return left;
+    }
+
+    /// The two Linux shortcuts that start launcher (the Ready screen's ticks for a portable one, MadeAtReady)
+    public static (bool Desktop, bool Menu) LinuxOwn(string launcher, Func<string, string?>? getenv = null)
+    {
+        var (d, m) = LinuxPaths(getenv);
+        return (Starts(LinuxTarget(d), launcher), Starts(LinuxTarget(m), launcher));
     }
 
     // ---- the launcher itself in the Linux applications menu (Settings, "Add to applications menu") ----

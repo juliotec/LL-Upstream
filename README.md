@@ -106,7 +106,8 @@ There is no installer program: the launcher installs itself.
   installed launcher instead.
 - **Run portable** puts a file named `portable` beside the program, and from then on the launcher keeps everything in a
   `LongshotLauncher-data` folder beside it: its settings, its list of builds, the builder's tools, the build files, and by
-  default the builds and the save backups too. It never writes the registry or makes a shortcut of its own. The portable
+  default the builds and the save backups too. It never writes the registry, and makes no shortcut unless you tick one
+  when a build is ready. The portable
   zip has the `portable` file in it already, so it never asks.
 
 **Uninstalling** (Windows): *Settings > Apps > Installed apps > Longshot Launcher > Uninstall*, which runs
@@ -388,7 +389,10 @@ Calls made here, most of them the design mockup's; each can be changed:
 - **Free up space** (the launcher's settings) lets go of what make_game made in the build files folder (`objcache`, `sa`,
   `exefs`, `probe`, as the 2.x Builder, and the two stores), never the folder itself, which the player may have chosen.
 - **The shortcuts** Ready makes (desktop, Start menu / applications menu), ticked by default and made as Ready shows,
-  start `--play`, the default build, so they follow "Play starts this version" and updates. On Windows they and the
+  start `--play`, the default build, so they follow "Play starts this version" and updates. A portable launcher's ticks
+  start as the shortcuts that start it already are, and it makes or removes them only when ticked; it never writes over
+  or removes a shortcut that starts another launcher, nor does a Windows launcher that is not installed
+  (`Shortcuts.MadeAtReady`, `TakesOver`). On Windows they and the
   launcher's own Start menu shortcut are written through the shell's ShellLink (`Core/ShellLinks.cs`), each with its own
   AppUserModelID (`MagicBean.Longshot`, `MagicBean.LongshotLauncher`, which the launcher's window takes too): the Start
   menu lists one entry per id, and without them it showed only the game's *Longshot* of the two shortcuts to the same

@@ -56,6 +56,7 @@
   "Start menu entry": "Item in het menu Start",
   "Play now starts {0}.": "Spelen start nu {0}.",
   "The shortcuts could not be made: {0}": "De snelkoppelingen konden niet worden gemaakt: {0}",
+  "{0} starts another Longshot Launcher, so it was left as it is.": "{0} start een andere Longshot Launcher en is daarom gelaten zoals hij was.",
   "make_game.py stopped": "make_game.py is gestopt",
   "Building {0} stopped in {1}, {2}% of the way through. It said: {3}": "Het bouwen van {0} stopte bij {1}, na {2}%. Melding: {3}",
   "Copied: the version, this PC's memory and GPU, the settings and the log's last 200 lines.": "Gekopieerd: de versie, het geheugen en de GPU van deze pc, de instellingen en de laatste 200 regels van het logboek.",

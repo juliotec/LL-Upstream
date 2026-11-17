@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using LongshotLauncher.Core;
 
 namespace LongshotLauncher;
@@ -23,11 +24,21 @@ public static class WindowsShortcuts
         return sb.Append('\'').ToString();
     }
 
-    public static void Write(string launcher, bool desktop, bool start)
+    /// The two shortcuts made (or removed) as the ticks say. One that starts another launcher is left as it is unless this one
+    /// takes over (the installed launcher: Shortcuts.TakesOver, MayTouch), so a portable copy or one from a checkout never points
+    /// the installed launcher's shortcuts at itself, nor removes them (#161). Returns those left that were ticked
+    public static IReadOnlyList<string> Write(string launcher, bool desktop, bool start)
     {
-        if (!OperatingSystem.IsWindows()) return;
+        if (!OperatingSystem.IsWindows()) return [];
+        var takesOver = Shortcuts.TakesOver(LauncherLayout.Of(Platform.Windows, launcher, Environment.GetEnvironmentVariable));
+        var left = new List<string>();
         foreach (var (link, want) in new[] { (DesktopLink, desktop), (StartLink, start) })
         {
+            if (!Shortcuts.MayTouch(Target(link), launcher, takesOver))
+            {
+                if (want) left.Add(link);
+                continue;
+            }
             if (!want)
             {
                 if (File.Exists(link)) File.Delete(link);
@@ -35,6 +46,19 @@ public static class WindowsShortcuts
             }
             ShellLinks.Write(link, launcher, "--play", Path.GetDirectoryName(launcher) ?? "", launcher, "Longshot", Shortcuts.GameAppId);
         }
+        return left;
+    }
+
+    /// The two shortcuts that start launcher (the Ready screen's ticks for a portable one, Shortcuts.MadeAtReady)
+    public static (bool Desktop, bool Start) Own(string launcher) =>
+        (Shortcuts.Starts(Target(DesktopLink), launcher), Shortcuts.Starts(Target(StartLink), launcher));
+
+    /// What the shortcut at link starts: null when there is none, "" when it cannot be read (then it is anyone's)
+    static string? Target(string link)
+    {
+        if (!OperatingSystem.IsWindows() || !File.Exists(link)) return null;
+        try { return ShellLinks.Read(link)?.Target ?? ""; }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or COMException or InvalidCastException) { return ""; }
     }
 
     /// The game's shortcuts that are there made again, starting launcher (after the launcher's own update: Installer.Refresh)

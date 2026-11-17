@@ -56,6 +56,7 @@
   "Start menu entry": "Запись в меню «Пуск»",
   "Play now starts {0}.": "Кнопка «Играть» теперь запускает {0}.",
   "The shortcuts could not be made: {0}": "Не удалось создать ярлыки: {0}",
+  "{0} starts another Longshot Launcher, so it was left as it is.": "{0} запускает другой Longshot Launcher, поэтому он оставлен как есть.",
   "make_game.py stopped": "make_game.py остановился",
   "Building {0} stopped in {1}, {2}% of the way through. It said: {3}": "Сборка {0} остановилась на этапе «{1}», выполнено {2}%. Сообщение: {3}",
   "Copied: the version, this PC's memory and GPU, the settings and the log's last 200 lines.": "Скопировано: версия, память и GPU этого ПК, настройки и последние 200 строк журнала.",

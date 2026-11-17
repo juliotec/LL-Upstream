@@ -56,6 +56,7 @@
   "Start menu entry": "“开始”菜单项",
   "Play now starts {0}.": "现在“开始游戏”会启动 {0}。",
   "The shortcuts could not be made: {0}": "无法创建快捷方式：{0}",
+  "{0} starts another Longshot Launcher, so it was left as it is.": "{0} 启动的是另一个 Longshot Launcher，因此保持原样。",
   "make_game.py stopped": "make_game.py 已停止",
   "Building {0} stopped in {1}, {2}% of the way through. It said: {3}": "构建 {0} 在“{1}”阶段停止，进度 {2}%。错误信息：{3}",
   "Copied: the version, this PC's memory and GPU, the settings and the log's last 200 lines.": "已复制：版本、这台电脑的内存和 GPU、设置，以及日志的最后 200 行。",

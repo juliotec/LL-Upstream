@@ -56,6 +56,7 @@
   "Start menu entry": "Eintrag im Startmenü",
   "Play now starts {0}.": "Spielen startet jetzt {0}.",
   "The shortcuts could not be made: {0}": "Die Verknüpfungen konnten nicht angelegt werden: {0}",
+  "{0} starts another Longshot Launcher, so it was left as it is.": "{0} startet einen anderen Longshot Launcher und bleibt deshalb unverändert.",
   "make_game.py stopped": "make_game.py wurde beendet",
   "Building {0} stopped in {1}, {2}% of the way through. It said: {3}": "Der Build von {0} wurde bei {1} gestoppt, nach {2} %. Meldung: {3}",
   "Copied: the version, this PC's memory and GPU, the settings and the log's last 200 lines.": "Kopiert: die Version, Arbeitsspeicher und GPU dieses PCs, die Einstellungen und die letzten 200 Zeilen des Logs.",
