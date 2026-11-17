@@ -115,7 +115,7 @@ public static class ReleaseManifest
         OnChannel(list, channel, product).FirstOrDefault()?.Tag;
 
     /// Every published release a channel offers from the list, newest first (Versions.Newer: one channel's versions are all of
-    /// one order): its newest, then the ones before it that the server still has (Other versions on Home)
+    /// one order): its newest, then the ones before it that the server still has (the Version dropdown on Home)
     public static IReadOnlyList<ListedRelease> OnChannel(IEnumerable<ListedRelease> list, string channel, Product product)
     {
         var published = list.Where(r => !r.Draft && Versions.IsTagName(r.Tag));

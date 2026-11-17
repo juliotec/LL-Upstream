@@ -20,7 +20,7 @@ static class Program
     /// A scene: its name (the PNG's), what it shows, and how it sets the launcher up (the platform it draws, then the page, then
     /// what is opened over the page: a dialog)
     sealed record Scene(string Name, string Shows, Platform Platform, Action<LauncherService>? Setup, Func<MainViewModel, object?> Page,
-                        Action<MainViewModel>? Then = null, bool ScrollToEnd = false);
+                        Action<MainViewModel>? Then = null, bool ScrollToEnd = false, int OpenDropdown = -1);
 
     // (a build's first lines, as make_game.py says them, with when: the build page's rows, bar, time and details)
     static readonly (string Line, double At)[] Transcript =
@@ -122,18 +122,37 @@ static class Program
             m => m.Home.ShowNotes(m.Home.Default!)),
         new("whats-new-launcher", "What's new in the launcher the banner offers", Platform.Linux, LauncherOffered, _ => null,
             m => m.Home.LauncherNotesCommand.Execute(null)),
-        // (Other versions: a nightly build, the newest 5 nightlies on the server, its own the newest)
-        new("home-other-versions", "A version's row opened: Other versions, beside Saves", Platform.Windows, NightliesListed, _ => null,
+        // (the Track and Version dropdowns: a nightly build, the newest 5 nightlies on the server, its own the newest)
+        new("home-row-opened", "A version's row opened: Saves, Open folder, Delete", Platform.Windows, NightliesListed, _ => null,
             m => m.Home.Select(m.Home.Builds[0])),
-        new("home-other-versions-second", "A second version's row opened: Play this version, Set as default, Other versions", Platform.Windows,
+        new("home-row-opened-second", "A second version's row opened: Play this version, Set as default; the dropdowns on it", Platform.Windows,
             s =>
             {
                 NightliesListed(s);
                 s.Registry.Add(@"C:\Users\Player\Games\Longshot\stable", "v3.0.0", Versions.Stable, makeDefault: true);
             },
             _ => null, m => m.Home.Select(m.Home.Builds.First(b => !b.IsDefault))),
-        new("other-versions", "Other versions of a nightly build: the channel's others on the server, the newest older one picked",
-            Platform.Windows, NightliesListed, _ => null, m => m.Home.ShowOtherVersions(m.Home.Builds[0])),
+        new("home-versions", "The Version dropdown open: the nightly track's versions, a check beside the installed one",
+            Platform.Windows, NightliesListed, _ => null, OpenDropdown: 1),
+        new("home-tracks", "The Track dropdown open: what each track has installed", Platform.Windows,
+            s =>
+            {
+                NightliesListed(s);
+                s.Registry.Add(@"C:\Users\Player\Games\Longshot\stable", "v3.0.0", Versions.Stable);
+            },
+            _ => null, OpenDropdown: 0),
+        new("home-go-back", "An older nightly picked: Go back to it, built in the nightly build's place", Platform.Windows, NightliesListed,
+            _ => null, m => m.Home.PickVersion = m.Home.TrackVersions.First(v => v.Tag == "nightly-187-9e6f231d")),
+        new("home-build-track", "A track with no build picked: Build its newest, into a folder of its own", Platform.Windows,
+            s =>
+            {
+                NightliesListed(s);
+                s.SetNewest(Versions.Candidate, "v3.1.0-rc.1");
+                s.Releases.Listed = [.. s.Releases.Listed!, new("v3.1.0-rc.1", false, true,
+                    DateTimeOffset.Parse("2026-11-12T12:00:00Z", System.Globalization.CultureInfo.InvariantCulture),
+                    ReleaseNotes.PageOf(Product.Longshot, "v3.1.0-rc.1"), "", [])];
+            },
+            _ => null, m => m.Home.PickTrack = m.Home.Tracks.First(t => t.Id == Versions.Candidate)),
         new("settings-go-back", "Step 2 going back to an older nightly, in the build's own folder", Platform.Windows, NightliesListed,
             m => new SettingsStepViewModel(new BuildJob(m, JobKind.Update, Versions.Nightly, "nightly-187-9e6f231d", m.Service.Registry.Builds[0]))
                  { Free = 412L << 30 }),
@@ -349,6 +368,16 @@ static class Program
             {
                 Dispatcher.UIThread.RunJobs();
                 AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+            }
+            // (a scene about a dropdown: the page's nth ComboBox open, its list drawn over the page)
+            if (scene.OpenDropdown >= 0)
+            {
+                window.GetVisualDescendants().OfType<Avalonia.Controls.ComboBox>().ElementAt(scene.OpenDropdown).IsDropDownOpen = true;
+                for (var i = 0; i < 10; i++)
+                {
+                    Dispatcher.UIThread.RunJobs();
+                    AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+                }
             }
             // (a scene about the end of a long page: its scroll at the bottom)
             if (scene.ScrollToEnd)

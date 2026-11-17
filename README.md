@@ -336,8 +336,8 @@ Calls made here, most of them the design mockup's; each can be changed:
   `BuildRegistry.Replace`). The game's path stays the same, so what follows the path keeps working (a GPU driver's
   settings for the program); the settings, mods and shader caches in the folder stay with the game; and no copy of the
   version before is left on the disk. So an update replaces the version before it, and the way back is to build that
-  version again: **Other versions** on the build's row (the clock) lists its channel's other releases the server still has
-  (every release and release candidate, the newest 5 nightlies: `OtherVersions`), and builds the one picked the same way, in
+  version again: pick it in the home's **Version** dropdown (below), which lists its track's releases the server still has
+  (every release and release candidate, the newest 5 nightlies: `VersionPick`), and the button builds it the same way, in
   the build's folder, as "Go back to". Update then offers the newest again. Your saves stay: every build shares them.
   make_game.py puts the new files in only once they are complete, so a build that stops leaves the old
   game playable. It does not start while Longshot runs: Save and close it first. On Windows, Longshot started during the
@@ -368,9 +368,18 @@ Calls made here, most of them the design mockup's; each can be changed:
   already, while the game runs, without room for a copy, or when either version's tools are not on this PC; the build
   then prepares from none, as before. What the game adds to the stamp itself (the GPU, its switches) the launcher cannot
   see: if that differs too, the game drops them and prepares again.
+- **The Track and Version dropdowns** on the left of the home pick what to play or build (`VersionPick`). Track is stable,
+  rc or nightly, each saying what is installed on it; Version lists that track's versions the server has (and installed
+  ones it no longer lists), a check beside each installed one, the default and the newest marked. Before the update check
+  answers, only the installed versions are there. The button below follows the pick: **Play** when that version is
+  installed (Update beside it when its track has a newer one, and Remove: the row's Delete); **Update to** or **Go back
+  to** when the track has a build of another version, built in its place, in its folder (one build per track); **Build**
+  when the track has none, into a folder of its own. A line under it says which. The home opens on the default build, and
+  selecting a row puts the dropdowns on it; with several builds on one track (Build another version beside it:
+  `nightly (2)`), a pick replaces the row selected, else the track's default, else its last built.
 - **Building a version you already have is a rebuild** of that build, in its folder ("Rebuild vX" in the channel picker).
 - **Play from a row's actions**: selecting a version shows Play this version, Set as default, Saves, Open folder and
-  Delete; Play on the left always starts the default. The hero shows Play and, when the default has one, Update.
+  Delete, and puts the dropdowns on it. Set as default puts them on it too.
 - **Deleting the default** makes a release build the default when one is left, else the first.
 - **Delete takes the folder**: only a game folder make_game.py made, and never a link, the home folder, or a folder that
   holds another build or the launcher's home; not while Longshot runs. On Windows it warns that the build's saves go with

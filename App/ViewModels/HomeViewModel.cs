@@ -17,8 +17,6 @@ public sealed class BuildItemViewModel : ViewModelBase
         Update = update;
         Saves = saves;
         IsDeleting = deleting;
-        OtherVersionsCommand = new Command(() => home.ShowOtherVersions(this), () => !IsDeleting && home.CanStartBuild);
-        HasOtherVersions = home.Main.Service.OtherVersionsOf(entry).Count > 0;
         SelectCommand = new Command(() => home.Select(this));
         // (a build being deleted: nothing more starts on it, and its delete does not start twice)
         PlayCommand = new Command(() => home.Play(this), () => IsBuilt && !IsDeleting);
@@ -75,21 +73,13 @@ public sealed class BuildItemViewModel : ViewModelBase
     public bool ShowMeta => !HasUpdate && !IsDeleting;
     public bool ShowUpdateLine => HasUpdate && !IsDeleting;
     public string DeletingText => Tr.F("Deleting {0}…", Version);
-    /// Its channel has versions other than its own on the server (Other versions: an older one to go back to, or a newer one)
-    public bool HasOtherVersions { get; }
-    /// Another version of its channel in its place (VersionPickerViewModel)
-    public Command OtherVersionsCommand { get; }
     public bool IsFirst { get; set; }
     public Avalonia.Thickness Separator => IsFirst ? default : new Avalonia.Thickness(0, 1, 0, 0);
 
     public void RaiseMeta() => Raise(nameof(Meta));
 
     /// Whether a build can start from it now (the home's checks and the launcher's update)
-    public void RaiseCommands()
-    {
-        UpdateCommand.Changed();
-        OtherVersionsCommand.Changed();
-    }
+    public void RaiseCommands() => UpdateCommand.Changed();
 
     public Command SelectCommand { get; }
     public Command PlayCommand { get; }
@@ -102,8 +92,53 @@ public sealed class BuildItemViewModel : ViewModelBase
     public Command FolderCommand { get; }
 }
 
-/// Home: Build when there is no build; else the default version on the left (Play, its update, its saves) and every version on
-/// the right
+/// One track in the hero's Track dropdown: stable, rc or nightly, with what is installed on it. The three are made once and
+/// kept: a dropdown given new items drops its selection after the pick was shown again
+public sealed class TrackChoice(string id, string name) : ViewModelBase
+{
+    string installed = "";
+
+    public string Id => id;
+    public string Name => Tr.T(name);
+    /// "Nightly 188 · a00c485c installed", or "none installed"
+    public string Installed
+    {
+        get => installed;
+        set => Set(ref installed, value);
+    }
+    public bool IsCandidate => id == Versions.Candidate;
+    public bool IsNightly => id == Versions.Nightly;
+}
+
+/// One version in the hero's Version dropdown (VersionPick.Of): a check when it is installed on the track, and whether it is the
+/// default or the track's newest. Kept while its track is picked, so the version picked stays the dropdown's selection
+public sealed class VersionChoice(string tag) : ViewModelBase
+{
+    bool installed;
+    string note = "";
+
+    public string Tag => tag;
+    public string Shown => Versions.Shown(tag);
+    public bool Installed
+    {
+        get => installed;
+        set => Set(ref installed, value);
+    }
+    public string Note
+    {
+        get => note;
+        set => Set(ref note, value);
+    }
+
+    public void Show(TrackVersion version, bool isDefault)
+    {
+        Installed = version.Installed;
+        Note = isDefault ? Tr.T("default") : version.Newest ? Tr.T("newest") : "";
+    }
+}
+
+/// Home: Build when there is no build; else on the left the Track and Version dropdowns and the button for the version picked
+/// (Play, Update to, Go back to or Build: VersionPick), and every version on the right
 public sealed class HomeViewModel : ViewModelBase
 {
     string? notice;
@@ -129,10 +164,13 @@ public sealed class HomeViewModel : ViewModelBase
         CopyNoticeReportCommand = main.CopyReportCommand(() => Notice ?? "");
         CopyCheckReportCommand = main.CopyReportCommand(() => CheckFailed ? Tr.Sentences(CheckFailedText, CheckWhy) : Status);
         PlayDefaultCommand = new Command(() => { if (Default is { } d) Play(d); }, () => Default is { IsBuilt: true, IsDeleting: false });
-        UpdateDefaultCommand = new Command(() => { if (Default is { } d) UpdateBuild(d); }, () => CanStartBuild && Default?.IsDeleting != true);
+        GoCommand = new Command(Go, CanGo);
+        RemoveCommand = new Command(() => { if (HeroItem is { } h) AskDelete(h); }, () => HeroItem is { IsDeleting: false });
+        // (the hero's build: the version picked when it is installed)
+        UpdateDefaultCommand = new Command(() => { if (HeroItem is { } d) UpdateBuild(d); }, () => CanStartBuild && HeroItem is { IsDeleting: false });
         SavesDefaultCommand = new Command(() => Main.ShowSaves());
         CancelLauncherUpdateCommand = new Command(() => UpdateLauncherCommand.Cancel());
-        NotesDefaultCommand = new Command(() => { if (Default is { } d) ShowNotes(d); });
+        NotesDefaultCommand = new Command(() => { if (HeroItem is { } d) ShowNotes(d); });
         LauncherNotesCommand = new Command(ShowLauncherNotes, () => HasLauncherUpdate);
         // (not while the launcher updates itself: a check forgets the update it is putting in place)
         CheckForUpdatesCommand = new Command(() =>
@@ -195,37 +233,171 @@ public sealed class HomeViewModel : ViewModelBase
         ? Tr.F("No version is out on the {0} channel yet.", ChannelPickerViewModel.NameOf(DefaultChannel))
         : Tr.T("git.magicbean.dev did not answer, so the version to build is not known.");
 
-    // ---- the default version, on the left ----
+    // ---- on the left: the Track and Version dropdowns, and the button for the version picked (VersionPick) ----
 
-    public string HeroVersion => Default?.Version ?? "";
-    public string HeroChannel => Default?.Channel ?? Versions.Stable;
-    public bool HeroIsRelease => HeroChannel == Versions.Stable;
-    public bool HeroIsCandidate => HeroChannel == Versions.Candidate;
-    public bool HeroIsNightly => HeroChannel == Versions.Nightly;
+    /// The pick: a track and one of its versions (the version's tag, null when the track has none known). The source of truth:
+    /// the dropdowns' items are made again on every Refresh, and found again by these
+    string? pickTrack, pickTag;
 
-    /// "Your default version. Built 3 Nov, English (US), NVIDIA DLSS."
-    public string HeroNote
+    public IReadOnlyList<TrackChoice> Tracks { get; } = ChannelPickerViewModel.All.Select(c => new TrackChoice(c.Id, c.Name)).ToList();
+    public ObservableCollection<VersionChoice> TrackVersions { get; } = new();
+    public bool HasTrackVersions => TrackVersions.Count > 0;
+
+    public TrackChoice? PickTrack
     {
-        get
+        get => Tracks.FirstOrDefault(t => t.Id == pickTrack);
+        set
         {
-            if (Default is not { } d) return "";
-            var e = d.Entry;
-            var bits = new List<string>
-            {
-                Tr.F("Built {0}", Durations.Day(e.Updated.LocalDateTime, DateTime.Now)),
-            };
-            if (GameFolder.Language(e.Folder) is { } lang) bits.Add(Tr.T(Languages.NameOf(lang)));
-            if (e.Dlss ?? GameFolder.HasDlss(e.Folder)) bits.Add("NVIDIA DLSS");
-            if (e.Fsr == true) bits.Add("AMD FSR 4");
-            if (e.Xess == true) bits.Add("Intel XeSS");
-            if (!d.IsBuilt) bits.Add(Tr.T("not built: its game is missing"));
-            return Tr.F("Your default version. {0}.", string.Join(Tr.T(", "), bits));
+            // (null: the dropdown's items were made again by Refresh, which keeps the pick)
+            if (value == null || value.Id == pickTrack) return;
+            pickTrack = value.Id;
+            pickTag = null;
+            ShowPick();
         }
     }
 
+    public VersionChoice? PickVersion
+    {
+        get => TrackVersions.FirstOrDefault(v => v.Tag == pickTag);
+        set
+        {
+            if (value == null || value.Tag == pickTag) return;
+            pickTag = value.Tag;
+            // (an installed version picked: its row is the one selected in Your versions)
+            if (Plan is { Action: PickAction.Play, Build: { } b })
+                foreach (var x in Builds) x.IsSelected = x.Entry.Id == b.Id;
+            RaisePick();
+        }
+    }
+
+    /// What the button does for the pick; null when the track has no version known (no build, and no answer from the server)
+    public PickPlan? Plan => pickTrack != null && pickTag != null
+        ? VersionPick.Plan(pickTrack, pickTag, Service.Registry.Builds, Builds.FirstOrDefault(b => b.IsSelected)?.Entry)
+        : null;
+
+    /// The version picked when it is installed: the build Play starts, Remove deletes, Update and What's new are for
+    public BuildItemViewModel? HeroItem => Plan is { Action: PickAction.Play, Build: { } b } ? Builds.FirstOrDefault(x => x.Entry.Id == b.Id) : null;
+
+    public bool GoIsPlay => Plan?.Action == PickAction.Play;
+    public bool GoIsBuild => Plan is { Action: not PickAction.Play };
+    public bool ShowRemove => HeroItem != null;
+
+    /// Play; Update to vX or Go back to vX, built in the track's build's place; Build vX, a new build of the track
+    public string GoText => Plan switch
+    {
+        { Action: PickAction.Play } => Tr.T("Play"),
+        { Action: PickAction.Replace } p => Tr.F(p.Older ? "Go back to {0}" : "Update to {0}", Versions.Shown(p.Version)),
+        { } p => Tr.F("Build {0}", Versions.Shown(p.Version)),
+        _ => Tr.T("Play"),
+    };
+
+    /// The button: Play, or Update to / Go back to / Build vX
+    public Command GoCommand { get; }
+    /// Remove, beside it when the version picked is installed: the row's Delete (DeleteViewModel)
+    public Command RemoveCommand { get; }
+
+    bool CanGo() => Plan switch
+    {
+        { Action: PickAction.Play } => HeroItem is { IsBuilt: true, IsDeleting: false },
+        { Action: PickAction.Replace, Build: { } b } => CanStartBuild && !deleting.Contains(b.Id),
+        { Action: PickAction.Build } => CanStartBuild,
+        _ => false,
+    };
+
+    void Go()
+    {
+        switch (Plan)
+        {
+            case { Action: PickAction.Play }:
+                if (HeroItem is { } h) Play(h);
+                break;
+            case { Action: PickAction.Replace, Build: { } b } p:
+                // (in its folder, as Update does: the row then that version; an older one goes back, BuildJob.Older)
+                Main.StartWizard(JobKind.Update, pickTrack!, p.Version, b);
+                break;
+            case { Action: PickAction.Build } p:
+                // (a version another track's build has: built again there, as Build another version does)
+                var same = Service.Registry.Builds.FirstOrDefault(x => x.Version == p.Version);
+                Main.StartWizard(same != null ? JobKind.Rebuild : JobKind.Build, pickTrack!, p.Version, same);
+                break;
+        }
+    }
+
+    /// The dropdowns made again from the builds and the update check's list, the pick kept while it is still there. A pick with
+    /// no track yet (the home opening) is the default build's track and version
+    void ShowPick()
+    {
+        var builds = Service.Registry.Builds;
+        if (pickTrack == null)
+        {
+            pickTrack = Default?.Entry is { } d ? VersionPick.TrackOf(d) : Service.DefaultChannel;
+            pickTag = Default?.Entry.Version;
+        }
+        foreach (var t in Tracks) t.Installed = InstalledOn(t.Id, builds);
+        var versions = Service.VersionsOn(pickTrack);
+        // (a pick no longer there, or a track just picked: its build's version, the default's first, else its newest)
+        if (pickTag == null || versions.All(v => v.Tag != pickTag))
+            pickTag = (versions.FirstOrDefault(v => v.Build?.Default == true) ?? versions.FirstOrDefault(v => v.Installed) ?? versions.FirstOrDefault())?.Tag;
+        // (in place: the versions still there keep their item, so the one picked stays the dropdown's selection)
+        var defaultId = Default?.Entry.Id;
+        for (var i = TrackVersions.Count - 1; i >= 0; i--)
+            if (versions.All(v => v.Tag != TrackVersions[i].Tag)) TrackVersions.RemoveAt(i);
+        for (var i = 0; i < versions.Count; i++)
+        {
+            var at = TrackVersions.Select((c, n) => (c, n)).FirstOrDefault(x => x.c.Tag == versions[i].Tag);
+            var item = at.c ?? new VersionChoice(versions[i].Tag);
+            if (at.c == null) TrackVersions.Insert(i, item);
+            else if (at.n != i) TrackVersions.Move(at.n, i);
+            item.Show(versions[i], defaultId != null && versions[i].Build?.Id == defaultId);
+        }
+        Raise(nameof(HasTrackVersions));
+        RaisePick();
+    }
+
+    /// "Nightly 188 · a00c485c installed" (each of them, a track with several builds), or "none installed"
+    static string InstalledOn(string track, IEnumerable<BuildEntry> builds)
+    {
+        var have = VersionPick.On(track, builds).Select(b => b.Version is { } v ? Versions.Shown(v) : b.Name).Distinct().ToList();
+        return have.Count == 0 ? Tr.T("none installed") : Tr.F("{0} installed", string.Join(Tr.T(", "), have));
+    }
+
+    void RaisePick()
+    {
+        RaiseAll(nameof(PickTrack), nameof(PickVersion), nameof(GoText), nameof(GoIsPlay), nameof(GoIsBuild), nameof(ShowRemove),
+                 nameof(HeroNote), nameof(HeroHasUpdate), nameof(HeroUpdate));
+        GoCommand.Changed();
+        RemoveCommand.Changed();
+        UpdateDefaultCommand.Changed();
+    }
+
+    /// Under the button, what it does: the installed version's line ("Your default version. Built 3 Nov, English (US), NVIDIA
+    /// DLSS."), the build a version replaces, or a new build's folder
+    public string HeroNote => Plan switch
+    {
+        { Action: PickAction.Play } when HeroItem is { } d => Tr.F(d.IsDefault ? "Your default version. {0}." : "Installed. {0}.", BuildLine(d)),
+        { Action: PickAction.Replace, Build: { } b } p => Tr.F(p.Older
+            ? "{0} is built in place of {1}, in its folder. Update brings the newest back whenever you want it."
+            : "{0} is built in place of {1}, in its folder.", Versions.Shown(p.Version), b.Version is { } v ? Versions.Shown(v) : b.Name),
+        { Action: PickAction.Build } => Tr.T("Nothing on this track yet: it is built into a folder of its own, in about 15 to 30 minutes."),
+        _ => Tr.T("Its versions show once git.magicbean.dev answers."),
+    };
+
+    /// "Built 3 Nov, English (US), NVIDIA DLSS"
+    static string BuildLine(BuildItemViewModel d)
+    {
+        var e = d.Entry;
+        var bits = new List<string> { Tr.F("Built {0}", Durations.Day(e.Updated.LocalDateTime, DateTime.Now)) };
+        if (GameFolder.Language(e.Folder) is { } lang) bits.Add(Tr.T(Languages.NameOf(lang)));
+        if (e.Dlss ?? GameFolder.HasDlss(e.Folder)) bits.Add("NVIDIA DLSS");
+        if (e.Fsr == true) bits.Add("AMD FSR 4");
+        if (e.Xess == true) bits.Add("Intel XeSS");
+        if (!d.IsBuilt) bits.Add(Tr.T("not built: its game is missing"));
+        return string.Join(Tr.T(", "), bits);
+    }
+
     public string HeroSaves => Default is { } d ? SaveText.Short(d.Saves, DateTime.Now) : "";
-    public bool HeroHasUpdate => Default?.HasUpdate == true;
-    public string HeroUpdate => Default is { Update: { } u } d ? Tr.F("{0} is out on the {1} channel.", u, ChannelPickerViewModel.NameOf(d.Channel)) : "";
+    public bool HeroHasUpdate => HeroItem?.HasUpdate == true;
+    public string HeroUpdate => HeroItem is { Update: { } u } d ? Tr.F("{0} is out on the {1} channel.", u, ChannelPickerViewModel.NameOf(d.Channel)) : "";
 
     /// "3 versions use 116.7 GB in D:\Games\Longshot."
     public string Footer
@@ -311,6 +483,7 @@ public sealed class HomeViewModel : ViewModelBase
         CheckForUpdatesCommand.Changed();
         ChannelCommand.Changed();
         UpdateDefaultCommand.Changed();
+        GoCommand.Changed();
         foreach (var b in Builds) b.RaiseCommands();
         RaiseAll(nameof(CanStartBuild), nameof(ShowCheckLine), nameof(ShowStatus), nameof(ShowStatusReport));
     }
@@ -559,9 +732,8 @@ public sealed class HomeViewModel : ViewModelBase
             item.IsFirst = Builds.Count == 0;
             Builds.Add(item);
         }
-        RaiseAll(nameof(HasBuilds), nameof(NoBuilds), nameof(Default), nameof(ShowLeftPanel), nameof(HeroVersion), nameof(HeroChannel),
-                 nameof(HeroIsRelease), nameof(HeroIsCandidate), nameof(HeroIsNightly), nameof(HeroNote), nameof(HeroSaves), nameof(HeroHasUpdate),
-                 nameof(HeroUpdate), nameof(Footer), nameof(NewestDefault), nameof(NewestDefaultText), nameof(DefaultChannel), nameof(DefaultIsRelease), nameof(DefaultIsCandidate),
+        ShowPick();
+        RaiseAll(nameof(HasBuilds), nameof(NoBuilds), nameof(Default), nameof(ShowLeftPanel), nameof(HeroSaves), nameof(Footer), nameof(NewestDefault), nameof(NewestDefaultText), nameof(DefaultChannel), nameof(DefaultIsRelease), nameof(DefaultIsCandidate),
                  nameof(DefaultIsNightly), nameof(KnowsNewest), nameof(CheckFailed), nameof(CheckWhy), nameof(HasCheckWhy), nameof(ShowCheckReport), nameof(ChannelEmpty), nameof(CheckFailedText), nameof(Checking), nameof(ShowCheckLine), nameof(HasLauncherUpdate),
                  nameof(LauncherUpdateText), nameof(LauncherUpdateHeading), nameof(LauncherUpdateButton));
         BuildCommand.Changed();
@@ -641,6 +813,15 @@ public sealed class HomeViewModel : ViewModelBase
         var on = !b.IsSelected;
         foreach (var x in Builds) x.IsSelected = false;
         b.IsSelected = on;
+        // (a row opened: its track and version in the dropdowns, so the button is for it; closed: the pick stays, and what it
+        // replaces is the track's default again)
+        if (on && b.Entry.Version is { } version)
+        {
+            pickTrack = VersionPick.TrackOf(b.Entry);
+            pickTag = version;
+            ShowPick();
+        }
+        else RaisePick();
     }
 
     public void Play(BuildItemViewModel b)
@@ -663,6 +844,9 @@ public sealed class HomeViewModel : ViewModelBase
     public void SetDefault(BuildItemViewModel b)
     {
         Service.SetDefault(b.Entry);
+        // (the dropdowns on it too: Play starts it now, as the toast says, and the home opens on it)
+        pickTrack = VersionPick.TrackOf(b.Entry);
+        pickTag = b.Entry.Version;
         Refresh();
         Main.ShowToast(Tr.F("Play now starts {0}.", b.Version));
     }
@@ -688,13 +872,6 @@ public sealed class HomeViewModel : ViewModelBase
         if (Service.LauncherUpdate is not { } r) return;
         ReleaseNotesViewModel.Show(Main, Product.Launcher, Service.OwnTag, r.Version, Service.LauncherNotes(), LauncherUpdateButton,
                                    UpdateLauncherCommand.CanExecute(null) ? () => UpdateLauncherCommand.Execute(null) : null);
-    }
-
-    /// The versions of a build's channel, to build one in its place (an older one: going back)
-    public void ShowOtherVersions(BuildItemViewModel b)
-    {
-        var others = Service.OtherVersionsOf(b.Entry);
-        if (others.Count > 0 && CanStartBuild) Main.Modal = new VersionPickerViewModel(Main, b.Entry, others);
     }
 
     public void UpdateBuild(BuildItemViewModel b)

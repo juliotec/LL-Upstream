@@ -174,14 +174,69 @@
       <Grid IsVisible="{Binding HasBuilds}" ColumnDefinitions="300,*" ColumnSpacing="44">
         <StackPanel VerticalAlignment="Center" Margin="0,0,0,12">
           <TextBlock Classes="title" Text="Longshot"/>
-          <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,18,0,0">
-            <TextBlock Text="{Binding HeroVersion}" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center"/>
-            <Border Classes="tag" Classes.rc="{Binding HeroIsCandidate}" Classes.nightly="{Binding HeroIsNightly}">
-              <TextBlock Text="{Binding HeroChannel}"/>
-            </Border>
+          <!-- the track, then one of its versions (VersionPick): a check beside the installed one, the button below for the pick -->
+          <TextBlock Classes="label" Text="{c:T 'TRACK'}" Margin="0,18,0,6"/>
+          <ComboBox Width="NaN" Height="44" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                    ItemsSource="{Binding Tracks}" SelectedItem="{Binding PickTrack}">
+            <ComboBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:TrackChoice">
+                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                  <TextBlock Text="{Binding Name}" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                  <TextBlock Grid.Column="1" Classes="faint" Text="{Binding Installed}" TextTrimming="CharacterEllipsis"
+                             HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                  <Border Grid.Column="2" Classes="tag" Classes.rc="{Binding IsCandidate}" Classes.nightly="{Binding IsNightly}" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Id}"/>
+                  </Border>
+                </Grid>
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+          <TextBlock Classes="label" Text="{c:T 'VERSION'}" Margin="0,14,0,6"/>
+          <ComboBox Width="NaN" Height="44" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                    ItemsSource="{Binding TrackVersions}" SelectedItem="{Binding PickVersion}" IsEnabled="{Binding HasTrackVersions}">
+            <ComboBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:VersionChoice">
+                <Grid ColumnDefinitions="16,*,Auto" ColumnSpacing="8">
+                  <c:Icon Kind="check" Width="14" Height="14" Foreground="{StaticResource Go}" VerticalAlignment="Center"
+                          IsVisible="{Binding Installed}" ToolTip.Tip="{c:T 'Installed'}"/>
+                  <TextBlock Grid.Column="1" Text="{Binding Shown}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                  <TextBlock Grid.Column="2" Classes="faint" Text="{Binding Note}" VerticalAlignment="Center"/>
+                </Grid>
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+          <!-- the pick's button: Play when it is installed, else Update to, Go back to or Build; its update beside Play -->
+          <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,20,0,0">
+            <Button Classes="go" Command="{Binding GoCommand}" IsVisible="{Binding GoIsPlay}">
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <c:Icon Kind="play" Width="18" Height="18"/>
+                <TextBlock Text="{c:T 'Play'}"/>
+              </StackPanel>
+            </Button>
+            <Button Classes="primary tall" Command="{Binding GoCommand}" IsVisible="{Binding GoIsBuild}">
+              <TextBlock Text="{Binding GoText}" TextTrimming="CharacterEllipsis" MaxWidth="260"/>
+            </Button>
+            <Button Classes="primary tall" Content="{c:T 'Update'}" Command="{Binding UpdateDefaultCommand}" IsVisible="{Binding HeroHasUpdate}"/>
           </StackPanel>
-          <TextBlock Classes="note" Text="{Binding HeroNote}" TextWrapping="Wrap" Margin="0,4,0,0"/>
-          <!-- the default version's saves: a button the size of a card, so copying, importing and exporting saves is easy to find -->
+          <!-- what it does: the installed version's line, the build a version replaces in its folder, or a new build's -->
+          <TextBlock Classes="note" Text="{Binding HeroNote}" TextWrapping="Wrap" Margin="0,8,0,0"/>
+          <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,10,0,0" IsVisible="{Binding HeroHasUpdate}">
+            <c:Icon Kind="arrowUp" Width="15" Height="15" Foreground="{StaticResource BrandInk}" VerticalAlignment="Center"/>
+            <TextBlock FontSize="13" Foreground="{StaticResource BrandInk}" Text="{Binding HeroUpdate}" VerticalAlignment="Center"
+                       TextWrapping="Wrap"/>
+          </StackPanel>
+          <!-- What's new in it: every version since the picked one's, newest first (ReleaseNotesViewModel); Remove, the row's Delete -->
+          <StackPanel Orientation="Horizontal" Spacing="16" Margin="0,6,0,0">
+            <Button Classes="link" Margin="21,0,0,0" Content="{c:T 'What\'s new'}" Command="{Binding NotesDefaultCommand}"
+                    IsVisible="{Binding HeroHasUpdate}"/>
+            <Button Classes="link smaller" Command="{Binding RemoveCommand}" IsVisible="{Binding ShowRemove}" Foreground="{StaticResource Bad}">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <c:Icon Kind="trash" Width="13" Height="13"/>
+                <TextBlock Text="{c:T 'Remove'}"/>
+              </StackPanel>
+            </Button>
+          </StackPanel>
+          <!-- the saves: a button the size of a card, so copying, importing and exporting saves is easy to find -->
           <Button Classes="savescard" Command="{Binding SavesDefaultCommand}" Margin="0,16,0,0" ToolTip.Tip="{c:T 'Your saves, which every version shares: import them, export them'}">
             <Grid ColumnDefinitions="32,*,Auto" ColumnSpacing="12">
               <Border Width="32" Height="32" CornerRadius="16" Background="{StaticResource GoSoft}" VerticalAlignment="Center">
@@ -194,28 +249,11 @@
               <c:Icon Grid.Column="2" Kind="chevronRight" Width="16" Height="16" Foreground="{StaticResource InkFaintText}" VerticalAlignment="Center"/>
             </Grid>
           </Button>
-          <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,14,0,0" IsVisible="{Binding HeroHasUpdate}">
-            <c:Icon Kind="arrowUp" Width="15" Height="15" Foreground="{StaticResource BrandInk}" VerticalAlignment="Center"/>
-            <TextBlock FontSize="13" Foreground="{StaticResource BrandInk}" Text="{Binding HeroUpdate}" VerticalAlignment="Center"
-                       TextWrapping="Wrap"/>
-          </StackPanel>
-          <!-- What's new in it: every version since the default's, newest first (ReleaseNotesViewModel) -->
-          <Button Classes="link" Margin="21,4,0,0" HorizontalAlignment="Left" Content="{c:T 'What\'s new'}" Command="{Binding NotesDefaultCommand}"
-                  IsVisible="{Binding HeroHasUpdate}"/>
-          <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,26,0,0">
-            <Button Classes="go" Command="{Binding PlayDefaultCommand}">
-              <StackPanel Orientation="Horizontal" Spacing="8">
-                <c:Icon Kind="play" Width="18" Height="18"/>
-                <TextBlock Text="{c:T 'Play'}"/>
-              </StackPanel>
-            </Button>
-            <Button Classes="primary tall" Content="{c:T 'Update'}" Command="{Binding UpdateDefaultCommand}" IsVisible="{Binding HeroHasUpdate}"/>
-          </StackPanel>
         </StackPanel>
 
         <StackPanel Grid.Column="1" VerticalAlignment="Center">
           <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,16">
-            <TextBlock Classes="label" Text="{c:T 'YOUR VERSIONS'}" Margin="0" VerticalAlignment="Center"/>
+            <TextBlock Classes="label" Text="{c:T 'YOUR INSTANCES'}" Margin="0" VerticalAlignment="Center"/>
             <Button Grid.Column="1" Classes="link" Command="{Binding ChannelCommand}">
               <StackPanel Orientation="Horizontal" Spacing="6">
                 <c:Icon Kind="plus" Width="14" Height="14"/>
@@ -297,8 +335,6 @@
                                 </StackPanel>
                               </Button>
                               <Button Classes="icon" Command="{Binding FolderCommand}" ToolTip.Tip="{c:T 'Open folder'}"><c:Icon Kind="folder"/></Button>
-                              <Button Classes="icon" Command="{Binding OtherVersionsCommand}" IsVisible="{Binding HasOtherVersions}"
-                                      ToolTip.Tip="{c:T 'Other versions: go back to an older one, built in its place'}"><c:Icon Kind="clock"/></Button>
                               <Button Classes="icon iconbad" Command="{Binding DeleteCommand}" ToolTip.Tip="{c:T 'Delete'}"><c:Icon Kind="trash"/></Button>
                             </StackPanel>
                           </Grid>

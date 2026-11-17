@@ -43,7 +43,7 @@ public static partial class BuildReports
     public const string LauncherStopped = "The launcher was stopped by a signal (SIGTERM) while it built: the PC shutting down, or a task manager.";
 
     /// What the build was (Failure.Kind), the same whatever the buttons say: a version built into a folder of its own, an update to
-    /// a newer version, an update back to an older one (Other versions on Home), or a version built again in its folder
+    /// a newer version, an update back to an older one (the Version dropdown on Home), or a version built again in its folder
     public const string FirstBuild = "first build", Update = "update", GoBack = "go back", Rebuild = "rebuild";
 
     /// The kind from the wizard's job (BuildJob.Kind and Older): update, rebuild, else a first build

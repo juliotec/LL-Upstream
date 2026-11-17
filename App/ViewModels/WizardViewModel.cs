@@ -33,7 +33,7 @@ public sealed class BuildJob
     /// The version an update starts from, read when the job is made: the update takes Replaces' row in its place
     /// (BuildRegistry.Replace), its version then the new one
     public string? From { get; }
-    /// An update to a version older than the one it replaces (Other versions on Home): it goes back, and says so
+    /// An update to a version older than the one it replaces (the Version dropdown on Home): it goes back, and says so
     public bool Older { get; }
     /// The version and the one it replaces as players see them (a nightly: "Nightly 2029 · c544828f", Versions.Shown)
     public string Shown => Versions.Shown(Version);
