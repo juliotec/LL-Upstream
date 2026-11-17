@@ -195,6 +195,25 @@ static class Program
                     using (var w = new StreamWriter(zip.CreateEntry(name).Open())) w.Write(name);
             },
             m => new SavesConfirmViewModel(new SavesViewModel(m), new SaveOp { Mode = SaveMode.Import, Zip = Documents(m, "Downloaded saves.zip") })),
+        // (the backups the copies made: an import from Lichii, the versions' saves brought together, a version deleted)
+        new("saves-backups-listed", "The Saves page with backups: Restore from a backup, how many and the newest", Platform.Windows,
+            s => { ThreeSlots(s); MadeBackups(s); }, m => new SavesViewModel(m)),
+        new("saves-backups", "Restore from a backup: every save the copies backed up, newest first, what made it", Platform.Windows,
+            s => { ThreeSlots(s); MadeBackups(s); }, m => new BackupsViewModel(new SavesViewModel(m))),
+        new("saves-restore-export", "Restoring an export's backup: the other program's old save, into Longshot", Platform.Windows,
+            s => { ThreeSlots(s); MadeBackups(s); },
+            m =>
+            {
+                var page = new SavesViewModel(m);
+                return new SavesConfirmViewModel(page, new SaveOp { Mode = SaveMode.Restore, Backup = page.Backups.First(b => b.Kind == BackupKind.Export) });
+            }),
+        new("saves-restore", "Restoring a backup: its slots, what they replace, and Longshot's save backed up first", Platform.Windows,
+            s => { ThreeSlots(s); MadeBackups(s); },
+            m =>
+            {
+                var page = new SavesViewModel(m);
+                return new SavesConfirmViewModel(page, new SaveOp { Mode = SaveMode.Restore, Backup = page.Backups.First(b => b.Kind == BackupKind.Import) });
+            }),
         new("hookshot-import-problem", "Importing Hookshot's saves failed, Copy for a bug report", Platform.Windows, null, _ => null,
             m => m.Modal = new HookshotImportViewModel(m) { Problem = @"The saves could not be copied: Access to the path 'C:\Users\Player\Saved Games\Longshot\slot1' is denied." }),
         // (the settings tick: off, Longshot's game options replace Lichii's; on, Lichii keeps its own option.sav)
@@ -284,6 +303,20 @@ static class Program
     /// Longshot's save with three slots (made-up files: only their names and times are a save's), saved 2 hours, a day and 6 days ago
     static void ThreeSlots(LauncherService service) => FakeSave(Saves.ImportTarget(service.SaveEnv), "slot_00", "slot_01", "slot_03");
 
+    /// The backups a player has after a while (made-up saves, as the copies make them): the versions' saves brought together
+    /// 9 days ago, an import from Lichii 3 days ago, a version deleted yesterday
+    static void MadeBackups(LauncherService service)
+    {
+        var env = service.SaveEnv;
+        var root = env.BackupRoot;
+        string Stamp(TimeSpan ago) => (DateTime.Now - ago).ToString("yyyyMMdd-HHmmss", System.Globalization.CultureInfo.InvariantCulture);
+        FakeSave(Path.Combine(root, "gather-" + Stamp(TimeSpan.FromDays(9)), "shared", Saves.UserId), DateTime.Now.AddDays(-9), "slot_00");
+        FakeSave(Path.Combine(root, "gather-" + Stamp(TimeSpan.FromDays(9)), "v3.0.0-rc.5", Saves.UserId), DateTime.Now.AddDays(-9), "slot_00", "slot_01");
+        FakeSave(Path.Combine(root, "import-lichii-" + Stamp(TimeSpan.FromDays(3))), DateTime.Now.AddDays(-3), "slot_00", "slot_01", "slot_02");
+        FakeSave(Path.Combine(root, "delete-" + Stamp(TimeSpan.FromDays(1)), "nightly (2)", Saves.UserId), DateTime.Now.AddDays(-1), "slot_04");
+        FakeSave(Path.Combine(root, "export-lichii-" + Stamp(TimeSpan.FromDays(2))), DateTime.Now.AddDays(-5), "slot_00", "slot_01");
+    }
+
     /// A file in the scene's player's Documents folder
     static string Documents(LauncherService service, string name) =>
         Path.Combine(Directory.CreateDirectory(Path.Combine(service.SaveEnv.Getenv("USERPROFILE")!, "Documents")).FullName, name);
@@ -298,7 +331,10 @@ static class Program
         SaveArchive.ExportSave(other, Documents(service, name), service.OwnTag, () => []);
     }
 
-    static void FakeSave(string folder, params string[] slots)
+    static void FakeSave(string folder, params string[] slots) => FakeSave(folder, DateTime.Now, slots);
+
+    /// A made-up save whose slots were saved 2 hours, a day and 6 days before at
+    static void FakeSave(string folder, DateTime at, params string[] slots)
     {
         Directory.CreateDirectory(folder);
         File.WriteAllText(Path.Combine(folder, "account.sav"), "account");
@@ -309,7 +345,7 @@ static class Program
             Directory.CreateDirectory(Path.Combine(folder, slots[i]));
             File.WriteAllText(Path.Combine(folder, slots[i], "progress.sav"), "progress " + slots[i]);
             File.WriteAllText(Path.Combine(folder, slots[i], "caption.sav"), "caption " + slots[i]);
-            File.SetLastWriteTime(Path.Combine(folder, slots[i], "progress.sav"), DateTime.Now - ago[i % ago.Length]);
+            File.SetLastWriteTime(Path.Combine(folder, slots[i], "progress.sav"), at - ago[i % ago.Length]);
         }
     }
 

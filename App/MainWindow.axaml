@@ -151,6 +151,7 @@
             <DataTemplate DataType="vm:SavesConfirmViewModel"><views:SavesConfirmView/></DataTemplate>
             <DataTemplate DataType="vm:SavesResultViewModel"><views:SavesResultView/></DataTemplate>
             <DataTemplate DataType="vm:SaveEditorViewModel"><views:SaveEditorView/></DataTemplate>
+            <DataTemplate DataType="vm:BackupsViewModel"><views:BackupsView/></DataTemplate>
           </TransitioningContentControl.DataTemplates>
         </TransitioningContentControl>
       </Grid>

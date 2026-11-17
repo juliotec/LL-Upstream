@@ -1,0 +1,58 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:LongshotLauncher.ViewModels"
+             xmlns:c="using:LongshotLauncher.Controls"
+             x:Class="LongshotLauncher.Views.BackupsView"
+             x:DataType="vm:BackupsViewModel">
+  <Grid RowDefinitions="Auto,*,Auto" RowSpacing="18">
+    <StackPanel>
+      <TextBlock Classes="heading" Text="{c:T 'Restore from a backup'}"/>
+      <TextBlock Classes="sub" TextWrapping="Wrap"
+                 Text="{c:T 'Every copy backs up the save it replaces first. Restore one to put its slots back: your saves now are backed up before.'}"/>
+    </StackPanel>
+
+    <Grid Grid.Row="1" RowDefinitions="Auto,*" RowSpacing="10">
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBlock Classes="label" Text="{c:T 'BACKUPS, NEWEST FIRST'}" Margin="0" VerticalAlignment="Center"/>
+        <TextBlock Grid.Column="1" Classes="faint" Text="{Binding Count}" VerticalAlignment="Center"/>
+      </Grid>
+      <Border Grid.Row="1" Classes="card" Padding="0">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+          <ItemsControl ItemsSource="{Binding Rows}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:BackupsViewModel+Row">
+                <Border BorderBrush="{StaticResource GlassLine}" BorderThickness="0,0,0,1" Padding="16,10">
+                  <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                    <StackPanel Spacing="2" VerticalAlignment="Center">
+                      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                        <TextBlock Text="{Binding What}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                        <TextBlock Grid.Column="1" Classes="faint tnum" Text="{Binding When}"/>
+                      </Grid>
+                      <TextBlock Classes="faint" Text="{Binding Summary}"/>
+                      <TextBlock Classes="faint path" Text="{Binding Where}" ToolTip.Tip="{Binding FullPath}" TextTrimming="CharacterEllipsis"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                      <Button Classes="icon" Command="{Binding FolderCommand}" ToolTip.Tip="{c:T 'Open folder'}"><c:Icon Kind="folder"/></Button>
+                      <Button Classes="small" Command="{Binding RestoreCommand}" Content="{c:T 'Restore…'}"/>
+                    </StackPanel>
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+      </Border>
+    </Grid>
+
+    <Grid Grid.Row="2" ColumnDefinitions="*,Auto" ColumnSpacing="20">
+      <Button Classes="link smaller" Command="{Binding FolderCommand}" VerticalAlignment="Center" HorizontalAlignment="Left"
+              ToolTip.Tip="{Binding Where}">
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <c:Icon Kind="folder" Width="13" Height="13"/>
+          <TextBlock Text="{c:T 'Open the backups folder'}"/>
+        </StackPanel>
+      </Button>
+      <Button Grid.Column="1" Classes="primary" Content="{c:T 'Back to saves'}" Command="{Binding BackCommand}"/>
+    </Grid>
+  </Grid>
+</UserControl>

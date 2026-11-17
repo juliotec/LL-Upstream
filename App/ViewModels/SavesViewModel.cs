@@ -2,7 +2,7 @@ using LongshotLauncher.Core;
 
 namespace LongshotLauncher.ViewModels;
 
-public enum SaveMode { Import, Export }
+public enum SaveMode { Import, Export, Restore }
 
 /// A row of the Saves page's list: a group's title, a build's saves, or an emulator's
 public sealed class SaveRowViewModel
@@ -84,6 +84,7 @@ public sealed class SavesViewModel : ViewModelBase
         ImportCommand = new Command(() => Main.Modal = new SavePickViewModel(this, SaveMode.Import));
         ExportCommand = new Command(() => Main.Modal = new SavePickViewModel(this, SaveMode.Export), () => Slots.Count > 0);
         HookshotCommand = new Command(() => Main.Modal = new HookshotImportViewModel(Main));
+        BackupsCommand = new Command(() => Main.Navigate(new BackupsViewModel(this)), () => Backups.Count > 0);
         DoneCommand = new Command(Main.ShowHome);
         Reload();
     }
@@ -112,6 +113,13 @@ public sealed class SavesViewModel : ViewModelBase
     public Command ImportCommand { get; }
     public Command ExportCommand { get; }
     public Command DoneCommand { get; }
+    public Command BackupsCommand { get; }
+
+    /// Every save in the backups folder, newest first (SaveBackups.List)
+    public IReadOnlyList<BackupSave> Backups { get; private set; } = Array.Empty<BackupSave>();
+
+    public string BackupsHint => Backups.Count == 0 ? Tr.T("None yet: every copy makes one first")
+        : Tr.P(Backups.Count, "1 backup, made {1}", "{0} backups, the newest {1}", Durations.When(Backups[0].When, DateTime.Now));
 
     public void Reload()
     {
@@ -152,7 +160,9 @@ public sealed class SavesViewModel : ViewModelBase
             new Command(() => Main.Navigate(new SaveEditorViewModel(this, editing!, s.Name)), () => editing != null && s.Saved != null),
             note ?? (s.Saved == null ? Tr.T("This slot has no progress.sav yet.") : null))).ToList();
         EditorNote = slots.Count > 0 ? note : null;
-        RaiseAll(nameof(Rows), nameof(Slots), nameof(HasSlots), nameof(NoSlots), nameof(SlotCount), nameof(OtherSaves), nameof(HasOtherSaves),
+        Backups = SaveBackups.List(Env);
+        BackupsCommand.Changed();
+        RaiseAll(nameof(Backups), nameof(BackupsHint), nameof(Rows), nameof(Slots), nameof(HasSlots), nameof(NoSlots), nameof(SlotCount), nameof(OtherSaves), nameof(HasOtherSaves),
                  nameof(OtherSavesLabel), nameof(ExportHint), nameof(SlotRows), nameof(EditorNote), nameof(HasEditorNote));
         ExportCommand.Changed();
     }
@@ -173,9 +183,13 @@ public sealed class SaveOp
     public string? Zip { get; set; }
     /// The .zip being imported, unpacked into a temporary folder of its own (deleted once the copy is done or left)
     public UnpackedSaves? Unpacked { get; set; }
-    public string Verb => Mode == SaveMode.Import ? Tr.T("Import") : Tr.T("Export");
-    public SaveProgram Program => Zip != null ? Saves.Zip : Set != null ? Saves.Named(Set.Owner) : Saves.Folder;
-    public string OtherName => Zip != null ? Path.GetFileName(Zip) : Set != null ? Set.Display.Replace(" / ", ", ") : Tr.T("the folder");
+    /// The backup a restore puts back (SaveMode.Restore)
+    public BackupSave? Backup { get; init; }
+    /// Into Longshot's save: an import or a restore (an export goes out of it)
+    public bool IntoLongshot => Mode != SaveMode.Export;
+    public string Verb => Mode switch { SaveMode.Import => Tr.T("Import"), SaveMode.Restore => Tr.T("Restore"), _ => Tr.T("Export") };
+    public SaveProgram Program => Backup != null ? SaveBackups.Program : Zip != null ? Saves.Zip : Set != null ? Saves.Named(Set.Owner) : Saves.Folder;
+    public string OtherName => Backup != null ? BackupsViewModel.What(Backup) : Zip != null ? Path.GetFileName(Zip) : Set != null ? Set.Display.Replace(" / ", ", ") : Tr.T("the folder");
 
     /// The .zip's temporary folder, deleted
     public void Forget()
@@ -359,7 +373,8 @@ public sealed class SavesConfirmViewModel : ViewModelBase
         BackCommand = new Command(() =>
         {
             op.Forget();
-            page.Main.Navigate(page);
+            // (a restore came from the backups list: back to it)
+            page.Main.Navigate(op.Backup != null ? new BackupsViewModel(page) : page);
         });
         RunCommand = new Command(Run, () => Problem == null && From.Path != null && To.Path != null);
         Refresh();
@@ -379,7 +394,13 @@ public sealed class SavesConfirmViewModel : ViewModelBase
     public string? Backup { get; private set; }
     public string? Problem { get; private set; }
 
-    public string Title => Op.Mode == SaveMode.Import ? Tr.F("Import saves from {0}", From.Name) : Tr.F("Export saves to {0}", To.Name);
+    public string Title => Op.Mode switch
+    {
+        SaveMode.Import => Tr.F("Import saves from {0}", From.Name),
+        SaveMode.Restore => Op.Backup?.Kind == BackupKind.Export ? Tr.F("Restore {0}'s old save into Longshot", BackupsViewModel.OtherOf(Op.Backup))
+                          : Tr.T("Restore saves from a backup"),
+        _ => Tr.F("Export saves to {0}", To.Name),
+    };
 
     public string Sub => Tr.F("Check what gets replaced. Nothing changes until you choose {0}.", Op.Verb);
     public string Verb => Op.Verb;
@@ -398,21 +419,32 @@ public sealed class SavesConfirmViewModel : ViewModelBase
         ? Tr.F(Op.KeepSettings ? "Replaced: Longshot's whole save folder ({0}) and every file in it, its game settings (option.sav) kept."
                                : "Replaced: Longshot's whole save folder ({0}) and every file in it, its game settings (option.sav) too.",
                To.Slots.Count == 0 ? Tr.T("nothing saved yet") : SaveText.Long(To.Slots, DateTime.Now))
-        : Tr.F(Op.KeepSettings
-                                       ? "Replaced in {0}: {1} and its account.sav. Its game settings (option.sav) stay as they are."
-                                       : "Replaced in {0}: {1}, its account.sav, and its game settings (option.sav).",
-                                   To.Name, To.Slots.Count == 0 ? Tr.T("nothing saved yet") : SaveText.Long(To.Slots, DateTime.Now));
+        : (FromHas("account.sav"), Op.KeepSettings || !FromHas("option.sav")) switch
+        {
+            (true, true) => Tr.F("Replaced in {0}: {1} and its account.sav. Its game settings (option.sav) stay as they are.", To.Name, ToSaves),
+            (true, false) => Tr.F("Replaced in {0}: {1}, its account.sav, and its game settings (option.sav).", To.Name, ToSaves),
+            (false, true) => Tr.F("Replaced in {0}: {1}. Its account.sav and its game settings (option.sav) stay as they are.", To.Name, ToSaves),
+            (false, false) => Tr.F("Replaced in {0}: {1} and its game settings (option.sav). Its account.sav stays as it is.", To.Name, ToSaves),
+        };
+
+    /// What the destination holds now, as the replaced text says it
+    string ToSaves => To.Slots.Count == 0 ? Tr.T("nothing saved yet") : SaveText.Long(To.Slots, DateTime.Now);
+
+    /// Whether the source's save holds that file (a copy only replaces the files the source has; the others stay); true when
+    /// it cannot be told yet (no source)
+    bool FromHas(string file) => From.Path == null || File.Exists(Path.Combine(From.Path, file));
 
     public string KeepLabel => Tr.F("Keep {0}'s own game settings (option.sav)", To.Name);
 
     /// What the tick does, either way: the destination keeps its own settings, or the source's replace them
     public string KeepHint => Op.KeepSettings
         ? Tr.T("Its camera, text speed and other game options stay as they are.")
+        : Op.Mode == SaveMode.Restore ? Tr.T("Camera, text speed and other game options from the backup replace them.")
         : Tr.F("Camera, text speed and other game options from {0} replace them.", From.Name);
 
     /// Whether there are game settings in the destination to keep at all: a folder with no option.sav has none, and a tick
     /// that "keeps" them would only leave the game on its defaults, so it is not shown; nor for a .zip written, which replaces none
-    public bool KeepVisible => !ZipExport && To.Path != null && File.Exists(Path.Combine(To.Path, "option.sav"));
+    public bool KeepVisible => !ZipExport && To.Path != null && File.Exists(Path.Combine(To.Path, "option.sav")) && (WholeImport || FromHas("option.sav"));
 
     public bool KeepSettings
     {
@@ -434,7 +466,7 @@ public sealed class SavesConfirmViewModel : ViewModelBase
     /// Longshot's side: the save every build shares
     SaveSide LongshotSide()
     {
-        var path = Op.Mode == SaveMode.Import ? Saves.ImportTarget(Page.Env) : Saves.Pick(Saves.Shared(Page.Env).Profiles, "Longshot").Path;
+        var path = Op.IntoLongshot ? Saves.ImportTarget(Page.Env) : Saves.Pick(Saves.Shared(Page.Env).Profiles, "Longshot").Path;
         return new SaveSide("Longshot", path, Saves.Describe(path), path, false);
     }
 
@@ -442,7 +474,11 @@ public sealed class SavesConfirmViewModel : ViewModelBase
     {
         Problem = null;
         SaveSide other;
-        if (Op.Zip != null) other = ZipSide();
+        if (Op.Backup is { } backup)
+            other = Directory.Exists(backup.Path)
+                ? new SaveSide(BackupsViewModel.What(backup), backup.Path, Saves.Describe(backup.Path), backup.Path, false)
+                : new SaveSide(BackupsViewModel.What(backup), backup.Path, Array.Empty<SaveSlot>(), null, false);
+        else if (Op.Zip != null) other = ZipSide();
         else try
         {
             var (_, found) = Op.Mode == SaveMode.Export
@@ -463,14 +499,14 @@ public sealed class SavesConfirmViewModel : ViewModelBase
             Problem = e.Message;
             me = new SaveSide("Longshot", Path.Combine(Page.Env.LongshotUser, "save"), Array.Empty<SaveSlot>(), null, false);
         }
-        (From, To) = Op.Mode == SaveMode.Import ? (other, me) : (me, other);
+        (From, To) = Op.IntoLongshot ? (other, me) : (me, other);
         // (where the backup goes: the dry run of the same copy; a .zip written replaces no save)
         if (WholeImport && From.Path != null) Backup = SaveArchive.ImportWhole(Op.Unpacked!, Page.Env, Op.KeepSettings, dryRun: true).Backup;
         else if (From.Path != null && To.Path != null && !ZipExport)
         {
             try
             {
-                Backup = Saves.Copy(From.Path, To.Path, Page.Env.BackupRoot, Op.Mode == SaveMode.Import ? "import" : "export", Op.Program.Name,
+                Backup = Saves.Copy(From.Path, To.Path, Page.Env.BackupRoot, Op.Mode switch { SaveMode.Import => "import", SaveMode.Restore => "restore", _ => "export" }, Op.Program.Name,
                                     Op.KeepSettings, dryRun: true, force: true).Backup;
             }
             catch (Exception e) when (e is SaveFailure or IOException or UnauthorizedAccessException) { Problem = e.Message; }
@@ -516,8 +552,14 @@ public sealed class SavesConfirmViewModel : ViewModelBase
                 main.Navigate(new SavesResultViewModel(this, SaveResult.Done, whole.Backup, null));
                 return;
             }
-            if (Op.Mode == SaveMode.Import && Saves.ImportTarget(Page.Env) != To.Path)
+            if (Op.IntoLongshot && Saves.ImportTarget(Page.Env) != To.Path)
                 throw new SaveFailure(Tr.T("Longshot's save location changed. Go back and review the import again."));
+            if (Op.Backup is { } backup)
+            {
+                var restored = SaveBackups.Restore(backup, Page.Env, Op.KeepSettings);
+                main.Navigate(new SavesResultViewModel(this, SaveResult.Done, restored.Backup, null));
+                return;
+            }
             var done = Saves.ImportExport(Op.Mode == SaveMode.Import, Op.Program, Op.Unpacked?.Folder ?? Op.Folder, Page.Env, Op.Profile, Op.KeepSettings);
             Op.Forget();
             if (Op.Mode == SaveMode.Import && Op.Program.Name == "nx2navi")
@@ -588,7 +630,12 @@ public sealed class SavesResultViewModel : ViewModelBase
 
     public string Heading => Kind switch
     {
-        SaveResult.Done => Confirm.Op.Mode == SaveMode.Import ? Tr.F("Saves imported from {0}", Confirm.From.Name) : Tr.F("Saves exported to {0}", Confirm.To.Name),
+        SaveResult.Done => Confirm.Op.Mode switch
+        {
+            SaveMode.Import => Tr.F("Saves imported from {0}", Confirm.From.Name),
+            SaveMode.Restore => Tr.T("Saves restored from the backup"),
+            _ => Tr.F("Saves exported to {0}", Confirm.To.Name),
+        },
         SaveResult.Running => Tr.T("Close the game first"),
         SaveResult.Waiting => Tr.T("NX2navi has a save waiting"),
         _ => Tr.T("The saves were not copied"),
@@ -611,9 +658,12 @@ public sealed class SavesResultViewModel : ViewModelBase
         get
         {
             var n = Confirm.TargetSlotsNow().Count;
-            return Confirm.Op.Mode == SaveMode.Import
-                ? Tr.P(n, "Imported 1 save slot from {1}.", "Imported {0} save slots from {1}.", Confirm.From.Name)
-                : Tr.P(n, "Exported 1 save slot to {1}.", "Exported {0} save slots to {1}.", Confirm.To.Name);
+            return Confirm.Op.Mode switch
+            {
+                SaveMode.Import => Tr.P(n, "Imported 1 save slot from {1}.", "Imported {0} save slots from {1}.", Confirm.From.Name),
+                SaveMode.Restore => Tr.P(n, "Restored 1 save slot from a backup.", "Restored {0} save slots from a backup."),
+                _ => Tr.P(n, "Exported 1 save slot to {1}.", "Exported {0} save slots to {1}.", Confirm.To.Name),
+            };
         }
     }
 
@@ -625,4 +675,73 @@ public sealed class SavesResultViewModel : ViewModelBase
     public Command RetryCommand { get; }
     public Command BackupCommand { get; }
     public Command CopyCommand { get; }
+}
+
+/// Restore from a backup: every save the copies backed up first, newest first, what made each and its slots; Restore puts one
+/// back into Longshot's save after the confirm page (Longshot's own is backed up first), Open folder shows it
+public sealed class BackupsViewModel : ViewModelBase
+{
+    public sealed class Row(BackupsViewModel owner, BackupSave b, DateTime now)
+    {
+        public BackupSave Backup => b;
+        public string What => BackupsViewModel.What(b);
+        public string When => Durations.When(b.When, now);
+        public string Summary => SaveText.Long(b.Slots, now) + " · " + Size(b.Bytes);
+        public string Where => SaveViews.Short(b.Path);
+        public string FullPath => ShownPath.Of(b.Path);
+        public Command RestoreCommand { get; } = new(() => owner.Restore(b));
+        public Command FolderCommand { get; } = new(() => owner.Page.Main.Host?.Open(b.Path));
+    }
+
+    public BackupsViewModel(SavesViewModel page)
+    {
+        Page = page;
+        var now = DateTime.Now;
+        Rows = page.Backups.Select(b => new Row(this, b, now)).ToList();
+        BackCommand = new Command(() => page.Main.Navigate(page));
+        FolderCommand = new Command(() => page.Main.Host?.Open(page.Env.BackupRoot), () => Directory.Exists(page.Env.BackupRoot));
+    }
+
+    public SavesViewModel Page { get; }
+    public IReadOnlyList<Row> Rows { get; }
+    public Command BackCommand { get; }
+    public Command FolderCommand { get; }
+    public string Where => ShownPath.Of(Page.Env.BackupRoot);
+    public string Count => Tr.P(Rows.Count, "1 backup", "{0} backups");
+
+    /// A save's size: a few kilobytes, so in KB below a megabyte ("24 KB"), as Durations.Size above
+    static string Size(long bytes) => bytes < 1L << 20 ? $"{Math.Max(1, bytes >> 10)} KB" : Durations.Size(bytes);
+
+    void Restore(BackupSave b) => Page.Main.Navigate(new SavesConfirmViewModel(Page, new SaveOp { Mode = SaveMode.Restore, Backup = b }));
+
+    /// What made a backup, as the window says it: "Before an import from Lichii", "v3.0.0's own save, before it was deleted"
+    public static string What(BackupSave b)
+    {
+        var what = b.Kind switch
+        {
+            BackupKind.Import => Tr.F("Before an import from {0}", OtherOf(b)),
+            BackupKind.Export => Tr.F("The save of {0} before an export to it, to restore into Longshot", OtherOf(b)),
+            BackupKind.Hookshot => Tr.T("Before an import from Hookshot"),
+            BackupKind.Restore => Tr.T("Before a backup was restored"),
+            BackupKind.Gather => b.Part switch
+            {
+                "shared" or "shared (set aside)" => Tr.T("The shared save, before the versions' saves were brought together"),
+                null => Tr.T("Before the versions' saves were brought together"),
+                var p => Tr.F("{0}'s own save, before the versions' saves were brought together", p),
+            },
+            BackupKind.Delete => b.Part is { } part ? Tr.F("{0}'s own save, before it was deleted", part) : Tr.T("A version's own save, before it was deleted"),
+            _ => Path.GetFileName(b.Folder),
+        };
+        // (a backup with several profiles and not the game's: each named, as the import names one)
+        return b.Profile is { } id ? what + Tr.F(" (profile {0}…)", id[..Math.Min(8, id.Length)]) : what;
+    }
+
+    /// The other side of the copy a backup was made for: Lichii, a .zip file, a folder
+    public static string OtherOf(BackupSave b) => b.Name switch
+    {
+        null => Tr.T("the folder"),
+        "zip" => Tr.T("a .zip file"),
+        "folder" => Tr.T("a folder"),
+        var n => Saves.Emulators.FirstOrDefault(p => p.Name == n)?.Display ?? n,
+    };
 }

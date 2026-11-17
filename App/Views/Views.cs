@@ -100,6 +100,7 @@ public sealed partial class SavesResultView : UserControl { public SavesResultVi
 public sealed partial class SaveEditorView : UserControl { public SaveEditorView() => InitializeComponent(); }
 public sealed partial class SaveEditConfirmView : UserControl { public SaveEditConfirmView() => InitializeComponent(); }
 public sealed partial class SaveEditAskView : UserControl { public SaveEditAskView() => InitializeComponent(); }
+public sealed partial class BackupsView : UserControl { public BackupsView() => InitializeComponent(); }
 public sealed partial class ChannelPickerView : UserControl { public ChannelPickerView() => InitializeComponent(); }
 public sealed partial class DeleteView : UserControl { public DeleteView() => InitializeComponent(); }
 public sealed partial class FreeSpaceView : UserControl { public FreeSpaceView() => InitializeComponent(); }

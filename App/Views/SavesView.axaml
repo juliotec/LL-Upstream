@@ -62,6 +62,15 @@
               </Panel>
             </Border>
             <TextBlock Classes="faint" Text="{Binding EditorNote}" IsVisible="{Binding HasEditorNote}" TextWrapping="Wrap" Margin="4,0"/>
+            <Button Classes="transfer" Command="{Binding BackupsCommand}" ToolTip.Tip="{Binding BackupsHint}" ToolTip.ShowOnDisabled="True">
+              <Grid ColumnDefinitions="20,*" ColumnSpacing="10">
+                <c:Icon Kind="clock" Width="18" Height="18" VerticalAlignment="Center"/>
+                <StackPanel Grid.Column="1" Spacing="3">
+                  <TextBlock Classes="transferTitle" Text="{c:T 'Restore from a backup…'}"/>
+                  <TextBlock Classes="faint" FontSize="11.5" Text="{Binding BackupsHint}" TextWrapping="Wrap"/>
+                </StackPanel>
+              </Grid>
+            </Button>
             <Expander Background="#0BFFFFFF" BorderBrush="{StaticResource GlassLine}" BorderThickness="1" CornerRadius="10" Header="{Binding OtherSavesLabel}" IsVisible="{Binding HasOtherSaves}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
               <ItemsControl ItemsSource="{Binding OtherSaves}">
                 <ItemsControl.ItemTemplate>

@@ -263,6 +263,32 @@ comes with a reason code: for a game running, NX2navi waiting, a link, a failed 
 launcher says it in its own words, and for the rest (a count the game does not allow, the bag to give first, a name that fits two
 items) the editor's own words are shown as they are.
 
+## Restore from a backup
+
+Every copy backs up the save it replaces first (above: an import, an export, Hookshot's import, the versions' saves brought
+together, a version deleted), and **Restore from a backup…** on the Saves page, under the slots, puts one back
+(`Core/SaveBackups.cs`). It lists every save in the backups folder, newest first, each with what made it, when, its slots
+and its size: "Before an import from Lichii", "The save of Lichii before an export to it, to restore into Longshot" (an
+export's backup is the other program's old save, and a restore puts it into Longshot, not back into that program),
+"v3.0.0-rc.5's own save, before the versions' saves were brought together" (a gather's backup holds one per version folder;
+its `shared (set aside)` folder reads as the shared save), "nightly's own save, before it was deleted". A folder the launcher
+did not name is listed by its name, at its folder's time; one with no save, a copy's hidden staging and the files there are
+left out.
+
+**One row a save the game would open.** A backup that holds a whole save folder (a .zip import's, a gather's or a delete's
+version folder) may hold more than the game's profile: a stray one, a copy made by hand. Where the game's profile
+(`5a3c9e1f0b7d24680000000000000001`) is there, it alone is listed; where it is not, each profile is listed with its id in
+the row ("(profile 01234567…)"), so no two rows look the same. Whichever is restored goes into the game's profile.
+
+**Restore…** opens the same confirmation as an import: the backup's slots, what they replace in Longshot's save (only the
+files the backup has: one with no `account.sav` or `option.sav` leaves Longshot's), *Keep Longshot's own game settings*, and
+where Longshot's own save is backed up first (`restore-backup-<yyyyMMdd-HHmmss>`, which the list then shows too). Back returns
+to the backups list. The backup's slots, `account.sav` and (unless kept) `option.sav` become Longshot's; the backup itself is
+only read. A whole save folder's import from a .zip is undone only in part this way: its backup holds the whole folder, but
+a restore puts back one profile's save (its slots, `account.sav`, `option.sav`), not the rest of the folder the import
+replaced; the folder button opens the backup for the rest. Refused while a game or an emulator runs, as every copy is. The folder button opens the backup, and *Open the
+backups folder* the folder they are all in. Nothing on the page deletes a backup: that stays a file manager's job.
+
 ## Tests
 
 The launcher's tests use no real save and nothing from the game:
@@ -279,6 +305,8 @@ The launcher's tests use no real save and nothing from the game:
   run the real process code. With `--longshot`, `tests/save_editor_fixtures.py` runs the editor in the checkout and fails when it
   answers something else, so a change to what the launcher reads shows there first (`--write` regenerates the files; read the
   diff). `tools/screenshots/save-editor-report.json` is a report authored with invented names, for the screenshots.
+- `SaveBackupsChecks.cs` makes backups the way the copies do (`Saves.Copy`, `Saves.BackUpForDelete`, a gather's layout),
+  lists them and restores them.
 - `HookshotSettingsChecks.cs` uses authored INI and language text, including the merge into an existing
   `longshot_options.ini`, replacement backups, failed writes, restoration, skipped values and linked paths.
 

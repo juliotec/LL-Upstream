@@ -84,6 +84,7 @@ static partial class Program
         CommandLineChecks();
         SavesChecks.Run(Folder("saves"));
         SaveArchiveChecks.Run(Folder("save-archive"));
+        SaveBackupsChecks.Run(Folder("save-backups"));
         HookshotChecks(fixtures);
         SaveEditorChecks(fixtures);
         HookshotSettingsChecks();
@@ -100,6 +101,7 @@ static partial class Program
         TranslationChecks();
         checks += SavesChecks.Count;
         checks += SaveArchiveChecks.Count;
+        checks += SaveBackupsChecks.Count;
         Console.WriteLine($"launcher core: {checks} checks passed");
         return 0;
     }

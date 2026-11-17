@@ -53,7 +53,7 @@ Discord: https://discord.gg/magicbean
 | **Installs Longshot's builder** | For each version, from Longshot's signed release: every file checked against its SHA-256 before it is used |
 | **Updates the game** | Offers each build its channel's newest version and builds it from the game files the build kept |
 | **Updates itself** | From its own signed releases, checked and tested before it replaces itself; `--rollback` puts the previous one back |
-| **Saves** | One save folder for every build, imports saves from emulators and from Hookshot, exports them to emulators, and to and from one .zip file; a Progress view per slot shows what a save has and is missing and edits it, with a backup first ([docs/saves.md](docs/saves.md)) |
+| **Saves** | One save folder for every build, imports saves from emulators and from Hookshot, exports them to emulators, and to and from one .zip file; a Progress view per slot shows what a save has and is missing and edits it, with a backup first; and it restores the backups every copy makes ([docs/saves.md](docs/saves.md)) |
 
 ## Download
 
@@ -171,7 +171,7 @@ launcher brings in, once, the saves each build kept in its own folder before, an
 after backing them all up ([docs/saves.md](docs/saves.md#saves-from-before-windows)). The **Saves** page imports saves from
 Lichii, Eden, NX2navi and the other emulators, and exports them back, or the whole save folder into one .zip file to
 keep or send, which it imports again after checking it is safe. You can import before playing Longshot for the first time. Every copy
-backs up what it replaces first.
+backs up what it replaces first, and *Restore from a backup…* lists those backups and puts one back.
 
 **Coming from NX2navi?** The home offers to import saves found in its usual game folder. Choose the profile and confirm
 the import; the originals stay where they are. Portable or custom installs can be chosen by hand.
