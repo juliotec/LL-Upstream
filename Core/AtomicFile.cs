@@ -13,7 +13,24 @@ static class AtomicFile
 
     public static void Write(string path, string text) => Write(path, new UTF8Encoding(false).GetBytes(text));
 
-    public static void Write(string path, byte[] bytes)
+    public static void Write(string path, byte[] bytes) => Write(path, bytes, overwrite: true);
+
+    /// As Write, but never over a file that is there: false when path is taken (checked by the move itself, so a file that came
+    /// after any check of the caller's is kept too), and nothing is written
+    public static bool WriteNew(string path, byte[] bytes)
+    {
+        try
+        {
+            Write(path, bytes, overwrite: false);
+            return true;
+        }
+        catch (IOException) when (File.Exists(path) || Directory.Exists(path))
+        {
+            return false;
+        }
+    }
+
+    static void Write(string path, byte[] bytes, bool overwrite)
     {
         var full = Path.GetFullPath(path);
         Directory.CreateDirectory(Path.GetDirectoryName(full)!);
@@ -32,10 +49,10 @@ static class AtomicFile
                 using var mutex = new Mutex(false, MutexName(full));
                 try { mutex.WaitOne(); }
                 catch (AbandonedMutexException) { }   // (the previous writer ended; this thread owns the mutex now)
-                try { File.Move(tmp, full, overwrite: true); }
+                try { File.Move(tmp, full, overwrite); }
                 finally { mutex.ReleaseMutex(); }
             }
-            else File.Move(tmp, full, overwrite: true);
+            else File.Move(tmp, full, overwrite);
         }
         finally
         {

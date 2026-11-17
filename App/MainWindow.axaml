@@ -152,6 +152,7 @@
             <DataTemplate DataType="vm:SavesResultViewModel"><views:SavesResultView/></DataTemplate>
             <DataTemplate DataType="vm:SaveEditorViewModel"><views:SaveEditorView/></DataTemplate>
             <DataTemplate DataType="vm:BackupsViewModel"><views:BackupsView/></DataTemplate>
+            <DataTemplate DataType="vm:NfcViewModel"><views:NfcView/></DataTemplate>
           </TransitioningContentControl.DataTemplates>
         </TransitioningContentControl>
       </Grid>
@@ -171,14 +172,15 @@
             <DataTemplate DataType="vm:ReleaseNotesViewModel"><views:ReleaseNotesView/></DataTemplate>
             <DataTemplate DataType="vm:SaveEditAskViewModel"><views:SaveEditAskView/></DataTemplate>
             <DataTemplate DataType="vm:SaveEditConfirmViewModel"><views:SaveEditConfirmView/></DataTemplate>
+            <DataTemplate DataType="vm:NfcDeleteViewModel"><views:NfcDeleteView/></DataTemplate>
           </ContentControl.DataTemplates>
         </ContentControl>
       </Border>
 
-      <!-- a file dragged over step 1 -->
+      <!-- a file dragged over step 1 or the NFC page -->
       <Border IsVisible="{Binding Dropping}" Margin="10" CornerRadius="14" BorderBrush="{StaticResource Brand}" BorderThickness="2"
               Background="#1F3D63E6" IsHitTestVisible="False">
-        <TextBlock Text="{c:T 'Drop your game file to check it'}" FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource BrandInk}"
+        <TextBlock Text="{Binding DropText}" FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource BrandInk}"
                    HorizontalAlignment="Center" VerticalAlignment="Center"/>
       </Border>
 

@@ -216,14 +216,16 @@ public static class GamePlay
         ("RX_VK_PREPARE_STALL_S", "1800"), ("RX_VK_PRECOMPILE_STALL_S", "180"), ("RX_VK_PREDICT_STALL_S", "180"),
     };
 
-    /// The environment the game starts with, from the launcher's. intelCompiles: Intel shader compiles (IntelCompilesAuto...);
-    /// intelLongerLimits: Shader time limit on Longer (both Windows only)
+    /// The environment the game starts with, from the launcher's. On Linux LONGSHOT_NFC_DIR is kept, though the other LONGSHOT_
+    /// variables are dropped: the NFC page (NfcTags.Folder) and the game must read the same folder. intelCompiles: Intel shader
+    /// compiles (IntelCompilesAuto...); intelLongerLimits: Shader time limit on Longer (both Windows only)
     public static Dictionary<string, string> Environment(Platform platform, IReadOnlyDictionary<string, string> current,
                                                          int intelCompiles = IntelCompilesAuto, bool intelLongerLimits = false)
     {
         var env = platform == Platform.Windows
             ? new Dictionary<string, string>(current, StringComparer.OrdinalIgnoreCase)
-            : current.Where(kv => !Dropped.Any(p => kv.Key.StartsWith(p, StringComparison.Ordinal)) && kv.Key != "LD_LIBRARY_PATH")
+            : current.Where(kv => (kv.Key == NfcTags.Variable || !Dropped.Any(p => kv.Key.StartsWith(p, StringComparison.Ordinal)))
+                                  && kv.Key != "LD_LIBRARY_PATH")
                 .ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.Ordinal);
         env["LONGSHOT_NO_UPDATE_CHECK"] = "1";   // (the launcher already checked for updates: the game does not ask again)
         if (platform == Platform.Windows && IntelCompilesValue(intelCompiles) is string compiles) env[IntelCompilesVar] = compiles;

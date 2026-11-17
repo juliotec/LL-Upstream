@@ -281,6 +281,14 @@
             <TextBlock Text="{c:T 'Build'}"/>
           </StackPanel>
         </Button>
+        <!-- the NFC tags do not wait for a build: every version shares them, a game built elsewhere reads them too -->
+        <Button Classes="link" HorizontalAlignment="Center" Margin="0,12,0,0" Command="{Binding NfcCommand}"
+                ToolTip.Tip="Add and delete the NFC tag dumps the game's NFC tab lists">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <c:Icon Kind="nfc" Width="14" Height="14"/>
+            <TextBlock Text="NFC tags"/>
+          </StackPanel>
+        </Button>
         <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center" Margin="0,16,0,0" IsVisible="{Binding KnowsNewest}">
           <TextBlock Classes="note" Text="{c:T 'Builds'}" VerticalAlignment="Center"/>
           <TextBlock FontSize="13" FontWeight="SemiBold" Text="{Binding NewestDefaultText}" VerticalAlignment="Center"/>
@@ -417,6 +425,19 @@
               <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
                 <TextBlock Text="{c:T 'Manage saves'}" FontSize="14" FontWeight="SemiBold"/>
                 <TextBlock Classes="note" Text="{Binding HeroSaves}" TextTrimming="CharacterEllipsis"/>
+              </StackPanel>
+              <c:Icon Grid.Column="2" Kind="chevronRight" Width="16" Height="16" Foreground="{StaticResource InkFaintText}" VerticalAlignment="Center"/>
+            </Grid>
+          </Button>
+          <!-- the NFC tags every version shares: a card as the saves' -->
+          <Button Classes="savescard" Command="{Binding NfcCommand}" Margin="0,8,0,0" ToolTip.Tip="Add and delete the NFC tag dumps the game's NFC tab lists">
+            <Grid ColumnDefinitions="32,*,Auto" ColumnSpacing="12">
+              <Border Width="32" Height="32" CornerRadius="16" Background="{StaticResource BrandSoft}" VerticalAlignment="Center">
+                <c:Icon Kind="nfc" Width="16" Height="16" Foreground="{StaticResource BrandInk}"/>
+              </Border>
+              <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
+                <TextBlock Text="NFC" FontSize="14" FontWeight="SemiBold"/>
+                <TextBlock Classes="note" Text="Your NFC tags, for the game's NFC tab" TextTrimming="CharacterEllipsis"/>
               </StackPanel>
               <c:Icon Grid.Column="2" Kind="chevronRight" Width="16" Height="16" Foreground="{StaticResource InkFaintText}" VerticalAlignment="Center"/>
             </Grid>

@@ -21,7 +21,7 @@ public sealed class StepItem(int number, string title) : ViewModelBase
     public bool IsTodo => !done && !now;
 }
 
-/// The window: one page at a time (home, the wizard's steps, settings, saves), a dialog over it, a toast at the bottom
+/// The window: one page at a time (home, the wizard's steps, settings, saves, NFC), a dialog over it, a toast at the bottom
 public sealed class MainViewModel : ViewModelBase
 {
     object page;
@@ -103,7 +103,7 @@ public sealed class MainViewModel : ViewModelBase
         {
             if (!Set(ref page, value)) return;
             RefreshSteps();
-            RaiseAll(nameof(IsHome), nameof(InWizard));
+            RaiseAll(nameof(IsHome), nameof(InWizard), nameof(AcceptsDrop), nameof(DropText));
         }
     }
 
@@ -175,19 +175,25 @@ public sealed class MainViewModel : ViewModelBase
     public Command CopyReportCommand(Func<string> what, Func<IEnumerable<string>>? more = null) =>
         new(() => _ = CopyReportAsync(what(), more?.Invoke()));
 
-    /// A file dragged over the window in step 1: "Drop your game file to check it"
+    /// A file dragged over the window in step 1 or on the NFC page: DropText over the page
     public bool Dropping
     {
         get => dropping;
         set => Set(ref dropping, value);
     }
 
-    public bool AcceptsDrop => page is FilesStepViewModel;
+    /// The pages that take files dropped on the window: step 1 (the game's files) and NFC (tag dumps, or folders of them), but not
+    /// while it is still adding the last ones (NfcViewModel.Adding): it would not take them
+    public bool AcceptsDrop => page is FilesStepViewModel or NfcViewModel { Adding: false };
+    /// The NFC page started or finished adding: AcceptsDrop changed
+    public void RaiseAcceptsDrop() => Raise(nameof(AcceptsDrop));
+    public string DropText => page is NfcViewModel ? Tr.T("Drop NFC tag dumps, or folders of them, to add them") : Tr.T("Drop your game file to check it");
 
     public void Drop(IReadOnlyList<string> paths)
     {
         Dropping = false;
         if (page is FilesStepViewModel files) files.Dropped(paths);
+        else if (page is NfcViewModel nfc && paths.Count > 0) nfc.AddDropped(paths);
     }
 
     public void Navigate(object to)
@@ -212,6 +218,8 @@ public sealed class MainViewModel : ViewModelBase
     public void ShowSettings() => Navigate(new SettingsViewModel(this));
 
     public void ShowSaves() => Navigate(new SavesViewModel(this));
+
+    public void ShowNfc() => Navigate(new NfcViewModel(this));
 
     /// The wizard for a version: a new build, building one you have again, or an update of a build (replaces)
     public FilesStepViewModel StartWizard(JobKind kind, string channel, string version, BuildEntry? replaces = null, bool tools = true)

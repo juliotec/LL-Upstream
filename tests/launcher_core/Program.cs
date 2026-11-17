@@ -94,6 +94,8 @@ static partial class Program
         ShownProfileChecks();
         DriverSettingsChecks();
         EditBackupsChecks();
+        NfcChecks();
+        NfcReaderChecks();
         Utf8Checks();
         await ScreenChecks();
         await BusyChecks(Path.GetFullPath(Path.Combine(fixtures, "..", "..")));

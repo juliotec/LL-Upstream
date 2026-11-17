@@ -110,3 +110,6 @@ public sealed partial class SavePickView : UserControl { public SavePickView() =
 public sealed partial class HookshotImportView : UserControl { public HookshotImportView() => InitializeComponent(); }
 public sealed partial class HookshotSettingsView : UserControl { public HookshotSettingsView() => InitializeComponent(); }
 public sealed partial class ReleaseNotesView : UserControl { public ReleaseNotesView() => InitializeComponent(); }
+// (files and folders dropped on the NFC page go through the window's own drop handling, as step 1's do: MainViewModel.Drop)
+public sealed partial class NfcView : UserControl { public NfcView() => InitializeComponent(); }
+public sealed partial class NfcDeleteView : UserControl { public NfcDeleteView() => InitializeComponent(); }

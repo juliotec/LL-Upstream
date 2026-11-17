@@ -54,6 +54,7 @@ Discord: https://discord.gg/magicbean
 | **Updates the game** | Offers each build its channel's newest version and builds it from the game files the build kept |
 | **Updates itself** | From its own signed releases, checked and tested before it replaces itself; `--rollback` puts the previous one back |
 | **Saves** | One save folder for every build, imports saves from emulators and from Hookshot, exports them to emulators, and to and from one .zip file; a Progress view per slot shows what a save has and is missing and edits it, with a backup first; and it restores the backups every copy makes ([docs/saves.md](docs/saves.md)) |
+| **NFC** | Keeps the NFC tag dumps of figures you own, which the game's NFC tab lists: add one, many or a folder of them, scan one with a Switch 2 Pro Controller (Windows), delete them ([docs/nfc.md](docs/nfc.md)) |
 
 ## Download
 
@@ -205,6 +206,18 @@ All of it, with where every save lives: [docs/saves.md](docs/saves.md). Longshot
 [saves guide](https://git.magicbean.dev/MagicBeanDev/Longshot/src/branch/main/docs/saves.md) has the same from the command
 line (`scripts/longshot_saves.py import|export`).
 
+### NFC
+
+The **NFC** page (the *NFC* card on the home, under *Manage saves*) keeps the NFC tag dumps of figures you own: `.bin`
+(a raw NTAG215 dump) and `.nfc` (Flipper Zero) files, in one folder every build of the game shares. Add one file, many,
+or a whole folder; each is checked first, and a file that is not a dump is skipped and named. Delete one or several, or
+open the folder. In the game, the Insert menu's NFC tab lists them by file name. Nothing of a dump leaves your PC. All of
+it: [docs/nfc.md](docs/nfc.md).
+
+**Scan a tag…** (Windows) reads a tag with a Nintendo Switch 2 Pro Controller plugged in over USB and saves it there as
+`Scanned <UID>.bin`. Close Steam, the game and any controller bridge first: only one program can hold the controller. Scan
+only tags you own. The tag is only read, never written.
+
 ## Updates and channels
 
 Longshot and the launcher are released apart, from their own repositories, each on three channels:
@@ -242,14 +255,14 @@ dotnet run --project App
 
 | | |
 |---|---|
-| `Core/` | `LongshotLauncher.Core`: the logic, no UI and no package. Versions and channels (`Versions`), the signed releases of Longshot and of the launcher (`Releases`, `ReleaseTrust`, `ReleaseManifest`), its own update (`SelfUpdate`), each version's builder and its tools.lock (`Toolchains`, `ToolsSource`, `ToolsLock`), game folders, `builds.json` (`BuildRegistry`), remembered settings, make_game.py's command line, `@@` lines, run and check (`MakeGameCommand`, `MakeGameProtocol`, `MakeGameRun`), the game files found on this PC (`GameFiles`), update offers (`UpdatePolicy`), saves (`Saves`, a port of Longshot's `scripts/longshot_saves.py`; `SaveText`) and Hookshot's (`HookshotSaves`), the save editor Progress runs from a build's tools (`SaveEditing`, `SaveEditorReport`), the game settings brought to a new build (`SettingsCarry`), disk space (`Disk`), this PC (`SystemInfo`), shortcuts (`Shortcuts`), installed or portable (`LauncherLayout`, `Installer`), one launcher per home (`InstanceLock`), the launcher's home and command line |
+| `Core/` | `LongshotLauncher.Core`: the logic, no UI and no package. Versions and channels (`Versions`), the signed releases of Longshot and of the launcher (`Releases`, `ReleaseTrust`, `ReleaseManifest`), its own update (`SelfUpdate`), each version's builder and its tools.lock (`Toolchains`, `ToolsSource`, `ToolsLock`), game folders, `builds.json` (`BuildRegistry`), remembered settings, make_game.py's command line, `@@` lines, run and check (`MakeGameCommand`, `MakeGameProtocol`, `MakeGameRun`), the game files found on this PC (`GameFiles`), update offers (`UpdatePolicy`), saves (`Saves`, a port of Longshot's `scripts/longshot_saves.py`; `SaveText`) and Hookshot's (`HookshotSaves`), the NFC tag dumps the game reads (`NfcTags`) and scanning one with a Switch 2 Pro Controller (`NfcReader`), the save editor Progress runs from a build's tools (`SaveEditing`, `SaveEditorReport`), the game settings brought to a new build (`SettingsCarry`), disk space (`Disk`), this PC (`SystemInfo`), shortcuts (`Shortcuts`), installed or portable (`LauncherLayout`, `Installer`), one launcher per home (`InstanceLock`), the launcher's home and command line |
 | `Core/Lang/` | The launcher's translations, one catalog per language (`Tr`, [Translations](#translations)) |
 | `App/` | `LongshotLauncher`: the Avalonia window. `ViewModels/` (one per page and dialog), `Views/` (one .axaml each, compiled bindings), `Controls/` (icons, bars and spinner), `App.axaml` (the palette and the styles), `Assets/` (the Longshot logo and icon, the Inter font with its licence) |
 | `tools/screenshots/` | The screens drawn without a display into PNGs ([Screenshots](#screenshots)) |
 | `tests/` | `test_launcher_core.py` (builds `launcher_core/`, which compiles `Core/` and checks it), `test_release.py` (`scripts/release.py`), `fixtures/` (signed test releases, fake Hookshot saves, what Longshot's save editor answers as JSON), `save_editor_fixtures.py` (checks that text against a Longshot checkout) |
 | `scripts/` | `package.sh` (both release programs, from Linux), `make_icon.py` (`App/Assets/longshot.ico` from the logo), `release.py` (the signed release files, the keys, the uploads; the same file as Longshot's), `translations.py` (the window's texts against each catalog) |
 | `.forgejo/workflows/` | `ci.yml` (compile and test, every pull request), `release.yml` (the nightly from `main`, a release from a `v*` tag) |
-| `docs/` | [releases.md](docs/releases.md), [saves.md](docs/saves.md), and the screenshots in this README |
+| `docs/` | [releases.md](docs/releases.md), [saves.md](docs/saves.md), [nfc.md](docs/nfc.md), and the screenshots in this README |
 
 ### Screenshots
 
@@ -271,6 +284,7 @@ screen adds or updates the scene that shows it.
 
 | | |
 |---|---|
+| `LONGSHOT_NFC_DIR=<folder>` | The NFC folder somewhere else (a full path), for the game and the launcher alike: the launcher passes it on to the game it starts, on Linux too, where it drops its other `LONGSHOT_` variables ([docs/nfc.md](docs/nfc.md)) |
 | `LONGSHOT_LAUNCHER_DEBUG_SLOW=<ms>` | A Debug build only: waits that long before each answer from git.magicbean.dev and a tenth of it after each MB downloaded, to see the busy states (the launcher's update, the check, the tools' download) |
 | `LONGSHOT_LAUNCHER_EXE=<path>` | What the shortcuts and the game folders (`builder=`) start this launcher with, for a package whose own path is only inside it (the Flatpak sets it). A launcher not started from its own file (the Flatpak's, `dotnet run`) is not offered its own updates |
 | `LONGSHOT_LAUNCHER_HOME=<folder>` | The launcher's home (`builds.json`, `settings.json`, `toolchains/`, `logs/`) somewhere else, for trying it out |
@@ -298,7 +312,7 @@ files `scripts/release.py` signed with a test key), the launcher's own update (d
 recovery from a swap cut short, the portable zip), install, uninstall and the portable layouts (with a fake registry and fake
 shortcuts: the tests never touch the real ones), one launcher per home, a download that stalls, a save copy that fails half
 way, the
-saves against Longshot's `tests/test_longshot_saves.py` cases, the Hookshot import against fake saves, and the rest over
+saves against Longshot's `tests/test_longshot_saves.py` cases, the Hookshot import against fake saves, the NFC folder against fake tags made in the test, a tag scan against a fake controller, and the rest over
 temporary folders. With `--longshot`, it also checks the languages and the DLSS, FSR 4 and XeSS licence texts against
 Longshot's `make_game.py`, `ngx_sdk.py`, `ffx_sdk.py` and `xess_sdk.py` (XeSS's when that Longshot has it). The second checks `scripts/release.py` with keys it makes (it needs the
 `openssl` command line). CI runs both and compiles with warnings as errors. Contributing: [CONTRIBUTING.md](CONTRIBUTING.md).

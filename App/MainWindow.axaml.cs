@@ -76,6 +76,16 @@ public sealed partial class MainWindow : Window, IWindowHost
         return files.Count > 0 ? files[0].TryGetLocalPath() : null;
     }
 
+    public async Task<IReadOnlyList<string>> PickFilesAsync(string title, string kind, IReadOnlyList<string> patterns)
+    {
+        var options = new FilePickerOpenOptions
+        {
+            Title = title, AllowMultiple = true, FileTypeFilter = new[] { new FilePickerFileType(kind) { Patterns = patterns.ToArray() } },
+        };
+        var files = await StorageProvider.OpenFilePickerAsync(options);
+        return files.Select(f => f.TryGetLocalPath()).OfType<string>().ToList();
+    }
+
     public async Task<string?> PickFolderAsync(string title, string? start)
     {
         var options = new FolderPickerOpenOptions { Title = title, AllowMultiple = false };

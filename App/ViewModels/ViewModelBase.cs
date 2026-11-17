@@ -73,6 +73,8 @@ public sealed class Command : ICommand
 public interface IWindowHost
 {
     Task<string?> PickFileAsync(string title, string[]? patterns);
+    /// Several files at once, of one kind ("NFC tag dumps": *.bin, *.nfc); none when the picker is closed
+    Task<IReadOnlyList<string>> PickFilesAsync(string title, string kind, IReadOnlyList<string> patterns);
     Task<string?> PickFolderAsync(string title, string? start);
     /// Where to write a new file: the system's Save As, with a name to start from (the file may be there already: it asked first)
     Task<string?> PickSaveFileAsync(string title, string suggestedName, string[] patterns);

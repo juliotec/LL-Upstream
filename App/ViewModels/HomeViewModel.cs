@@ -158,6 +158,7 @@ public sealed class HomeViewModel : ViewModelBase
         // (the hero's build: the version picked when it is installed)
         UpdateDefaultCommand = new Command(() => { if (HeroItem is { } d) UpdateBuild(d); }, () => CanStartBuild && HeroItem is { IsDeleting: false });
         SavesDefaultCommand = new Command(() => Main.ShowSaves());
+        NfcCommand = new Command(Main.ShowNfc);
         CancelLauncherUpdateCommand = new Command(() => UpdateLauncherCommand.Cancel());
         NotesDefaultCommand = new Command(() => { if (TrackUpdateItem is { } d) ShowNotes(d); });
         LauncherNotesCommand = new Command(ShowLauncherNotes, () => HasLauncherUpdate);
@@ -465,6 +466,7 @@ public sealed class HomeViewModel : ViewModelBase
     public Command PlayDefaultCommand { get; }
     public Command UpdateDefaultCommand { get; }
     public Command SavesDefaultCommand { get; }
+    public Command NfcCommand { get; }
     public BusyCommand UpdateLauncherCommand { get; }
     /// What's new in the default version's update, beside it
     public Command NotesDefaultCommand { get; }
