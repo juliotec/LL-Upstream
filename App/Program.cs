@@ -69,6 +69,9 @@ static class Program
             return 0;
         }
         if (platform == Platform.Windows && !Uninstalling && Start.Ignored.Contains(Installer.InstallArgument)) return InstallNow();
+        // (the Windows download started again once the launcher it installed has updated itself: that newer launcher starts, with
+        // these arguments, in place of an offer to put this older one back over it. Installer.InstalledIsNewer, #129)
+        if (!Uninstalling && Layout.OffersInstall(SelfUpdate.OwnTag(), Environment.GetEnvironmentVariable) && StartNewerInstalled(args)) return 0;
         if (Layout.File is { } current)
         {
             try { Recovered = SelfUpdate.Recover(current); }
@@ -141,6 +144,30 @@ static class Program
         ReleaseLock();
         WindowsInstall.Start(installed, Args.Where(a => a != Installer.InstallArgument));
         return installed;
+    }
+
+    /// The installed launcher started with these arguments, when it is newer than this one (Installer.InstalledIsNewer); false when
+    /// it is not, or it could not be read or started (then the download offers Install or Run portable as before)
+    static bool StartNewerInstalled(string[] args)
+    {
+        if (!OperatingSystem.IsWindows()) return false;
+        var at = InstallPlaces.Of();
+        try
+        {
+            if (!Installer.InstalledIsNewer(SelfUpdate.OwnTag(), at, new UserRegistry())) return false;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.Security.SecurityException) { return false; }
+        ReleaseLock();
+        try
+        {
+            WindowsInstall.Start(at.Program, args);
+            return true;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception)
+        {
+            TakeLock();
+            return false;
+        }
     }
 
     static int InstallNow()

@@ -102,6 +102,8 @@ There is no installer program: the launcher installs itself.
   (publisher Magic Bean), then starts the installed copy. After each of its own updates it makes the Start menu shortcut
   (and the *Longshot* shortcuts it made) again, so they start the updated program. Its data goes in `%LOCALAPPDATA%\LongshotLauncher`. You can
   delete the setup file afterwards. `LongshotLauncher-<v>-windows-x64-setup.exe --install` does the same without asking.
+  A setup file older than the launcher installed (which has updated itself since) never goes back over it: it starts the
+  installed launcher instead.
 - **Run portable** puts a file named `portable` beside the program, and from then on the launcher keeps everything in a
   `LongshotLauncher-data` folder beside it: its settings, its list of builds, the builder's tools, the build files, and by
   default the builds and the save backups too. It never writes the registry or makes a shortcut of its own. The portable

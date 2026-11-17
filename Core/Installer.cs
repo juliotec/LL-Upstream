@@ -58,9 +58,11 @@ public static class Installer
     };
 
     /// source (the running program) copied to the installed program's place (whole or not at all: a copy beside it, then a rename),
-    /// with its shortcut and its entry. A program installed before is replaced, the leftovers of its updates go. Returns where it is
+    /// with its shortcut and its entry. A program installed before is replaced, the leftovers of its updates go; but never by an
+    /// older one (InstalledIsNewer): that one is left as it is, and started instead. Returns where it is
     public static string Install(string source, string version, InstallPlaces at, IUserRegistry registry, IShortcutMaker shortcuts)
     {
+        if (InstalledIsNewer(version, at, registry)) return at.Program;
         Directory.CreateDirectory(at.Folder);
         if (!string.Equals(Path.GetFullPath(source), Path.GetFullPath(at.Program), StringComparison.OrdinalIgnoreCase))
         {
@@ -108,6 +110,27 @@ public static class Installer
     }
 
     public static bool IsRegistered(IUserRegistry registry) => registry.Read(UninstallKey) != null;
+
+    static readonly System.Text.RegularExpressions.Regex ShownNightly =
+        new(@"^Nightly ([0-9]{1,9}) · ([0-9a-f]{8})(-dirty)?$", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+    /// The version of the launcher installed here, read back from its entry's DisplayVersion (Entry: 1.0.0-rc.9, or
+    /// Nightly 100 · 5f30eea3); an installed launcher writes it again at each start (Refresh), the first one after each of its
+    /// own updates too, so it follows them. Null when no program is installed, or its entry names no version
+    public static string? InstalledVersion(InstallPlaces at, IUserRegistry registry)
+    {
+        if (!File.Exists(at.Program) || registry.Read(UninstallKey) is not { } entry
+            || !entry.TryGetValue("DisplayVersion", out var value) || value is not string shown) return null;
+        if (ShownNightly.Match(shown) is { Success: true } m) return $"nightly-{m.Groups[1].Value}-{m.Groups[2].Value}{m.Groups[3].Value}";
+        return Versions.IsRelease("v" + shown, Versions.LauncherFirstMajor) ? "v" + shown : null;
+    }
+
+    /// Whether the launcher installed here is newer than own (SelfUpdate.Compare): the Windows download started again after the
+    /// launcher it installed has updated itself. Its Install would put the older launcher back (#129), so the installed one starts
+    /// instead. The same version is not newer (Install puts back the same program, its shortcut and its entry: a repair), nor is
+    /// one that has no order with own (a nightly and a release: the player chose that channel's download)
+    public static bool InstalledIsNewer(string own, InstallPlaces at, IUserRegistry registry) =>
+        InstalledVersion(at, registry) is { } installed && SelfUpdate.Compare(installed, own) > 0;
 
     /// What Uninstall did: Pending, the program that could not be deleted because it is running (the window deletes it once it has
     /// closed); Kept, what of the data was left because it is a build's or a save's

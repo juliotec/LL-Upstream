@@ -73,6 +73,7 @@ static partial class Program
 
     static async Task InstallChecks()
     {
+        NewerInstalledChecks();
         var root = Folder("install");
         var local = Path.Combine(root, "Local ゲーム");
         var appData = Path.Combine(root, "Roaming");
@@ -233,6 +234,55 @@ static partial class Program
         LockChecks(root);
         await StallChecks();
         SaveFaultChecks(root);
+    }
+
+    // ---- the download started again after the launcher it installed has updated itself ----
+
+    static void NewerInstalledChecks()
+    {
+        var root = Folder("install newer");
+        var local = Path.Combine(root, "Local");
+        Func<string, string?> env = k => k switch { "LOCALAPPDATA" => local, "APPDATA" => Path.Combine(root, "Roaming"), _ => null };
+        var at = InstallPlaces.Of(env);
+        var registry = new FakeRegistry();
+        var links = new FakeShortcuts();
+        var setup = Path.Combine(root, "Downloads", "LongshotLauncher-v1.0.0-rc.3-windows-x64-setup.exe");
+        Directory.CreateDirectory(Path.GetDirectoryName(setup)!);
+        File.WriteAllText(setup, "MZ launcher v1.0.0-rc.3");
+        Installer.Install(setup, "v1.0.0-rc.3", at, registry, links);
+        // (the installed launcher updated itself to rc.9 (SelfUpdate.Swap), and its first start wrote its entry again: Refresh)
+        File.WriteAllText(at.Program, "MZ launcher v1.0.0-rc.9");
+        Installer.Refresh(at, "v1.0.0-rc.9", registry, links);
+        // (the rc.3 download, started again from Downloads, and its Install pressed: #129)
+        Require(Installer.Install(setup, "v1.0.0-rc.3", at, registry, links) == at.Program && File.ReadAllText(at.Program) == "MZ launcher v1.0.0-rc.9"
+                && (string)registry.Read(Installer.UninstallKey)!["DisplayVersion"] == "1.0.0-rc.9",
+                "An older download's Install put its launcher back over the newer one installed (#129).");
+        Require(Installer.InstalledVersion(at, registry) == "v1.0.0-rc.9" && Installer.InstalledIsNewer("v1.0.0-rc.3", at, registry)
+                && !Installer.InstalledIsNewer("v1.0.0-rc.9", at, registry) && !Installer.InstalledIsNewer("v1.0.0", at, registry)
+                && !Installer.InstalledIsNewer("nightly-100-5f30eea3", at, registry) && !Installer.InstalledIsNewer("dev", at, registry),
+                "The installed version read back from its entry: newer than rc.3; not than itself, a newer release, a nightly or a checkout's build.");
+        // (the same version: installed again, a repair; a newer download: installed over it)
+        File.WriteAllText(setup, "MZ launcher v1.0.0-rc.9 again");
+        links.Remove(at.StartMenuLink);
+        Installer.Install(setup, "v1.0.0-rc.9", at, registry, links);
+        Require(File.ReadAllText(at.Program) == "MZ launcher v1.0.0-rc.9 again" && links.Links[at.StartMenuLink] == at.Program,
+                "The same version's Install: the program, its shortcut and its entry put back.");
+        File.WriteAllText(setup, "MZ launcher v1.0.0");
+        Installer.Install(setup, "v1.0.0", at, registry, links);
+        Require(File.ReadAllText(at.Program) == "MZ launcher v1.0.0" && Installer.InstalledVersion(at, registry) == "v1.0.0", "A newer download's Install.");
+        // (a nightly installed: its entry says "Nightly 100 · 5f30eea3", read back as its version)
+        Installer.Register(at, "nightly-100-5f30eea3", registry);
+        Require(Installer.InstalledVersion(at, registry) == "nightly-100-5f30eea3" && Installer.InstalledIsNewer("nightly-99-0a1b2c3d", at, registry)
+                && !Installer.InstalledIsNewer("nightly-100-5f30eea3", at, registry), "A nightly installed, older nightlies' downloads refused.");
+        // (no program there any more, or no entry: nothing to compare with, Install as before)
+        registry.Write(Installer.UninstallKey, new Dictionary<string, object> { ["DisplayVersion"] = "something else" });
+        Require(Installer.InstalledVersion(at, registry) == null, "An entry that names no version.");
+        Installer.Register(at, "v1.1.0", registry);
+        File.Delete(at.Program);
+        Require(Installer.InstalledVersion(at, registry) == null && !Installer.InstalledIsNewer("v1.0.0-rc.3", at, registry),
+                "An entry left with no program: nothing installed to keep.");
+        registry.Delete(Installer.UninstallKey);
+        Require(Installer.InstalledVersion(at, registry) == null, "No entry: no version.");
     }
 
     // ---- one launcher per home ----
