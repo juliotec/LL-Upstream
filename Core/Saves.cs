@@ -23,9 +23,22 @@ public sealed record SaveSet(string Owner, string Display, string? Folder, IRead
 /// What a copy did (or, dry, would do): Backup is the copy of the target taken first (null: the target had nothing yet)
 public sealed record SaveCopy(string Source, string Target, string? Backup, IReadOnlyList<string> Slots, IReadOnlyList<string> Files, bool KeptSettings, bool Dry);
 
-/// What Saves.Gather did: the save every build uses now (From: the user folder it came from; WasShared: it was the shared one
-/// already), the old user folders whose save was moved aside, and the backup of every one of them, the shared one's too
-public sealed record SaveGathered(string From, bool WasShared, IReadOnlyList<string> Moved, string Backup);
+/// What Saves.Gather did: the save played last, whose files other than slots every build uses now (From: its user folder;
+/// WasShared: it was the shared one already), the old user folders whose save was moved aside, the backup of every one of them,
+/// the shared one's too, and every slot of the save they make together (Gather merges them slot by slot)
+public sealed record SaveGathered(string From, bool WasShared, IReadOnlyList<string> Moved, string Backup, IReadOnlyList<GatheredSlot> Slots);
+
+/// One slot Saves.Gather took into account: its profile folder (its path below save\), its folder's name in the user folder it
+/// comes from (From; Shared: the shared one), and what became of it. The kept save's own slots stay (the shared save's, or with
+/// none yet the one played last). Where it has no such slot, the newest copy comes in. Any other copy that differs from every
+/// slot kept goes to the first free slot (MovedTo, slot_NN), never over one; with no slot free it stays in the backup only
+/// (Left). A copy older than the kept save's own different one stays in the backup only too (Left, Older)
+public sealed record GatheredSlot(string Profile, string Slot, string From, bool Shared, string? MovedTo = null, bool Left = false,
+                                  bool Older = false)
+{
+    /// The slot it is in now in the shared save (null: Left)
+    public string? Now => Left ? null : MovedTo ?? Slot;
+}
 
 /// A copy refused, and why (longshot_saves.Fail)
 public sealed class SaveFailure(string message, SaveRefusal reason = SaveRefusal.Other, IReadOnlyList<string>? who = null, string? backup = null)
@@ -603,13 +616,13 @@ public static class Saves
     }
 
     /// When a save folder's adventure was last saved: its newest progress.sav, in any profile and slot (DateTime.MinValue when it
-    /// has none). Only progress counts: a game that just started writes account.sav and option.sav before anything is played
+    /// has none; an empty one is none). Only progress counts: a game that just started writes account.sav and option.sav before anything is played
     static DateTime LastProgress(string save)
     {
         try
         {
-            return Directory.EnumerateFiles(save, "progress.sav", SearchOption.AllDirectories).Select(File.GetLastWriteTimeUtc)
-                            .DefaultIfEmpty(DateTime.MinValue).Max();
+            return Directory.EnumerateFiles(save, "progress.sav", SearchOption.AllDirectories).Select(f => new FileInfo(f))
+                            .Where(f => f.Length > 0).Select(f => f.LastWriteTimeUtc).DefaultIfEmpty(DateTime.MinValue).Max();
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return DateTime.MinValue; }
     }
@@ -622,15 +635,23 @@ public static class Saves
     /// along with the save that is kept, when the shared folder has none of its own yet
     static readonly string[] PlayerFiles = { "mouse_sens.txt", "present.txt" };
 
-    /// The saves of the old user folders (OldUserFolders) into the shared one, so that every build plays the same adventure. The
-    /// save with the newest progress of them all, the shared one's included, is kept (its newest progress.sav; a tie keeps the
-    /// shared one, so a save an old build just made, with nothing played, never replaces it): it becomes the shared save\. Every
-    /// one of them is backed up whole first, in one folder (&lt;backups&gt;/gather-&lt;yyyyMMdd-HHmmss&gt;/&lt;name&gt;), and each old folder's
-    /// save\ is then renamed save.moved-&lt;stamp&gt;, so the game does not find it there again and nothing is deleted. An old folder
+    /// The saves of the old user folders (OldUserFolders) into the shared one, so that every build plays the same adventure,
+    /// merged slot by slot and never over a slot of the shared save (issue #146: keeping one whole folder cost every other slot).
+    /// The kept save is the shared one, or with none yet the one played last (the newest progress.sav of all; a tie: the first):
+    /// its slots and its other files (account.sav, option.sav, and then the player files beside save\) stay as they are. A slot
+    /// it lacks comes from the copy saved last (its progress.sav's time; an empty or missing one is the oldest; a tie: the first
+    /// folder's). Any other copy that differs from every slot kept, byte for byte, may be another adventure (an old build
+    /// started on its own, a new game begun in the same slot) or the same one played on: it goes to the first free slot_NN of
+    /// that profile (slot_00..slot_05, the ones the game shows), the newest first, and with none free stays in the backup only.
+    /// Only a copy older than the kept save's own different slot stays in the backup without a free slot being tried. The home
+    /// is told which of each (SaveGathered.Slots). Every one of them is backed up whole
+    /// first, in one folder (&lt;backups&gt;/gather-&lt;yyyyMMdd-HHmmss&gt;/&lt;name&gt;); the merge is made beside the shared save\ and
+    /// takes its place by two renames, so a failure leaves it as it was; and each old folder's save\ is then renamed
+    /// save.moved-&lt;stamp&gt;, so the game does not find it there again and nothing is deleted. An old folder
     /// that is a link, or holds one as its user\ or save\ (a player's own synced folder, or the shared one itself), is the
     /// player's own arrangement and is left alone. Null when no old folder has a save, or while Longshot runs (the next start
     /// tries again). A failure changes nothing (SaveFailure). An old save that cannot be renamed (a file in use) is taken in
-    /// again at the next start, where it ties with the shared one and loses
+    /// again at the next start, where its slots are the same as the shared one's and change nothing
     public static SaveGathered? Gather(SaveEnvironment env, IReadOnlyList<string> oldUsers, Func<IReadOnlyList<string>>? running = null,
                                        Func<DateTime>? now = null)
     {
@@ -658,7 +679,10 @@ public static class Saves
             for (var n = 2; sides.Any(s => s.Name.Equals(unique, StringComparison.OrdinalIgnoreCase)); n++) unique = $"{name} ({n})";
             sides.Add((u, unique));
         }
-        var kept = sides.OrderByDescending(s => LastProgress(System.IO.Path.Combine(s.User, "save"))).First();   // (stable: the shared one first)
+        // (the shared save, when there is one; else the one played last. Stable: the first on a tie)
+        var kept = sides[0].User == shared ? sides[0] : sides.OrderByDescending(s => LastProgress(System.IO.Path.Combine(s.User, "save"))).First();
+        var (slots, fromOther) = MergePlan(sides.Select(s => s.User).ToList(), sides.IndexOf(kept), shared);
+        var changed = kept.User != shared || slots.Any(s => !s.Left && (s.From != kept.User || s.MovedTo != null));
 
         var stamp = (now ?? (() => DateTime.Now))().ToString("yyyyMMdd-HHmmss", System.Globalization.CultureInfo.InvariantCulture);
         var backup = System.IO.Path.Combine(env.BackupRoot, "gather-" + stamp);
@@ -675,14 +699,26 @@ public static class Saves
             throw new SaveFailure($"The saves could not be backed up ({e.Message}), so none was moved: they are as they were.");
         }
 
-        if (kept.User != shared)
+        if (!changed) DeleteTree(aside);   // (backed up above)
+        else
         {
             DeleteTree(staging);
             DeleteTree(aside);
             try
             {
                 Directory.CreateDirectory(shared);
+                // (the shared save whole, or the one played last; each profile it lacks, without slots; then each slot from
+                // elsewhere, where the plan put it: never over a slot of the shared save)
                 CopyTree(System.IO.Path.Combine(kept.User, "save"), staging);
+                foreach (var (profile, from) in fromOther)
+                    CopyTree(from, System.IO.Path.Combine(staging, profile), n => n.StartsWith("slot_", StringComparison.Ordinal));
+                foreach (var s in slots)
+                {
+                    if (s.Now is not { } slotNow || (s.From == kept.User && s.MovedTo == null)) continue;
+                    var into = System.IO.Path.Combine(staging, s.Profile, slotNow);
+                    if (Directory.Exists(into)) throw new IOException($"{s.Profile}/{slotNow} would be written over");   // (never: the plan put it in a free slot)
+                    CopyTree(System.IO.Path.Combine(s.From, "save", s.Profile, s.Slot), into);
+                }
                 if (Directory.Exists(sharedSave))
                 {
                     Directory.Move(sharedSave, aside);
@@ -705,13 +741,14 @@ public static class Saves
                 DeleteTree(staging);
                 throw new SaveFailure($"The saves could not be moved ({e.Message}). Nothing was changed; a backup of them all is in {backup}.", backup: backup);
             }
-            foreach (var f in PlayerFiles)
-            {
-                var from = System.IO.Path.Combine(kept.User, f);
-                var to = System.IO.Path.Combine(shared, f);
-                try { if (File.Exists(from) && !File.Exists(to)) File.Copy(from, to); }
-                catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
-            }
+            if (kept.User != shared)
+                foreach (var f in PlayerFiles)
+                {
+                    var from = System.IO.Path.Combine(kept.User, f);
+                    var to = System.IO.Path.Combine(shared, f);
+                    try { if (File.Exists(from) && !File.Exists(to)) File.Copy(from, to); }
+                    catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+                }
         }
 
         var moved = new List<string>();
@@ -726,6 +763,105 @@ public static class Saves
             }
             catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
         }
-        return new SaveGathered(kept.User, kept.User == shared, moved, backup);
+        return new SaveGathered(kept.User, kept.User == shared, moved, backup, slots);
+    }
+
+    /// When a slot was last saved: its progress.sav's time (DateTime.MinValue when it has none, or an empty one: never the newest)
+    static DateTime SlotProgress(string slot)
+    {
+        try
+        {
+            var p = new FileInfo(System.IO.Path.Combine(slot, "progress.sav"));
+            return p.Exists && p.Length > 0 ? p.LastWriteTimeUtc : DateTime.MinValue;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return DateTime.MinValue; }
+    }
+
+    /// The slots a merge may fill, the ones the game shows
+    const int GameSlots = 6;
+
+    /// Two copies of a slot hold the same files, byte for byte (the same save: no conflict); false when either cannot be read
+    static bool SameSlot(string a, string b)
+    {
+        try
+        {
+            List<string> Files(string root) => Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories)
+                .Select(f => System.IO.Path.GetRelativePath(root, f)).Order(StringComparer.Ordinal).ToList();
+            var names = Files(a);
+            if (!names.SequenceEqual(Files(b), StringComparer.Ordinal)) return false;
+            return names.All(n => File.ReadAllBytes(System.IO.Path.Combine(a, n)).AsSpan().SequenceEqual(File.ReadAllBytes(System.IO.Path.Combine(b, n))));
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return false; }
+    }
+
+    /// Gather's merge, worked out from the user folders (the shared one first when it has a save; users[keptAt], the shared one or
+    /// else the one played last, is kept: its slots and its files that are not slots): every copy of every slot of every profile
+    /// with what becomes of it (GatheredSlot), and the profiles users[keptAt] lacks, each with the folder its files other than
+    /// slots come from (of those that have it, the one whose own newest progress is the newest; a tie: the first). A slot the kept
+    /// save has stays; another copy of it saved later and different goes to a free slot, one saved before or at the same time
+    /// stays in the backup (Older). A slot it lacks comes from the newest copy (a tie: the first folder's); every other different
+    /// copy goes to a free slot too. A copy the same as one already in, byte for byte, is the same save: nothing to do. Profiles
+    /// are the save\ folder's (Find), by their path below it
+    static (IReadOnlyList<GatheredSlot> Slots, IReadOnlyList<(string Profile, string From)> FromOther) MergePlan(IReadOnlyList<string> users,
+                                                                                                                  int keptAt, string shared)
+    {
+        var profiles = users.Select(u =>
+        {
+            var save = System.IO.Path.Combine(u, "save");
+            var found = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var p in Find(save)) found.TryAdd(System.IO.Path.GetRelativePath(save, p.Path), p.Path);
+            return found;
+        }).ToList();
+        var slots = new List<GatheredSlot>();
+        var fromOther = new List<(string, string)>();
+        foreach (var rel in profiles.SelectMany(d => d.Keys).Distinct(StringComparer.OrdinalIgnoreCase).ToList())
+        {
+            var holders = Enumerable.Range(0, users.Count).Where(i => profiles[i].ContainsKey(rel)).ToList();
+            if (!profiles[keptAt].ContainsKey(rel))
+                fromOther.Add((rel, profiles[holders.OrderByDescending(i => LastProgress(profiles[i][rel])).First()][rel]));
+            var placed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            // (the copies in the result, whatever their slot: the kept save's, then each one placed. A copy the same as one of them
+            // is already in, such as one a gather before put in a free slot from a folder it could not rename)
+            var present = profiles[keptAt].TryGetValue(rel, out var keptProfile)
+                ? SlotNames(keptProfile).Select(n => System.IO.Path.Combine(keptProfile, n)).ToList() : new List<string>();
+            var incoming = new List<(int Side, string Slot, string Dir, DateTime Time)>();
+            var older = new List<(int Side, string Slot, string Dir)>();
+            // (first what each slot keeps, then every other copy: one the same as anything kept is dropped, whatever its slot)
+            var kept = new List<(string Slot, (int Side, string Dir, DateTime Time) First, List<(int Side, string Dir, DateTime Time)> Copies)>();
+            foreach (var slot in holders.SelectMany(i => SlotNames(profiles[i][rel])).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal))
+            {
+                var copies = holders.Select(i => (Side: i, Dir: System.IO.Path.Combine(profiles[i][rel], slot)))
+                                    .Where(c => Directory.Exists(c.Dir)).Select(c => (c.Side, c.Dir, Time: SlotProgress(c.Dir))).ToList();
+                var first = copies.FirstOrDefault(c => c.Side == keptAt);
+                if (first.Dir == null)
+                {
+                    first = copies[0];
+                    foreach (var c in copies.Skip(1))
+                        if (c.Time > first.Time) first = c;
+                    present.Add(first.Dir);
+                }
+                slots.Add(new GatheredSlot(rel, slot, users[first.Side], users[first.Side] == shared));
+                placed.Add(slot);
+                kept.Add((slot, first, copies));
+            }
+            foreach (var (slot, first, copies) in kept)
+                foreach (var c in copies.Where(c => c.Side != first.Side))
+                {
+                    if (present.Any(o => SameSlot(o, c.Dir)) || incoming.Any(o => SameSlot(o.Dir, c.Dir)) || older.Any(o => SameSlot(o.Dir, c.Dir))) continue;
+                    // (the kept save's own slot is never replaced: a later copy is another adventure, or this one played on
+                    // elsewhere, and goes to a free slot; an earlier one stays in the backup. Where the kept save had none, every
+                    // other copy goes to a free slot: the newest took the slot's place, but each may be an adventure of its own)
+                    if (first.Side == keptAt && c.Time <= first.Time) older.Add((c.Side, slot, c.Dir));
+                    else incoming.Add((c.Side, slot, c.Dir, c.Time));
+                }
+            foreach (var c in incoming.OrderByDescending(c => c.Time).ThenBy(c => c.Side))
+            {
+                var free = Enumerable.Range(0, GameSlots).Select(n => $"slot_{n:00}").FirstOrDefault(n => !placed.Contains(n));
+                if (free != null) placed.Add(free);
+                slots.Add(new GatheredSlot(rel, c.Slot, users[c.Side], users[c.Side] == shared, free, free == null));
+            }
+            foreach (var c in older) slots.Add(new GatheredSlot(rel, c.Slot, users[c.Side], users[c.Side] == shared, null, true, true));
+        }
+        return (slots, fromOther);
     }
 }

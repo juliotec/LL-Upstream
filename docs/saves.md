@@ -39,10 +39,19 @@ shared folder by itself (`Saves.Gather`):
 
 - **Where it looks:** every build in its list, every Longshot game folder in the builds folder (a version an update replaced
   is no longer listed, but its saves may still be there), and the 2.x Builder's game folder (not for a portable launcher).
-- **The newest one is kept.** Of all of them, the shared one included, the save whose newest file was written last becomes
-  the shared save; on a tie the shared one stays.
+- **They are merged slot by slot, never over a slot of the shared save.** The shared save's slots, and its `account.sav`
+  and `option.sav`, stay as they are; with no shared save yet, the save played last (the newest `progress.sav` of all) is
+  kept that way, and also gives `mouse_sens.txt` and `present.txt` beside `save\`. A slot (`slot_NN`, in each profile) the
+  kept save lacks comes from the copy whose `progress.sav` was written last (a missing or empty one counts as the oldest; on
+  a tie the first folder's). Every other copy that is different, byte for byte, from all the slots kept may be another
+  adventure (a build started on its own may have begun a new game in that slot) or the same one played on: it goes to the
+  first free slot of that profile, `slot_00` to `slot_05`, the ones the game shows, the newest first. With none free it
+  stays in the backup only, and so does a copy older than the kept save's own different slot; the home names both. A copy
+  the same as one already kept changes nothing. The merge is made beside the shared save and takes its place by two
+  renames, so a failure changes nothing.
 - **Every one is backed up first,** whole, in one folder: `oot-save-backups\gather-<yyyyMMdd-HHmmss>\<game folder name>`
-  (`shared` for the one that was already shared). The home says once which save was kept and where the backup is.
+  (`shared` for the one that was already shared). The home says once which slots came from which version's folder, and
+  into which slot, which stayed in the backup only, and where the backup is.
 - **Nothing is deleted.** Each old `save` folder is renamed `save.moved-<yyyyMMdd-HHmmss>` beside it, so the game no longer
   finds it there. A folder an update left behind (no longer listed) is then offered for deletion on the home, `save.moved-*`
   with it: the backup above keeps its save.

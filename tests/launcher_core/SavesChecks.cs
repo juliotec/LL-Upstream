@@ -494,6 +494,7 @@ static class SavesChecks
         Saves.ImportExport(false, Saves.Named("eden"), null, c.Linux, backupRoot: c.Backups, running: () => c.Busy);
         Require(Tree(c.Li) == Tree(c.Hs), "Export from Linux's shared save.");
         Gather(root);
+        GatherSlots(root);
     }
 
     /// Every file of a folder written at that time
@@ -539,13 +540,17 @@ static class SavesChecks
         Require(SaveText.Gathered(g).Contains(a) && SaveText.Gathered(g).Contains(g.Backup), "What the home says: where the save came from, and the backup.");
         Require(Saves.Gather(c.Windows, old, () => c.Busy) == null, "Done once: nothing left to gather.");
 
-        // (an old build started on its own, without --user, saves in its folder again: the newer one wins, the shared one backed up)
+        // (an old build started on its own, without --user, saves in its folder again: a new game in the same slots, say. Its newer
+        // slots go to the free ones, never over the shared save's; the shared one is backed up)
         MakeSave(P(b, "user", "save", Uid), "B2");
         Age(sharedSave, when.AddDays(-1));
         Age(P(b, "user", "save"), when);
         var g2 = Saves.Gather(c.Windows, old, () => c.Busy, () => when.AddHours(1))!;
-        Require(g2.From == P(b, "user") && Tree(sharedSave) == Tree(P(b, "user", "save.moved-20261113-100000")) && Tree(P(g2.Backup, "shared")) == treeA,
-                "A newer save in a build's own folder wins; the shared one is backed up.");
+        var b2 = P(b, "user", "save.moved-20261113-100000", Uid);
+        Require(g2.WasShared && g2.From == c.Windows.LongshotUser && Slot(P(sharedSave, Uid), "slot_00") == Slot(P(a, "user", "save.moved-20261113-090000", Uid), "slot_00")
+                && Slot(P(sharedSave, Uid), "slot_02") == Slot(b2, "slot_00") && Slot(P(sharedSave, Uid), "slot_03") == Slot(b2, "slot_01")
+                && Tree(P(g2.Backup, "shared")) == treeA && SaveText.Gathered(g2).Contains("slot 1 from " + b + " as slot 3", StringComparison.Ordinal),
+                "A newer save in a build's own folder goes to the free slots, the shared one's kept and backed up.");
 
         // (an older one: the shared save stays, the old one goes aside)
         var kept = Tree(sharedSave);
@@ -570,7 +575,7 @@ static class SavesChecks
         MakeSave(P(aside, Uid), "ASIDE");
         var asideTree = Tree(aside);
         var g4 = Saves.Gather(c.Windows, old, () => c.Busy, () => when.AddHours(4))!;
-        Require(g4.From == P(a, "user") && Tree(P(g4.Backup, "shared (set aside)")) == asideTree && !Directory.Exists(aside),
+        Require(g4.WasShared && g4.Slots.Count(s => s.MovedTo != null) == 2 && Tree(P(g4.Backup, "shared (set aside)")) == asideTree && !Directory.Exists(aside),
                 "What a gather cut short left aside is backed up too.");
 
         // (an old build started on its own makes a save with nothing played: it never replaces the shared one)
@@ -591,5 +596,202 @@ static class SavesChecks
             Require(Saves.Gather(c.Windows, new[] { P(linked, "user") }, () => c.Busy, () => when.AddHours(6)) == null
                     && Tree(sharedSave) == keptNow && Directory.Exists(P(linked, "user", "save")), "A linked save folder is never gathered nor renamed.");
         }
+    }
+
+    /// One slot's files, as Tree gives them ("" when the slot is not there)
+    static string Slot(string profile, string slot) => Tree(P(profile, slot));
+
+    static void GatherSlots(string root)
+    {
+        // (issue #146: a gather merges slot by slot, and never over a slot of the shared save. The shared save has slots 1-3. An old
+        // build's folder has a slot 2 saved later (an old build started on its own: a new game begun in that slot, or the same one
+        // played on), a slot 5 the shared one lacks, and a slot 1 saved at the same time as the shared one's. The shared slots stay;
+        // the newer slot 2 goes to the first free slot, 4; slot 5 comes over; nothing of either side is lost)
+        var c = new Case(root, "gather-slots");
+        var a = P(c.Home, "Games", "Longshot", "v3.0.0-rc.1");
+        var sharedSave = P(c.Windows.LongshotUser, "save");
+        var shared = P(sharedSave, Saves.UserId);
+        var oldSave = P(a, "user", "save");
+        var old = P(oldSave, Saves.UserId);
+        var when = new DateTime(2026, 11, 17, 9, 0, 0);
+        MakeSave(shared, "S", "slot_00", "slot_01", "slot_02");
+        MakeSave(old, "O", "slot_00", "slot_01", "slot_04");
+        Age(sharedSave, when.AddDays(-1));
+        Age(oldSave, when.AddDays(-3));
+        File.SetLastWriteTime(P(old, "slot_00", "progress.sav"), when.AddDays(-1));   // (a tie: the shared one's stays)
+        File.SetLastWriteTime(P(old, "slot_01", "progress.sav"), when);               // (newer, and another save)
+        var (s0, s1, s2, o1, o4) = (Slot(shared, "slot_00"), Slot(shared, "slot_01"), Slot(shared, "slot_02"), Slot(old, "slot_01"), Slot(old, "slot_04"));
+        var (sharedBefore, oldBefore) = (Tree(sharedSave), Tree(oldSave));
+
+        var g = Saves.Gather(c.Windows, Saves.OldUserFolders(c.Windows, new[] { a }, null), () => c.Busy, () => when)!;
+        Require(Saves.SlotNames(shared).SequenceEqual(new[] { "slot_00", "slot_01", "slot_02", "slot_03", "slot_04" }),
+                "Merged slot by slot: every slot of both sides is in the shared save (has: " + string.Join(" ", Saves.SlotNames(shared)) + ").");
+        Require(Slot(shared, "slot_00") == s0 && Slot(shared, "slot_01") == s1 && Slot(shared, "slot_02") == s2,
+                "The shared save's slots are never written over, by a tie or by a newer copy.");
+        Require(Slot(shared, "slot_03") == o1 && Slot(shared, "slot_04") == o4, "The newer copy goes to the first free slot; the new slot comes over.");
+        Require(File.ReadAllText(P(shared, "account.sav")) == "account-S" && File.ReadAllText(P(shared, "option.sav")) == "option-S",
+                "account.sav and option.sav stay the shared save's.");
+        Require(Tree(P(g.Backup, "shared")) == sharedBefore && Tree(P(g.Backup, "v3.0.0-rc.1")) == oldBefore, "Both sides backed up whole first.");
+        Require(!Directory.Exists(oldSave) && Tree(P(a, "user", "save.moved-20261117-090000")) == oldBefore, "The old save renamed aside, as it was.");
+        var said = SaveText.Gathered(g);
+        Require(said.Contains("slot 2 from " + a + " as slot 4", StringComparison.Ordinal) && said.Contains("slot 5 from " + a, StringComparison.Ordinal)
+                && said.Contains("only in that backup: slot 1 from " + a, StringComparison.Ordinal) && !said.Contains("slot 3 from", StringComparison.Ordinal)
+                && said.Contains(g.Backup, StringComparison.Ordinal), "What the home says: which slots came from where, what stays in the backup only, and the backup (said: " + said + ").");
+        Require(Saves.Gather(c.Windows, Saves.OldUserFolders(c.Windows, new[] { a }, null), () => c.Busy) == null, "Done once: nothing left to gather.");
+
+        // (no shared save yet, the first gather after an update: the 2.x Builder's folder has slot 1 of one adventure, saved after
+        // rc.1's slot 1 of another; rc.1 was played last (its slot 2). Neither slot 1 is lost: the later one goes to a free slot)
+        var fc = new Case(root, "gather-slots-first");
+        var builds = P(fc.Home, "Games", "Longshot");
+        var rc1 = P(builds, "v3.0.0-rc.1");
+        var adventureA = P(builds, "user", "save", Saves.UserId);
+        var adventureB = P(rc1, "user", "save", Saves.UserId);
+        MakeSave(adventureA, "A", "slot_00");
+        MakeSave(adventureB, "B", "slot_00", "slot_01");
+        Age(P(builds, "user", "save"), when.AddDays(1));
+        Age(P(rc1, "user", "save"), when);
+        File.SetLastWriteTime(P(adventureB, "slot_01", "progress.sav"), when.AddDays(2));
+        var (a0, b0, b1) = (Slot(adventureA, "slot_00"), Slot(adventureB, "slot_00"), Slot(adventureB, "slot_01"));
+        var first = Saves.Gather(fc.Windows, Saves.OldUserFolders(fc.Windows, new[] { rc1 }, builds), () => fc.Busy, () => when)!;
+        var firstShared = P(fc.Windows.LongshotUser, "save", Saves.UserId);
+        Require(Slot(firstShared, "slot_00") == b0 && Slot(firstShared, "slot_01") == b1 && Slot(firstShared, "slot_02") == a0,
+                "No shared save yet: a later slot 1 of another adventure goes to a free slot, never over the kept one's (has: "
+                + string.Join(" ", Saves.SlotNames(firstShared)) + ").");
+        Require(SaveText.Gathered(first).Contains("slot 1 from " + builds + " as slot 3", StringComparison.Ordinal), "And the home says where it went.");
+        string Did(SaveGathered r) => string.Join(" ", r.Slots.Select(s => $"{s.Slot}<{(s.Shared ? "shared" : Path.GetFileName(Path.GetDirectoryName(s.From)))}"
+                                                                             + (s.MovedTo is { } to ? ">" + to : "") + (s.Left ? ">left" : "")));
+        Require(Did(g) == "slot_00<shared slot_01<shared slot_02<shared slot_04<v3.0.0-rc.1 slot_01<v3.0.0-rc.1>slot_03 slot_00<v3.0.0-rc.1>left"
+                && g.Slots.Single(s => s.Left).Older
+                && g.Slots.All(s => s.Profile == Saves.UserId) && g.WasShared && g.From == c.Windows.LongshotUser, "SaveGathered says what became of each slot (did: " + Did(g) + ").");
+
+        // (the shared save played last of all, while an old folder has a slot it lacks and a newer copy of one it has: both come in)
+        var c3 = new Case(root, "gather-slots-3");
+        var shared3 = P(c3.Windows.LongshotUser, "save", Saves.UserId);
+        var e = P(c3.Home, "Games", "Longshot", "v3.0.0-rc.2");
+        var eOld = P(e, "user", "save", Saves.UserId);
+        MakeSave(shared3, "S", "slot_00", "slot_01");
+        MakeSave(eOld, "E", "slot_01", "slot_03");
+        Age(P(c3.Windows.LongshotUser, "save"), when.AddDays(-2));
+        File.SetLastWriteTime(P(shared3, "slot_00", "progress.sav"), when.AddDays(5));   // (the newest of all)
+        Age(P(e, "user", "save"), when);
+        var (k0, k1, e1, e3) = (Slot(shared3, "slot_00"), Slot(shared3, "slot_01"), Slot(eOld, "slot_01"), Slot(eOld, "slot_03"));
+        Saves.Gather(c3.Windows, Saves.OldUserFolders(c3.Windows, new[] { e }, null), () => c3.Busy, () => when);
+        Require(Saves.SlotNames(shared3).SequenceEqual(new[] { "slot_00", "slot_01", "slot_02", "slot_03" }) && Slot(shared3, "slot_00") == k0
+                && Slot(shared3, "slot_01") == k1 && Slot(shared3, "slot_02") == e1 && Slot(shared3, "slot_03") == e3,
+                "A shared save played last of all still takes in a slot it lacks and a newer copy of one it has, on the disk.");
+
+        // (two old folders: for a slot the shared save lacks, the newer copy; a tie, the first folder's; a slot with no progress.sav
+        // or an empty one never the newest; a profile only one of them has comes whole. A newer, different copy of a shared slot
+        // goes to a free slot, the newest first; with none left, it stays in the backup, and the home says so)
+        var c2 = new Case(root, "gather-slots-2");
+        var shared2 = P(c2.Windows.LongshotUser, "save", Saves.UserId);
+        var b = P(c2.Home, "Games", "Longshot", "v3.0.0-rc.2");
+        var d = P(c2.Home, "Games", "Longshot", "nightly-200-aaaaaaaa");
+        var bs = P(b, "user", "save", Saves.UserId);
+        var ds = P(d, "user", "save", Saves.UserId);
+        MakeSave(shared2, "S", "slot_00");
+        MakeSave(bs, "B", "slot_00", "slot_01", "slot_02", "slot_04");
+        MakeSave(ds, "D", "slot_00", "slot_01", "slot_02", "slot_03", "slot_04");
+        Directory.CreateDirectory(P(bs, "slot_03"));
+        File.WriteAllText(P(bs, "slot_03", "caption.sav"), "caption-B-no-progress");   // (no progress.sav)
+        MakeSave(P(d, "user", "save", Uid), "DX", "slot_00");
+        Age(P(c2.Windows.LongshotUser, "save"), when.AddDays(-1));
+        Age(P(b, "user", "save"), when.AddDays(1));
+        Age(P(d, "user", "save"), when.AddDays(1));
+        File.SetLastWriteTime(P(ds, "slot_00", "progress.sav"), when.AddDays(3));    // (D's slot 1 newer than B's: both newer than the shared one's)
+        File.SetLastWriteTime(P(ds, "slot_01", "progress.sav"), when.AddDays(2));    // (D's slot 2 newer than B's)
+        File.SetLastWriteTime(P(ds, "slot_03", "progress.sav"), when.AddDays(-10));  // (old, but B's slot 4 has no progress at all)
+        File.WriteAllText(P(bs, "slot_04", "progress.sav"), "");                      // (B's slot 5 is empty: never the newest)
+        File.SetLastWriteTime(P(bs, "slot_04", "progress.sav"), when.AddDays(9));
+        File.SetLastWriteTime(P(ds, "slot_04", "progress.sav"), when.AddDays(-5));
+        var sideTrees = new[] { Tree(P(c2.Windows.LongshotUser, "save")), Tree(P(b, "user", "save")), Tree(P(d, "user", "save")) };
+        var want = new Dictionary<string, string>
+        {
+            ["slot_00"] = Slot(shared2, "slot_00"), ["slot_01"] = Slot(ds, "slot_01"), ["slot_02"] = Slot(bs, "slot_02"),
+            ["slot_03"] = Slot(ds, "slot_03"), ["slot_04"] = Slot(ds, "slot_04"), ["slot_05"] = Slot(ds, "slot_00"),
+        };
+        var two = Saves.Gather(c2.Windows, Saves.OldUserFolders(c2.Windows, new[] { b, d }, null), () => c2.Busy, () => when)!;
+        Require(want.All(w => Slot(shared2, w.Key) == w.Value) && Saves.SlotNames(shared2).Count == 6,
+                "Two old folders: each slot the shared save lacks from the newer copy (a tie: the first folder's; no or an empty progress.sav: never), "
+                + "a newer copy of a shared slot in the free slot (did: " + Did(two) + ").");
+        Require(Tree(P(c2.Windows.LongshotUser, "save", Uid)) == Tree(P(d, "user", "save.moved-20261117-090000", Uid)), "A profile only one old folder has comes whole.");
+        Require(two.Slots.Where(s => s.Left && !s.Older).Select(s => $"{s.Slot}<{Path.GetFileName(Path.GetDirectoryName(s.From))}").SequenceEqual(new[]
+                {
+                    "slot_00<v3.0.0-rc.2", "slot_01<v3.0.0-rc.2", "slot_02<nightly-200-aaaaaaaa", "slot_03<v3.0.0-rc.2", "slot_04<v3.0.0-rc.2",
+                }) && File.ReadAllText(P(shared2, "account.sav")) == "account-S",
+                "Every other different copy, the losers of a slot the shared save lacks too, wanted a free slot; with none left it stays in "
+                + "the backup only, said so; the shared account.sav stays.");
+        Require(Tree(P(two.Backup, "shared")) == sideTrees[0] && Tree(P(two.Backup, "v3.0.0-rc.2")) == sideTrees[1]
+                && Tree(P(two.Backup, "nightly-200-aaaaaaaa")) == sideTrees[2], "Every side backed up whole: nothing is lost.");
+        var saidTwo = SaveText.Gathered(two);
+        Require(saidTwo.Contains("slot 1 from " + d + " as slot 6", StringComparison.Ordinal) && saidTwo.Contains("No slot was free for slot 1 from " + b, StringComparison.Ordinal)
+                && saidTwo.Contains("(profile " + Uid + ")", StringComparison.Ordinal) && saidTwo.Contains(two.Backup, StringComparison.Ordinal),
+                "What the home says: where each slot went, what stayed in the backup, each profile named (said: " + saidTwo + ").");
+
+        // (a copy the same as a slot the shared save has, wherever, even saved later: nothing to do; what a cut-short gather left
+        // aside is backed up and goes)
+        var f = P(c2.Home, "Games", "Longshot", "v3.0.0-rc.3");
+        var fs = P(f, "user", "save", Saves.UserId);
+        Directory.CreateDirectory(fs);
+        foreach (var file in Directory.EnumerateFiles(shared2)) File.Copy(file, P(fs, Path.GetFileName(file)));
+        Directory.CreateDirectory(P(fs, "slot_00"));
+        foreach (var file in Directory.EnumerateFiles(P(shared2, "slot_05"))) File.Copy(file, P(fs, "slot_00", Path.GetFileName(file)));
+        Age(P(f, "user", "save"), when.AddDays(30));
+        var aside = P(c2.Windows.LongshotUser, ".save.longshot-old");
+        MakeSave(P(aside, Saves.UserId), "ASIDE");
+        var (asideTree, unchanged) = (Tree(aside), Tree(P(c2.Windows.LongshotUser, "save")));
+        var same = Saves.Gather(c2.Windows, Saves.OldUserFolders(c2.Windows, new[] { f }, null), () => c2.Busy, () => when.AddHours(1))!;
+        Require(Tree(P(c2.Windows.LongshotUser, "save")) == unchanged && same.Slots.All(s => s.Shared) && SaveText.Gathered(same).Contains("shared", StringComparison.Ordinal),
+                "A copy the same as one of the shared save's slots changes nothing.");
+        Require(!Directory.Exists(aside) && Tree(P(same.Backup, "shared (set aside)")) == asideTree, "What a cut-short gather left aside is backed up, then goes.");
+
+        // (three old folders with a later slot 1, two saved at the same time, the third the same as the first, byte for byte; one
+        // free slot: the first folder's goes there, the second's stays in the backup, the third is the first's save already)
+        var c4 = new Case(root, "gather-slots-4");
+        var shared4 = P(c4.Windows.LongshotUser, "save", Saves.UserId);
+        MakeSave(shared4, "S", "slot_00", "slot_01", "slot_02", "slot_03", "slot_04");
+        var (x, y, z) = (P(c4.Home, "Games", "Longshot", "x"), P(c4.Home, "Games", "Longshot", "y"), P(c4.Home, "Games", "Longshot", "z"));
+        MakeSave(P(x, "user", "save", Saves.UserId), "X", "slot_00");
+        MakeSave(P(y, "user", "save", Saves.UserId), "Y", "slot_00");
+        MakeSave(P(z, "user", "save", Saves.UserId), "X", "slot_00");
+        Age(P(c4.Windows.LongshotUser, "save"), when);
+        foreach (var u in new[] { x, y, z }) Age(P(u, "user", "save"), when.AddDays(1));
+        var x0 = Slot(P(x, "user", "save", Saves.UserId), "slot_00");
+        var four = Saves.Gather(c4.Windows, Saves.OldUserFolders(c4.Windows, new[] { x, y, z }, null), () => c4.Busy, () => when)!;
+        Require(Did(four) == "slot_00<shared slot_01<shared slot_02<shared slot_03<shared slot_04<shared slot_00<x>slot_05 slot_00<y>left"
+                && Slot(shared4, "slot_05") == x0, "The same copy twice takes one slot; on a tie the first folder's goes first (did: " + Did(four) + ").");
+
+        // (a copy older than a kept slot's own, but the same as one that fills another slot: kept there, and never said to be in
+        // the backup only; nor placed twice)
+        var c5 = new Case(root, "gather-slots-5");
+        var shared5 = P(c5.Windows.LongshotUser, "save", Saves.UserId);
+        var (fb, fcf) = (P(c5.Home, "Games", "Longshot", "b"), P(c5.Home, "Games", "Longshot", "c"));
+        MakeSave(shared5, "Y", "slot_00");
+        MakeSave(P(fb, "user", "save", Saves.UserId), "X", "slot_00");
+        Directory.CreateDirectory(P(fcf, "user", "save", Saves.UserId, "slot_03"));
+        foreach (var file in Directory.EnumerateFiles(P(fb, "user", "save", Saves.UserId, "slot_00")))
+            File.Copy(file, P(fcf, "user", "save", Saves.UserId, "slot_03", Path.GetFileName(file)));
+        Age(P(c5.Windows.LongshotUser, "save"), when);
+        Age(P(fb, "user", "save"), when.AddDays(-1));
+        Age(P(fcf, "user", "save"), when.AddDays(-1));
+        var xCopy = Slot(P(fb, "user", "save", Saves.UserId), "slot_00");
+        var five = Saves.Gather(c5.Windows, Saves.OldUserFolders(c5.Windows, new[] { fb, fcf }, null), () => c5.Busy, () => when)!;
+        Require(Did(five) == "slot_00<shared slot_03<c" && Slot(shared5, "slot_03") == xCopy && Saves.SlotNames(shared5).Count == 2
+                && !SaveText.Gathered(five).Contains("only in that backup", StringComparison.Ordinal),
+                "A copy the same as one kept in another slot is kept there, and not said to be in the backup only (did: " + Did(five) + ").");
+
+        // (a merge that fails while it copies the slots: the shared save as it was, the old one still there)
+        var h = P(c.Home, "Games", "Longshot", "v3.0.0-rc.4");
+        MakeSave(P(h, "user", "save", Saves.UserId), "H", "slot_01");
+        Age(sharedSave, when);
+        Age(P(h, "user", "save"), when.AddDays(1));
+        var (keptShared, backedUp) = (Tree(sharedSave), Directory.EnumerateFiles(sharedSave, "*", SearchOption.AllDirectories).Count()
+                                                        + Directory.EnumerateFiles(P(h, "user", "save"), "*", SearchOption.AllDirectories).Count());
+        var copied = 0;
+        Saves.Fault = s => { if (s == "file" && ++copied > backedUp) throw new IOException("disk full"); };
+        try { Fails(() => Saves.Gather(c.Windows, Saves.OldUserFolders(c.Windows, new[] { h }, null), () => c.Busy, () => when.AddHours(2)), "Nothing was changed", "A merge that fails while it copies."); }
+        finally { Saves.Fault = null; }
+        Require(copied > backedUp && Tree(sharedSave) == keptShared && Directory.Exists(P(h, "user", "save"))
+                && !Directory.Exists(P(c.Windows.LongshotUser, ".save.longshot-staging")), "After a merge that failed while copying: everything as it was.");
     }
 }
