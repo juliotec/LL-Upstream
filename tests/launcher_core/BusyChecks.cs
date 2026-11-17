@@ -158,9 +158,9 @@ static partial class Program
                 && home.Contains("public BusyCommand UpdateLauncherCommand"), "The launcher's update is a BusyCommand.");
         Require(Regex.IsMatch(home, @"CheckCommand = new BusyCommand\(CheckAsync\)") && home.Contains("public BusyCommand RetryCheckCommand => CheckCommand;"),
                 "The update check is a BusyCommand, and Try again is that check.");
-        Require(home.Contains("public bool CanStartBuild => !CheckCommand.IsBusy && !UpdateLauncherCommand.IsBusy && !deletingLeftovers;")
+        Require(home.Contains("public bool CanStartBuild => !CheckCommand.IsBusy && !UpdateLauncherCommand.IsBusy && !deletingLeftovers && !renaming;")
                 && Regex.IsMatch(home, @"BuildCommand = new Command\(.*, \(\) => NewestDefault != null && CanStartBuild\);"),
-                "Build is off while the check runs and while the launcher updates itself.");
+                "Build is off while the check runs, while the launcher updates itself, and while folders are deleted or renamed.");
         Require(Regex.IsMatch(home, @"CheckCommand\.PropertyChanged \+=.*BusyChanged") && Regex.IsMatch(home, @"UpdateLauncherCommand\.PropertyChanged \+=.*BusyChanged")
                 && Regex.IsMatch(home, @"void BusyChanged\(\)\s*\{\s*BuildCommand\.Changed\(\);"),
                 "Build is asked again whenever the check or the launcher update starts or ends.");

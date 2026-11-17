@@ -325,13 +325,9 @@ public sealed class LauncherService
     /// Longshot's, never another game's such as Hookshot's), and the 2.x Builder's (not for a portable launcher)
     IReadOnlyList<string> BuildFolders()
     {
+        // (right in the builds folder, and in its tracks' folders: builds/nightly/<version>, InstanceFolders.Folders)
         IEnumerable<string> inBuilds;
-        try
-        {
-            inBuilds = Directory.Exists(BuildsFolder)
-                ? Directory.EnumerateDirectories(BuildsFolder).Where(d => GameFolder.IsGameFolder(d, Platform)).ToList()
-                : Enumerable.Empty<string>();
-        }
+        try { inBuilds = InstanceFolders.Folders(BuildsFolder, Platform).Where(d => GameFolder.IsGameFolder(d, Platform)).ToList(); }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { inBuilds = Enumerable.Empty<string>(); }
         var all = Registry.Builds.Select(b => b.Folder).Concat(inBuilds);
         return (Home.Portable ? all : all.Append(LauncherSettings.DefaultBuildsFolder(SaveEnv.Getenv))).ToList();

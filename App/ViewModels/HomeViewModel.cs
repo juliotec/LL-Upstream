@@ -199,6 +199,8 @@ public sealed class HomeViewModel : ViewModelBase
         });
         KeepLeftoversCommand = new Command(KeepLeftovers, () => !deletingLeftovers);
         DeleteLeftoversCommand = new Command(() => _ = DeleteLeftoversAsync(), () => !deletingLeftovers);
+        KeepNamesCommand = new Command(KeepNames, () => !renaming);
+        RenameFoldersCommand = new Command(() => _ = RenameFoldersAsync(), () => !renaming);
     }
 
     public MainViewModel Main { get; }
@@ -475,7 +477,7 @@ public sealed class HomeViewModel : ViewModelBase
     /// A build may start: not while the check may still change what is newest, nor while the launcher replaces itself (it closes
     /// at the end, and a build would stop with it)
     /// (not while old versions' folders are deleted either: a new build may be given an unlisted game folder, BuildRegistry.NewFolder)
-    public bool CanStartBuild => !CheckCommand.IsBusy && !UpdateLauncherCommand.IsBusy && !deletingLeftovers;
+    public bool CanStartBuild => !CheckCommand.IsBusy && !UpdateLauncherCommand.IsBusy && !deletingLeftovers && !renaming;
 
     void BusyChanged()
     {
@@ -635,6 +637,89 @@ public sealed class HomeViewModel : ViewModelBase
         Refresh();
     }
 
+    // ---- instances' folders from before builds/<track>/<version>: Keep or Move (InstanceFolders) ----
+
+    IReadOnlyList<InstanceFolders.Move> renames = Array.Empty<InstanceFolders.Move>();
+    bool renaming;
+
+    public bool HasRenameOffer => renames.Count > 0;
+    public Command KeepNamesCommand { get; }
+    public Command RenameFoldersCommand { get; }
+
+    /// The banner's one line: how many, where Move puts them, and that saves and settings go with them (the rest: RenameOffer,
+    /// under Details)
+    public string RenameSummary => renames.Count == 0 ? "" :
+        Tr.P(renames.Count, "Your instance uses the old folder layout. Move puts it in {1}; saves and settings go with it.",
+             "{0} instances use the old folder layout. Move puts them in {1}; saves and settings go with them.",
+             Path.Combine("<track>", "<version>"));
+
+    /// Which folders, where they would go, and what a move keeps
+    public string RenameOffer => renames.Count == 0 ? "" : Tr.Sentences(
+        Tr.P(renames.Count,
+             "Your instance in {1} is in the old folder layout. New instances go in their track's folder, named after their version, and are renamed when they update.",
+             "{0} of your instances are in the old folder layout: {1}. New instances go in their track's folder, named after their version, and are renamed when they update.",
+             string.Join(Tr.T(", "), renames.Select(m => m.FromName))),
+        Tr.F("Move puts them there ({0}). Saves, settings, shader caches and mods go with them, and the launcher's shortcuts keep working. A shortcut or Steam entry you made to the game's own program needs making again.",
+             string.Join(Tr.T(", "), renames.Select(m => m.ToName))));
+
+    /// Looks for them once, as the home opens
+    void OfferRenames()
+    {
+        IReadOnlyList<InstanceFolders.Move> found;
+        try { found = InstanceFolders.Plan(Service.Registry, Service.BuildsFolder, Service.Platform, Service.Settings.KeptFolderNames); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { found = Array.Empty<InstanceFolders.Move>(); }
+        ShowRenames(found);
+    }
+
+    /// The offer for these folders (also the screenshots' stand-in for the disk)
+    public void ShowRenames(IReadOnlyList<InstanceFolders.Move> found)
+    {
+        renames = found;
+        RaiseAll(nameof(HasRenameOffer), nameof(RenameSummary), nameof(RenameOffer));
+    }
+
+    /// Keep: they stay where they are, and are not offered again
+    void KeepNames()
+    {
+        foreach (var m in renames)
+            if (!Service.Settings.KeptFolderNames.Any(k => BuildRegistry.SameFolder(k, m.From))) Service.Settings.KeptFolderNames.Add(m.From);
+        try { Service.SaveSettings(); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+        ShowRenames(Array.Empty<InstanceFolders.Move>());
+    }
+
+    /// Move: each folder renamed into its place (instant, nothing copied), never while Longshot runs; one that cannot be moved stays as it was
+    async Task RenameFoldersAsync()
+    {
+        if (renames.Count == 0 || renaming) return;
+        if (Saves.Running(Service.Platform).Contains(Saves.Longshot.Display))
+        {
+            Notice = Tr.T("Close Longshot first: its folders are not moved while a game runs.");
+            return;
+        }
+        var doing = renames;
+        renaming = true;
+        KeepNamesCommand.Changed();
+        RenameFoldersCommand.Changed();
+        BusyChanged();
+        var failed = new List<string>();
+        foreach (var m in doing)
+        {
+            try { await Task.Run(() => InstanceFolders.Rename(Service.Registry, m, Service.Platform, Service.SaveEnv)); }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                failed.Add(Tr.F("{0} could not be moved: {1}", m.From, e.Message));
+            }
+        }
+        renaming = false;
+        KeepNamesCommand.Changed();
+        RenameFoldersCommand.Changed();
+        BusyChanged();
+        ShowRenames(Array.Empty<InstanceFolders.Move>());
+        if (failed.Count > 0) Notice = string.Join("\n", failed);
+        else Main.ShowToast(Tr.P(doing.Count, "Moved the folder.", "Moved the {0} folders."));
+        Refresh();
+    }
+
     // ---- the offer to import Hookshot's saves (once: until it is answered) ----
 
     string? hookshotOffer;
@@ -718,6 +803,7 @@ public sealed class HomeViewModel : ViewModelBase
         OfferHookshot();
         OfferNx2navi();
         OfferLeftovers();
+        OfferRenames();
         Refresh();
     }
 

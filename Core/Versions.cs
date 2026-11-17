@@ -34,6 +34,9 @@ public static class Versions
     /// A release tag, vX.Y.Z or vX.Y.Z-rc.N from v3.0.0 on (not a nightly's name)
     public static bool IsRelease(string? tag, int firstMajor = FirstMajor) => ReleaseKey(tag, firstMajor) != null;
 
+    /// A version's own name: a nightly's (nightly-2029-c544828f, -dirty kept) or a release's (vX.Y.Z, vX.Y.Z-rc.N), any major
+    public static bool IsVersion(string? name) => name != null && (NightlyName.IsMatch(name) || ReleaseName.IsMatch(name));
+
     /// A name a version folder may have (the setup lists' rule): [0-9A-Za-z._+-]{1,128}, not "." or ".."
     public static bool IsTagName(string? tag) => tag != null && TagName.IsMatch(tag) && tag != "." && tag != "..";
 

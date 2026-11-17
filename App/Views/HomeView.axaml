@@ -22,6 +22,32 @@
     <Style Selector="Border.vrow.selected:pointerover">
       <Setter Property="Background" Value="{StaticResource Selected}"/>
     </Style>
+    <!-- a banner's Details: a link that shows the whole text, Less again -->
+    <Style Selector="ToggleButton.details">
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="BorderThickness" Value="0"/>
+      <Setter Property="Padding" Value="0"/>
+      <Setter Property="MinHeight" Value="0"/>
+      <Setter Property="Height" Value="NaN"/>
+      <Setter Property="FontSize" Value="12"/>
+      <Setter Property="Foreground" Value="{StaticResource BrandInk}"/>
+      <Setter Property="VerticalAlignment" Value="Top"/>
+    </Style>
+    <Style Selector="ToggleButton.details /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="Foreground" Value="{StaticResource BrandInk}"/>
+    </Style>
+    <Style Selector="ToggleButton.details:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="Foreground" Value="White"/>
+    </Style>
+    <Style Selector="ToggleButton.details:checked /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="Foreground" Value="{StaticResource BrandInk}"/>
+    </Style>
+    <Style Selector="ToggleButton.details:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="Transparent"/>
+    </Style>
   </UserControl.Styles>
   <DockPanel>
     <!-- the launcher's channel offers another launcher: a newer one, or after a channel switch maybe an older one (SelfUpdate) -->
@@ -33,7 +59,18 @@
         </Border>
         <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
           <TextBlock Text="{Binding LauncherUpdateHeading}" FontWeight="SemiBold"/>
-          <TextBlock Classes="note" Text="{Binding LauncherUpdateText}" TextWrapping="Wrap"/>
+          <!-- one line; Details shows the whole text (a tooltip alone would not reach a touch screen: the Steam Deck) -->
+          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+            <TextBlock Classes="note" Text="{Binding LauncherUpdateText}" MaxLines="1" TextTrimming="CharacterEllipsis"
+                       IsVisible="{Binding !#LauncherMore.IsChecked}" ToolTip.Tip="{Binding LauncherUpdateText}"/>
+            <TextBlock Classes="note" Text="{Binding LauncherUpdateText}" TextWrapping="Wrap" IsVisible="{Binding #LauncherMore.IsChecked}"/>
+            <ToggleButton Grid.Column="1" x:Name="LauncherMore" Classes="details">
+              <Panel>
+                <TextBlock Text="{c:T 'Details'}" IsVisible="{Binding !#LauncherMore.IsChecked}"/>
+                <TextBlock Text="{c:T 'Less'}" IsVisible="{Binding #LauncherMore.IsChecked}"/>
+              </Panel>
+            </ToggleButton>
+          </Grid>
           <!-- while it updates: each step, the download's percentage and bar, and Cancel while it downloads -->
           <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,4,0,0" IsVisible="{Binding UpdateLauncherCommand.IsBusy}">
             <TextBlock Classes="note tnum" Foreground="{StaticResource InfoInk}" Text="{Binding UpdateLauncherCommand.Status}" VerticalAlignment="Center"/>
@@ -61,7 +98,18 @@
         </Border>
         <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
           <TextBlock Text="{c:T 'Your Hookshot saves'}" FontWeight="SemiBold"/>
-          <TextBlock Classes="note" Text="{Binding HookshotOffer}" TextWrapping="Wrap"/>
+          <!-- one line; Details shows the whole text (a tooltip alone would not reach a touch screen: the Steam Deck) -->
+          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+            <TextBlock Classes="note" Text="{Binding HookshotOffer}" MaxLines="1" TextTrimming="CharacterEllipsis"
+                       IsVisible="{Binding !#HookshotMore.IsChecked}" ToolTip.Tip="{Binding HookshotOffer}"/>
+            <TextBlock Classes="note" Text="{Binding HookshotOffer}" TextWrapping="Wrap" IsVisible="{Binding #HookshotMore.IsChecked}"/>
+            <ToggleButton Grid.Column="1" x:Name="HookshotMore" Classes="details">
+              <Panel>
+                <TextBlock Text="{c:T 'Details'}" IsVisible="{Binding !#HookshotMore.IsChecked}"/>
+                <TextBlock Text="{c:T 'Less'}" IsVisible="{Binding #HookshotMore.IsChecked}"/>
+              </Panel>
+            </ToggleButton>
+          </Grid>
         </StackPanel>
         <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
           <Button Classes="small" Content="{c:T 'Not now'}" Command="{Binding NotNowHookshotCommand}"/>
@@ -78,7 +126,18 @@
         </Border>
         <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
           <TextBlock Text="{c:T 'Your NX2navi saves'}" FontWeight="SemiBold"/>
-          <TextBlock Classes="note" Text="{Binding Nx2naviOffer}" TextWrapping="Wrap"/>
+          <!-- one line; Details shows the whole text (a tooltip alone would not reach a touch screen: the Steam Deck) -->
+          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+            <TextBlock Classes="note" Text="{Binding Nx2naviOffer}" MaxLines="1" TextTrimming="CharacterEllipsis"
+                       IsVisible="{Binding !#Nx2naviMore.IsChecked}" ToolTip.Tip="{Binding Nx2naviOffer}"/>
+            <TextBlock Classes="note" Text="{Binding Nx2naviOffer}" TextWrapping="Wrap" IsVisible="{Binding #Nx2naviMore.IsChecked}"/>
+            <ToggleButton Grid.Column="1" x:Name="Nx2naviMore" Classes="details">
+              <Panel>
+                <TextBlock Text="{c:T 'Details'}" IsVisible="{Binding !#Nx2naviMore.IsChecked}"/>
+                <TextBlock Text="{c:T 'Less'}" IsVisible="{Binding #Nx2naviMore.IsChecked}"/>
+              </Panel>
+            </ToggleButton>
+          </Grid>
         </StackPanel>
         <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
           <Button Classes="small" Content="{c:T 'Not now'}" Command="{Binding NotNowNx2naviCommand}"/>
@@ -95,7 +154,18 @@
         </Border>
         <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
           <TextBlock Text="{c:T 'Old versions left on the disk'}" FontWeight="SemiBold"/>
-          <TextBlock Classes="note" Text="{Binding LeftoverOffer}" TextWrapping="Wrap"/>
+          <!-- one line; Details shows the whole text (a tooltip alone would not reach a touch screen: the Steam Deck) -->
+          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+            <TextBlock Classes="note" Text="{Binding LeftoverOffer}" MaxLines="1" TextTrimming="CharacterEllipsis"
+                       IsVisible="{Binding !#LeftoverMore.IsChecked}" ToolTip.Tip="{Binding LeftoverOffer}"/>
+            <TextBlock Classes="note" Text="{Binding LeftoverOffer}" TextWrapping="Wrap" IsVisible="{Binding #LeftoverMore.IsChecked}"/>
+            <ToggleButton Grid.Column="1" x:Name="LeftoverMore" Classes="details">
+              <Panel>
+                <TextBlock Text="{c:T 'Details'}" IsVisible="{Binding !#LeftoverMore.IsChecked}"/>
+                <TextBlock Text="{c:T 'Less'}" IsVisible="{Binding #LeftoverMore.IsChecked}"/>
+              </Panel>
+            </ToggleButton>
+          </Grid>
         </StackPanel>
         <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
           <Button Classes="small" Content="{c:T 'Keep'}" Command="{Binding KeepLeftoversCommand}"/>
@@ -103,11 +173,52 @@
         </StackPanel>
       </Grid>
     </Border>
+    <!-- instances' folders from before builds/<track>/<version>: Keep or Move (InstanceFolders) -->
+    <Border DockPanel.Dock="Top" IsVisible="{Binding HasRenameOffer}" Margin="0,0,0,6" Padding="16,12,14,12" CornerRadius="10"
+            BorderBrush="#4D5FB08A" BorderThickness="1">
+      <Grid ColumnDefinitions="30,*,Auto" ColumnSpacing="14">
+        <Border Width="30" Height="30" CornerRadius="15" Background="{StaticResource GoSoft}" VerticalAlignment="Center">
+          <c:Icon Kind="folder" Width="16" Height="16" Foreground="{StaticResource Go}"/>
+        </Border>
+        <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+          <TextBlock Text="{c:T 'Instances in the old folder layout'}" FontWeight="SemiBold"/>
+          <!-- one line; Details shows the whole text (a tooltip alone would not reach a touch screen: the Steam Deck) -->
+          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+            <TextBlock Classes="note" Text="{Binding RenameSummary}" MaxLines="1" TextTrimming="CharacterEllipsis"
+                       IsVisible="{Binding !#RenameMore.IsChecked}" ToolTip.Tip="{Binding RenameOffer}"/>
+            <TextBlock Classes="note" Text="{Binding RenameOffer}" TextWrapping="Wrap" IsVisible="{Binding #RenameMore.IsChecked}"/>
+            <ToggleButton Grid.Column="1" x:Name="RenameMore" Classes="details">
+              <Panel>
+                <TextBlock Text="{c:T 'Details'}" IsVisible="{Binding !#RenameMore.IsChecked}"/>
+                <TextBlock Text="{c:T 'Less'}" IsVisible="{Binding #RenameMore.IsChecked}"/>
+              </Panel>
+            </ToggleButton>
+          </Grid>
+        </StackPanel>
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <Button Classes="small" Content="{c:T 'Keep'}" Command="{Binding KeepNamesCommand}"/>
+          <Button Classes="small" Content="{c:T 'Move'}" Command="{Binding RenameFoldersCommand}"/>
+        </StackPanel>
+      </Grid>
+    </Border>
     <!-- a problem to read -->
     <Border DockPanel.Dock="Top" Classes="warnbox" IsVisible="{Binding HasNotice}" Margin="0,0,0,6">
       <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
         <c:Icon Kind="alert" Foreground="{StaticResource Warn}" VerticalAlignment="Top"/>
-        <TextBlock Grid.Column="1" Text="{Binding Notice}" TextWrapping="Wrap"/>
+        <StackPanel Grid.Column="1">
+            <!-- one line; Details shows the whole text (a tooltip alone would not reach a touch screen: the Steam Deck) -->
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+              <TextBlock Classes="" Text="{Binding Notice}" MaxLines="1" TextTrimming="CharacterEllipsis"
+                         IsVisible="{Binding !#NoticeMore.IsChecked}" ToolTip.Tip="{Binding Notice}"/>
+              <TextBlock Classes="" Text="{Binding Notice}" TextWrapping="Wrap" IsVisible="{Binding #NoticeMore.IsChecked}"/>
+              <ToggleButton Grid.Column="1" x:Name="NoticeMore" Classes="details">
+                <Panel>
+                  <TextBlock Text="{c:T 'Details'}" IsVisible="{Binding !#NoticeMore.IsChecked}"/>
+                  <TextBlock Text="{c:T 'Less'}" IsVisible="{Binding #NoticeMore.IsChecked}"/>
+                </Panel>
+              </ToggleButton>
+            </Grid>
+        </StackPanel>
         <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="12" VerticalAlignment="Top">
           <Button Classes="link soft" Content="{c:T 'Copy for a bug report'}" Command="{Binding CopyNoticeReportCommand}"/>
           <Button Classes="link soft" Content="{c:T 'Dismiss'}" Command="{Binding DismissProblemCommand}"/>
@@ -115,8 +226,9 @@
       </Grid>
     </Border>
 
+    <!-- (the scroll bar is drawn over the content's right edge, Fluent's ScrollViewer: the content keeps a gutter for it) -->
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-    <Panel>
+    <Panel Margin="0,0,16,0">
       <!-- no build yet: Build -->
       <StackPanel IsVisible="{Binding NoBuilds}" HorizontalAlignment="Center" VerticalAlignment="Center">
         <Panel Width="190" Height="190" HorizontalAlignment="Center">
@@ -171,11 +283,14 @@
       </StackPanel>
 
       <!-- the default version, and every version -->
-      <Grid IsVisible="{Binding HasBuilds}" ColumnDefinitions="300,*" ColumnSpacing="44">
-        <StackPanel VerticalAlignment="Center" Margin="0,0,0,12">
-          <TextBlock Classes="title" Text="Longshot"/>
+      <!-- (centred as a whole when it fits, from the top when it does not; the title on a row of its own, so the two columns start
+           level: TRACK beside YOUR INSTANCES) -->
+      <Grid IsVisible="{Binding HasBuilds}" ColumnDefinitions="300,*" RowDefinitions="Auto,Auto" ColumnSpacing="44"
+            VerticalAlignment="Center">
+        <TextBlock Classes="title" Text="Longshot"/>
+        <StackPanel Grid.Row="1" VerticalAlignment="Top">
           <!-- the track, then one of its versions (VersionPick): a check beside the installed one, the button below for the pick -->
-          <TextBlock Classes="label" Text="{c:T 'TRACK'}" Margin="0,18,0,6"/>
+          <TextBlock Classes="label" Text="{c:T 'TRACK'}" Margin="0,12,0,6"/>
           <ComboBox Width="NaN" Height="44" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
                     ItemsSource="{Binding Tracks}" SelectedItem="{Binding PickTrack}">
             <ComboBox.ItemTemplate>
@@ -191,7 +306,7 @@
               </DataTemplate>
             </ComboBox.ItemTemplate>
           </ComboBox>
-          <TextBlock Classes="label" Text="{c:T 'VERSION'}" Margin="0,14,0,6"/>
+          <TextBlock Classes="label" Text="{c:T 'VERSION'}" Margin="0,10,0,6"/>
           <ComboBox Width="NaN" Height="44" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
                     ItemsSource="{Binding TrackVersions}" SelectedItem="{Binding PickVersion}" IsEnabled="{Binding HasTrackVersions}">
             <ComboBox.ItemTemplate>
@@ -206,7 +321,7 @@
             </ComboBox.ItemTemplate>
           </ComboBox>
           <!-- the pick's button: Play when it is installed, else Update to, Go back to or Build; its update beside Play -->
-          <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,20,0,0">
+          <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,14,0,0">
             <Button Classes="go" Command="{Binding GoCommand}" IsVisible="{Binding GoIsPlay}">
               <StackPanel Orientation="Horizontal" Spacing="8">
                 <c:Icon Kind="play" Width="18" Height="18"/>
@@ -237,7 +352,7 @@
             </Button>
           </StackPanel>
           <!-- the saves: a button the size of a card, so copying, importing and exporting saves is easy to find -->
-          <Button Classes="savescard" Command="{Binding SavesDefaultCommand}" Margin="0,16,0,0" ToolTip.Tip="{c:T 'Your saves, which every version shares: import them, export them'}">
+          <Button Classes="savescard" Command="{Binding SavesDefaultCommand}" Margin="0,12,0,0" ToolTip.Tip="{c:T 'Your saves, which every version shares: import them, export them'}">
             <Grid ColumnDefinitions="32,*,Auto" ColumnSpacing="12">
               <Border Width="32" Height="32" CornerRadius="16" Background="{StaticResource GoSoft}" VerticalAlignment="Center">
                 <c:Icon Kind="disk" Width="16" Height="16" Foreground="{StaticResource Go}"/>
@@ -251,8 +366,8 @@
           </Button>
         </StackPanel>
 
-        <StackPanel Grid.Column="1" VerticalAlignment="Center">
-          <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,16">
+        <StackPanel Grid.Row="1" Grid.Column="1" VerticalAlignment="Top" Margin="0,8,0,0">
+          <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,12">
             <TextBlock Classes="label" Text="{c:T 'YOUR INSTANCES'}" Margin="0" VerticalAlignment="Center"/>
             <Button Grid.Column="1" Classes="link" Command="{Binding ChannelCommand}">
               <StackPanel Orientation="Horizontal" Spacing="6">

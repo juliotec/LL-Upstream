@@ -74,12 +74,12 @@
         </StackPanel>
         <Grid ColumnDefinitions="*,*" ColumnSpacing="20" Margin="0,0,0,22">
           <StackPanel>
-            <TextBlock Classes="label" Text="{c:T 'WHERE BUILDS GO'}"/>
+            <TextBlock Classes="label" Text="{c:T 'BUILDS FOLDER'}"/>
             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
               <TextBox Classes="path" Text="{Binding BuildsFolder}"/>
               <Button Grid.Column="1" Content="{c:T 'Change'}" Command="{Binding ChangeBuildsCommand}"/>
             </Grid>
-            <TextBlock Classes="hint" Text="{c:T 'Each build gets its own folder in here, named after its channel. An update stays in it.'}"/>
+            <TextBlock Classes="hint" Text="{Binding BuildsHint}" TextWrapping="Wrap"/>
           </StackPanel>
           <StackPanel Grid.Column="1">
             <TextBlock Classes="label" Text="{c:T 'BUILD FILES'}"/>

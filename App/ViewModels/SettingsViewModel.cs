@@ -212,7 +212,12 @@ public sealed class SettingsViewModel : ViewModelBase
         : workBytes is long b && b > 0 ? Tr.F("{0} kept to make updates quicker.", Durations.Size(b)) : Tr.T("Nothing kept yet.");
 
     /// What is kept and why, under the folder: the build files here, the shader caches in each version's folder
+    /// The builds folder: what lives in it, with a path as it would be (nightly\nightly-171-…), in this system's separator
+    public string BuildsHint => Tr.F("Your instances live here, one folder per track and version ({0}). An update or a go-back renames its folder to its new version.",
+                                     Path.Combine(Versions.Nightly, "nightly-171-…"));
+
     public string WorkHint => Tr.Sentences(
+        Tr.T("Working files Longshot makes while building, reused by every build. Not the game: they can be on another drive."),
         Tr.T("Builds keep their compiled code and translations here, so an update, a rebuild or going back to a version you built before is quicker."),
         cacheBytes is long c && c > 0 ? Tr.F("Your versions' shader caches take another {0} in their own folders.", Durations.Size(c)) : "",
         Tr.T("Free up space lists what it deletes first."));

@@ -31,7 +31,7 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
         LanguageChoices = Languages.All.Select(l => new LanguageChoice(l.Code, Tr.T(l.Name))).ToList();
         BackCommand = new Command(() => job.Main.Navigate(job.Files ?? new FilesStepViewModel(job)));
         StartCommand = new Command(Start, () => !Short);
-        ChangeInstallCommand = new Command(() => _ = ChangeInstallAsync());
+        ChangeBuildsCommand = new Command(() => _ = ChangeBuildsAsync());
         ChangeWorkCommand = new Command(() => _ = ChangeWorkAsync());
         AdvancedCommand = new Command(() => AdvancedOpen = !AdvancedOpen);
         ChooseFsrLibraryCommand = new Command(() => _ = ChooseFsrLibraryAsync());
@@ -268,13 +268,35 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
     public string InstallDir => ShownPath.Of(Job.InstallDir);
     public string InstallDirFull => Job.InstallDir;
 
-    async Task ChangeInstallAsync()
+    /// The builds folder: Settings' own (LauncherSettings.BuildsFolder), so step 2 and Settings never disagree. Every new instance
+    /// goes in it, in its track's folder and named after its version (BuildRegistry.FolderOf)
+    public string BuildsFolder => ShownPath.Of(Job.Service.BuildsFolder);
+    public string BuildsFolderFull => Job.Service.BuildsFolder;
+
+    /// Where this build goes: builds/&lt;track&gt;/&lt;version&gt;; an update or a go-back whose folder takes its new version's name when the
+    /// build starts (BuildJob.RenameFrom): the old path and what follows it
+    public string Destination => Job.RenameFrom is { } from
+        ? Tr.Sentences(Tr.F("{0} becomes {1} when the build starts, so its folder names its version.", InBuilds(from), InBuilds(Job.InstallDir)),
+                       Tr.T("Saves, settings, shader caches and mods go with it. A shortcut or Steam entry you made to its old path needs making again."))
+        : Tr.F("Builds into {0}", InBuilds(Job.InstallDir));
+
+    /// A folder as the line under the builds folder shows it: from the builds folder on (nightly/nightly-171-…), else whole
+    string InBuilds(string folder) =>
+        BuildRegistry.Holds(Job.Service.BuildsFolder, folder) && !BuildRegistry.SameFolder(Job.Service.BuildsFolder, folder)
+            ? Path.GetRelativePath(Job.Service.BuildsFolder, folder)
+            : ShownPath.Of(folder);
+
+    /// Change: another builds folder, the same setting as Settings' (said under it), and this build's folder worked out again
+    async Task ChangeBuildsAsync()
     {
         if (Main.Host is not { } host) return;
-        var picked = await host.PickFolderAsync(Tr.F("Where to install {0}", Job.Shown), Path.GetDirectoryName(Job.InstallDir));
+        var picked = await host.PickFolderAsync(Tr.T("Where builds go"), Job.Service.BuildsFolder);
         if (picked == null) return;
-        Job.InstallDir = Job.Service.Registry.PickedFolder(Path.GetFullPath(picked), Job.Channel, Main.Platform, Job.Replaces);
-        RaiseAll(nameof(InstallDir), nameof(InstallDirFull));
+        Job.Service.Settings.BuildsFolder = Path.GetFullPath(picked);
+        try { Job.Service.SaveSettings(); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { Main.ShowToast(Tr.F("The settings could not be saved: {0}", e.Message)); }
+        Job.Place();
+        RaiseAll(nameof(BuildsFolder), nameof(BuildsFolderFull), nameof(InstallDir), nameof(InstallDirFull), nameof(Destination));
         Measure();
     }
 
@@ -398,7 +420,7 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
     // ---- the footer ----
 
     public bool ShowEstimate => !Short;
-    public string SpaceWarning => Tr.F("{0} is too full for the build. Change the game folder.", Drive);
+    public string SpaceWarning => Tr.F("{0} is too full for the build. Change the builds folder.", Drive);
     // (this PC's estimate from its CPU threads: BuildForecast, measured on nightly-56; the build step then corrects it as it goes)
     public string Estimate => Tr.F("{0} on this PC, shaders included",
                                    Durations.About(BuildForecast.Total(download: true, true, BuildThreads(s))));
@@ -412,7 +434,7 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
 
     public Command BackCommand { get; }
     public Command StartCommand { get; }
-    public Command ChangeInstallCommand { get; }
+    public Command ChangeBuildsCommand { get; }
     public Command ChangeWorkCommand { get; }
     public Command AdvancedCommand { get; }
 

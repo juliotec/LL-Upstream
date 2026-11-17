@@ -21,7 +21,8 @@ static class Program
     /// A scene: its name (the PNG's), what it shows, and how it sets the launcher up (the platform it draws, then the page, then
     /// what is opened over the page: a dialog)
     sealed record Scene(string Name, string Shows, Platform Platform, Action<LauncherService>? Setup, Func<MainViewModel, object?> Page,
-                        Action<MainViewModel>? Then = null, bool ScrollToEnd = false, int OpenDropdown = -1);
+                        Action<MainViewModel>? Then = null, bool ScrollToEnd = false, int OpenDropdown = -1, double ScrollDown = 0,
+                        bool PressDetails = false);
 
     // (a build's first lines, as make_game.py says them, with when: the build page's rows, bar, time and details)
     static readonly (string Line, double At)[] Transcript =
@@ -44,6 +45,9 @@ static class Program
         new("home", "The home with no build yet", Platform.Linux, null, _ => null),
         new("launcher-settings", "The launcher's Settings: an update's build tools downloaded early, when chosen", Platform.Windows,
             s => { s.Settings.CheckUpdates = true; s.Settings.DownloadUpdatesEarly = true; }, m => new SettingsViewModel(m), ScrollToEnd: true),
+        // (the two folders, each with what it holds: the builds folder's instances, and the build files every build reuses)
+        new("launcher-settings-folders", "The launcher's Settings: the builds folder and the build files, each with what it holds", Platform.Windows,
+            null, m => new SettingsViewModel(m), ScrollDown: 300),
         new("settings-linux", "Step 2, the build settings, on Linux with an AMD GPU", Platform.Linux,
             s => { s.GpuCards = [new Gpu(SystemInfo.Amd)]; s.Settings.Fsr = true; s.Settings.FsrLinuxNotice = true; },
             m => Settings(m)),
@@ -91,6 +95,35 @@ static class Program
             s => s.Registry.Add(@"C:\Users\Player\Games\Longshot\nightly-189-aa95d35f", "nightly-189-aa95d35f", Versions.Nightly, makeDefault: true),
             _ => null,
             m => m.Home.ShowLeftovers([new Leftover(@"C:\Users\Player\Games\Longshot\nightly-130-0caf0618", "nightly-130-0caf0618")], 38_900_000_000)),
+        // (instances from before builds/<track>/<version>: one an old launcher named after its first version, one named after its
+        // track. Keep or Move. Linux paths, as below)
+        new("home-rename-folders", "The home offering to move the instances in the old folder layout into builds/<track>/<version>", Platform.Linux,
+            s =>
+            {
+                s.Registry.Add("/home/player/Games/Longshot/v3.0.0-rc.5", "v3.0.0", Versions.Stable, makeDefault: true);
+                s.Registry.Add("/home/player/Games/Longshot/nightly", "nightly-189-aa95d35f", Versions.Nightly);
+            },
+            _ => null,
+            m => m.Home.ShowRenames(m.Service.Registry.Builds
+                .Select(b => new InstanceFolders.Move(b, b.Folder, $"/home/player/Games/Longshot/{b.Channel}/{b.Version}")).ToList())),
+        // (each of the home's top banners at 960x600, over a home with builds: the launcher's update, the saves found in Hookshot
+        // and NX2navi; home-notice, home-leftovers and home-rename-folders above; home-update with none)
+        new("home-banner-launcher", "The home with the launcher's update banner over it", Platform.Linux, LauncherOffered, _ => null),
+        new("home-banner-hookshot", "The home offering to import Hookshot's saves", Platform.Windows, UpdateOffered, _ => null,
+            m => m.Home.HookshotOffer = "Found 3 slots, the last saved today at 14:02, in Hookshot. Copy them into Longshot? Hookshot keeps its own."),
+        new("home-banner-nx2navi", "The home offering to import NX2navi's saves", Platform.Windows, UpdateOffered, _ => null,
+            m => m.Home.Nx2naviOffer = @"Found 2 slots, the last saved yesterday at 21:40, in C:\Users\Player\AppData\Local\Programs\NX2navi\game. " +
+                                       "Copy them into Longshot? The originals stay where they are."),
+        new("home-banner-details", "The home's old-layout offer with Details pressed: the whole text", Platform.Linux,
+            s =>
+            {
+                s.Registry.Add("/home/player/Games/Longshot/v3.0.0-rc.5", "v3.0.0", Versions.Stable, makeDefault: true);
+                s.Registry.Add("/home/player/Games/Longshot/nightly", "nightly-189-aa95d35f", Versions.Nightly);
+            },
+            _ => null,
+            m => m.Home.ShowRenames(m.Service.Registry.Builds
+                .Select(b => new InstanceFolders.Move(b, b.Folder, $"/home/player/Games/Longshot/{b.Channel}/{b.Version}")).ToList()),
+            PressDetails: true),
         new("tools-failed", "Step 1, the tools' download failed, Copy for a bug report", Platform.Windows, null,
             m => Files(m, "git.magicbean.dev did not answer in time. The server may be down or busy, or the network slow or blocking it: try again in a few minutes.")),
         // (Linux paths: a Windows path is not split into its folder and name on the Linux PCs the screenshots are drawn on)
@@ -154,7 +187,7 @@ static class Program
                     ReleaseNotes.PageOf(Product.Longshot, "v3.1.0-rc.1"), "", [])];
             },
             _ => null, m => m.Home.PickTrack = m.Home.Tracks.First(t => t.Id == Versions.Candidate)),
-        new("settings-go-back", "Step 2 going back to an older nightly, in the build's own folder", Platform.Windows, NightliesListed,
+        new("settings-go-back", "Step 2 going back to an older nightly: its folder takes that version's name when the build starts", Platform.Windows, NightliesListed,
             m => new SettingsStepViewModel(new BuildJob(m, JobKind.Update, Versions.Nightly, "nightly-187-9e6f231d", m.Service.Registry.Builds[0]))
                  { Free = 412L << 30 }),
         // (Free up space, confirmed first: what it deletes, each part's size, the shader caches as an option)
@@ -200,6 +233,8 @@ static class Program
             s => { ThreeSlots(s); MadeBackups(s); }, m => new SavesViewModel(m)),
         new("saves-backups", "Restore from a backup: every save the copies backed up, newest first, what made it", Platform.Windows,
             s => { ThreeSlots(s); MadeBackups(s); }, m => new BackupsViewModel(new SavesViewModel(m))),
+        new("saves-backups-linux", "Restore from a backup on Linux: the launcher's folder and the older oot-save-backups, each row saying which",
+            Platform.Linux, s => { ThreeSlots(s); LinuxBackups(s); }, m => new BackupsViewModel(new SavesViewModel(m))),
         new("saves-restore-export", "Restoring an export's backup: the other program's old save, into Longshot", Platform.Windows,
             s => { ThreeSlots(s); MadeBackups(s); },
             m =>
@@ -315,6 +350,17 @@ static class Program
         FakeSave(Path.Combine(root, "import-lichii-" + Stamp(TimeSpan.FromDays(3))), DateTime.Now.AddDays(-3), "slot_00", "slot_01", "slot_02");
         FakeSave(Path.Combine(root, "delete-" + Stamp(TimeSpan.FromDays(1)), "nightly (2)", Saves.UserId), DateTime.Now.AddDays(-1), "slot_04");
         FakeSave(Path.Combine(root, "export-lichii-" + Stamp(TimeSpan.FromDays(2))), DateTime.Now.AddDays(-5), "slot_00", "slot_01");
+    }
+
+    /// Backups on Linux in both folders (issue #188): the launcher's own (longshot/save-backup) and the older oot-save-backups,
+    /// where Longshot's script and the game's own backups go
+    static void LinuxBackups(LauncherService service)
+    {
+        var env = service.SaveEnv;
+        string Stamp(TimeSpan ago) => (DateTime.Now - ago).ToString("yyyyMMdd-HHmmss", System.Globalization.CultureInfo.InvariantCulture);
+        FakeSave(Path.Combine(env.BackupRoot, "import-lichii-" + Stamp(TimeSpan.FromDays(1))), DateTime.Now.AddDays(-2), "slot_00", "slot_01");
+        FakeSave(Path.Combine(env.Data, "oot-save-backups", "export-eden-" + Stamp(TimeSpan.FromDays(4))), DateTime.Now.AddDays(-6), "slot_00");
+        FakeSave(Path.Combine(env.Data, "oot-save-backups", "gather-" + Stamp(TimeSpan.FromDays(30)), "shared", Saves.UserId), DateTime.Now.AddDays(-31), "slot_00", "slot_02");
     }
 
     /// A file in the scene's player's Documents folder
@@ -478,7 +524,7 @@ static class Program
     /// A nightly build of the newest nightly, and the release list the update check read: the 5 nightlies the server keeps
     static void NightliesListed(LauncherService service)
     {
-        service.Registry.Add(@"C:\Users\Player\Games\Longshot\nightly", "nightly-189-aa95d35f", Versions.Nightly, makeDefault: true);
+        service.Registry.Add(@"C:\Users\Player\Games\Longshot\nightly\nightly-189-aa95d35f", "nightly-189-aa95d35f", Versions.Nightly, makeDefault: true);
         service.SetNewest(Versions.Nightly, "nightly-189-aa95d35f");
         ListedRelease Nightly(string tag, string at) =>
             new(tag, false, true, DateTimeOffset.Parse(at, System.Globalization.CultureInfo.InvariantCulture), ReleaseNotes.PageOf(Product.Longshot, tag), "", []);
@@ -611,10 +657,23 @@ static class Program
                     AvaloniaHeadlessPlatform.ForceRenderTimerTick();
                 }
             }
-            // (a scene about the end of a long page: its scroll at the bottom)
-            if (scene.ScrollToEnd)
+            // (a banner's Details pressed: its whole text shown)
+            if (scene.PressDetails)
             {
-                foreach (var scroll in window.GetVisualDescendants().OfType<Avalonia.Controls.ScrollViewer>()) scroll.ScrollToEnd();
+                foreach (var more in window.GetVisualDescendants().OfType<Avalonia.Controls.Primitives.ToggleButton>().Where(b => b.Classes.Contains("details")))
+                    more.IsChecked = true;
+                for (var i = 0; i < 10; i++)
+                {
+                    Dispatcher.UIThread.RunJobs();
+                    AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+                }
+            }
+            // (a scene about the end of a long page: its scroll at the bottom)
+            if (scene.ScrollToEnd || scene.ScrollDown > 0)
+            {
+                foreach (var scroll in window.GetVisualDescendants().OfType<Avalonia.Controls.ScrollViewer>())
+                    if (scene.ScrollToEnd) scroll.ScrollToEnd();
+                    else scroll.Offset = new Avalonia.Vector(0, scene.ScrollDown);   // (a scene about the middle of a long page)
                 for (var i = 0; i < 10; i++)
                 {
                     Dispatcher.UIThread.RunJobs();

@@ -19,8 +19,23 @@ public sealed class BuildJob
         Replaces = replaces;
         From = kind == JobKind.Update ? replaces?.Version : null;
         Older = kind == JobKind.Update && Versions.Newer(From, version);
-        var s = main.Service;
-        InstallDir = s.Registry.FolderOf(kind == JobKind.Build ? null : replaces, s.BuildsFolder, channel, s.Platform);
+        InstallDir = "";
+        Place();
+    }
+
+    /// Where it is built, from the builds folder (BuildRegistry.FolderOf: builds/&lt;track&gt;/&lt;version&gt;), and the rename an update's or
+    /// a go-back's folder takes to its new version's name when the build starts (InstanceFolders.Rename). Again when the builds
+    /// folder changes in step 2
+    public void Place()
+    {
+        var s = Main.Service;
+        InstallDir = s.Registry.FolderOf(Kind == JobKind.Build ? null : Replaces, s.BuildsFolder, Channel, Version, s.Platform);
+        renameFrom = renameTo = null;
+        if (Kind != JobKind.Build && Replaces != null && !BuildRegistry.SameFolder(Replaces.Folder, InstallDir))
+        {
+            renameFrom = Replaces.Folder;
+            renameTo = InstallDir;
+        }
     }
 
     public MainViewModel Main { get; }
@@ -39,6 +54,10 @@ public sealed class BuildJob
     public string Shown => Versions.Shown(Version);
     public string? ShownFrom => From == null ? null : Versions.Shown(From);
     public string InstallDir { get; set; }
+    string? renameFrom, renameTo;
+    /// The folder an update or a go-back renames to InstallDir when its build starts (BuildRegistry.FolderOf: builds/&lt;track&gt;/&lt;version&gt;,
+    /// renamed to the new version's name); null when it builds in its folder as it is
+    public string? RenameFrom => renameTo != null && BuildRegistry.SameFolder(renameTo, InstallDir) ? renameFrom : null;
     public FoundGameFile? Picked { get; set; }
     public Toolchain? Tools { get; set; }
     /// The tools were downloaded in step 1 (not already on this PC), and how long that took

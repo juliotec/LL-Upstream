@@ -191,10 +191,13 @@
               <StackPanel>
                 <Grid Classes="srow" ColumnDefinitions="*,Auto">
                   <StackPanel VerticalAlignment="Center" Spacing="1">
-                    <TextBlock Classes="rtitle" Text="{c:T 'Game folder'}"/>
-                    <TextBlock Classes="mono path" Foreground="{StaticResource InkSoft}" Text="{Binding InstallDir}" ToolTip.Tip="{Binding InstallDirFull}" Margin="0,2,0,0"/>
+                    <TextBlock Classes="rtitle" Text="{c:T 'Builds folder'}"/>
+                    <TextBlock Classes="mono path" Foreground="{StaticResource InkSoft}" Text="{Binding BuildsFolder}" ToolTip.Tip="{Binding BuildsFolderFull}" Margin="0,2,0,0"/>
+                    <TextBlock Classes="rdesc" Text="{c:T 'Your instances live here, one folder per track and version. The same setting as in Settings.'}" TextWrapping="Wrap"/>
+                    <!-- this build's folder, worked out from it: builds/<track>/<version>; an update's or a go-back's rename (BuildJob.RenameFrom) -->
+                    <TextBlock Classes="note" Text="{Binding Destination}" ToolTip.Tip="{Binding InstallDirFull}" TextWrapping="Wrap" Margin="0,4,0,0"/>
                   </StackPanel>
-                  <Button Grid.Column="1" Classes="small" Content="{c:T 'Change…'}" Command="{Binding ChangeInstallCommand}" VerticalAlignment="Center"/>
+                  <Button Grid.Column="1" Classes="small" Content="{c:T 'Change…'}" Command="{Binding ChangeBuildsCommand}" VerticalAlignment="Center"/>
                 </Grid>
                 <StackPanel Orientation="Horizontal" Spacing="12" Margin="14,0,14,12">
                   <c:Bar Width="120" Value="{Binding MeterFraction}" Fill="{StaticResource Go}" IsVisible="{Binding !Short}" VerticalAlignment="Center"/>
@@ -307,6 +310,7 @@
                     <TextBlock Classes="mono path" Foreground="{StaticResource InkSoft}" Text="{Binding Work}" ToolTip.Tip="{Binding WorkFull}" VerticalAlignment="Center"/>
                     <TextBlock Classes="rdesc" Text="{c:T ', 60 GB while building'}" TextWrapping="NoWrap" VerticalAlignment="Center"/>
                   </WrapPanel>
+                  <TextBlock Classes="rdesc" Text="{c:T 'Working files Longshot makes while building, reused by every build. Not the game: they can be on another drive.'}" TextWrapping="Wrap"/>
                 </StackPanel>
                 <Button Grid.Column="1" Classes="small" Content="{c:T 'Change…'}" Command="{Binding ChangeWorkCommand}" VerticalAlignment="Center"/>
               </Grid>

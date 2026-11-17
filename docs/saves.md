@@ -29,7 +29,20 @@ that keeps them there has run. Before Play, a build that has none of its own, su
 newest settings of your other versions, its own Compile shaders choice kept.
 
 Backups go to `%LOCALAPPDATA%\Longshot\oot-save-backups` on Windows and `$XDG_DATA_HOME/longshot/save-backup` on Linux (default
-`~/.local/share/longshot/save-backup/`), one folder per copy, named by the time it was made.
+`~/.local/share/longshot/save-backup/`), one folder per copy, named by the time it was made; a portable launcher keeps its
+own in `LongshotLauncher-data/save-backups/` beside it.
+
+Where each kind of backup is:
+
+| | Windows | Linux |
+|---|---|---|
+| The launcher's (every copy, the saves brought together, a version deleted, a restore) | `%LOCALAPPDATA%\Longshot\oot-save-backups` | `$XDG_DATA_HOME/longshot/save-backup` |
+| The launcher's from before #80 | the same | `$XDG_DATA_HOME/oot-save-backups` |
+| Longshot's `scripts/longshot_saves.py` | the same | `$XDG_DATA_HOME/oot-save-backups` |
+| The game's own (Longshot#1428) | the same | `$XDG_DATA_HOME/oot-save-backups` |
+
+On Windows that is one folder. On Linux it is two, and *Restore from a backup* lists both (issue #188): new backups keep
+going to `longshot/save-backup`, nothing is moved from one to the other, and the old folder is only read.
 
 ## Saves from before (Windows)
 
@@ -267,7 +280,7 @@ items) the editor's own words are shown as they are.
 
 Every copy backs up the save it replaces first (above: an import, an export, Hookshot's import, the versions' saves brought
 together, a version deleted), and **Restore from a backup…** on the Saves page, under the slots, puts one back
-(`Core/SaveBackups.cs`). It lists every save in the backups folder, newest first, each with what made it, when, its slots
+(`Core/SaveBackups.cs`). It lists every save in the backups folder (on Linux both of them, each row saying which), newest first, each with what made it, when, its slots
 and its size: "Before an import from Lichii", "The save of Lichii before an export to it, to restore into Longshot" (an
 export's backup is the other program's old save, and a restore puts it into Longshot, not back into that program),
 "v3.0.0-rc.5's own save, before the versions' saves were brought together" (a gather's backup holds one per version folder;

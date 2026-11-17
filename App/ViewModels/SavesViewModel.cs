@@ -686,7 +686,8 @@ public sealed class BackupsViewModel : ViewModelBase
         public BackupSave Backup => b;
         public string What => BackupsViewModel.What(b);
         public string When => Durations.When(b.When, now);
-        public string Summary => SaveText.Long(b.Slots, now) + " · " + Size(b.Bytes);
+        public string Summary => SaveText.Long(b.Slots, now) + " · " + Size(b.Bytes)
+            + (owner.Page.Env.BackupRoots.Count > 1 ? " · " + Tr.F("in {0}", SaveViews.Short(b.Root)) : "");
         public string Where => SaveViews.Short(b.Path);
         public string FullPath => ShownPath.Of(b.Path);
         public Command RestoreCommand { get; } = new(() => owner.Restore(b));

@@ -13,7 +13,11 @@ public enum BackupKind { Import, Export, Hookshot, Restore, Gather, Delete, Othe
 /// made it, the program or folder on the other side of that copy (Name: lichii, zip, folder…; null when none), when, its slots
 /// and its size in bytes
 public sealed record BackupSave(string Folder, string Path, BackupKind Kind, string? Name, string? Part, DateTime When,
-                                IReadOnlyList<SaveSlot> Slots, long Bytes, string? Profile = null);
+                                IReadOnlyList<SaveSlot> Slots, long Bytes, string? Profile = null)
+{
+    /// The backups folder it is in (one of SaveEnvironment.BackupRoots)
+    public string Root => System.IO.Path.GetDirectoryName(Folder) ?? Folder;
+}
 
 /// The backups every copy makes before it replaces a save (docs/saves.md: Restore from a backup): listed newest first, and put
 /// back into Longshot's save as an import is, Longshot's save backed up first. Nothing here deletes or changes a backup
@@ -36,17 +40,17 @@ public static class SaveBackups
         _ => BackupKind.Other,
     };
 
-    /// Every save in the backups folder (env.BackupRoot), newest first; a backup that holds several (a gather's) is one entry per
+    /// Every save in the backups folders (env.BackupRoots: on Linux the old $XDG_DATA_HOME/oot-save-backups too), newest first; a backup that holds several (a gather's) is one entry per
     /// save, in the order its folders are named. Where one folder holds several profiles, only the game's is listed when it is
     /// there (Saves.UserId); else each is, with its profile (Profile) to tell them apart. A folder in it that holds no save, a hidden one (a copy's staging) and one that
     /// cannot be read are left out. None when there is no backups folder yet
     public static IReadOnlyList<BackupSave> List(SaveEnvironment env)
     {
-        var root = env.BackupRoot;
         var list = new List<BackupSave>();
-        IEnumerable<string> folders;
-        try { folders = Directory.Exists(root) ? Directory.EnumerateDirectories(root).ToList() : Array.Empty<string>(); }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return list; }
+        var folders = new List<string>();
+        foreach (var root in env.BackupRoots.Distinct(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal))
+            try { if (Directory.Exists(root)) folders.AddRange(Directory.EnumerateDirectories(root)); }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
         foreach (var folder in folders)
         {
             var name = System.IO.Path.GetFileName(folder);

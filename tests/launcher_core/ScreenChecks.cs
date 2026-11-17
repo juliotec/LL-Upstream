@@ -497,67 +497,75 @@ static partial class Program
         s.Save(path);
         var t = LauncherSettings.Load(path);
         Require(t.BuildsFolder == "/mnt/fast/longshot" && !t.CheckUpdates && t.BuildsFolderOrDefault(env) == "/mnt/fast/longshot", "Saved and read back.");
-        var taken = new HashSet<string> { Path.Combine("/b", "stable"), Path.Combine("/b", "stable (2)") };
-        Require(LauncherSettings.FolderFor("/b", "nightly", taken.Contains) == Path.Combine("/b", "nightly")
-                && LauncherSettings.FolderFor("/b", "rc", taken.Contains) == Path.Combine("/b", "rc")
-                && LauncherSettings.FolderFor("/b", "stable", taken.Contains) == Path.Combine("/b", "stable (3)")
-                && LauncherSettings.FolderFor("/b", "../x", _ => false) == Path.Combine("/b", "Longshot")
-                && LauncherSettings.FolderFor("/b", "v3.0.0", _ => false) == Path.Combine("/b", "Longshot"),
-                "A new build's folder: its channel's name, once, and never a version's.");
+        var taken = new HashSet<string> { Path.Combine("/b", "stable", "v3.0.0"), Path.Combine("/b", "stable", "v3.0.0 (2)") };
+        Require(LauncherSettings.FolderFor("/b", "nightly", "nightly-10-aaaaaaaa", taken.Contains) == Path.Combine("/b", "nightly", "nightly-10-aaaaaaaa")
+                && LauncherSettings.FolderFor("/b", "rc", "v3.1.0-rc.1", taken.Contains) == Path.Combine("/b", "rc", "v3.1.0-rc.1")
+                && LauncherSettings.FolderFor("/b", "stable", "v3.0.0", taken.Contains) == Path.Combine("/b", "stable", "v3.0.0 (3)")
+                && LauncherSettings.FolderFor("/b", "../x", "v3.0.0", _ => false) == Path.Combine("/b", "Longshot", "v3.0.0")
+                && LauncherSettings.FolderFor("/b", "stable", null, _ => false) == Path.Combine("/b", "stable", "Longshot")
+                && LauncherSettings.FolderFor("/b", "stable", "../../evil", _ => false) == Path.Combine("/b", "stable", "Longshot"),
+                "A new build's folder: builds/<track>/<version>, \" (2)\" and on only for the same version again; never a path out of it.");
+        Require(LauncherSettings.FolderFor("/b", "nightly", "nightly-10-aaaaaaaa", _ => false, t => t == Path.Combine("/b", "nightly"))
+                == Path.Combine("/b", "nightly (2)", "nightly-10-aaaaaaaa"),
+                "A track's folder that cannot hold instances (an old instance's own folder) gets \" (2)\" instead.");
     }
 
-    /// An update is built in its build's folder (Longshot issue 224: a folder named after each version changed the game's path
-    /// at every update, which a GPU driver's settings for the program follow, and left the version before on the disk)
+    /// An update is built in its build's folder (Longshot issue 224: a new folder at each update left the version before on the
+    /// disk), that folder renamed to the new version's name when it is in the builds folder's layout, builds/<track>/<version>
     static void UpdateFolderChecks()
     {
         var root = Folder("update-folder");
         var builds = Path.Combine(root, "builds");
         var p = Platforms.Current;
+        const string v72 = "nightly-72-fdc2840b", v77 = "nightly-77-9f64464b";
         var r = BuildRegistry.Load(Path.Combine(root, "builds.json"));
-        var first = r.NewFolder(builds, "nightly", p);
-        Require(first == Path.Combine(builds, "nightly") && r.FolderOf(null, builds, "nightly", p) == first, "A new build goes in its channel's folder.");
-        var a = r.Add(first, "nightly-72-fdc2840b", "nightly", name: "nightly-72-fdc2840b", makeDefault: true);
+        var first = r.NewFolder(builds, "nightly", v72, p);
+        Require(first == Path.Combine(builds, "nightly", v72) && r.FolderOf(null, builds, "nightly", v72, p) == first,
+                "A new build goes in builds/<track>/<version>.");
+        var a = r.Add(first, v72, "nightly", name: v72, makeDefault: true);
         a.Nup = "/d/oot.nup";
         a.Bytes = 123;
-        Require(r.FolderOf(a, builds, "nightly", p) == first && r.FolderOf(a, Path.Combine(root, "elsewhere"), "stable", p) == first,
-                "An update or a rebuild is built in its build's own folder, wherever new builds go.");
-        var u = r.Replace(a.Id, r.FolderOf(a, builds, "nightly", p), "nightly-77-9f64464b", "nightly");
-        Require(u.Id == a.Id && r.Builds.Count == 1 && u.Default && u.Folder == first && u.Version == "nightly-77-9f64464b"
-                && u.Name == "nightly-77-9f64464b" && u.Bytes == null && u.Nup == "/d/oot.nup",
-                "An update keeps its build's folder and row, and takes the new version and its name.");
-        Require(r.NewFolder(builds, "nightly", p) == Path.Combine(builds, "nightly (2)") && r.NewFolder(builds, "nightly", p, u) == first,
-                "A second build of a channel goes beside the first; the build being replaced keeps its own folder.");
+        Require(r.FolderOf(a, builds, "nightly", v72, p) == first, "A rebuild is built in its build's own folder, as it is.");
+        Require(r.FolderOf(a, Path.Combine(root, "elsewhere"), "nightly", v77, p) == first,
+                "An instance not in this builds folder's layout keeps its folder through an update.");
+        var next = r.FolderOf(a, builds, "nightly", v77, p);
+        Require(next == Path.Combine(builds, "nightly", v77), "An update takes its new version's name in its track's folder.");
+        var u = r.Replace(a.Id, next, v77, "nightly");   // (the folder renamed when the build started: InstanceFolders.Rename)
+        Require(u.Id == a.Id && r.Builds.Count == 1 && u.Default && u.Folder == next && u.Version == v77
+                && u.Name == v77 && u.Bytes == null && u.Nup == "/d/oot.nup",
+                "An update keeps its build's row, and takes the new version, its name and its folder.");
+        Require(r.NewFolder(builds, "nightly", v77, p) == Path.Combine(builds, "nightly", v77 + " (2)")
+                && r.NewFolder(builds, "nightly", v77, p, u) == next && r.NewFolder(builds, "nightly", v72, p) == first,
+                "A second build of the same version goes beside it as (2); another version gets its own name; the build being replaced keeps its own folder.");
 
         var mine = r.Add(Path.Combine(root, "My Longshot"), "v3.0.0", "stable");
+        Require(r.FolderOf(mine, builds, "stable", "v3.0.1", p) == mine.Folder, "An instance in a folder the player chose before is never renamed.");
         r.Replace(mine.Id, mine.Folder, "v3.0.1", "stable");
         Require(mine.Name == "My Longshot" && mine.Version == "v3.0.1", "A row not named after its version keeps its name through an update.");
         r.Replace(mine.Id, Path.Combine(root, "moved"), "v3.0.2", "stable");
         Require(mine.Name == "moved" && mine.Folder == Path.Combine(root, "moved"), "An update the player moved elsewhere is named after its new folder.");
 
         // (on the disk: nothing is built into a folder that holds other things; a game folder no build lists is built in again)
-        Touch(Path.Combine(builds, "stable", "notes.txt"), "the player's own\n");
-        Touch(Path.Combine(builds, "rc", GameFolder.StampName), "version=v3.1.0-rc.1\n");
-        Directory.CreateDirectory(Path.Combine(builds, "empty", "nightly"));
-        Touch(Path.Combine(builds, "file", "nightly"));
-        Require(r.NewFolder(builds, "stable", p) == Path.Combine(builds, "stable (2)"), "A new build was put in a folder that holds other things.");
-        Require(r.NewFolder(builds, "rc", p) == Path.Combine(builds, "rc"), "A game folder no build lists is built in again.");
-        Touch(Path.Combine(builds, "stopped", "nightly", ".longshot_romfs"), "unpacked by this builder: oot.nup 1\n");
-        Directory.CreateDirectory(Path.Combine(builds, "stopped", "nightly", ".longshot_exefs"));
-        Directory.CreateDirectory(Path.Combine(builds, "stopped", "nightly", "romfs"));
-        Require(r.NewFolder(Path.Combine(builds, "stopped"), "nightly", p) == Path.Combine(builds, "stopped", "nightly"),
+        Touch(Path.Combine(builds, "stable", "v3.0.0", "notes.txt"), "the player's own\n");
+        Touch(Path.Combine(builds, "rc", "v3.1.0-rc.1", GameFolder.StampName), "version=v3.1.0-rc.1\n");
+        Directory.CreateDirectory(Path.Combine(builds, "empty", "nightly", v72));
+        Touch(Path.Combine(builds, "file", "nightly", v72));
+        Require(r.NewFolder(builds, "stable", "v3.0.0", p) == Path.Combine(builds, "stable", "v3.0.0 (2)"),
+                "A new build was put in a folder that holds other things.");
+        Require(r.NewFolder(builds, "rc", "v3.1.0-rc.1", p) == Path.Combine(builds, "rc", "v3.1.0-rc.1"), "A game folder no build lists is built in again.");
+        Touch(Path.Combine(builds, "stopped", "nightly", v72, ".longshot_romfs"), "unpacked by this builder: oot.nup 1\n");
+        Directory.CreateDirectory(Path.Combine(builds, "stopped", "nightly", v72, ".longshot_exefs"));
+        Directory.CreateDirectory(Path.Combine(builds, "stopped", "nightly", v72, "romfs"));
+        Require(r.NewFolder(Path.Combine(builds, "stopped"), "nightly", v72, p) == Path.Combine(builds, "stopped", "nightly", v72),
                 "A folder a build stopped in (the game files read, no game yet) is built in again.");
-        Require(r.NewFolder(Path.Combine(builds, "empty"), "nightly", p) == Path.Combine(builds, "empty", "nightly"), "An empty folder is used as it is.");
-        Require(r.NewFolder(Path.Combine(builds, "file"), "nightly", p) == Path.Combine(builds, "file", "nightly (2)"), "A file has the folder's name.");
-
-        // (a folder the player picks: the build's own folder in one that holds other things, else the folder itself)
-        Require(r.PickedFolder(Path.Combine(builds, "stable"), "nightly", p) == Path.Combine(builds, "stable", "nightly"),
-                "A picked folder that holds other things gets the build's own folder in it.");
-        Require(r.PickedFolder(Path.Combine(builds, "rc"), "nightly", p) == Path.Combine(builds, "rc"), "A picked game folder is used as it is.");
-        Require(r.PickedFolder(Path.Combine(builds, "empty", "nightly"), "nightly", p) == Path.Combine(builds, "empty", "nightly")
-                && r.PickedFolder(Path.Combine(builds, "none"), "nightly", p) == Path.Combine(builds, "none"),
-                "A picked folder that is empty, or not made yet, is used as it is.");
-        Require(r.PickedFolder(builds, "nightly", p) == Path.Combine(builds, "nightly (2)") && r.PickedFolder(builds, "nightly", p, u) == first,
-                "In a picked folder the build being replaced keeps its own folder, and a new build goes beside it.");
+        Require(r.NewFolder(Path.Combine(builds, "empty"), "nightly", v72, p) == Path.Combine(builds, "empty", "nightly", v72), "An empty folder is used as it is.");
+        Require(r.NewFolder(Path.Combine(builds, "file"), "nightly", v72, p) == Path.Combine(builds, "file", "nightly", v72 + " (2)"),
+                "A file has the folder's name.");
+        // (an instance from before this layout, right in the builds folder and named after its track: not a track's folder)
+        var oldBuilds = Path.Combine(root, "old-builds");
+        Touch(Path.Combine(oldBuilds, "nightly", GameFolder.StampName), "version=nightly-60-00000000\n");
+        Require(r.NewFolder(oldBuilds, "nightly", v72, p) == Path.Combine(oldBuilds, "nightly (2)", v72),
+                "A new build never goes inside an old instance's folder named after its track.");
     }
 
     static void ReplaceChecks()

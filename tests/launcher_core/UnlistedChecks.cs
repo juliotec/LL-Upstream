@@ -87,5 +87,25 @@ static partial class Program
         var lostRow = new BuildEntry { Id = "a", Folder = Path.Combine(builds, "gone"), Version = "v3.0.0-rc.4", Channel = Versions.Candidate };
         Require(Leftovers.LostUpdate(builds, lostRow, Array.Empty<string>(), p, keep: new[] { home }) is { Version: "v3.0.0-rc.5" } l && l.Folder == rc,
                 "A row that lost its update's game takes it back from a portable launcher's own builds folder.");
+
+        // (#184's layout, builds/<track>/<version>, InstanceFolders.Folders: a game in a track's folder whose row went is listed again,
+        // on the track its folder is in, beside one from before the layout right in the builds folder; an older one of a track stays
+        // unlisted and is offered for deletion; the track's folder that holds them is no game of its own)
+        var builds6 = Folder("unlisted-layout");
+        var n310 = Built(Path.Combine(builds6, "nightly"), "nightly-310-88888888", "nightly-310-88888888");
+        var n305 = Built(Path.Combine(builds6, "nightly"), "nightly-305-99999999", "nightly-305-99999999");
+        var rc2 = Built(Path.Combine(builds6, "rc"), "v3.1.0-rc.2", "v3.1.0-rc.2");
+        var flat = Built(builds6, "stable", "v3.0.1");                         // (an instance from before the layout: builds/stable)
+        var reg6 = BuildRegistry.Load(Path.Combine(Folder("unlisted-home6"), "builds.json"));
+        var added6 = Leftovers.Relist(reg6, builds6, p);
+        Require(added6.Count == 3 && reg6.Builds.SingleOrDefault(b => b.Folder == n310) is { Version: "nightly-310-88888888", Channel: Versions.Nightly }
+                && reg6.Builds.SingleOrDefault(b => b.Folder == rc2) is { Version: "v3.1.0-rc.2", Channel: Versions.Candidate }
+                && reg6.Builds.SingleOrDefault(b => b.Folder == flat) is { Version: "v3.0.1", Channel: Versions.Stable },
+                "In the layout, builds/nightly/<version> and builds/rc/<version> are listed again on their track's channel, beside an old "
+                + "builds/stable (got: " + string.Join(", ", reg6.Builds.Select(b => Path.GetFileName(b.Folder) + " " + b.Channel)) + ").");
+        Require(reg6.Builds.All(b => b.Folder != n305 && b.Folder != Path.Combine(builds6, "nightly")),
+                "The older nightly stays unlisted, and the track's folder is no game.");
+        var offered6 = Leftovers.Find(builds6, reg6.Builds.Select(b => b.Folder), p).Select(l => l.Folder).ToList();
+        Require(offered6.SequenceEqual(new[] { n305 }), "The older nightly in the track's folder is offered for deletion (got: " + string.Join(", ", offered6) + ").");
     }
 }

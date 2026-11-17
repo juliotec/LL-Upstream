@@ -162,6 +162,8 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
         var job = Job;
         var s = job.Service.Settings;
         var file = job.Picked!;
+        // (an update's or a go-back's folder renamed to its new version's first, so make_game.py builds in the folder the row will have)
+        if (!RenameFolder()) return;
         // (a version you have already built from this .nup gives the new one its game files: BuildRegistry.SameGameFiles. Not
         // for a cold build: they are read from the .nup again)
         var romfsFrom = !job.Cold && file.Source is BuildSource.Nup nup ? job.Service.Registry.SameGameFiles(nup.Path, job.InstallDir)?.Folder : null;
@@ -186,12 +188,14 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
             // (Longshot#1010: tools under a folder Windows lets no program list stop at their first compile, unexplained)
             if (MakeGameRun.Blocked(command, job.Service.Platform == Platform.Windows) is { } blocked)
             {
+                PutBack();
                 Fail(blocked);
                 return;
             }
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException)
         {
+            PutBack();
             Fail(e.Message);
             return;
         }
@@ -201,10 +205,18 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
         ticker?.Start();
         Task.Run(async () =>
         {
-            if (job.Cold && !ClearForCold()) return;
+            if (job.Cold && !ClearForCold())
+            {
+                PutBack();
+                return;
+            }
             Seeded? seeded;
             try { seeded = Seed(); }
-            catch (OperationCanceledException) { return; }   // (stopped before the build started: Keep left nothing taken)
+            catch (OperationCanceledException)   // (stopped before the build started: Keep left nothing taken)
+            {
+                PutBack();
+                return;
+            }
             int code;
             try
             {
@@ -216,11 +228,13 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
             {
                 // (already on a pool thread: Undo may wait a moment for a file a killed compiler or game still holds)
                 seeded?.Undo();
+                PutBack();
                 return;
             }
             catch (Exception e) when (e is System.ComponentModel.Win32Exception or IOException or InvalidOperationException)
             {
                 var back = seeded?.Undo();
+                PutBack();
                 Ui.Post(() =>
                 {
                     if (back is { } n) log.Add(Seeded.Said(n));
@@ -394,19 +408,65 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
             ? Tr.N("make_game.py was stopped by a signal (SIGTERM) from outside the launcher.")
             : English("make_game.py stopped with exit code {0} without saying why.", code));
         var outcome = terminated ? BuildReports.Terminated : BuildReports.Failed;
-        if (seeded is not { } taken)
+        if (seeded == null && renamed == null)
         {
             Fail(why, outcome, reported);
             return;
         }
         // (put back on a pool thread: Undo may wait up to ShaderCaches.UndoWait for a file something the build started still
-        // holds, too long for the window's thread. The problem page shows once they are back, so that building again finds
-        // the old build's caches in their place)
-        Task.Run(() => taken.Undo()).ContinueWith(t => Ui.Post(() =>
+        // holds, too long for the window's thread, and the folder's rename too. The problem page shows once they are back, so
+        // that building again finds the old build's caches in their place, in its folder of its version's name)
+        Task.Run(() =>
         {
-            if (t.IsCompletedSuccessfully) log.Add(Seeded.Said(t.Result));
+            var n = seeded?.Undo();
+            PutBack();
+            return n;
+        }).ContinueWith(t => Ui.Post(() =>
+        {
+            if (t.IsCompletedSuccessfully && t.Result is { } n) log.Add(Seeded.Said(n));
             Fail(why, outcome, reported);
         }), TaskScheduler.Default);
+    }
+
+    /// The rename this build made when it started (RenameFolder), undone when it does not finish (PutBack)
+    InstanceFolders.Move? renamed;
+
+    /// An update's or a go-back's folder renamed to its new version's name (BuildJob.RenameFrom: builds/nightly/nightly-171-… to
+    /// builds/nightly/nightly-175-…), on the window's thread before anything else of the build: the same folder, so its saves,
+    /// settings, shader caches and mods go with it, and the list saved with it. False: refused, nothing changed and nothing
+    /// started (Longshot runs, or a file in the folder is held open: a File Explorer window, an editor), and the page says why
+    bool RenameFolder()
+    {
+        var job = Job;
+        if (job.RenameFrom is not { } from || job.Replaces is not { } old) return true;
+        var move = new InstanceFolders.Move(old, from, job.InstallDir);
+        try
+        {
+            InstanceFolders.Rename(job.Service.Registry, move, job.Service.Platform, job.Service.SaveEnv);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            Fail(Tr.F("Its folder could not be renamed to {0}, so the build did not start: {1} Close what has a file open in {2} (a File Explorer window, a text editor), then build again.",
+                      job.InstallDir, e.Message, from),
+                 reported: English("Its folder could not be renamed to {0}, so the build did not start: {1} Close what has a file open in {2} (a File Explorer window, a text editor), then build again.",
+                                   job.InstallDir, e.Message, from));
+            return false;
+        }
+        old.Folder = job.InstallDir;   // (the row the job holds, if the list was read again since)
+        renamed = move;
+        log.Add($"instance folder: {from} renamed to {job.InstallDir}");
+        return true;
+    }
+
+    /// The rename undone, on a pool thread (a stopped build's files may be held a moment: InstanceFolders.MoveBack waits for
+    /// them): the folder back to its old name, as the row's version still is, said in the log
+    void PutBack()
+    {
+        if (renamed is not { } m) return;
+        renamed = null;
+        var back = InstanceFolders.MoveBack(Job.Service.Registry, m, TimeSpan.FromSeconds(10));
+        if (back) m.Build.Folder = m.From;
+        Ui.Post(() => log.Add(back ? $"instance folder: back to {m.From}" : $"instance folder: left at {m.To}, it could not go back to {m.From}"));
     }
 
     /// The rows, the bar and the time left from the progress and the clock

@@ -54,6 +54,9 @@ public sealed class LauncherSettings
     public bool Nx2naviSavesAsked { get; set; }
     /// The old versions' folders the player chose to keep when the home offered to delete them (Leftovers): not offered again
     public List<string> KeptFolders { get; set; } = new();
+    /// The instances' folders named after a version the player chose to keep as they are when the home offered to rename them
+    /// after their track (InstanceFolders): not offered again
+    public List<string> KeptFolderNames { get; set; } = new();
     /// Where new builds go, each in its own folder (FolderFor); null: DefaultBuildsFolder
     public string? BuildsFolder { get; set; }
     /// Ask git.magicbean.dev for each channel's newest version when the launcher starts
@@ -88,17 +91,32 @@ public sealed class LauncherSettings
     public string BuildsFolderOrDefault(Func<string, string?>? getenv = null) =>
         string.IsNullOrWhiteSpace(BuildsFolder) ? DefaultBuildsFolder(getenv) : BuildsFolder;
 
-    /// A new build's folder: its channel's name in the builds folder (stable, rc, nightly), with " (2)" and so on when that is
-    /// taken by something that is not the build being replaced. Not the version's name: an update stays in its build's folder
-    /// (BuildRegistry.FolderOf), so a version in the name would be the wrong one after the first update
-    public static string FolderFor(string buildsFolder, string channel, Func<string, bool>? taken = null)
+    /// A new instance's folder: builds/&lt;track&gt;/&lt;version&gt;, its track's folder in the builds folder (stable, rc, nightly; Longshot for
+    /// anything else) and in it the version's own name (nightly-2029-c544828f, v3.0.1: Versions.IsTagName's characters, safe for
+    /// a folder on Windows and Linux; Longshot when there is none), so the folder says what is in it. " (2)" and on only when
+    /// that version's name is taken in its track's folder (taken: a second instance of the same version). An update or a
+    /// go-back renames an instance's folder to its new version's (BuildRegistry.FolderOf, InstanceFolders.Rename). notTrack: a
+    /// track's folder that cannot hold instances (an instance's own folder from before this layout, a game folder, a file):
+    /// " (2)" and on is used for the track's folder then
+    public static string FolderFor(string buildsFolder, string channel, string? version, Func<string, bool>? taken = null,
+                                   Func<string, bool>? notTrack = null)
     {
-        taken ??= p => Directory.Exists(p) || File.Exists(p);
-        var name = Versions.IsChannel(channel) ? channel : "Longshot";
-        var path = Path.Combine(buildsFolder, name);
-        for (var n = 2; taken(path); n++) path = Path.Combine(buildsFolder, $"{name} ({n})");
+        taken ??= Path.Exists;
+        var trackName = TrackFolder(channel);
+        var track = Path.Combine(buildsFolder, trackName);
+        for (var n = 2; notTrack?.Invoke(track) == true; n++) track = Path.Combine(buildsFolder, $"{trackName} ({n})");
+        var name = VersionFolder(version);
+        var path = Path.Combine(track, name);
+        for (var n = 2; taken(path); n++) path = Path.Combine(track, $"{name} ({n})");
         return path;
     }
+
+    /// A track's folder's name in the builds folder: the channel's (stable, rc, nightly), Longshot for any other
+    public static string TrackFolder(string? channel) => Versions.IsChannel(channel) ? channel! : "Longshot";
+
+    /// A version's folder's name in its track's folder: the version itself (nightly-2029-c544828f, v3.0.1), Longshot when there
+    /// is none or it is no name a folder can have
+    public static string VersionFolder(string? version) => Versions.IsTagName(version) ? version! : "Longshot";
 
     /// The launcher's language: the one picked, else the system's (its name for it: de-DE, pt_BR.UTF-8), else English
     public string UiLanguageOr(string? system) => UiLanguage ?? Tr.Pick(system) ?? Tr.English;

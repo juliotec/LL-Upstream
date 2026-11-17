@@ -91,10 +91,23 @@ public sealed record SaveEnvironment(Platform Platform, Func<string, string?> Ge
         ? UserFolder ?? Path.Combine(AppData, "Longshot")
         : Path.Combine(Data, "longshot"));
 
-    /// longshot_saves.default_backup_dir: the script's and the launcher's backups in one place
+    /// Where the launcher's backups go: %LOCALAPPDATA%\Longshot\oot-save-backups on Windows (Longshot's scripts/longshot_saves.py
+    /// writes its own there too), $XDG_DATA_HOME/longshot/save-backup on Linux (since #80, beside the saves), or a portable
+    /// launcher's own folder. On Linux the script and the game's own backups (Longshot#1428) still go to OldLinuxBackups, as the
+    /// launcher's did before #80: BackupRoots lists both, so Restore from a backup finds them all (issue #188)
     public string BackupRoot => BackupFolder ?? (Platform == Platform.Windows
         ? Path.Combine(LocalAppData, "Longshot", "oot-save-backups")
         : Path.Combine(Data, "longshot", "save-backup"));
+
+    /// (Linux) $XDG_DATA_HOME/oot-save-backups: the launcher's backups before #80, Longshot's scripts/longshot_saves.py's, and the
+    /// game's own (Longshot#1428). Read, never written by the launcher
+    public string OldLinuxBackups => Path.Combine(Data, "oot-save-backups");
+
+    /// Every folder backups are read from, BackupRoot first: on Linux the old folder too (OldLinuxBackups); on Windows, and for a
+    /// portable launcher (its own folder only), BackupRoot alone. Nothing is moved between them
+    public IReadOnlyList<string> BackupRoots => Platform == Platform.Windows || BackupFolder != null
+        ? new[] { BackupRoot }
+        : new[] { BackupRoot, OldLinuxBackups };
 
     /// longshot_saves.folders: a program's data folders on this platform, in the order they are tried
     public IReadOnlyList<string> FoldersOf(SaveProgram program) =>

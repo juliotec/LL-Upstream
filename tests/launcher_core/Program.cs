@@ -72,6 +72,7 @@ static partial class Program
         RegistryChecks();
         LeftoverChecks();
         UnlistedChecks();
+        InstanceFolderChecks();
         DeleteSaveChecks();
         SettingsChecks(Path.GetFullPath(Path.Combine(fixtures, "..", "..")));
         ProgressChecks();
@@ -856,6 +857,8 @@ static partial class Program
 
     static void SettingsChecks(string repo)
     {
+        StepTwoFolderSourceChecks(repo);
+        HomeLayoutSourceChecks(repo);
         var path = Path.Combine(Folder("settings"), "settings.json");
         var d = LauncherSettings.Load(path);
         Require(!d.Dlss && d.DefaultChannel == null && d.MemoryGb == null, "The defaults.");

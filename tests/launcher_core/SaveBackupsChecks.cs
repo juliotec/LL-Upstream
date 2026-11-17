@@ -45,6 +45,59 @@ static class SaveBackupsChecks
 
     public static void Run(string root)
     {
+        LinuxFolders(Path.Combine(root, "linux"));
+        Checks(root);
+    }
+
+    /// Issue #188: on Linux the backups are read from both $XDG_DATA_HOME/longshot/save-backup (the launcher's since #80) and
+    /// $XDG_DATA_HOME/oot-save-backups (the launcher's before it, Longshot's script's, the game's own); nothing is moved
+    static void LinuxFolders(string root)
+    {
+        var home = P(root, "home");
+        var data = P(root, "xdg");
+        var linux = new SaveEnvironment(Platform.Linux, k => k switch { "HOME" => home, "XDG_DATA_HOME" => data, _ => null });
+        Require(linux.BackupRoots.SequenceEqual(new[] { P(data, "longshot", "save-backup"), P(data, "oot-save-backups") }) && linux.BackupRoot == linux.BackupRoots[0],
+                "Linux reads both backups folders, the launcher's own first (where new backups go).");
+        var noXdg = new SaveEnvironment(Platform.Linux, k => k == "HOME" ? home : null);
+        Require(noXdg.BackupRoots.SequenceEqual(new[] { P(home, ".local", "share", "longshot", "save-backup"), P(home, ".local", "share", "oot-save-backups") }),
+                "With no XDG_DATA_HOME: both under ~/.local/share.");
+        var windows = new SaveEnvironment(Platform.Windows, k => k switch { "USERPROFILE" => home, "LOCALAPPDATA" => P(home, "local"), _ => null });
+        Require(windows.BackupRoots.SequenceEqual(new[] { P(home, "local", "Longshot", "oot-save-backups") }), "Windows: one backups folder, as before.");
+        var portable = linux with { BackupFolder = P(root, "portable", "save-backups") };
+        Require(portable.BackupRoots.SequenceEqual(new[] { P(root, "portable", "save-backups") }), "A portable launcher: its own folder only, as before.");
+
+        var none = (IReadOnlyList<string>)Array.Empty<string>();
+        var shared = Saves.ImportTarget(linux);
+        MakeSave(shared, "NOW", "slot_00");
+        MakeSave(P(linux.BackupRoot, "import-lichii-20261110-090000"), "NEW", "slot_01");
+        MakeSave(P(linux.OldLinuxBackups, "export-eden-20261105-090000"), "SCRIPT", "slot_02");
+        MakeSave(P(linux.OldLinuxBackups, "gather-20261101-090000", "shared", Uid), "OLDGATHER", "slot_03");
+        // (the same name in both folders: two backups, both listed)
+        MakeSave(P(linux.BackupRoot, "import-folder-20261108-090000"), "TWIN-NEW", "slot_04");
+        MakeSave(P(linux.OldLinuxBackups, "import-folder-20261108-090000"), "TWIN-OLD", "slot_05");
+        var list = SaveBackups.List(linux);
+        var shown = list.Select(b => $"{b.Kind}:{Path.GetFileName(b.Root)}:{string.Join("+", b.Slots.Select(x => x.Name))}").ToList();
+        Require(shown.SequenceEqual(new[]
+                {
+                    "Import:save-backup:slot_01", "Import:save-backup:slot_04", "Import:oot-save-backups:slot_05",
+                    "Export:oot-save-backups:slot_02", "Gather:oot-save-backups:slot_03",
+                }), "Both folders' backups, newest first, each with the folder it is in; the same name in both is two rows. " + string.Join(", ", shown));
+        Require(SaveBackups.List(windows).Count == 0 && SaveBackups.List(portable).Count == 0, "Neither Windows nor a portable launcher reads the Linux folders.");
+
+        // (restore from the old folder: the backup is only read, Longshot's save is backed up into the launcher's own folder)
+        var before = string.Join("|", Directory.EnumerateFiles(linux.OldLinuxBackups, "*", SearchOption.AllDirectories).Order(StringComparer.Ordinal));
+        var done = SaveBackups.Restore(list.First(b => b.Kind == BackupKind.Export), linux, running: () => none, now: () => new DateTime(2026, 11, 17, 9, 0, 0));
+        Require(Saves.SlotNames(shared).SequenceEqual(new[] { "slot_02" }) && File.ReadAllText(P(shared, "account.sav")) == "account-SCRIPT",
+                "A backup in the old folder restores into Longshot.");
+        Require(done.Backup != null && Path.GetDirectoryName(done.Backup) == linux.BackupRoot
+                && string.Join("|", Directory.EnumerateFiles(linux.OldLinuxBackups, "*", SearchOption.AllDirectories).Order(StringComparer.Ordinal)) == before,
+                "Its restore's own backup goes to the launcher's folder; the old folder is left exactly as it was.");
+        SaveBackups.Restore(list.First(b => b.Kind == BackupKind.Gather), linux, running: () => none, now: () => new DateTime(2026, 11, 17, 9, 1, 0));
+        Require(Saves.SlotNames(shared).SequenceEqual(new[] { "slot_03" }), "A gather's backup in the old folder restores too.");
+    }
+
+    static void Checks(string root)
+    {
         var home = P(root, "home");
         var data = P(home, ".local", "share");
         var env = new SaveEnvironment(Platform.Linux, k => k switch { "HOME" => home, "XDG_DATA_HOME" => data, _ => null });

@@ -289,23 +289,36 @@ public sealed class BuildRegistry
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException) { return false; }
     }
 
-    /// Where a build is made. An update or a rebuild (replaces: the build it takes the place of) is made in that build's own
-    /// folder: the game keeps its path (a GPU driver's settings for the program follow the path), its settings, mods and
-    /// shader caches stay with it, and no folder of the version before is left on the disk. A new build goes in NewFolder
-    public string FolderOf(BuildEntry? replaces, string buildsFolder, string channel, Platform platform) =>
-        replaces != null ? replaces.Folder : NewFolder(buildsFolder, channel, platform);
+    /// Where a build is made. A new build: NewFolder, builds/&lt;track&gt;/&lt;version&gt;. An update, a go-back or a rebuild (replaces:
+    /// the build it takes the place of) is made in that build's own folder, so its settings, mods and shader caches stay with the
+    /// game and no folder of the version before is left on the disk; when that folder is one the launcher made in this layout
+    /// (InstanceFolders.InLayout) and named after another version, it is that folder renamed to the new version's name
+    /// (builds/nightly/nightly-171-â€¦ to builds/nightly/nightly-175-â€¦), renamed when the build starts (InstanceFolders.Rename) and
+    /// back if it does not finish. A folder the player chose, or one from before this layout, keeps its name
+    public string FolderOf(BuildEntry? replaces, string buildsFolder, string channel, string? version, Platform platform)
+    {
+        if (replaces == null) return NewFolder(buildsFolder, channel, version, platform);
+        if (!InstanceFolders.InLayout(replaces.Folder, buildsFolder) || InstanceFolders.NamedFor(replaces.Folder, channel, version))
+            return replaces.Folder;
+        // (a rename never goes onto anything on the disk, nor into another build's folder)
+        return LauncherSettings.FolderFor(buildsFolder, channel, version,
+                                          p => !SameFolder(p, replaces.Folder) && (Path.Exists(p) || FindByFolder(p) != null),
+                                          t => NotTrack(t, platform));
+    }
 
-    /// A new build's folder in parent (LauncherSettings.FolderFor: its channel's name), past the folders other builds have and
-    /// past anything on the disk that is not a game folder. A game folder no build lists (its row was removed, or the list was
+    /// A new build's folder in parent (LauncherSettings.FolderFor: builds/&lt;track&gt;/&lt;version&gt;), past the folders other builds have
+    /// and past anything on the disk that is not a game folder. A game folder no build lists (its row was removed, or the list was
     /// lost), or one a build stopped in, is built in again, as one the player picks is. replaces: the build this one takes the
     /// place of, whose own folder is not another build's
-    public string NewFolder(string parent, string channel, Platform platform, BuildEntry? replaces = null) =>
-        LauncherSettings.FolderFor(parent, channel, p => FindByFolder(p) is { } e ? e.Id != replaces?.Id : HoldsOtherThings(p, platform));
+    public string NewFolder(string parent, string channel, string? version, Platform platform, BuildEntry? replaces = null) =>
+        LauncherSettings.FolderFor(parent, channel, version,
+                                   p => FindByFolder(p) is { } e ? e.Id != replaces?.Id : HoldsOtherThings(p, platform),
+                                   t => NotTrack(t, platform));
 
-    /// The folder a build is made in when the player picks one: a folder that holds other things gets the build's own folder
-    /// in it (NewFolder); an empty one, one not made yet, or a game folder, is used as it is
-    public string PickedFolder(string picked, string channel, Platform platform, BuildEntry? replaces = null) =>
-        HoldsOtherThings(picked, platform) ? NewFolder(picked, channel, platform, replaces) : picked;
+    /// A track's folder that cannot hold instances: a file, a game folder (an instance from before this layout was made right in
+    /// the builds folder, named after its track: builds/nightly), or a listed build's own folder
+    bool NotTrack(string track, Platform platform) =>
+        File.Exists(track) || FindByFolder(track) != null || Directory.Exists(track) && GameFolder.IsGameFolder(track, platform);
 
     /// make_game.py's copy of the game files read into a game folder, there long before its stamp and game (a build that stopped
     /// while it compiled): such a folder is built in again, and the next build skips reading the game files
@@ -321,7 +334,8 @@ public sealed class BuildRegistry
     }
 
     /// An update takes the row of the build it updates (old): its id, its place in the list and whether it is the default stay;
-    /// its version and channel are the new build's. It is built in its build's own folder (FolderOf), so the folder stays too.
+    /// its version and channel are the new build's. It is built in its build's own folder (FolderOf), renamed to the new
+    /// version's name when it is in the builds folder's layout (InstanceFolders.Rename, before the build: folder is that name).
     /// When the player chose another folder for it, the row moves there (a row that already lists that folder goes: one entry
     /// per folder) and the old folder stays on the disk. A row named after its version is named after the new one
     public BuildEntry Replace(string oldId, string folder, string? version, string? channel)
@@ -348,6 +362,10 @@ public sealed class BuildRegistry
         if (Find(id) == null) throw new KeyNotFoundException("No build " + id);
         foreach (var b in builds) b.Default = b.Id == id;
     }
+
+    /// A build's folder renamed on the disk (InstanceFolders.Rename): its row follows it, all else stays (its name, version,
+    /// default, measurements: the same files)
+    public void Moved(string id, string folder) => (Find(id) ?? throw new KeyNotFoundException("No build " + id)).Folder = folder;
 
     public void SetChannel(string id, string channel)
     {
@@ -467,7 +485,7 @@ public sealed class BuildRegistry
     }
 
     /// path is folder or somewhere under it
-    internal static bool Holds(string folder, string path)
+    public static bool Holds(string folder, string path)
     {
         if (SameFolder(folder, path)) return true;
         var windows = OperatingSystem.IsWindows() || folder.Contains('\\') || path.Contains('\\');

@@ -47,7 +47,7 @@ Discord: https://discord.gg/magicbean
 
 | | |
 |---|---|
-| **Builds the game** | A three-step wizard: it finds your game files while that version's builder downloads, then the settings (DLSS, FSR 4, Intel XeSS, language, where the game goes), then the build with one progress bar |
+| **Builds the game** | A three-step wizard: it finds your game files while that version's builder downloads, then the settings (DLSS, FSR 4, Intel XeSS, language, the builds folder), then the build with one progress bar |
 | **Several versions side by side** | Keep a stable build and a nightly; Play starts the default one; Set as default, Saves, Open folder and Delete for each |
 | **Three channels** | `stable`, `rc` (release candidates) and `nightly`, chosen per build and, apart from that, for the launcher itself |
 | **Installs Longshot's builder** | For each version, from Longshot's signed release: every file checked against its SHA-256 before it is used |
@@ -137,7 +137,8 @@ next time it starts. If `LongshotLauncher.exe` itself is missing, rename `Longsh
 1. **Build another version** (or, the first time, **Build the game**) opens the wizard. Pick the channel: *Stable* for
    playing, *Release candidate* to try the next version, *Nightly* for the newest changes.
 2. **Game files**: the launcher looks for your dump on this PC; point it at the folder if it doesn't find it.
-3. **Settings**: where the game goes, the language, and DLSS, FSR 4 or, on Windows, Intel XeSS (their licences are shown
+3. **Settings**: the builds folder (Settings' own: Change sets it for every build; this build goes in
+   `<builds>/<track>/<version>`, shown under it), the language, and DLSS, FSR 4 or, on Windows, Intel XeSS (their licences are shown
    first; with XeSS on, the build downloads Intel's XeSS library for the game's Upscaler row). A PC with no card that runs
    DLSS or FSR 4 says so in red, and the switch still turns on: the build fetches its files for tools like OptiScaler. XeSS
    is never red: it runs on other makers' cards too where their driver has what it needs, which the game checks at its
@@ -153,7 +154,8 @@ next time it starts. If `LongshotLauncher.exe` itself is missing, rename `Longsh
 5. **Play**. Ready can also make desktop and menu shortcuts, which start the default version.
 
 The cog on the home opens the launcher's settings: the **launcher's language**, the channel for new builds, the
-**launcher's own channel**, where builds go, the build files folder (and *Free up space*), the update check at start, and on
+**launcher's own channel**, the builds folder (your instances, one folder per track and version), the build files
+folder (working files every build reuses, not the game; and *Free up space*), the update check at start, and on
 Linux the launcher's entry in the applications menu.
 
 The launcher speaks the game's sixteen languages. It starts in the system's (Windows' display language; on Linux `LANGUAGE`,
@@ -337,29 +339,52 @@ Calls made here, most of them the design mockup's; each can be changed:
   runs on), and the NVIDIA program profile that names the old program by its path (the NVIDIA app's or Control Panel's
   program settings, such as Smooth Motion), which the new program joins through NVAPI. Nothing is taken away; a refusal
   leaves things as they were.
-- **An update stays in its build's folder.** An update builds the new version in the folder its build has, from the game
-  files the build was made from, and the build's row takes the new version, its default kept (`BuildRegistry.FolderOf`,
-  `BuildRegistry.Replace`). The game's path stays the same, so what follows the path keeps working (a GPU driver's
-  settings for the program); the settings, mods and shader caches in the folder stay with the game; and no copy of the
-  version before is left on the disk. So an update replaces the version before it, and the way back is to build that
-  version again: pick it in the home's **Version** dropdown (below), which lists its track's releases the server still has
-  (every release and release candidate, the newest 5 nightlies: `VersionPick`), and the button builds it the same way, in
-  the build's folder, as "Go back to". Update then offers the newest again. Your saves stay: every build shares them.
-  make_game.py puts the new files in only once they are complete, so a build that stops leaves the old
+- **Instances live in `<builds>/<track>/<version>`**: `<builds>/nightly/nightly-2029-c544828f`, `<builds>/stable/v3.0.1`
+  (`LauncherSettings.FolderFor`; the version's own name, safe for a folder on Windows and Linux; `Longshot` for a track
+  or a version with no such name). A second instance of the same version is `<version> (2)`, the only time a suffix
+  appears. The builds folder is one setting, Settings' and step 2's (its Change in step 2 changes it in Settings too), so
+  a folder always says what is in it, and a player cleaning up their disk sees which version is where.
+- **An update renames its instance's folder.** An update or a go-back builds in the folder its instance has, renamed to
+  the new version's name when the build starts, before make_game.py (`BuildRegistry.FolderOf`, `InstanceFolders.Rename`):
+  `nightly/nightly-171-…` becomes `nightly/nightly-175-…`. A rename, not a copy: the game, its settings, mods, shader
+  caches and a save in its own `user/save` go with it, and no folder of the version before is left on the disk. The row
+  takes the new folder at once (saved), then the new version when the build finishes (`BuildRegistry.Replace`). Step 2
+  says it: *`<old>` becomes `<new>` when the build starts*. The launcher's own shortcuts start `--play` and keep working;
+  **a shortcut or a Steam entry made to the game's own program (`bin/longshot.exe`) points at the old path and has to be
+  made again after an update** (the price of a folder that names its version). A rename is refused, and nothing changes
+  or starts, while Longshot runs, onto a path that is there, and on Windows while a file in the folder is held open (a
+  File Explorer window in it, an editor, an antivirus scan): the problem page says why and Build again tries again. A
+  build that fails or is stopped renames the folder back (`InstanceFolders.MoveBack`, waiting up to 10 s for a file the
+  stopped build still holds), so the row's folder names the version the row still has. An instance in a folder the player
+  chose before (outside the builds folder's layout) is never renamed. So an update replaces the version before it, and
+  the way back is to build that version again: pick it in the home's **Version** dropdown (below), which lists its
+  track's releases the server still has (every release and release candidate, the newest 5 nightlies: `VersionPick`),
+  and the button builds it the same way, as "Go back to". Update then offers the newest again. Your saves stay: every
+  build shares them. make_game.py puts the new files in only once they are complete, so a build that stops leaves the old
   game playable. It does not start while Longshot runs: Save and close it first. On Windows, Longshot started during the
   build stops it at its last step, which then asks to close it and build again (what was built is kept).
-- **A new build's folder is named after its channel**: `<builds>/nightly`, `rc` or `stable`, then `nightly (2)` and so
-  on, never over a folder that holds other things. Not after its version, which would be the wrong one after the first
-  update. Folders named after a version are what updates left before this: one for every update, no longer in the list
-  of versions. **The home offers to delete them** (*Old versions left on the disk*: Keep or Delete; `Leftovers`): the game
-  folders in the builds folder that no build lists, once nothing of the player's is in them (no save left in `user/save`,
-  which `Saves.Gather` takes in first on Windows; neither `user/` nor `user/save` a link; nothing in `mods/`), and never
-  one that holds a build's folder or the launcher's home. It says what deleting them frees (their files with no hard link
-  outside them), deletes nothing while Longshot runs, and Keep is remembered (`KeptFolders` in settings.json).
+- **Old versions' folders.** Before an update stayed in its build's folder (#104), every update left a folder named after
+  a version, no longer in the list of versions. **The home offers to delete them** (*Old versions left on the disk*: Keep
+  or Delete; `Leftovers`): the game folders in the builds folder and in its tracks' folders (`InstanceFolders.Folders`)
+  that no build lists, once nothing of the player's is in them (no save left in `user/save`, which `Saves.Gather` takes in
+  first on Windows; neither `user/` nor `user/save` a link; nothing in `mods/`), and never one that holds a build's folder
+  or the launcher's home. It says what deleting them frees (their files with no hard link outside them), deletes nothing
+  while Longshot runs, and Keep is remembered (`KeptFolders` in settings.json).
+- **Instances from before this layout move into it when the player says so.** They are right in the builds folder,
+  named after their track (`nightly`, `nightly (2)`: launchers v1.0.0-rc.7 and on) or after the version they were first
+  built with (`v3.0.0-rc.5`: launchers before). **The home offers to move them** (*Instances in the old folder layout*:
+  Keep or Move; `InstanceFolders.Plan`): each to `<builds>/<track>/<version>` past every name taken, the ones named after
+  their track first, since `<builds>/nightly` becomes the nightly's folder (moved by way of a name beside it). Nothing is
+  moved unless the player says so, and the same rules as an update's rename hold: everything in the folder goes with it,
+  the launcher's shortcuts follow, refused while Longshot runs, for a link, a folder that holds the home folder or
+  Longshot's shared saves, a name taken since, or a folder that would go inside another instance's; the list is saved
+  with the new folder, or the folder goes back. Until then a new instance never goes inside an old one's folder named
+  after its track (`<builds>/nightly (2)/<version>` instead). A folder elsewhere, which the player chose, is never
+  offered. Keep is remembered (`KeptFolderNames` in settings.json).
 - **An update keeps the shader caches.** The game keeps its translated shaders and pipelines in its folder's `cache/`
   (10 GB and minutes of preparing), good for one shader translator. An update in its build's folder keeps them where they
-  are; the game drops them itself when its translator stamp differs. An update the player moves to another folder (step 2)
-  starts with none there. When the old and the new version's tools stamp the translator the same way
+  are, a rename to its new version's name included (the same folder); the game drops them itself when its translator
+  stamp differs. An update built in another folder starts with none there. When the old and the new version's tools stamp the translator the same way
   (`ShaderCaches.Translator`, Longshot's `nx2/translator_files.py`) and compile it with the same tools
   (`ShaderCaches.Compiler`: the SHA-256 of `tools.lock`'s llvm-mingw and cpm on Windows; of emsdk, the sysroot and cpm
   on Linux), the update takes the old build's caches into the new folder before make_game.py starts (`ShaderCaches.Keep`).
@@ -437,7 +462,7 @@ Calls made here, most of them the design mockup's; each can be changed:
   times"). The top of each range is an estimate for slower PCs, not a measurement. Step 3's time left is make_game's
   `@@eta` in the compile, else the pace so far. **Measure again** and update these after a change to the lift, the compile
   flags, the shader preparation or the toolchain, and before each release, the way that section describes.
-- **Disk space**: step 2 wants about 60 GB free where the game goes, the same figure as Longshot's requirements, and stops Build below it.
+- **Disk space**: step 2 wants about 60 GB free on the builds folder's drive, the same figure as Longshot's requirements, and stops Build below it.
 - **Slots are shown as "Slot N"** with the time they were saved: the place a slot was saved at (caption.sav) is not read.
 - **"Your GPU"** comes from `/sys/class/drm` on Linux; on Windows the chip is not shown yet.
 

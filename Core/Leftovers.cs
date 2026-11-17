@@ -30,8 +30,8 @@ public static class Leftovers
         var keptList = (kept ?? Array.Empty<string>()).ToList();
         var found = new List<Leftover>();
         IEnumerable<string> dirs;
-        try { dirs = Directory.Exists(buildsFolder) ? Directory.EnumerateDirectories(buildsFolder).ToList() : Enumerable.Empty<string>(); }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return found; }
+        // (right in the builds folder, and in its tracks' folders: builds/nightly/<version>, InstanceFolders.Folders)
+        dirs = InstanceFolders.Folders(buildsFolder, platform);
         foreach (var dir in dirs.OrderBy(d => d, StringComparer.Ordinal))
         {
             try
@@ -76,8 +76,7 @@ public static class Leftovers
         var all = listed.ToList();
         var homes = (keep ?? Array.Empty<string>()).ToList();
         IEnumerable<string> dirs;
-        try { dirs = Directory.Exists(buildsFolder) ? Directory.EnumerateDirectories(buildsFolder).ToList() : Enumerable.Empty<string>(); }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return null; }
+        dirs = InstanceFolders.Folders(buildsFolder, platform);
         Leftover? best = null;
         foreach (var dir in dirs)
         {
@@ -93,7 +92,8 @@ public static class Leftovers
         return best;
     }
 
-    /// The game folders directly in buildsFolder whose row went, listed again in registry (issue #141: a portable launcher's rows
+    /// The game folders in buildsFolder (in it, and in its tracks' folders: builds/nightly/&lt;version&gt;, InstanceFolders.Folders) whose row
+    /// went, listed again in registry (issue #141: a portable launcher's rows
     /// dropped by ForgetGone after its folder was renamed, before FollowHome, its games still in its builds folder; or a list lost
     /// with builds.json). Each one that plays, with a version in its stamp, that is no listed build's folder nor holds one or the
     /// launcher's home (keep; a portable launcher's builds folder is in its home: no reason), nor kept by the player when the home
@@ -111,9 +111,7 @@ public static class Leftovers
         var homes = (keep ?? Array.Empty<string>()).ToList();
         var keptList = (kept ?? Array.Empty<string>()).ToList();
         var found = new List<(string Dir, string Version)>();
-        IEnumerable<string> dirs;
-        try { dirs = Directory.Exists(buildsFolder) ? Directory.EnumerateDirectories(buildsFolder).ToList() : Enumerable.Empty<string>(); }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return Array.Empty<BuildEntry>(); }
+        var dirs = InstanceFolders.Folders(buildsFolder, platform);
         foreach (var dir in dirs)
         {
             try
@@ -135,7 +133,9 @@ public static class Leftovers
             // (nor when a row of its channel has a version as new, its game there or not: a row on an unplugged drive, or whose
             // game an antivirus took, never brings an older one back beside it)
             if (registry.Builds.Any(b => b.Version is { } rv && OnChannel(rv, Versions.TrackOf(version)) && !Versions.Newer(version, rv))) continue;
-            var name = Path.GetFileName(Path.TrimEndingDirectorySeparator(dir));
+            // (the channel its folder is in: builds/nightly/<version>'s track's folder, or an old one's own name, builds/nightly)
+            var name = Path.GetFileName(Path.TrimEndingDirectorySeparator(
+                InstanceFolders.InLayout(dir, buildsFolder) ? Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(dir))! : dir));
             added.Add(registry.Add(dir, version, Versions.IsChannel(name) && OnChannel(version, name) ? name : null));
             listed.Add(dir);
         }
