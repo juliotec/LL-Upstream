@@ -88,7 +88,8 @@ static class FontCheck
         try
         {
             var windows = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
-            var own = Path.GetDirectoryName(typeof(SKFontManager).Assembly.Location is { Length: > 0 } l ? l : AppContext.BaseDirectory) ?? "";
+            // The launcher ships as one file, whose assemblies have no Location of their own (IL3000): its folder is the app's.
+            var own = Path.GetDirectoryName(AppContext.BaseDirectory) ?? "";
             var others = Process.GetCurrentProcess().Modules.Cast<ProcessModule>().Select(m => m.FileName)
                 .Where(f => !f.StartsWith(windows, StringComparison.OrdinalIgnoreCase) && !f.StartsWith(AppContext.BaseDirectory, StringComparison.OrdinalIgnoreCase)
                             && (own.Length == 0 || !f.StartsWith(own, StringComparison.OrdinalIgnoreCase))
