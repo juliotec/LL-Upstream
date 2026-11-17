@@ -102,7 +102,15 @@ static partial class Program
         // (which failures are the file's: the check tests this PC's compiler first, and its failures are not the file's)
         foreach (var (error, status, why) in new[]
                  {
-                     ("nup.py stopped (exit status 1): /d/x.nup: not a NUP package (magic b'PK\x03\x04')", GameCheckStatus.Unreadable, "This file is not a .nup package"),
+                     ("nup.py stopped (exit status 1): /d/x.nup: not a NUP package (magic b'PK\x03\x04')", GameCheckStatus.Unreadable, "This file is not a .nup or .nx package"),
+                     // (a .nx: nxar.py's words, MagicBeanDev/Longshot#685)
+                     ("nxar.py stopped (exit status 1): the .nx file is incomplete: it is 0 MB, its header says 24329 MB. Download or copy it again",
+                      GameCheckStatus.Unreadable, "This file is incomplete"),
+                     ("nxar.py stopped (exit status 1): D:\\oot.nx: romfs/a.bin is damaged in the archive (its SHA-256 differs). Copy or convert the file again",
+                      GameCheckStatus.Unreadable, "This file is damaged"),
+                     ("nxar.py stopped (exit status 1): D:\\oot.nx holds the game as NCA files (made by nxconvert pack from a DNSP or DXCI), which Longshot does not read.",
+                      GameCheckStatus.Unreadable, "This .nx file holds the game as NCA files"),
+                     ("nxar.py stopped (exit status 1): D:\\oot.nx: not a .nx archive (magic b'\\x00\\x00\\x00\\x00')", GameCheckStatus.Unreadable, "This file is not a .nup or .nx package"),
                      ("nup.py stopped (exit status 1): ValueError: TOC SHA-256 mismatch", GameCheckStatus.Unreadable, "This file is damaged"),
                      ("The file main in this dump is not a game module (it starts 00000000). Try another dump", GameCheckStatus.Unreadable, "This dump's game code"),
                      ("Your drive could not read D:\\x.nup: the drive reported an I/O error.", GameCheckStatus.Unreadable, "Your drive could not read"),

@@ -99,6 +99,13 @@ static class Program
                     "nup.py stopped (exit status 1): the .nup file is incomplete: it is 9214 MB, its header says 25624 MB. Download or copy it again")),
                 ("/home/player/Downloads/Ocarina of Time.nup", new GameCheck(GameCheckStatus.OtherVersion,
                     "This is build 7c1a33b0. Longshot supports build e0f3ccfa.")))),
+        new("files-nx-not-usable", "Step 1, .nx files that can't be used: one holding NCA files, one damaged (nxar.py's words)", Platform.Linux, null,
+            m => Files(m, null, NxCheck("/home/player/Games/Ocarina of Time/Ocarina of Time (DNSP).nx",
+                                        "nxar.py stopped (exit status 1): /home/player/Games/Ocarina of Time/Ocarina of Time (DNSP).nx holds the game as " +
+                                        "NCA files (made by nxconvert pack from a DNSP or DXCI), which Longshot does not read."),
+                                NxCheck("/home/player/Downloads/Ocarina of Time.nx",
+                                        "nxar.py stopped (exit status 1): romfs/Pack/ZsDic.pack.zs is damaged in the archive (its SHA-256 differs). " +
+                                        "Copy or convert the file again"))),
         new("files-not-checked", "Step 1, a check that could not run because of this PC: not said to be the file's", Platform.Linux, null,
             m => Files(m, null,
                 ("/home/player/Games/Ocarina of Time/0400486024dec000_v131072.nup", new GameCheck(GameCheckStatus.CheckFailed,
@@ -198,6 +205,9 @@ static class Program
             page.ShowFile(new FoundGameFile(path, "Found", 25L << 30, DateTime.Now, false), check);
         return page;
     }
+
+    /// A game file whose check stopped with make_game.py's @@error text: the status the launcher gives it (GameCheck.Of)
+    static (string, GameCheck) NxCheck(string path, string error) => (path, new GameCheck(GameCheck.Of(error), error));
 
     static BuildJob Job(MainViewModel main) => new(main, JobKind.Build, "stable", "v3.0.0", null);
 

@@ -14,11 +14,13 @@ public sealed record GameCheck(GameCheckStatus Status, string Text, bool ThisPc 
 {
     public bool Ok => Status == GameCheckStatus.Supported;
 
-    /// make_game.py's failures that are the file's: nup.py's (it reads the .nup), the game modules' checks and the drive's. Its
-    /// check tests this PC's compiler first (check_windows_sdk), and those failures, like one it did not expect, are not the file's
+    /// make_game.py's failures that are the file's: nup.py's (it reads the .nup), nxar.py's (it reads a .nx: MagicBeanDev/Longshot#685),
+    /// the game modules' checks and the drive's. Its check tests this PC's compiler first (check_windows_sdk), and those failures, like
+    /// one it did not expect, are not the file's
     static readonly string[] FileFailures =
     [
-        "nup.py stopped", "not a NUP package", ".nup file", "is not a game executable", "is not a game module", "Your drive could not read",
+        "nup.py stopped", "not a NUP package", ".nup file", "nxar.py stopped", "not a .nx archive", ".nx file",
+        "is not a game executable", "is not a game module", "Your drive could not read",
     ];
 
     /// What an @@error of the check says of the file: Unreadable when it is the file's, CheckFailed otherwise
@@ -32,8 +34,12 @@ public sealed record GameCheck(GameCheckStatus Status, string Text, bool ThisPc 
         GameCheckStatus.Supported => null,
         // (the words the build's own stop says for it: the version Longshot needs, and what to do)
         GameCheckStatus.OtherVersion => Problems.FromBuild(Text) is { Kind: ProblemKind.WrongGameVersion } p ? Tr.T(p.Detail) : Text,
-        GameCheckStatus.Unreadable when Has("not a NUP package") =>
-            Tr.T("This file is not a .nup package, or its beginning is damaged. Pick the .nup file of your dump, or copy it again."),
+        // (a .nx whose first bytes are not NXAR goes to nup.py too: make_game.py tells the two apart by them, not by the name)
+        GameCheckStatus.Unreadable when Has("not a NUP package") || Has("not a .nx archive") =>
+            Tr.T("This file is not a .nup or .nx package, or its beginning is damaged. Pick the .nup or .nx file of your dump, or copy it again."),
+        // (a .nx made by nxconvert pack from a DNSP or DXCI: the game as NCA files, which make_game.py does not read)
+        GameCheckStatus.Unreadable when Has("as NCA files") =>
+            Tr.T("This .nx file holds the game as NCA files, which Longshot can't read. Make the .nx from your .nup with nxconvert pack-nup, or pick the .nup itself."),
         GameCheckStatus.Unreadable when Has("incomplete") || Has("ends early") =>
             Tr.T("This file is incomplete: it is smaller than it should be. Copy or download it again, then check it again."),
         GameCheckStatus.Unreadable when Has("is not a game executable") || Has("is not a game module") =>
