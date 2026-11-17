@@ -158,6 +158,31 @@ def check_shader_caches(longshot):
                              % (name, system, cpm.get(system)))
 
 
+def check_running_excludes_own_runtime():
+    """(#118) Running() must ask IsOwnRuntime about each process's argv[0] before counting it: excluding only the
+    launcher's own pid leaves its AppImage runtime (a different process, comm like the file's name, argv[0] the file)
+    in the candidate list, and a Gear-Lever rename (longshot-2.appimage) made that name read as a running game"""
+    saves = (ROOT / "Core" / "Saves.cs").read_text(encoding="utf-8")
+    if "IsOwnRuntime(argv0, ownImage)" not in saves:
+        raise SystemExit("Core/Saves.cs: Running() must skip the process whose argv[0] is the launcher's own $APPIMAGE "
+                         "(IsOwnRuntime(argv0, ownImage)) — pid-only self-exclusion misses the AppImage runtime (#118)")
+
+
+def check_package_desktop_name():
+    """(#118) The AppImage's own menu entry must not call the launcher just "Longshot": Gear Lever names and dedupes
+    shortcuts after the app's name, and renamed the launcher's file to longshot[-2].appimage, a name the launcher's
+    own game-AppImage detection reads as the game (its update then refused forever). The launcher's Settings menu
+    entry (Core/Shortcuts.cs) already says "Longshot Launcher"; the packaged one must say the same, so a shortcut
+    manager names the launcher after itself, never after the game it builds."""
+    pack = (ROOT / "scripts" / "package.sh").read_text(encoding="utf-8")
+    entry = pack.split("[Desktop Entry]", 1)[1].split("EOF", 1)[0] if "[Desktop Entry]" in pack else ""
+    names = [l.strip() for l in entry.splitlines() if l.strip().startswith("Name=")]
+    if names != ["Name=Longshot Launcher"]:
+        raise SystemExit("package.sh: the AppImage's desktop entry must be Name=Longshot Launcher, not %s: Gear Lever "
+                         "renames the file after the name, and a bare Longshot name makes the launcher look like the "
+                         "game it runs (#118)" % names)
+
+
 def check_translations():
     """The catalogs' texts are the window's, with their placeholders and plural forms (scripts/translations.py). A text a catalog
     lacks shows in English: said, not a failure"""
@@ -181,6 +206,8 @@ def main():
     if args.pinned and not args.longshot:
         raise SystemExit("--pinned needs --longshot <checkout of MagicBeanDev/Longshot>")
     check_translations()
+    check_package_desktop_name()
+    check_running_excludes_own_runtime()
     if args.longshot:
         if args.pinned:
             check_pin(args.longshot)

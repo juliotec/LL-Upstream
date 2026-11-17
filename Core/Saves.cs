@@ -356,6 +356,33 @@ public static class Saves
         return names;
     }
 
+    /// Whether a process is the launcher's own AppImage runtime: the launcher runs unpacked from a FUSE mount, and a
+    /// separate runtime process (comm like the file's, argv[0] the AppImage's path) stays alive beside it. Gear Lever
+    /// (#428) renames the AppImage after its .desktop name, and a deduped rename (longshot-2.appimage) walks into the
+    /// game-AppImage regex below: the launcher read its own runtime as a running game and refused its own update (#118).
+    /// A file name can never settle this — a renamed launcher and a game's longshot-2.appimage share names — but the
+    /// paths never collide: the runtime's argv[0] is the exact file the AppImage runtime runs, and the same runtime
+    /// exports it as $APPIMAGE for the launcher process to answer with.
+    public static bool IsOwnRuntime(string? argv0Path, string? ownAppImage)
+    {
+        if (string.IsNullOrEmpty(argv0Path) || string.IsNullOrEmpty(ownAppImage)) return false;
+        try
+        {
+            return string.Equals(System.IO.Path.GetFullPath(argv0Path!), System.IO.Path.GetFullPath(ownAppImage!),
+                                 StringComparison.Ordinal);
+        }
+        catch (Exception e) when (e is ArgumentException or System.Security.SecurityException) { return false; }
+    }
+
+    /// The launcher's own AppImage path for the running check: $APPIMAGE the AppImage runtime exports to the launcher
+    /// process it started; null when the launcher runs unpacked (a plain folder, a dev run: no runtime process exists)
+    public static string? OwnAppImage(Func<string, string?>? getenv = null)
+    {
+        getenv ??= Environment.GetEnvironmentVariable;
+        var path = getenv("APPIMAGE");
+        return string.IsNullOrEmpty(path) ? null : path;
+    }
+
     /// What is running, from the processes' names: on Windows the image names (with or without .exe), on Linux each process's
     /// comm and the file name of its argv[0] (an AppImage named after the program counts)
     public static IReadOnlyList<string> RunningFrom(Platform platform, IEnumerable<string> candidates)
@@ -379,9 +406,14 @@ public static class Saves
     }
 
     /// The games running on this PC now, this launcher left out (its AppImage may be named Longshot-...AppImage)
-    public static IReadOnlyList<string> Running(Platform platform)
+    public static IReadOnlyList<string> Running(Platform platform, Func<string, string?>? getenv = null)
     {
         var own = Environment.ProcessId;
+        // (#118: the launcher's pid is never a game, but its AppImage runtime is a DIFFERENT process, and Gear Lever's
+        //  rename made its file name read as one. The runtime's argv[0] is the AppImage file; $APPIMAGE says which file
+        //  is the launcher's own. Exclude the runtime whose argv[0] is that file — and the launcher's own .desktop name,
+        //  which package.sh now spells "Longshot Launcher", keeps Gear Lever from naming the file after the game at all.)
+        var ownImage = platform == Platform.Windows ? null : OwnAppImage(getenv);
         var candidates = new List<string>();
         if (platform == Platform.Windows)
         {
@@ -400,6 +432,7 @@ public static class Saves
                 try
                 {
                     var argv0 = File.ReadAllText($"/proc/{pid}/cmdline", Encoding.UTF8).Split('\0')[0];
+                    if (ownImage != null && IsOwnRuntime(argv0, ownImage)) continue;   // (the launcher's own runtime)
                     candidates.Add(File.ReadAllText($"/proc/{pid}/comm", Encoding.UTF8).Trim());
                     candidates.Add(System.IO.Path.GetFileName(argv0));
                 }

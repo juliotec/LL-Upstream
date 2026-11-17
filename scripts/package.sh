@@ -87,7 +87,7 @@ cp "$ROOT/App/Assets/longshot.png" "$app/longshot-launcher.png"
 cat > "$app/longshot-launcher.desktop" <<'EOF'
 [Desktop Entry]
 Type=Application
-Name=Longshot
+Name=Longshot Launcher
 Comment=Install Longshot's builder, build the game from your own copy, and play
 Exec=LongshotLauncher
 Icon=longshot-launcher

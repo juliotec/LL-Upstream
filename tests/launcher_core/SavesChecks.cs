@@ -418,6 +418,20 @@ static class SavesChecks
         var linux = new[] { "orchid", "orchid", "AppRun", "eglantine-linux-x86_64.AppImage", "ocarina", "ocarina", "bash", "bash" };
         Require(Saves.RunningFrom(Platform.Linux, linux).SequenceEqual(new[] { "NX2navi", "Orchid", "PokeDinner or Eglantine" }), "Linux processes and AppImages.");
         Require(Saves.RunningFrom(Platform.Linux, new[] { "Longshot.AppImage", "LongshotLauncher" }).Count == 0, "The launcher itself is not the game.");
+        // (#118: Gear Lever renames the launcher's AppImage after its menu entry's name ("Longshot"), and a deduped name like
+        //  longshot-2.appimage walks into the game-AppImage regex: the launcher read its own runtime as the game and refused
+        //  its own update. The runtime's argv[0] is the AppImage file path, and the runtime names it in APPIMAGE for the
+        //  launcher: a full-path match is what says "this process is the launcher's own runtime", a file name can never tell
+        //  the launcher's longshot-2.appimage from a game's.)
+        Require(Saves.IsOwnRuntime("/home/deck/Applications/longshot-2.appimage", "/home/deck/Applications/longshot-2.appimage"),
+                "The launcher's own AppImage runtime is found by the exact path the runtime runs and the runtime names.");
+        Require(!Saves.IsOwnRuntime("/games/longshot-2.appimage", "/home/deck/Applications/longshot-2.appimage"),
+                "A different AppImage of the same name is not the launcher's own: the path decides, never the file name.");
+        Require(!Saves.IsOwnRuntime("/games/longshot.appimage", null) && !Saves.IsOwnRuntime("", "/home/deck/a.appimage")
+                && !Saves.IsOwnRuntime("/home/deck/a.appimage", ""),
+                "No AppImage env (the launcher run unpacked) or no process: nothing is the launcher's own.");
+        Require(Saves.IsOwnRuntime("/home/deck/LongshotLauncher-route-x86_64.AppImage", "/home/deck/LongshotLauncher-route-x86_64.AppImage"),
+                "The normal (never renamed) launcher AppImage is its own runtime too.");
     }
 
     static void FirstImports(string root)
