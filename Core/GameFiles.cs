@@ -104,9 +104,11 @@ public static class GameFiles
         return found.OrderByDescending(d => d.Modified).ToList();
     }
 
+    /// The dumps the launcher takes, by their names' ends (a build report's diagnostic loses every one: BuildReports.Diagnostic)
+    public static readonly IReadOnlyList<string> Extensions = [".nup", ".nx"];
+
     /// A .nup or .nx by its name ("*.nx" alone also matches .nxs and the like on Windows: its 8.3 names)
-    static bool IsGameFile(string path) =>
-        path.EndsWith(".nup", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".nx", StringComparison.OrdinalIgnoreCase);
+    static bool IsGameFile(string path) => Extensions.Any(e => path.EndsWith(e, StringComparison.OrdinalIgnoreCase));
 
     /// A folder with the game's romfs and exefs folders in it (exefs holding main)
     public static bool IsDumpFolder(string dir) =>

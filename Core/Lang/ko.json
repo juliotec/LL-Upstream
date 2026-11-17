@@ -510,7 +510,7 @@
   "Freeing…": "확보 중…",
   "Check for updates when the launcher starts": "런처를 시작할 때 업데이트 확인",
   "Send performance statistics": "성능 통계 보내기",
-  "How your frames went in each area, and how each build ended and how long its steps took, with your GPU, CPU, OS and settings, so the team can see where Longshot stutters or builds slowly. No paths, names or saves. Sent for a game when it next starts, for a build when it ends.": "각 지역에서 프레임이 어땠는지, 각 빌드가 어떻게 끝났고 단계마다 얼마나 걸렸는지를 GPU, CPU, OS, 설정과 함께 보냅니다. 팀이 Longshot이 끊기거나 빌드가 느린 곳을 볼 수 있습니다. 경로, 이름, 저장 파일은 보내지 않습니다. 게임의 통계는 다음에 게임을 시작할 때, 빌드의 통계는 빌드가 끝날 때 보내집니다.",
+  "How your frames went in each area, and how each build ended and how long its steps took, with your GPU, CPU, OS and settings, so the team can see where Longshot stutters or builds slowly. No user name, game files or saves. Sent for a game when it next starts, for a build when it ends.": "각 지역에서 프레임이 어땠는지, 각 빌드가 어떻게 끝났고 단계마다 얼마나 걸렸는지를 GPU, CPU, OS, 설정과 함께 보냅니다. 팀이 Longshot이 끊기거나 빌드가 느린 곳을 볼 수 있습니다. 사용자 이름, 게임 파일, 저장 파일은 보내지 않습니다. 게임의 통계는 다음에 게임을 시작할 때, 빌드의 통계는 빌드가 끝날 때 보내집니다.",
   "make_game.py was stopped by a signal (SIGTERM) from outside the launcher.": "make_game.py가 런처 외부의 신호(SIGTERM)로 중지되었습니다.",
   "Keep a copy of what was sent": "보낸 내용의 사본 보관",
   "In perf_sent, in the game folder, so you can read exactly what went to the team.": "게임 폴더의 perf_sent에 보관되어, 팀에 보낸 내용을 그대로 읽을 수 있습니다.",

@@ -102,7 +102,7 @@
         <StackPanel Spacing="4">
           <CheckBox Classes="tick" Content="{c:T 'Send performance statistics'}" IsChecked="{Binding SendPerformanceStatistics}"/>
           <TextBlock FontSize="12" Foreground="{StaticResource InkSoft}" TextWrapping="Wrap" Margin="28,0,0,0"
-                     Text="{c:T 'How your frames went in each area, and how each build ended and how long its steps took, with your GPU, CPU, OS and settings, so the team can see where Longshot stutters or builds slowly. No paths, names or saves. Sent for a game when it next starts, for a build when it ends.'}"/>
+                     Text="{c:T 'How your frames went in each area, and how each build ended and how long its steps took, with your GPU, CPU, OS and settings, so the team can see where Longshot stutters or builds slowly. No user name, game files or saves. Sent for a game when it next starts, for a build when it ends.'}"/>
           <CheckBox Classes="tick" Margin="28,4,0,0" Content="{c:T 'Keep a copy of what was sent'}"
                     IsChecked="{Binding KeepSentPerformanceStatistics}" IsEnabled="{Binding SendPerformanceStatistics}"/>
           <TextBlock FontSize="12" Foreground="{StaticResource InkSoft}" TextWrapping="Wrap" Margin="56,0,0,0"

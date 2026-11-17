@@ -21,10 +21,13 @@ static partial class Program
             throw new HttpRequestException("No such host is known.");
     }
 
-    static async Task BuildReportChecks()
+    static async Task BuildReportChecks(string repo)
     {
+        DiagnosticChecks();
+        BuildSummarySourceChecks(repo);
         var home = OperatingSystem.IsWindows() ? @"C:\Users\Ana" : "/home/ana";
         var sep = OperatingSystem.IsWindows() ? @"\" : "/";
+        var homeAs = OperatingSystem.IsWindows() ? Privacy.WindowsHome : Privacy.LinuxHome;
         var log = Enumerable.Range(1, BuildReports.LogLines + 50).Select(i => $"line {i}").Append($"reading {home}{sep}Longshot{sep}x.bars").ToList();
         var failure = new BuildReports.Failure("v3.4.0", "v2.4.1", "Release", BuildReports.Update, "Windows 11, X64, .NET 10.0.0",
             "32 GB, 16 threads, AMD Radeon RX 7800 XT GPU", "memory automatic, workers automatic, DLSS off, FSR 4 off, XeSS off",
@@ -41,8 +44,8 @@ static partial class Program
                 BuildReports.KindOf(update: false, rebuild: true, older: false) == "rebuild",
             "A report's kind: first build, update, go back or rebuild.");
         var lines = report["log"]!.AsArray();
-        Require(lines.Count == BuildReports.LogLines && lines[^1]!.GetValue<string>().StartsWith("reading ~", StringComparison.Ordinal),
-            "A build report keeps the log's last 200 lines, the home folder as ~.");
+        Require(lines.Count == BuildReports.LogLines && lines[^1]!.GetValue<string>().StartsWith("reading " + homeAs, StringComparison.Ordinal),
+            "A build report keeps the log's last 200 lines, the home folder as %USERPROFILE% or ~.");
         Require(!json.Contains("Ana", StringComparison.Ordinal), "No user name in a build report: " + json[..200]);
 
         // (each text cut to the server's limit, on a whole character, so the report fits and Show what is sent is what goes)
@@ -64,7 +67,7 @@ static partial class Program
         var cutLog = cut["log"]!.AsArray().Select(l => l!.GetValue<string>()).ToList();
         Require(cutLog.Count == BuildReports.LogLines && cutLog.Take(BuildReports.LogLines - 1).All(l => l.Length == 300),
             "Each log line cut to 300, all 200 kept when they fit.");
-        Require(cutLog[^1] == new string('x', 290) + "~" + sep + "x.bars" && !wideJson.Contains("Ana", StringComparison.Ordinal),
+        Require(cutLog[^1] == BuildReports.Cut(new string('x', 290) + homeAs + sep + "x.bars", BuildReports.LogLineLength) &&!wideJson.Contains("Ana", StringComparison.Ordinal),
             "The home folder taken out before a line is cut: no cut leaves part of the user's name.");
         Require(System.Text.Encoding.UTF8.GetByteCount(wideJson) <= BuildReports.MaxBytes, "A report of long lines fits in 128 KiB.");
         var script = Enumerable.Range(0, BuildReports.LogLines).Select(i => i + new string('字', 400)).ToList();
@@ -162,9 +165,9 @@ static partial class Program
             Error = @"error: can't open C:\Games\Longshot\data.nup",
         };
         var auto = JsonNode.Parse(BuildReports.Json(failed, home))!;
-        Require(auto["why"]!.GetValue<string>() == "lift failed in [path]" &&
-                auto["error"]!.GetValue<string>() == "error: can't open [path]" && auto["log"]!.AsArray().Count == 0,
-            "A failed build's summary says why and its error line, every path and game file's name taken out: " +
+        Require(auto["why"]!.GetValue<string>() == "lift failed in " + (OperatingSystem.IsWindows() ? Privacy.WindowsHome : Privacy.LinuxHome) + "/Longshot/build/romfs/[game file]" &&
+                auto["error"]!.GetValue<string>() == @"error: can't open C:\Games\Longshot\[game file]" && auto["log"]!.AsArray().Count == 0,
+            "A failed build's summary says why and its error line, its paths with no user name and no game file's name: " +
             auto["why"] + " / " + auto["error"]);
         Require(BuildReports.Diagnostic("compile stopped: Main.bfstm missing") == "compile stopped: [game file] missing" &&
                 BuildReports.Diagnostic("  ") == "" && BuildReports.Diagnostic(new string('x', 400)).Length == BuildReports.TextLength,
@@ -172,6 +175,45 @@ static partial class Program
         var done = JsonNode.Parse(BuildReports.Json(failed with { Outcome = BuildReports.Completed }, home))!;
         Require(done["why"]!.GetValue<string>() == "" && done["error"]!.GetValue<string>() == "",
             "A completed build's summary carries no error line, even one left from earlier in the build.");
+        var same = JsonNode.Parse(BuildReports.Json(failed with { Why = "RuntimeError: boom", Error = "RuntimeError: boom" }, home))!;
+        Require(same["why"]!.GetValue<string>() == "RuntimeError: boom" && same["error"]!.GetValue<string>() == "",
+            "A summary whose error line only says why again sends it once, as why.");
+        var stopped = JsonNode.Parse(BuildReports.Json(failed with
+        {
+            Outcome = BuildReports.Terminated, Why = BuildReports.LauncherStopped, Error = "warning: an earlier line",
+        }, home))!;
+        Require(stopped["why"]!.GetValue<string>() == BuildReports.LauncherStopped && BuildReports.LauncherStopped.Contains("SIGTERM") &&
+                stopped["error"]!.GetValue<string>() == "",
+            "The launcher's SIGTERM: the summary says why the build stopped, and no earlier error line: " + stopped["why"] + " / " + stopped["error"]);
+        // (the user's name through the JSON that is sent: names with several spaces, on other drives, under Linux's /media,
+        // and the user's own name beside the home folder's; everything else in the paths stays)
+        foreach (var (h, why, error, users, kept) in new (string, string, string, string[]?, string)[]
+                 {
+                     (@"C:\Users\Jane Ann Doe", @"cannot open D:\Users\Jane Ann Doe\tools\make_game.py",
+                      @"C:\Users\JANEAN~1\AppData\Local\Temp\x: denied", null, @"D:\Users\<user>\tools\make_game.py"),
+                     ("/home/alex", "/media/alex/My Very Private Drive/tools/make_game.py: not found",
+                      "cannot write /run/media/alex/x and /home/alex/Longshot/work", null, "/media/<user>/My Very Private Drive/tools/make_game.py"),
+                     (@"C:\Users\Ana", @"cannot open E:\Backup\ana.b\saves", @"C:\Users\Ana\x", ["ana.b"], @"E:\Backup\<user>\saves"),
+                 })
+        {
+            var sentJson = BuildReports.Json(failed with { Why = why, Error = error }, h, users);
+            var names = (users ?? []).Append(h.Split('\\', '/')[^1]).Select(n => n.Split(' ')[^1]);
+            Require(names.All(n => !sentJson.Contains(n, StringComparison.OrdinalIgnoreCase)) && !sentJson.Contains("JANEAN~1") &&
+                    JsonNode.Parse(sentJson)!["why"]!.GetValue<string>().Contains(kept, StringComparison.Ordinal),
+                "A summary's JSON names no user, and keeps the rest of the path: " + sentJson);
+        }
+        // (the placeholders as the game writes them, readable in the JSON that is sent, a summary's and Send's: never \u003C)
+        foreach (var on in new[] { true, false })
+        {
+            var both = BuildReports.Json(failed with { Auto = on, Why = @"cannot open C:\Users\Ana\Longshot\x", Error = @"D:\Users\Ana\y is full" },
+                                         @"C:\Users\Ana");
+            var values = JsonNode.Parse(both)!;
+            Require(both.Contains(Privacy.WindowsHome, StringComparison.Ordinal) && both.Contains(Privacy.User, StringComparison.Ordinal) &&
+                    !both.Contains(@"\u003C", StringComparison.OrdinalIgnoreCase) && !both.Contains(@"\u003E", StringComparison.OrdinalIgnoreCase) &&
+                    values["why"]!.GetValue<string>() == @"cannot open %USERPROFILE%\Longshot\x" &&
+                    values["error"]!.GetValue<string>() == @"D:\Users\<user>\y is full",
+                $"The JSON sent writes {Privacy.WindowsHome} and {Privacy.User} as they are ({(on ? "a summary" : "Send's report")}): " + both);
+        }
 
         // (the launcher's SIGTERM: the summary sent once, whichever thread ends the build first, and made on the window's thread,
         // so the signal's thread reads none of the window's data; nothing it does throws, so the build is always stopped)
@@ -187,5 +229,57 @@ static partial class Program
             "A summary that throws on the window's thread: none, nothing thrown to the signal's thread.");
         Require(BuildReports.OnWindow<string>(_ => throw new InvalidOperationException("no window"), () => "made", TimeSpan.FromSeconds(1)) == null,
             "A window's thread that can't be posted to: none, nothing thrown.");
+    }
+
+    /// What a summary's diagnostic takes out (every game file's name, a link's query and password) and what it leaves (the rest of
+    /// a path, prose with a slash in it, a link's path). The user's name goes before it (Json: Privacy.Scrub, PrivacyChecks)
+    static void DiagnosticChecks()
+    {
+        foreach (var (text, want) in new[]
+        {
+            (@"can't open D:\Jane Doe\Longshot\x", @"can't open D:\Jane Doe\Longshot\x"),
+            (@"denied: C:\Program Files (x86)\Longshot Tools\make_game.exe.", @"denied: C:\Program Files (x86)\Longshot Tools\make_game.exe."),
+            ("/media/data/My Passport/dumps/x: no space left", "/media/data/My Passport/dumps/x: no space left"),
+            (@"can't read C:\Games\The Legend Dump v2.nup", @"can't read C:\Games\The Legend Dump [game file]"),
+            (@"open 'E:\Some Folder\game file.nx' failed", @"open 'E:\Some Folder\[game file]' failed"),
+            ("open \"The Game v2.nsz\" failed", "open \"[game file]\" failed"),
+            ("error: can't read MyGame[0100ABCD][v131072].nx", "error: can't read [game file]"),
+            ("could not decrypt main.nso with prod.keys", "could not decrypt [game file] with [game file]"),
+            ("missing Link.bfres, Actor.pack.zs and Shader.Product.bntx", "missing [game file], [game file] and [game file]"),
+            (@"lift: romfs\Actor\Link.sbfres", @"lift: romfs\Actor\[game file]"),
+            ("cache build/romfs/Pack is stale", "cache build/romfs/Pack is stale"),
+            ("compiled 3/10 shaders, N/A and/or skipped", "compiled 3/10 shaders, N/A and/or skipped"),
+            ("struct.pack() and d.keys() failed", "struct.pack() and d.keys() failed"),
+            ("HTTP 404 from https://git.magicbean.dev/MagicBeanDev/Longshot/releases", "HTTP 404 from https://git.magicbean.dev/MagicBeanDev/Longshot/releases"),
+            ("HTTP 404 from https://example.com/u/data/x", "HTTP 404 from https://example.com/u/data/x"),
+            ("HTTP 401 from https://bob:hunter2@git.magicbean.dev/x?token=abc#top", "HTTP 401 from https://git.magicbean.dev/x"),
+            ("HTTP 404 from https://example.com/dl/Main.bfstm", "HTTP 404 from https://example.com/dl/[game file]"),
+            ("~/Longshot/work is full", "~/Longshot/work is full"),
+        })
+            Require(BuildReports.Diagnostic(text) == want, $"A diagnostic: \"{text}\" sent as \"{BuildReports.Diagnostic(text)}\", not \"{want}\".");
+        foreach (var e in GameFiles.Extensions)
+            Require(BuildReports.Diagnostic("read x" + e + " failed") == "read [game file] failed",
+                $"Every dump the launcher takes ({e}) is a game file to a diagnostic.");
+        var waited = System.Diagnostics.Stopwatch.StartNew();
+        Require(BuildReports.Diagnostic(string.Concat(Enumerable.Repeat("a=b.", 25_000))).Length == BuildReports.TextLength &&
+                waited.Elapsed < TimeSpan.FromSeconds(2),
+            $"A 100 KB word is cut before the patterns run: {waited.ElapsedMilliseconds} ms.");
+    }
+
+    /// The window's side of the summaries, in its source: why always given (the launcher's SIGTERM says so), and in English (a
+    /// translated fallback would count one failure under a signature per language)
+    static void BuildSummarySourceChecks(string repo)
+    {
+        var build = File.ReadAllText(Path.Combine(repo, "App", "ViewModels", "BuildStepViewModel.cs"));
+        Require(build.Contains("void Summarize(string outcome, string why)") && build.Contains("string? Summary(string outcome, string why)"),
+            "A build's summary is always given why it ended.");
+        Require(build.Contains("Summary(BuildReports.Terminated, BuildReports.LauncherStopped)"),
+            "The launcher's SIGTERM: the summary says the launcher was stopped.");
+        Require(!System.Text.RegularExpressions.Regex.IsMatch(build, @"Summar(?:ize|y)\([^;\n]*Tr\.[TFP]\("),
+            "No summary is given a translated why (Tr.T, Tr.F, Tr.P).");
+        Require(build.Contains("? Tr.N(\"make_game.py was stopped by a signal (SIGTERM) from outside the launcher.\")") &&
+                build.Contains(": English(\"make_game.py stopped with exit code {0} without saying why.\", code));") &&
+                build.Contains("Fail(why, outcome, reported);"),
+            "A build that stopped without saying why: the summary says so in English, the page in the player's language.");
     }
 }

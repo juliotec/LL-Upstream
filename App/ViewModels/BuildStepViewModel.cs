@@ -222,7 +222,8 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
                 Ui.Post(() =>
                 {
                     if (back is { } n) log.Add(Seeded.Said(n));
-                    Fail(Tr.F("The build tools could not start: {0}", e.Message));
+                    Fail(Tr.F("The build tools could not start: {0}", e.Message),
+                         reported: English("The build tools could not start: {0}", e.Message));
                 });
                 return;
             }
@@ -346,13 +347,18 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
         // (.NET gives a child a signal ended 128 + the signal: 143 is SIGTERM, from outside the launcher, whose own Stop is a
         // cancel. A step the system killed is make_game's own error, "the system stopped it", and a failure)
         var terminated = code == 128 + 15;
-        var why = progress.Error ?? lastError ?? (terminated
+        // (the page says why in the player's language; the summary in English, so one failure is one signature in every language)
+        var told = progress.Error ?? lastError;
+        var why = told ?? (terminated
             ? Tr.T("make_game.py was stopped by a signal (SIGTERM) from outside the launcher.")
             : Tr.F("make_game.py stopped with exit code {0} without saying why.", code));
+        var reported = told ?? (terminated
+            ? Tr.N("make_game.py was stopped by a signal (SIGTERM) from outside the launcher.")
+            : English("make_game.py stopped with exit code {0} without saying why.", code));
         var outcome = terminated ? BuildReports.Terminated : BuildReports.Failed;
         if (seeded is not { } taken)
         {
-            Fail(why, outcome);
+            Fail(why, outcome, reported);
             return;
         }
         // (put back on a pool thread: Undo may wait up to ShaderCaches.UndoWait for a file something the build started still
@@ -361,7 +367,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
         Task.Run(() => taken.Undo()).ContinueWith(t => Ui.Post(() =>
         {
             if (t.IsCompletedSuccessfully) log.Add(Seeded.Said(t.Result));
-            Fail(why, outcome);
+            Fail(why, outcome, reported);
         }), TaskScheduler.Default);
     }
 
@@ -425,17 +431,19 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
     {
         SetRunning(false);
         ticker?.Stop();
-        Summarize(BuildReports.Cancelled);
+        Summarize(BuildReports.Cancelled, "");
         cancel.Cancel();
         Job.Main.ShowHome();
         Job.Main.ShowToast(Tr.T("Build stopped."));
     }
 
-    void Fail(string why, string outcome = BuildReports.Failed)
+    /// The problem page, why in the player's language; reported: why as the statistics' summary says it, in English (Tr.N), why
+    /// itself when it is make_game's own line
+    void Fail(string why, string outcome = BuildReports.Failed, string? reported = null)
     {
         SetRunning(false);
         ticker?.Stop();
-        Summarize(outcome, why);
+        Summarize(outcome, reported ?? why);
         var at = progress.Stages.FirstOrDefault(s => s.Id == progress.Current) ?? progress.Stages.LastOrDefault(s => s.State == StageState.Done);
         var name = at != null ? Tr.T(Names.GetValueOrDefault(at.Id, at.Title)) : Tr.T("the build");
         var pct = (int)Math.Floor(progress.Overall * 100);
@@ -444,7 +452,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
 
     void Complete()
     {
-        Summarize(BuildReports.Completed);
+        Summarize(BuildReports.Completed, "");
         var job = Job;
         var service = job.Service;
         var registry = service.Registry;
@@ -539,6 +547,10 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
             BugReport.System(), PcLine(), SettingsLine(), why,
             lastError, auto ? [] : log.Last(BuildReports.LogLines).ToList(), outcome, Job.Service.Cpu, Stages(), auto);
 
+    /// An English text with its parts filled in, as a summary carries it (Tr.N marks it for the catalogs where it is shown)
+    static string English(string english, params object?[] args) =>
+        string.Format(System.Globalization.CultureInfo.InvariantCulture, Tr.N(english), args);
+
     /// Each stage's progress and time (BuildProgress.Times), the tools' download timed by step 1, where it ran (kept: they were
     /// already on this PC)
     IReadOnlyDictionary<string, (double Progress, double Seconds, bool Kept)> Stages()
@@ -555,14 +567,14 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
 
     /// With Settings' "Send performance statistics" ticked: how the build ended, sent on its own (BuildReports, Auto), once a
     /// build. Not for the screenshots' replays. On the window's thread
-    void Summarize(string outcome, string why = "")
+    void Summarize(string outcome, string why)
     {
         if (Summary(outcome, why) is { } json) _ = BuildReports.SendAsync(BuildReports.Http, json, CancellationToken.None);
     }
 
     /// The summary to send, made on the window's thread (it reads the stages); null when none is sent: the statistics unticked, a
     /// screenshot's replay, or the build already summarized (once only, whichever thread ends it first: BuildReports.Once)
-    string? Summary(string outcome, string why = "")
+    string? Summary(string outcome, string why)
     {
         if (Current == this) Current = null;
         if (fixedTime != null || !Job.Service.Settings.SendPerformanceStatistics || !summarized.Claim()) return null;
@@ -579,7 +591,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
             var json = BuildReports.OnWindow<string>(Ui.Post, () =>
             {
                 SetRunning(false);
-                return Summary(BuildReports.Terminated);
+                return Summary(BuildReports.Terminated, BuildReports.LauncherStopped);
             }, TimeSpan.FromSeconds(1));
             if (json != null) BuildReports.SendAsync(BuildReports.Http, json, CancellationToken.None).Wait(TimeSpan.FromSeconds(2));
         }

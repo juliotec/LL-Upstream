@@ -443,7 +443,7 @@ public sealed class SavesResultViewModel : ViewModelBase
         });
         RetryCommand = new Command(confirm.Retry);
         BackupCommand = new Command(() => { if (Backup != null) main.Host?.Open(Backup); });
-        // (what failed and between which programs: no save's contents, and the home folder as ~ (BugReport))
+        // (what failed and between which programs: no save's contents, and no user name (BugReport, Privacy.Scrub))
         CopyCommand = main.CopyReportCommand(() => Tr.Sentences(Heading, Sub),
                                              () => new[] { $"saves: {confirm.Op.Mode} with {confirm.Op.Program.Name}, from {confirm.From.Path} to {confirm.To.Path}" });
         if (kind == SaveResult.Failed) LauncherLog.Add($"saves {confirm.Op.Mode} with {confirm.Op.Program.Name} failed: {message}");

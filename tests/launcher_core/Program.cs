@@ -67,6 +67,7 @@ static partial class Program
         await ToolchainChecks();
         await CdnChecks();
         await ReportChecks();
+        PrivacyChecks();
         await PrefetchChecks();
         RegistryChecks();
         LeftoverChecks();
@@ -90,7 +91,7 @@ static partial class Program
         ProblemChecks();
         PerfChecks();
         CrashReportChecks();
-        await BuildReportChecks();
+        await BuildReportChecks(Path.GetFullPath(Path.Combine(fixtures, "..", "..")));
         TranslationChecks();
         checks += SavesChecks.Count;
         Console.WriteLine($"launcher core: {checks} checks passed");

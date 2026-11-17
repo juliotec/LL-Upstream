@@ -510,7 +510,7 @@
   "Freeing…": "解放中…",
   "Check for updates when the launcher starts": "ランチャーの起動時にアップデートを確認する",
   "Send performance statistics": "パフォーマンス統計を送信",
-  "How your frames went in each area, and how each build ended and how long its steps took, with your GPU, CPU, OS and settings, so the team can see where Longshot stutters or builds slowly. No paths, names or saves. Sent for a game when it next starts, for a build when it ends.": "各エリアでのフレームの状況と、各ビルドの終わり方と各ステップにかかった時間を、GPU、CPU、OS、設定とともに送ります。Longshot がカクつく場所やビルドが遅い場所をチームが把握できます。パス、名前、セーブは含みません。ゲームの分は次にゲームを起動したとき、ビルドの分はビルドが終わったときに送られます。",
+  "How your frames went in each area, and how each build ended and how long its steps took, with your GPU, CPU, OS and settings, so the team can see where Longshot stutters or builds slowly. No user name, game files or saves. Sent for a game when it next starts, for a build when it ends.": "各エリアでのフレームの状況と、各ビルドの終わり方と各ステップにかかった時間を、GPU、CPU、OS、設定とともに送ります。Longshot がカクつく場所やビルドが遅い場所をチームが把握できます。ユーザー名、ゲームのファイル、セーブは含みません。ゲームの分は次にゲームを起動したとき、ビルドの分はビルドが終わったときに送られます。",
   "make_game.py was stopped by a signal (SIGTERM) from outside the launcher.": "make_game.py がランチャーの外からのシグナル (SIGTERM) で停止しました。",
   "Keep a copy of what was sent": "送信した内容のコピーを保存",
   "In perf_sent, in the game folder, so you can read exactly what went to the team.": "ゲームフォルダーの perf_sent に保存され、チームに送られた内容をそのまま確認できます。",

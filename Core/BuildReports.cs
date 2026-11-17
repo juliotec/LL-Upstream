@@ -12,17 +12,19 @@ namespace LongshotLauncher.Core;
 ///   per failure on the build issue at git.magicbean.dev, counting its repeats there. The page shows what is sent before it is
 ///   (Json): the launcher's and the game's versions, the channel, what the build was, the system, this PC's CPU, memory, threads
 ///   and graphics cards, the build's settings, how it ended, why it stopped and its last error line, each stage's progress and
-///   time, and the build log's last LogLines lines, with the home folder as ~ (BugReport.Scrub). No game file, no save.
+///   time, and the build log's last LogLines lines, with no user name (Privacy.Scrub: the home folder as %USERPROFILE% or ~). No game file, no
+///   save.
 /// - With Settings' "Send performance statistics" ticked (the player's yes to statistics, off by default), every build's end on
 ///   its own (Auto): completed, failed, stopped by the player (cancelled) or by a signal (terminated), with the same fields but
-///   no log; a failed or terminated one says why it stopped and its last error line, with every path and game file's name taken
-///   out (Diagnostic), so the dashboards tell its failures apart. The server only counts those, for Prometheus: no comment.
+///   no log; a failed or terminated one says why it stopped and its last error line, with no user name and every game file's
+///   name taken out (Diagnostic), so the dashboards tell its failures apart. The server only counts those, for Prometheus: no
+///   comment.
 ///
 /// Every report names its client (Client), apart from the launcher's version.
 ///
 /// The launcher sends it itself, not the version's tools as for a crash or the performance statistics: a build that failed may
 /// have failed in those tools.
-public static class BuildReports
+public static partial class BuildReports
 {
     public const string Address = "https://data-services.magicbean.dev/telemetry/build";
     /// Who sent the report, beside the launcher's version (the server counts a report without one as Longshot's)
@@ -35,6 +37,10 @@ public static class BuildReports
     /// How a build ended (Failure.Outcome): it finished; make_game.py stopped on an error; the player pressed Stop; make_game.py or
     /// the launcher was stopped by a signal (SIGTERM: the PC shutting down, a task manager)
     public const string Completed = "completed", Failed = "failed", Cancelled = "cancelled", Terminated = "terminated";
+
+    /// Why a build's summary says it stopped when the launcher itself was sent SIGTERM (BuildStepViewModel.Terminated): in
+    /// English, as every summary's why is, so the dashboards count it under one signature
+    public const string LauncherStopped = "The launcher was stopped by a signal (SIGTERM) while it built: the PC shutting down, or a task manager.";
 
     /// What the build was (Failure.Kind), the same whatever the buttons say: a version built into a folder of its own, an update to
     /// a newer version, an update back to an older one (Other versions on Home), or a version built again in its folder
@@ -69,30 +75,72 @@ public static class BuildReports
         return text[..Math.Max(0, end)];
     }
 
-    static readonly Regex Paths = new("""(?:~|[A-Za-z]:)?[\\/][^\s'"<>]+""", RegexOptions.Compiled);
-    static readonly Regex GameFiles = new("""(?i)\b[^\s'"<>]*\.(?:nup|bars|sarc|msbt|bfstm|bfsar|zs|nca|nsp|xci|romfs|exefs|dat)\b""",
-                                          RegexOptions.Compiled);
+    /// The names a game file or one made from it may end in, as a diagnostic loses them (GameFile): the dumps the launcher takes
+    /// (GameFiles.Extensions: a check keeps them in this list), other dump and key formats, and the game's own files
+    const string GameExtensions = "nup|nx|nsp|nsz|xci|xcz|nca|nso|keys|romfs|exefs|bfres|sbfres|byml|bntx|pack|bars|sarc|msbt|bfstm|bfsar|zs|dat";
 
-    /// A diagnostic as a summary sent on its own carries it (the player saw nothing before it went): every path as [path] and
-    /// every game file's name as [game file], cut to the server's limit
-    public static string Diagnostic(string? text) =>
-        string.IsNullOrWhiteSpace(text) ? "" : Cut(GameFiles.Replace(Paths.Replace(text.Trim(), "[path]"), "[game file]"), TextLength);
+    /// A quoted text, its quote neither part of a word (can't) nor followed by one: 'C:\x y\z.nup' or "x y.nup", as a whole
+    [GeneratedRegex("""(?<![\w])(['"])([^'"\r\n]+)\1(?![\w])""")]
+    private static partial Regex Quoted();
 
+    /// A quoted text's last name that is a game file's, spaces and all (The Game v2.nup)
+    [GeneratedRegex("""^[^\\/]*\.(?i:""" + GameExtensions + """)$""")]
+    private static partial Regex QuotedName();
+
+    /// A link other than file:// (Link)
+    [GeneratedRegex("""(?i)\bhttps?://[^\s'"<>]+""")]
+    private static partial Regex Url();
+
+    /// A game file's name, a word of its own (Main.bfstm, [0100ABCD][v0].nx), not a call (d.keys(), struct.pack())
+    [GeneratedRegex("""(?<![\w.-])[^\s'"<>|\\/]*\.(?i:""" + GameExtensions + """)\b(?!\()""")]
+    private static partial Regex GameFile();
+
+    /// A diagnostic as a summary sent on its own carries it (the player saw nothing before it went), cut to the server's limit.
+    /// The user's name is already out of it (Json: Privacy.Scrub); the rest of a path stays, so the dashboards see where a build
+    /// failed. Every game file's name goes, as [game file] (a quoted one whole, spaces and all); a link keeps its scheme, host and
+    /// path, not a user and password before the host, a query or a fragment.
+    /// What it can't know: the words before a game file's name with spaces that is neither quoted nor alone
+    public static string Diagnostic(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return "";
+        // (cut first too: a long line costs the patterns time, and only its start is sent)
+        var t = Cut(text.Trim(), 4 * TextLength);
+        t = Quoted().Replace(t, m =>
+        {
+            var q = m.Groups[2].Value;
+            var name = q.LastIndexOfAny(['\\', '/']) + 1;
+            return QuotedName().IsMatch(q[name..]) ? m.Groups[1].Value + q[..name] + "[game file]" + m.Groups[1].Value : m.Value;
+        });
+        t = Url().Replace(t, m => Link(m.Value));
+        return Cut(GameFile().Replace(t, "[game file]"), TextLength);
+    }
+
+    /// A link as a diagnostic keeps it: its scheme, host and path (a token in a query, a password before the host never go)
+    static string Link(string url) =>
+        Uri.TryCreate(url, UriKind.Absolute, out var u)
+            ? u.GetComponents(UriComponents.SchemeAndServer | UriComponents.Path, UriFormat.UriEscaped)
+            : url;
     static readonly JsonSerializerOptions Options = new()
     {
         WriteIndented = true,
         Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
     };
 
-    /// The report as it is sent, and as the page shows it: JSON, the home folder as ~, each text cut to the server's limit (the
-    /// home folder taken out first, so no cut leaves part of its name)
-    public static string Json(Failure f, string? home)
+    /// The report as it is sent, and as the page shows it: JSON with no user name (Privacy.Scrub: this PC's home folder and user
+    /// unless a test gives them), each text cut to the server's limit (the name taken out first, so no cut leaves part of it)
+    public static string Json(Failure f, string? home, IEnumerable<string>? users = null)
     {
-        home ??= Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        string Kept(string? text, int max) => Cut(BugReport.Scrub(text ?? "", home), max);
+        var names = users?.ToList();
+        string Clean(string? text) => Privacy.Scrub(text ?? "", home, names);
+        string Kept(string? text, int max) => Cut(Clean(text), max);
         // (on its own, only a build that failed says why: a completed or cancelled one may still hold an earlier error line)
         string Reason(string? text) => !f.Auto ? Kept(text, TextLength)
-            : f.Outcome is Failed or Terminated ? Diagnostic(BugReport.Scrub(text ?? "", home)) : "";
+            : f.Outcome is Failed or Terminated ? Diagnostic(Clean(text)) : "";
+        // (a summary's error line, unless it only says why again, or the launcher itself was stopped, whose last error line is
+        // only what the tools printed earlier: the dashboards would count one failure under many. Send's report keeps both, as
+        // the page shows them)
+        var why = Reason(f.Why);
+        var error = Reason(f.Error) is var e && f.Auto && (e == why || f.Why == LauncherStopped) ? "" : e;
         List<string> log = f.Auto ? [] : (f.Log.Count > LogLines ? f.Log.Skip(f.Log.Count - LogLines) : f.Log)
             .Select(l => Kept(l, LogLineLength)).ToList();
         string Written(IEnumerable<string> lines)
@@ -114,12 +162,12 @@ public static class BuildReports
                 ["cpu"] = Kept(f.Cpu, CpuLength),
                 ["pc"] = Kept(f.Pc, PcLength),
                 ["settings"] = Kept(f.Settings, SettingsLength),
-                ["why"] = Reason(f.Why),
-                ["error"] = Reason(f.Error),
+                ["why"] = why,
+                ["error"] = error,
                 ["stages"] = stages,
                 ["log"] = new JsonArray(lines.Select(l => (JsonNode?)JsonValue.Create(l)).ToArray()),
             };
-            return BugReport.Scrub(report.ToJsonString(Options), home);
+            return Clean(report.ToJsonString(Options));
         }
         var json = Written(log);
         for (var skip = 10; Encoding.UTF8.GetByteCount(json) > MaxBytes && skip - 10 < log.Count; skip += 10)

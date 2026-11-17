@@ -510,7 +510,7 @@
   "Freeing…": "正在釋放…",
   "Check for updates when the launcher starts": "啟動器啟動時檢查更新",
   "Send performance statistics": "傳送效能統計",
-  "How your frames went in each area, and how each build ended and how long its steps took, with your GPU, CPU, OS and settings, so the team can see where Longshot stutters or builds slowly. No paths, names or saves. Sent for a game when it next starts, for a build when it ends.": "各區域的幀狀況，以及每次建置如何結束、各步驟用時多久，連同你的 GPU、CPU、系統和設定一起傳送，讓團隊了解 Longshot 在哪裡卡頓或建置緩慢。不含路徑、名字或存檔。遊戲的統計在下次啟動遊戲時傳送，建置的統計在建置結束時傳送。",
+  "How your frames went in each area, and how each build ended and how long its steps took, with your GPU, CPU, OS and settings, so the team can see where Longshot stutters or builds slowly. No user name, game files or saves. Sent for a game when it next starts, for a build when it ends.": "各區域的幀狀況，以及每次建置如何結束、各步驟用時多久，連同你的 GPU、CPU、系統和設定一起傳送，讓團隊了解 Longshot 在哪裡卡頓或建置緩慢。不含使用者名稱、遊戲檔案或存檔。遊戲的統計在下次啟動遊戲時傳送，建置的統計在建置結束時傳送。",
   "make_game.py was stopped by a signal (SIGTERM) from outside the launcher.": "make_game.py 被啟動器外部的訊號 (SIGTERM) 停止。",
   "Keep a copy of what was sent": "保留已傳送內容的副本",
   "In perf_sent, in the game folder, so you can read exactly what went to the team.": "儲存在遊戲資料夾的 perf_sent 中，你可以確實查看傳送給團隊的內容。",

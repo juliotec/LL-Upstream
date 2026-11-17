@@ -1,7 +1,7 @@
 using LongshotLauncher.Core;
 
 /// Copy for a bug report (BugReport) and the launcher's log it carries (LauncherLog): the lines stamped and kept, the report's
-/// parts in order, the home folder as ~ (never a longer folder that starts like it), and the requests the fetchers log: a refused
+/// parts in order, the home folder as %USERPROFILE% or ~ (Privacy.Scrub: PrivacyChecks), and the requests the fetchers log: a refused
 /// connection with why, and the CDN's fall back
 static partial class Program
 {
@@ -20,7 +20,7 @@ static partial class Program
                     && all[^1].EndsWith($" line {LauncherLog.Keep + 4}", StringComparison.Ordinal), "The log keeps its last lines, oldest first.");
             Require(LauncherLog.Tail(2).Count == 2 && LauncherLog.Tail(2)[1] == all[^1], "Tail: the last lines.");
 
-            // (the report: the facts, what happened, what the screen adds, then the log; the home folder as ~)
+            // (the report: the facts, what happened, what the screen adds, then the log; the home folder as %USERPROFILE%)
             var facts = new ReportFacts("Longshot Launcher v1.0.0-rc.6 (installed)", "Windows 11, X64, .NET 10.0.0",
                                         BugReport.Network(true, null));
             var report = BugReport.Make(facts, "Updates were not checked.\nThis PC could not look up git.magicbean.dev's address.",
@@ -30,37 +30,18 @@ static partial class Program
             Require(lines[0] == facts.Launcher && lines[1] == facts.System
                     && lines[2] == "network: git-cdn.magicbean.dev first, then git.magicbean.dev; proxy: none"
                     && lines[3] == "what happened: Updates were not checked. / This PC could not look up git.magicbean.dev's address."
-                    && lines[4] == "" && lines[5] == "tools: v3.0.0-rc.4 (rc)" && lines[6] == @"from ~\Games\Hookshot"
-                    && lines[7] == "" && lines[8] == "launcher log, its last 1 lines:" && lines[9] == @"12:00:00.000 GET https://git.magicbean.dev/x failed: ~\AppData\x",
-                    "The report's parts, in order, the home folder as ~ in any case:\n" + report);
+                    && lines[4] == "" && lines[5] == "tools: v3.0.0-rc.4 (rc)" && lines[6] == @"from %USERPROFILE%\Games\Hookshot"
+                    && lines[7] == "" && lines[8] == "launcher log, its last 1 lines:" && lines[9] == @"12:00:00.000 GET https://git.magicbean.dev/x failed: %USERPROFILE%\AppData\x",
+                    "The report's parts, in order, the home folder as %USERPROFILE% in any case:\n" + report);
             Require(!report.Contains("Peter", StringComparison.OrdinalIgnoreCase), "No user name in the report.");
             Require(BugReport.Make(facts, "x", log: Array.Empty<string>(), home: "/home/p").Contains("launcher log: empty"), "An empty log says so.");
             Require(BugReport.Network(false, new Uri("http://proxy.lan:3128")) == "network: git.magicbean.dev only (LONGSHOT_LAUNCHER_NO_CDN=1); proxy: proxy.lan:3128",
                     "The network line: no CDN, and the proxy");
 
-            Require(BugReport.Scrub(@"C:\Users\Peter2\x and C:\Users\Peter.old and C:\Users\Peter", @"C:\Users\Peter\") == @"C:\Users\Peter2\x and C:\Users\Peter.old and ~",
-                    "A folder that only starts like the home folder stays as it is.");
-            Require(BugReport.Scrub("/home/pat/.local/share/longshot and /home/PAT/x and /home/pat", "/home/pat") == "~/.local/share/longshot and /home/PAT/x and ~",
-                    "Linux: the home folder as ~, in its own case only.");
-            Require(BugReport.Scrub("/x", "/") == "/x" && BugReport.Scrub(@"C:\x", @"C:\") == @"C:\x" && BugReport.Scrub("x", null) == "x",
-                    "No home folder, or a root: nothing replaced.");
-            // (Windows: either separator, also doubled as JSON writes it, and a file:// link)
-            foreach (var (from, to) in new[]
-                     {
-                         ("C:/Users/Pat/work/build.log", "~/work/build.log"),
-                         ("file:///C:/Users/Pat/work/x", "file:///~/work/x"),
-                         (@"""C:\\Users\\Pat\\AppData""", @"""~\\AppData"""),
-                         (@"c:/users\PAT\x", @"~\x"),
-                     })
-                Require(BugReport.Scrub(from, @"C:\Users\Pat") == to, $"Windows' other separators: {from} -> {BugReport.Scrub(from, @"C:\Users\Pat")}");
-            Require(BugReport.Scrub(@"C:\Users\Pat Smith\work\build.log and C:/Users/Pat%20Smith/x and C:\Users\Pat-x", @"C:\Users\Pat")
-                    == @"C:\Users\Pat Smith\work\build.log and C:/Users/Pat%20Smith/x and C:\Users\Pat-x",
-                    "A longer folder beside the home folder, a space in its name, stays as it is.");
-            Require(BugReport.Scrub(@"C:\Users\Pat Smith\x and file:///C:/Users/Pat%20Smith/y", @"C:\Users\Pat Smith") == @"~\x and file:///~/y",
-                    "A home folder with a space: also as %20 in a link.");
-            Require(BugReport.Scrub("'C:\\Users\\Pat' is denied. Saved in C:\\Users\\Pat. C:\\Users\\Pat is full (C:\\Users\\Pat), C:\\Users\\Pat\nC:\\other\\x",
-                                    @"C:\Users\Pat") == "'~' is denied. Saved in ~. ~ is full (~), ~\nC:\\other\\x",
-                    "The home folder alone in a sentence, a quote or brackets, and before a line with a path.");
+            // (the home folder's and the user name's own cases: PrivacyChecks)
+            Require(BugReport.Make(facts, "x", new[] { @"backup in D:\Users\Peter\Saves" }, Array.Empty<string>(), @"C:\Users\Peter")
+                        .Contains(@"backup in D:\Users\<user>\Saves", StringComparison.Ordinal),
+                    "A report writes the user's name elsewhere in a path as <user>, as the game does.");
             Require(!BugReport.Make(facts, "x", new[] { "log: C:/Users/Pat/work/build.log" }, Array.Empty<string>(), @"C:\Users\Pat").Contains("Pat"),
                     "A report with a forward-slash path names no user.");
 
