@@ -148,7 +148,6 @@
     "other": "{0} 个存档位"
   },
   "Other save locations ({0})": "其他存档位置（{0}）",
-  "Send to an emulator or a folder": "发送到模拟器或文件夹",
   "Play or import saves to enable export": "游玩或导入存档后即可导出",
   "Every build": "所有构建",
   "Emulators and ports": "模拟器和移植版",
@@ -462,7 +461,6 @@
   "Start where you left off": "从上次中断的地方继续",
   "BRING SAVES INTO LONGSHOT": "将存档导入 LONGSHOT",
   "From an emulator…": "从模拟器…",
-  "Choose an emulator or a save folder": "选择模拟器或存档文件夹",
   "From Hookshot…": "从 Hookshot…",
   "Bring over your Hookshot progress": "带上你在 Hookshot 中的进度",
   "TAKE YOUR SAVES WITH YOU": "带走你的存档",
@@ -654,5 +652,20 @@
   "{0} installed": "已安装 {0}",
   "Installed. {0}.": "已安装。{0}。",
   "Nothing on this track yet: it is built into a folder of its own, in about 15 to 30 minutes.": "此通道还没有任何版本：将构建到单独的文件夹中，大约需要 15 到 30 分钟。",
-  "Its versions show once git.magicbean.dev answers.": "git.magicbean.dev 响应后即会显示其版本。"
+  "Its versions show once git.magicbean.dev answers.": "git.magicbean.dev 响应后即会显示其版本。",
+  "A .zip file…": ".zip 文件…",
+  "A .zip of saves the launcher made, or of a save folder": "启动器制作的存档 .zip，或存档文件夹打包的 .zip",
+  "The .zip file with the saves": "包含存档的 .zip 文件",
+  "Save the saves as": "存档另存为",
+  "Nothing in your saves is changed.": "你的存档不会有任何改动。",
+  "This .zip can't be imported: {0}. Nothing was copied.": "此 .zip 无法导入：{0}。没有复制任何内容。",
+  "Choose an emulator, a save folder or a .zip": "选择模拟器、存档文件夹或 .zip",
+  "Send to an emulator, a folder or a .zip": "发送到模拟器、文件夹或 .zip",
+  "One file to keep or to send: the whole save folder, as it is": "一个便于保存或发送的文件：整个存档文件夹，原样保留",
+  "{0} is written over with Longshot's whole save folder: every slot, the game's settings, and every other file in it.": "用 Longshot 的整个存档文件夹（所有存档位、游戏设置及其中的所有其他文件）覆盖 {0}。",
+  "A new file, {0}, with Longshot's whole save folder: every slot, the game's settings, and every other file in it.": "新文件 {0}，包含 Longshot 的整个存档文件夹：所有存档位、游戏设置及其中的所有其他文件。",
+  "Replaced: Longshot's whole save folder ({0}) and every file in it, its game settings (option.sav) kept.": "将被替换：Longshot 的整个存档文件夹（{0}）及其中的所有文件；保留其游戏设置（option.sav）。",
+  "Replaced: Longshot's whole save folder ({0}) and every file in it, its game settings (option.sav) too.": "将被替换：Longshot 的整个存档文件夹（{0}）及其中的所有文件，包括其游戏设置（option.sav）。",
+  "Left out, being links: {0}.": "因是链接而未包含：{0}。",
+  "Nothing in your saves was changed.": "你的存档没有任何改动。"
 }

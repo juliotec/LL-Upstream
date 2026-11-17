@@ -172,6 +172,28 @@ static class Program
                 step.Cold = true;
                 return step;
             }, ScrollToEnd: true),
+        // (the Saves page: Longshot's save, made here from made-up files, three slots saved at different times)
+        new("saves", "The Saves page: the slots every build shares, and the ways in and out", Platform.Windows, ThreeSlots,
+            m => new SavesViewModel(m)),
+        new("saves-export-pick", "Export saves: an emulator, another folder, or a .zip file", Platform.Windows, ThreeSlots,
+            m => new SavesViewModel(m), m => m.Modal = new SavePickViewModel((SavesViewModel)m.Page!, SaveMode.Export)),
+        new("saves-import-pick", "Import saves: an emulator, another folder, or a .zip file", Platform.Windows, ThreeSlots,
+            m => new SavesViewModel(m), m => m.Modal = new SavePickViewModel((SavesViewModel)m.Page!, SaveMode.Import)),
+        // (a .zip of saves: written from Longshot's save, or read and checked before it is imported)
+        new("saves-zip-export", "Export saves to a new .zip file: nothing in the saves changes", Platform.Windows, ThreeSlots,
+            m => new SavesConfirmViewModel(new SavesViewModel(m), new SaveOp { Mode = SaveMode.Export, Zip = Documents(m, SaveArchive.DefaultName(DateTime.Now)) })),
+        new("saves-zip-import", "Import saves from a .zip file: its slots, what they replace, and the backup made first", Platform.Windows,
+            s => { ThreeSlots(s); ZipOf(s, "Saves from my other PC.zip", "slot_00", "slot_02"); },
+            m => new SavesConfirmViewModel(new SavesViewModel(m), new SaveOp { Mode = SaveMode.Import, Zip = Documents(m, "Saves from my other PC.zip") })),
+        new("saves-zip-refused", "A .zip that is not only saves: refused, and why", Platform.Windows,
+            s =>
+            {
+                ThreeSlots(s);
+                using var zip = System.IO.Compression.ZipFile.Open(Documents(s, "Downloaded saves.zip"), System.IO.Compression.ZipArchiveMode.Create);
+                foreach (var name in new[] { "slot_00/progress.sav", "slot_00/caption.sav", "setup.exe" })
+                    using (var w = new StreamWriter(zip.CreateEntry(name).Open())) w.Write(name);
+            },
+            m => new SavesConfirmViewModel(new SavesViewModel(m), new SaveOp { Mode = SaveMode.Import, Zip = Documents(m, "Downloaded saves.zip") })),
         new("hookshot-import-problem", "Importing Hookshot's saves failed, Copy for a bug report", Platform.Windows, null, _ => null,
             m => m.Modal = new HookshotImportViewModel(m) { Problem = @"The saves could not be copied: Access to the path 'C:\Users\Player\Saved Games\Longshot\slot1' is denied." }),
         // (the settings tick: off, Longshot's game options replace Lichii's; on, Lichii keeps its own option.sav)
@@ -231,6 +253,38 @@ static class Program
         });
         confirm.KeepSettings = keep;
         return confirm;
+    }
+
+    /// Longshot's save with three slots (made-up files: only their names and times are a save's), saved 2 hours, a day and 6 days ago
+    static void ThreeSlots(LauncherService service) => FakeSave(Saves.ImportTarget(service.SaveEnv), "slot_00", "slot_01", "slot_03");
+
+    /// A file in the scene's player's Documents folder
+    static string Documents(LauncherService service, string name) =>
+        Path.Combine(Directory.CreateDirectory(Path.Combine(service.SaveEnv.Getenv("USERPROFILE")!, "Documents")).FullName, name);
+
+    static string Documents(MainViewModel main, string name) => Documents(main.Service, name);
+
+    /// A .zip of saves in Documents, made by the launcher from another made-up save
+    static void ZipOf(LauncherService service, string name, params string[] slots)
+    {
+        var other = Path.Combine(service.SaveEnv.Getenv("USERPROFILE")!, "other-pc", SaveArchive.Top);
+        FakeSave(Path.Combine(other, Saves.UserId), slots);
+        SaveArchive.ExportSave(other, Documents(service, name), service.OwnTag, () => []);
+    }
+
+    static void FakeSave(string folder, params string[] slots)
+    {
+        Directory.CreateDirectory(folder);
+        File.WriteAllText(Path.Combine(folder, "account.sav"), "account");
+        File.WriteAllText(Path.Combine(folder, "option.sav"), "option");
+        var ago = new[] { TimeSpan.FromHours(2), TimeSpan.FromDays(1), TimeSpan.FromDays(6) };
+        for (var i = 0; i < slots.Length; i++)
+        {
+            Directory.CreateDirectory(Path.Combine(folder, slots[i]));
+            File.WriteAllText(Path.Combine(folder, slots[i], "progress.sav"), "progress " + slots[i]);
+            File.WriteAllText(Path.Combine(folder, slots[i], "caption.sav"), "caption " + slots[i]);
+            File.SetLastWriteTime(Path.Combine(folder, slots[i], "progress.sav"), DateTime.Now - ago[i % ago.Length]);
+        }
     }
 
     /// A v3.0.0 build with v3.2.0 out on its channel, and the release list the update check read (two stables since)

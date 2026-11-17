@@ -166,7 +166,6 @@
     "other": "{0} слота сохранения"
   },
   "Other save locations ({0})": "Другие места сохранений ({0})",
-  "Send to an emulator or a folder": "Отправить в эмулятор или папку",
   "Play or import saves to enable export": "Чтобы экспортировать, сыграйте или импортируйте сохранения",
   "Every build": "Все сборки",
   "Emulators and ports": "Эмуляторы и порты",
@@ -507,7 +506,6 @@
   "Start where you left off": "Продолжайте с того же места",
   "BRING SAVES INTO LONGSHOT": "ПЕРЕНЕСТИ СОХРАНЕНИЯ В LONGSHOT",
   "From an emulator…": "Из эмулятора…",
-  "Choose an emulator or a save folder": "Выберите эмулятор или папку с сохранениями",
   "From Hookshot…": "Из Hookshot…",
   "Bring over your Hookshot progress": "Перенесите прогресс из Hookshot",
   "TAKE YOUR SAVES WITH YOU": "ЗАБЕРИТЕ СОХРАНЕНИЯ С СОБОЙ",
@@ -705,5 +703,20 @@
   "{0} installed": "Установлена: {0}",
   "Installed. {0}.": "Установлена. {0}.",
   "Nothing on this track yet: it is built into a folder of its own, in about 15 to 30 minutes.": "На этом канале пока ничего нет: сборка пойдёт в отдельную папку, примерно за 15–30 минут.",
-  "Its versions show once git.magicbean.dev answers.": "Его версии появятся, когда git.magicbean.dev ответит."
+  "Its versions show once git.magicbean.dev answers.": "Его версии появятся, когда git.magicbean.dev ответит.",
+  "A .zip file…": "Файл .zip…",
+  "A .zip of saves the launcher made, or of a save folder": ".zip с сохранениями, созданный лаунчером, или из папки с сохранениями",
+  "The .zip file with the saves": "Файл .zip с сохранениями",
+  "Save the saves as": "Сохранить сохранения как",
+  "Nothing in your saves is changed.": "В ваших сохранениях ничего не меняется.",
+  "This .zip can't be imported: {0}. Nothing was copied.": "Этот .zip нельзя импортировать: {0}. Ничего не скопировано.",
+  "Choose an emulator, a save folder or a .zip": "Выберите эмулятор, папку с сохранениями или .zip",
+  "Send to an emulator, a folder or a .zip": "Отправить в эмулятор, папку или .zip",
+  "One file to keep or to send: the whole save folder, as it is": "Один файл, чтобы хранить или отправить: вся папка сохранений как есть",
+  "{0} is written over with Longshot's whole save folder: every slot, the game's settings, and every other file in it.": "{0} будет перезаписан всей папкой сохранений Longshot: все слоты, настройки игры и все остальные файлы в ней.",
+  "A new file, {0}, with Longshot's whole save folder: every slot, the game's settings, and every other file in it.": "Новый файл {0} со всей папкой сохранений Longshot: все слоты, настройки игры и все остальные файлы в ней.",
+  "Replaced: Longshot's whole save folder ({0}) and every file in it, its game settings (option.sav) kept.": "Заменяется: вся папка сохранений Longshot ({0}) и все файлы в ней; её настройки игры (option.sav) сохраняются.",
+  "Replaced: Longshot's whole save folder ({0}) and every file in it, its game settings (option.sav) too.": "Заменяется: вся папка сохранений Longshot ({0}) и все файлы в ней, включая настройки игры (option.sav).",
+  "Left out, being links: {0}.": "Пропущены, так как это ссылки: {0}.",
+  "Nothing in your saves was changed.": "В ваших сохранениях ничего не изменилось."
 }

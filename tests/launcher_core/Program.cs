@@ -82,6 +82,7 @@ static partial class Program
         UpdatePolicyChecks();
         CommandLineChecks();
         SavesChecks.Run(Folder("saves"));
+        SaveArchiveChecks.Run(Folder("save-archive"));
         HookshotChecks(fixtures);
         HookshotSettingsChecks();
         SettingsCarryChecks();
@@ -96,6 +97,7 @@ static partial class Program
         await BuildReportChecks(Path.GetFullPath(Path.Combine(fixtures, "..", "..")));
         TranslationChecks();
         checks += SavesChecks.Count;
+        checks += SaveArchiveChecks.Count;
         Console.WriteLine($"launcher core: {checks} checks passed");
         return 0;
     }

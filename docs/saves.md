@@ -171,12 +171,55 @@ This does not import shader caches, `env.txt`, launcher or builder preferences, 
 
 ## Exporting
 
-**Export to emulator** copies the build's save into an emulator's save folder (the same emulators as the import), or into
-any folder you pick with *Choose a folder*; a folder with no save in it is made into the save folder, and the other files
-in it stay. A save it replaces is backed up first, as for every copy. The launcher does not export to Hookshot.
+**Export to emulator** copies the build's save into an emulator's save folder (the same emulators as the import), into
+any folder you pick with *Choose a folder* (a folder with no save in it is made into the save folder, and the other files
+in it stay), or into a .zip file (below). A save it replaces is backed up first, as for every copy. The launcher does not
+export to Hookshot.
 
-To keep a copy of your saves yourself, copy the save folder from the table at the top of this page. Copy it while the game
-is closed.
+To keep a copy of your saves yourself, export the save folder as a .zip (below), or copy the save folder from the table at the top of
+this page while the game is closed.
+
+## As a .zip file
+
+**Export saves… > A .zip file…** zips Longshot's save folder whole, as it is on the disk, into one file to keep or to send:
+the Save As dialog picks where, `Longshot saves <date>.zip` to start with (`Core/SaveArchive.cs`, `ExportSave`).
+
+- **What is in it:** the `save` folder as the zip's top folder, and everything in it: `save/<user id>/account.sav`,
+  `option.sav`, every `slot_NN/` with whatever it holds, any other file or folder there (nested and empty ones too), and
+  every other profile folder beside Longshot's. Each file keeps its time, so every slot still says when it was saved.
+- **What is not:** nothing from beside the save folder in Longshot's user folder: not `longshot_options.ini`,
+  `mouse_sens.txt` or `present.txt` (the settings are separate). A link or junction in the save folder is left out, never
+  followed, and the result page names it.
+- **Nothing is added among the files.** What made the zip (the launcher's version), when, and its slots are the zip's
+  comment, which any zip tool shows.
+
+It is written beside where it goes and renamed into place, so a failure leaves what was there. It is refused while Longshot,
+Hookshot or an emulator runs, into the save folder itself, and for a folder above the caps below (so every zip it writes
+can be imported again).
+
+**From an emulator… > A .zip file…** imports one. Which rule applies depends on what the zip holds:
+
+- **A whole save folder** (what Export writes: every entry under `save/`, and `save/5a3c9e1f0b7d24680000000000000001/`, the
+  profile the game opens, holding a slot with a `progress.sav`). It is taken as it is: any file, folder or profile in it.
+  Only what makes it safe is checked: no name that leads out of the zip (`..`, `/`, a drive, backslashes included), no link,
+  no file in it twice, and the caps. It takes the place of Longshot's whole save folder: the confirmation says so, Longshot's
+  is backed up whole first (`import-zip-<yyyyMMdd-HHmmss>`), the new one is made beside it and swapped in by two renames, so
+  a failure leaves it as it was. *Keep Longshot's game settings* keeps each of its profiles' `option.sav`.
+- **Anything else**: a zip made by hand of a save folder or of the folder above it, Hookshot's or an emulator's save folder
+  zipped (another profile id than Longshot's), a slot's zip, or the launcher's first zips. Only save files are taken, checked as
+  a Hookshot save is, and refused, saying why, otherwise: only `account.sav`, `option.sav`, `slot_NN/progress.sav` and
+  `slot_NN/caption.sav` (the folders every save file sits in are skipped, and a file manager's leftovers, `__MACOSX`,
+  `.DS_Store`, `Thumbs.db`, `desktop.ini`, left out); no empty file, none above 4 MB; at least one slot, a `progress.sav` in
+  each; and the same safety checks. They are copied into Longshot's profile as an import from a folder is: its slots,
+  `account.sav` and (unless kept) `option.sav` replaced, its other files left.
+
+**The caps**, for both: the zip at most 512 MB; at most 512 MB unpacked in all, and 10,000 entries; a file of a whole save
+folder at most 64 MB. A save folder is a few hundred kilobytes for each profile, so only a bomb or a folder holding something
+else entirely stops there. What comes out is counted while it is unpacked, whatever sizes the zip claims.
+
+Either way the zip is unpacked into a folder of its own in the system's temporary folder (never a save folder, never the
+backups), checked there, and deleted when the import is done or left; one an import never finished (the launcher closed in
+between) goes at the next import, a day later.
 
 ## Tests
 
@@ -185,6 +228,9 @@ The launcher's tests use no real save and nothing from the game:
 - `tests/launcher_core/HookshotChecks.cs` runs on fake save folders in `tests/fixtures/hookshot-saves`, made of one-line
   text files.
 - The save checks in `tests/launcher_core` follow the cases of Longshot's `tests/test_longshot_saves.py`.
+- `SaveArchiveChecks.cs` makes its saves and its zips itself: a save folder with a nested folder, an empty one, a file
+  nobody knows, a binary file and another profile, exported and imported back byte for byte; links left out; and the zips
+  a careless or a hostile one would be (a path out of the zip, a drive, a link, a bomb, a file that is no save).
 - `HookshotSettingsChecks.cs` uses authored INI and language text, including the merge into an existing
   `longshot_options.ini`, replacement backups, failed writes, restoration, skipped values and linked paths.
 

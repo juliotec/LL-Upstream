@@ -166,7 +166,6 @@
     "other": "{0} slotu zapisu"
   },
   "Other save locations ({0})": "Inne miejsca zapisów ({0})",
-  "Send to an emulator or a folder": "Wyślij do emulatora lub folderu",
   "Play or import saves to enable export": "Zagraj lub zaimportuj zapisy, aby móc eksportować",
   "Every build": "Każda kompilacja",
   "Emulators and ports": "Emulatory i porty",
@@ -507,7 +506,6 @@
   "Start where you left off": "Graj dalej od ostatniego zapisu",
   "BRING SAVES INTO LONGSHOT": "PRZENIEŚ ZAPISY DO LONGSHOT",
   "From an emulator…": "Z emulatora…",
-  "Choose an emulator or a save folder": "Wybierz emulator lub folder z zapisami",
   "From Hookshot…": "Z Hookshot…",
   "Bring over your Hookshot progress": "Przenieś postępy z Hookshot",
   "TAKE YOUR SAVES WITH YOU": "ZABIERZ ZAPISY ZE SOBĄ",
@@ -705,5 +703,20 @@
   "{0} installed": "Zainstalowano: {0}",
   "Installed. {0}.": "Zainstalowana. {0}.",
   "Nothing on this track yet: it is built into a folder of its own, in about 15 to 30 minutes.": "Na tym kanale nic jeszcze nie ma: zostanie zbudowana we własnym folderze, w około 15–30 minut.",
-  "Its versions show once git.magicbean.dev answers.": "Jego wersje pojawią się, gdy git.magicbean.dev odpowie."
+  "Its versions show once git.magicbean.dev answers.": "Jego wersje pojawią się, gdy git.magicbean.dev odpowie.",
+  "A .zip file…": "Plik .zip…",
+  "A .zip of saves the launcher made, or of a save folder": "Plik .zip z zapisami utworzony przez launcher albo z folderu z zapisami",
+  "The .zip file with the saves": "Plik .zip z zapisami",
+  "Save the saves as": "Zapisz zapisy jako",
+  "Nothing in your saves is changed.": "W twoich zapisach nic się nie zmieni.",
+  "This .zip can't be imported: {0}. Nothing was copied.": "Tego pliku .zip nie można zaimportować: {0}. Nic nie zostało skopiowane.",
+  "Choose an emulator, a save folder or a .zip": "Wybierz emulator, folder z zapisami lub plik .zip",
+  "Send to an emulator, a folder or a .zip": "Wyślij do emulatora, folderu lub pliku .zip",
+  "One file to keep or to send: the whole save folder, as it is": "Jeden plik do przechowania lub wysłania: cały folder zapisów, taki jaki jest",
+  "{0} is written over with Longshot's whole save folder: every slot, the game's settings, and every other file in it.": "{0} zostanie nadpisany całym folderem zapisów Longshot: wszystkimi slotami, ustawieniami gry i każdym innym plikiem w nim.",
+  "A new file, {0}, with Longshot's whole save folder: every slot, the game's settings, and every other file in it.": "Nowy plik, {0}, z całym folderem zapisów Longshot: wszystkimi slotami, ustawieniami gry i każdym innym plikiem w nim.",
+  "Replaced: Longshot's whole save folder ({0}) and every file in it, its game settings (option.sav) kept.": "Zastąpione: cały folder zapisów Longshot ({0}) i każdy plik w nim; jego ustawienia gry (option.sav) zostają.",
+  "Replaced: Longshot's whole save folder ({0}) and every file in it, its game settings (option.sav) too.": "Zastąpione: cały folder zapisów Longshot ({0}) i każdy plik w nim, także ustawienia gry (option.sav).",
+  "Left out, being links: {0}.": "Pominięte, bo to dowiązania: {0}.",
+  "Nothing in your saves was changed.": "W twoich zapisach nic się nie zmieniło."
 }

@@ -84,6 +84,20 @@ public sealed partial class MainWindow : Window, IWindowHost
         return folders.Count > 0 ? folders[0].TryGetLocalPath() : null;
     }
 
+    public async Task<string?> PickSaveFileAsync(string title, string suggestedName, string[] patterns)
+    {
+        var options = new FilePickerSaveOptions
+        {
+            Title = title,
+            SuggestedFileName = suggestedName,
+            DefaultExtension = patterns.Length > 0 ? Path.GetExtension(patterns[0]).TrimStart('.') : null,
+            ShowOverwritePrompt = true,
+            FileTypeChoices = new[] { new FilePickerFileType(string.Join(", ", patterns)) { Patterns = patterns } },
+        };
+        var file = await StorageProvider.SaveFilePickerAsync(options);
+        return file?.TryGetLocalPath();
+    }
+
     public async Task CopyAsync(string text)
     {
         if (Clipboard is { } clipboard) await clipboard.SetTextAsync(text);

@@ -154,7 +154,6 @@
     "other": "{0} Speicherplätze"
   },
   "Other save locations ({0})": "Andere Speicherorte ({0})",
-  "Send to an emulator or a folder": "An einen Emulator oder Ordner senden",
   "Play or import saves to enable export": "Spiel oder importiere Spielstände, um exportieren zu können",
   "Every build": "Alle Builds",
   "Emulators and ports": "Emulatoren und Ports",
@@ -477,7 +476,6 @@
   "Start where you left off": "Mach da weiter, wo du aufgehört hast",
   "BRING SAVES INTO LONGSHOT": "SPIELSTÄNDE IN LONGSHOT ÜBERNEHMEN",
   "From an emulator…": "Aus einem Emulator…",
-  "Choose an emulator or a save folder": "Wähle einen Emulator oder einen Spielstand-Ordner",
   "From Hookshot…": "Aus Hookshot…",
   "Bring over your Hookshot progress": "Übernimm deinen Fortschritt aus Hookshot",
   "TAKE YOUR SAVES WITH YOU": "NIMM DEINE SPIELSTÄNDE MIT",
@@ -671,5 +669,20 @@
   "{0} installed": "{0} installiert",
   "Installed. {0}.": "Installiert. {0}.",
   "Nothing on this track yet: it is built into a folder of its own, in about 15 to 30 minutes.": "Auf diesem Kanal ist noch nichts: Sie wird in einen eigenen Ordner gebaut, in etwa 15 bis 30 Minuten.",
-  "Its versions show once git.magicbean.dev answers.": "Seine Versionen erscheinen, sobald git.magicbean.dev antwortet."
+  "Its versions show once git.magicbean.dev answers.": "Seine Versionen erscheinen, sobald git.magicbean.dev antwortet.",
+  "A .zip file…": "Eine .zip-Datei…",
+  "A .zip of saves the launcher made, or of a save folder": "Eine .zip mit Spielständen, vom Launcher erstellt oder aus einem Spielstand-Ordner",
+  "The .zip file with the saves": "Die .zip-Datei mit den Spielständen",
+  "Save the saves as": "Spielstände speichern unter",
+  "Nothing in your saves is changed.": "An deinen Spielständen ändert sich nichts.",
+  "This .zip can't be imported: {0}. Nothing was copied.": "Diese .zip kann nicht importiert werden: {0}. Es wurde nichts kopiert.",
+  "Choose an emulator, a save folder or a .zip": "Wähle einen Emulator, einen Spielstand-Ordner oder eine .zip",
+  "Send to an emulator, a folder or a .zip": "An einen Emulator, einen Ordner oder eine .zip senden",
+  "One file to keep or to send: the whole save folder, as it is": "Eine Datei zum Aufbewahren oder Verschicken: der ganze Spielstand-Ordner, wie er ist",
+  "{0} is written over with Longshot's whole save folder: every slot, the game's settings, and every other file in it.": "{0} wird mit dem ganzen Spielstand-Ordner von Longshot überschrieben: alle Slots, die Spieleinstellungen und jede andere Datei darin.",
+  "A new file, {0}, with Longshot's whole save folder: every slot, the game's settings, and every other file in it.": "Eine neue Datei, {0}, mit dem ganzen Spielstand-Ordner von Longshot: alle Slots, die Spieleinstellungen und jede andere Datei darin.",
+  "Replaced: Longshot's whole save folder ({0}) and every file in it, its game settings (option.sav) kept.": "Ersetzt: der ganze Spielstand-Ordner von Longshot ({0}) und jede Datei darin; seine Spieleinstellungen (option.sav) bleiben.",
+  "Replaced: Longshot's whole save folder ({0}) and every file in it, its game settings (option.sav) too.": "Ersetzt: der ganze Spielstand-Ordner von Longshot ({0}) und jede Datei darin, auch seine Spieleinstellungen (option.sav).",
+  "Left out, being links: {0}.": "Ausgelassen, weil es Verknüpfungen sind: {0}.",
+  "Nothing in your saves was changed.": "An deinen Spielständen wurde nichts geändert."
 }

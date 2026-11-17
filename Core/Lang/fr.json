@@ -160,7 +160,6 @@
     "other": "{0} emplacements de sauvegarde"
   },
   "Other save locations ({0})": "Autres dossiers de sauvegarde ({0})",
-  "Send to an emulator or a folder": "Envoyer vers un émulateur ou un dossier",
   "Play or import saves to enable export": "Jouez ou importez des sauvegardes pour activer l'export",
   "Every build": "Tous les builds",
   "Emulators and ports": "Émulateurs et portages",
@@ -492,7 +491,6 @@
   "Start where you left off": "Reprenez là où vous vous étiez arrêté",
   "BRING SAVES INTO LONGSHOT": "IMPORTER DES SAUVEGARDES DANS LONGSHOT",
   "From an emulator…": "Depuis un émulateur…",
-  "Choose an emulator or a save folder": "Choisissez un émulateur ou un dossier de sauvegardes",
   "From Hookshot…": "Depuis Hookshot…",
   "Bring over your Hookshot progress": "Récupérez votre progression Hookshot",
   "TAKE YOUR SAVES WITH YOU": "EMPORTEZ VOS SAUVEGARDES",
@@ -688,5 +686,20 @@
   "{0} installed": "{0} installée",
   "Installed. {0}.": "Installée. {0}.",
   "Nothing on this track yet: it is built into a folder of its own, in about 15 to 30 minutes.": "Rien sur ce canal pour l’instant : elle est construite dans un dossier à elle, en 15 à 30 minutes environ.",
-  "Its versions show once git.magicbean.dev answers.": "Ses versions s’affichent dès que git.magicbean.dev répond."
+  "Its versions show once git.magicbean.dev answers.": "Ses versions s’affichent dès que git.magicbean.dev répond.",
+  "A .zip file…": "Un fichier .zip…",
+  "A .zip of saves the launcher made, or of a save folder": "Un .zip de sauvegardes fait par le launcher, ou d'un dossier de sauvegardes",
+  "The .zip file with the saves": "Le fichier .zip des sauvegardes",
+  "Save the saves as": "Enregistrer les sauvegardes sous",
+  "Nothing in your saves is changed.": "Rien n'est modifié dans vos sauvegardes.",
+  "This .zip can't be imported: {0}. Nothing was copied.": "Ce .zip ne peut pas être importé : {0}. Rien n'a été copié.",
+  "Choose an emulator, a save folder or a .zip": "Choisissez un émulateur, un dossier de sauvegardes ou un .zip",
+  "Send to an emulator, a folder or a .zip": "Envoyer vers un émulateur, un dossier ou un .zip",
+  "One file to keep or to send: the whole save folder, as it is": "Un seul fichier à garder ou à envoyer : le dossier de sauvegardes entier, tel quel",
+  "{0} is written over with Longshot's whole save folder: every slot, the game's settings, and every other file in it.": "{0} est remplacé par le dossier de sauvegardes entier de Longshot : tous les emplacements, les réglages du jeu et tous les autres fichiers qu'il contient.",
+  "A new file, {0}, with Longshot's whole save folder: every slot, the game's settings, and every other file in it.": "Un nouveau fichier, {0}, avec le dossier de sauvegardes entier de Longshot : tous les emplacements, les réglages du jeu et tous les autres fichiers qu'il contient.",
+  "Replaced: Longshot's whole save folder ({0}) and every file in it, its game settings (option.sav) kept.": "Remplacés : le dossier de sauvegardes entier de Longshot ({0}) et tous ses fichiers ; ses réglages du jeu (option.sav) sont gardés.",
+  "Replaced: Longshot's whole save folder ({0}) and every file in it, its game settings (option.sav) too.": "Remplacés : le dossier de sauvegardes entier de Longshot ({0}) et tous ses fichiers, ses réglages du jeu (option.sav) compris.",
+  "Left out, being links: {0}.": "Laissés de côté, car ce sont des liens : {0}.",
+  "Nothing in your saves was changed.": "Rien n'a été modifié dans vos sauvegardes."
 }

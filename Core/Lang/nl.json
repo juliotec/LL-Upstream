@@ -154,7 +154,6 @@
     "other": "{0} saveslots"
   },
   "Other save locations ({0})": "Andere savelocaties ({0})",
-  "Send to an emulator or a folder": "Naar een emulator of map sturen",
   "Play or import saves to enable export": "Speel of importeer saves om te kunnen exporteren",
   "Every build": "Alle builds",
   "Emulators and ports": "Emulators en ports",
@@ -477,7 +476,6 @@
   "Start where you left off": "Ga verder waar je gebleven was",
   "BRING SAVES INTO LONGSHOT": "SAVES NAAR LONGSHOT HALEN",
   "From an emulator…": "Uit een emulator…",
-  "Choose an emulator or a save folder": "Kies een emulator of een savemap",
   "From Hookshot…": "Uit Hookshot…",
   "Bring over your Hookshot progress": "Neem je voortgang uit Hookshot mee",
   "TAKE YOUR SAVES WITH YOU": "NEEM JE SAVES MEE",
@@ -671,5 +669,20 @@
   "{0} installed": "{0} geïnstalleerd",
   "Installed. {0}.": "Geïnstalleerd. {0}.",
   "Nothing on this track yet: it is built into a folder of its own, in about 15 to 30 minutes.": "Nog niets op dit kanaal: hij wordt in een eigen map gebouwd, in zo’n 15 tot 30 minuten.",
-  "Its versions show once git.magicbean.dev answers.": "De versies verschijnen zodra git.magicbean.dev antwoordt."
+  "Its versions show once git.magicbean.dev answers.": "De versies verschijnen zodra git.magicbean.dev antwoordt.",
+  "A .zip file…": "Een .zip-bestand…",
+  "A .zip of saves the launcher made, or of a save folder": "Een .zip met saves van de launcher, of van een savemap",
+  "The .zip file with the saves": "Het .zip-bestand met de saves",
+  "Save the saves as": "Saves opslaan als",
+  "Nothing in your saves is changed.": "Er verandert niets aan je saves.",
+  "This .zip can't be imported: {0}. Nothing was copied.": "Deze .zip kan niet worden geïmporteerd: {0}. Er is niets gekopieerd.",
+  "Choose an emulator, a save folder or a .zip": "Kies een emulator, een savemap of een .zip",
+  "Send to an emulator, a folder or a .zip": "Naar een emulator, een map of een .zip sturen",
+  "One file to keep or to send: the whole save folder, as it is": "Eén bestand om te bewaren of te sturen: de hele savemap, zoals hij is",
+  "{0} is written over with Longshot's whole save folder: every slot, the game's settings, and every other file in it.": "{0} wordt overschreven met de hele savemap van Longshot: alle slots, de spelinstellingen en elk ander bestand erin.",
+  "A new file, {0}, with Longshot's whole save folder: every slot, the game's settings, and every other file in it.": "Een nieuw bestand, {0}, met de hele savemap van Longshot: alle slots, de spelinstellingen en elk ander bestand erin.",
+  "Replaced: Longshot's whole save folder ({0}) and every file in it, its game settings (option.sav) kept.": "Vervangen: de hele savemap van Longshot ({0}) en elk bestand erin; de spelinstellingen (option.sav) blijven.",
+  "Replaced: Longshot's whole save folder ({0}) and every file in it, its game settings (option.sav) too.": "Vervangen: de hele savemap van Longshot ({0}) en elk bestand erin, ook de spelinstellingen (option.sav).",
+  "Left out, being links: {0}.": "Weggelaten, omdat het koppelingen zijn: {0}.",
+  "Nothing in your saves was changed.": "Er is niets aan je saves veranderd."
 }

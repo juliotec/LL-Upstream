@@ -148,7 +148,6 @@
     "other": "세이브 슬롯 {0}개"
   },
   "Other save locations ({0})": "다른 세이브 위치({0})",
-  "Send to an emulator or a folder": "에뮬레이터나 폴더로 보내기",
   "Play or import saves to enable export": "내보내려면 플레이하거나 세이브를 가져오세요",
   "Every build": "모든 빌드",
   "Emulators and ports": "에뮬레이터 및 이식판",
@@ -462,7 +461,6 @@
   "Start where you left off": "이어서 시작",
   "BRING SAVES INTO LONGSHOT": "Longshot으로 세이브 가져오기",
   "From an emulator…": "에뮬레이터에서…",
-  "Choose an emulator or a save folder": "에뮬레이터나 세이브 폴더 선택",
   "From Hookshot…": "Hookshot에서…",
   "Bring over your Hookshot progress": "Hookshot 진행 상황 가져오기",
   "TAKE YOUR SAVES WITH YOU": "세이브 가지고 가기",
@@ -654,5 +652,20 @@
   "{0} installed": "{0} 설치됨",
   "Installed. {0}.": "설치됨. {0}.",
   "Nothing on this track yet: it is built into a folder of its own, in about 15 to 30 minutes.": "이 트랙에는 아직 아무것도 없습니다. 전용 폴더에 빌드되며 약 15~30분 걸립니다.",
-  "Its versions show once git.magicbean.dev answers.": "git.magicbean.dev가 응답하면 버전이 표시됩니다."
+  "Its versions show once git.magicbean.dev answers.": "git.magicbean.dev가 응답하면 버전이 표시됩니다.",
+  "A .zip file…": ".zip 파일…",
+  "A .zip of saves the launcher made, or of a save folder": "런처가 만든 세이브 .zip, 또는 세이브 폴더의 .zip",
+  "The .zip file with the saves": "세이브가 든 .zip 파일",
+  "Save the saves as": "세이브를 다른 이름으로 저장",
+  "Nothing in your saves is changed.": "세이브는 아무것도 바뀌지 않습니다.",
+  "This .zip can't be imported: {0}. Nothing was copied.": "이 .zip은 가져올 수 없습니다: {0}. 아무것도 복사하지 않았습니다.",
+  "Choose an emulator, a save folder or a .zip": "에뮬레이터, 세이브 폴더 또는 .zip 선택",
+  "Send to an emulator, a folder or a .zip": "에뮬레이터, 폴더 또는 .zip으로 보내기",
+  "One file to keep or to send: the whole save folder, as it is": "보관하거나 보낼 파일 하나: 세이브 폴더 전체를 그대로",
+  "{0} is written over with Longshot's whole save folder: every slot, the game's settings, and every other file in it.": "{0}을(를) Longshot의 세이브 폴더 전체(모든 슬롯, 게임 설정, 그 안의 다른 모든 파일)로 덮어씁니다.",
+  "A new file, {0}, with Longshot's whole save folder: every slot, the game's settings, and every other file in it.": "새 파일 {0}에 Longshot의 세이브 폴더 전체(모든 슬롯, 게임 설정, 그 안의 다른 모든 파일)를 담습니다.",
+  "Replaced: Longshot's whole save folder ({0}) and every file in it, its game settings (option.sav) kept.": "대체됨: Longshot의 세이브 폴더 전체({0})와 그 안의 모든 파일. 게임 설정(option.sav)은 유지됩니다.",
+  "Replaced: Longshot's whole save folder ({0}) and every file in it, its game settings (option.sav) too.": "대체됨: Longshot의 세이브 폴더 전체({0})와 그 안의 모든 파일, 게임 설정(option.sav)도 포함.",
+  "Left out, being links: {0}.": "링크라서 제외됨: {0}.",
+  "Nothing in your saves was changed.": "세이브는 아무것도 바뀌지 않았습니다."
 }

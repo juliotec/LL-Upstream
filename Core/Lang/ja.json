@@ -148,7 +148,6 @@
     "other": "{0} 個のセーブスロット"
   },
   "Other save locations ({0})": "ほかのセーブ場所（{0}）",
-  "Send to an emulator or a folder": "エミュレーターまたはフォルダーに送る",
   "Play or import saves to enable export": "エクスポートするには、プレイするかセーブデータをインポートしてください",
   "Every build": "すべてのビルド",
   "Emulators and ports": "エミュレーターと移植版",
@@ -462,7 +461,6 @@
   "Start where you left off": "続きから遊ぶ",
   "BRING SAVES INTO LONGSHOT": "Longshot にセーブデータを取り込む",
   "From an emulator…": "エミュレーターから…",
-  "Choose an emulator or a save folder": "エミュレーターかセーブフォルダーを選ぶ",
   "From Hookshot…": "Hookshot から…",
   "Bring over your Hookshot progress": "Hookshot の進行状況を引き継ぐ",
   "TAKE YOUR SAVES WITH YOU": "セーブデータを持ち出す",
@@ -654,5 +652,20 @@
   "{0} installed": "{0} をインストール済み",
   "Installed. {0}.": "インストール済み。{0}。",
   "Nothing on this track yet: it is built into a folder of its own, in about 15 to 30 minutes.": "このトラックにはまだ何もありません。専用のフォルダーにビルドされます（約 15～30 分）。",
-  "Its versions show once git.magicbean.dev answers.": "git.magicbean.dev が応答すると、バージョンが表示されます。"
+  "Its versions show once git.magicbean.dev answers.": "git.magicbean.dev が応答すると、バージョンが表示されます。",
+  "A .zip file…": ".zip ファイル…",
+  "A .zip of saves the launcher made, or of a save folder": "ランチャーで作ったセーブデータの .zip、またはセーブフォルダーの .zip",
+  "The .zip file with the saves": "セーブデータの入った .zip ファイル",
+  "Save the saves as": "セーブデータの保存先",
+  "Nothing in your saves is changed.": "セーブデータは何も変更されません。",
+  "This .zip can't be imported: {0}. Nothing was copied.": "この .zip はインポートできません：{0}。何もコピーしていません。",
+  "Choose an emulator, a save folder or a .zip": "エミュレーター、セーブフォルダー、または .zip を選ぶ",
+  "Send to an emulator, a folder or a .zip": "エミュレーター、フォルダー、または .zip に送る",
+  "One file to keep or to send: the whole save folder, as it is": "保管や送信に使える 1 つのファイル：セーブフォルダー全体をそのまま",
+  "{0} is written over with Longshot's whole save folder: every slot, the game's settings, and every other file in it.": "{0} を Longshot のセーブフォルダー全体（すべてのスロット、ゲームの設定、その中のほかのすべてのファイル）で上書きします。",
+  "A new file, {0}, with Longshot's whole save folder: every slot, the game's settings, and every other file in it.": "新しいファイル {0} に、Longshot のセーブフォルダー全体（すべてのスロット、ゲームの設定、その中のほかのすべてのファイル）を書き出します。",
+  "Replaced: Longshot's whole save folder ({0}) and every file in it, its game settings (option.sav) kept.": "置き換え：Longshot のセーブフォルダー全体（{0}）とその中のすべてのファイル。ゲームの設定（option.sav）は残します。",
+  "Replaced: Longshot's whole save folder ({0}) and every file in it, its game settings (option.sav) too.": "置き換え：Longshot のセーブフォルダー全体（{0}）とその中のすべてのファイル。ゲームの設定（option.sav）も含みます。",
+  "Left out, being links: {0}.": "リンクのため除外：{0}。",
+  "Nothing in your saves was changed.": "セーブデータは何も変更されていません。"
 }

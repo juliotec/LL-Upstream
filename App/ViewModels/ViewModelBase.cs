@@ -74,6 +74,8 @@ public interface IWindowHost
 {
     Task<string?> PickFileAsync(string title, string[]? patterns);
     Task<string?> PickFolderAsync(string title, string? start);
+    /// Where to write a new file: the system's Save As, with a name to start from (the file may be there already: it asked first)
+    Task<string?> PickSaveFileAsync(string title, string suggestedName, string[] patterns);
     Task CopyAsync(string text);
     void Open(string path);
     void Minimize();

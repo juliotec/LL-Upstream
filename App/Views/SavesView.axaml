@@ -84,7 +84,7 @@
               <c:Icon Kind="download" Width="18" Height="18" VerticalAlignment="Center" Foreground="{StaticResource Brand}"/>
               <StackPanel Grid.Column="1" Spacing="3">
                 <TextBlock Classes="transferTitle" Text="{c:T 'From an emulator…'}"/>
-                <TextBlock Classes="faint" FontSize="11.5" Text="{c:T 'Choose an emulator or a save folder'}" TextWrapping="Wrap"/>
+                <TextBlock Classes="faint" FontSize="11.5" Text="{c:T 'Choose an emulator, a save folder or a .zip'}" TextWrapping="Wrap"/>
               </StackPanel>
             </Grid>
           </Button>

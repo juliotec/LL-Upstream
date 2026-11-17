@@ -130,6 +130,8 @@ public static class Saves
     };
     public static readonly SaveProgram Longshot = new("longshot", "Longshot", On(new[] { "{data}/longshot" }, new[] { "{appdata}/Longshot" }), new[] { "longshot" }, Array.Empty<string>());
     public static readonly SaveProgram Folder = new("folder", "the folder", On(Array.Empty<string>(), Array.Empty<string>()), Array.Empty<string>(), Array.Empty<string>());
+    /// A .zip of saves (SaveArchive), unpacked into a folder of its own first: its import's backup is named import-zip-&lt;stamp&gt;
+    public static readonly SaveProgram Zip = new("zip", "the .zip file", On(Array.Empty<string>(), Array.Empty<string>()), Array.Empty<string>(), Array.Empty<string>());
 
     // (longshot_saves.LAYOUTS: where the save folders sit under a data folder; "<id>" is one folder per profile. A folder deeper down
     // the same path is accepted too; the first layout that finds a profile wins)
@@ -447,7 +449,7 @@ public static class Saves
     static bool IsLink(FileSystemInfo info) => info.LinkTarget != null || info.Attributes.HasFlag(FileAttributes.ReparsePoint);
 
     /// longshot_saves.refuse_links: a save from someone else is only files and folders: a link in it would copy what it points to
-    static void RefuseLinks(string path)
+    internal static void RefuseLinks(string path)
     {
         FileSystemInfo root = Directory.Exists(path) ? new DirectoryInfo(path) : new FileInfo(path);
         if (!root.Exists && root.LinkTarget == null) return;
@@ -465,7 +467,7 @@ public static class Saves
     /// before Gather renames an old save aside (a file in use), and "backup" before BackUpForDelete copies a save
     internal static Action<string>? Fault { get; set; }
 
-    static void CopyTree(string from, string to, Func<string, bool>? skip = null, bool faults = true)
+    internal static void CopyTree(string from, string to, Func<string, bool>? skip = null, bool faults = true)
     {
         Directory.CreateDirectory(to);
         foreach (var f in Directory.EnumerateFiles(from))
@@ -478,7 +480,7 @@ public static class Saves
             if (skip?.Invoke(System.IO.Path.GetFileName(d)) != true) CopyTree(d, System.IO.Path.Combine(to, System.IO.Path.GetFileName(d)), null, faults);
     }
 
-    static void DeleteTree(string path)
+    internal static void DeleteTree(string path)
     {
         try { if (Directory.Exists(path)) Directory.Delete(path, recursive: true); }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
@@ -486,7 +488,7 @@ public static class Saves
 
     /// Where a copy into target is made before it takes target's place, and where target waits during the swap: beside it (one
     /// disk, so each move is a rename), hidden, one name per target, so that what a copy cut short left is found by the next one
-    static (string Staging, string Aside) Beside(string target)
+    internal static (string Staging, string Aside) Beside(string target)
     {
         var parent = System.IO.Path.GetDirectoryName(target)!;
         var name = Base(target);
