@@ -89,12 +89,14 @@ public static class SelfUpdate
         if (!File.Exists(current) && File.Exists(backup))
         {
             File.Move(backup, current);
+            LauncherLog.Add($"launcher update cut short: {backup} put back as {current}");
             done = $"The last update of the launcher was cut short; the launcher before it is back as {Path.GetFileName(current)}.";
         }
         foreach (var left in new[] { Staged(current), Staged(current) + ".part", Staged(current) + ".zip.part" })
         {
             if (!File.Exists(left)) continue;
             File.Delete(left);
+            LauncherLog.Add("launcher update cut short: deleted " + left);
             done ??= "The files of an update cut short were removed.";
         }
         return done;
@@ -206,15 +208,20 @@ public static class SelfUpdate
             File.Copy(current, backup + ".part", overwrite: true);
             File.Move(backup + ".part", backup, overwrite: true);
             File.Move(staged, current, overwrite: true);
+            Swapped();
             return;
         }
         File.Move(current, backup, overwrite: true);
         try { File.Move(staged, current); }
-        catch (Exception) when (!File.Exists(current))
+        catch (Exception e) when (!File.Exists(current))
         {
             File.Move(backup, current);
+            LauncherLog.Add($"launcher update: the new launcher could not take the place of {current} ({e.GetType().Name}: {e.Message}); the one before is back");
             throw;
         }
+        Swapped();
+
+        void Swapped() => LauncherLog.Add($"launcher update: the new launcher put in place at {current}, the one before kept as {backup}");
     }
 
     /// The launcher kept by the last update back in place (--rollback); false when none was kept
@@ -227,6 +234,7 @@ public static class SelfUpdate
         {
             File.Copy(current, aside, overwrite: true);
             File.Move(backup, current, overwrite: true);
+            LauncherLog.Add($"launcher rollback: {backup} put back as {current}, the one it replaced kept as {aside}");
             return true;
         }
         File.Move(current, aside, overwrite: true);
@@ -236,6 +244,7 @@ public static class SelfUpdate
             File.Move(aside, current);
             throw;
         }
+        LauncherLog.Add($"launcher rollback: {backup} put back as {current}, the one it replaced kept as {aside}");
         return true;
     }
 }

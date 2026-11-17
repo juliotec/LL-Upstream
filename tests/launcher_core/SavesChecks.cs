@@ -575,6 +575,9 @@ static class SavesChecks
         Require(Saves.Gather(c.Windows, old, () => new[] { "Longshot" }) == null && Directory.Exists(P(a, "user", "save")) && !Directory.Exists(sharedSave),
                 "Not while Longshot runs: the next start tries again.");
         var g = Saves.Gather(c.Windows, old, () => new[] { "Lichii" }, () => when)!;
+        Require(LauncherLog.Tail(3).Any(l => l.Contains(" saves gather: backed up ") && l.Contains(Privacy.Scrub(g.Backup))
+                                             && l.Contains($"the save of {Privacy.Scrub(P(a, "user"))} copied into")),
+                "The gather is in the launcher's log, with its backup and the save kept: " + string.Join(" | ", LauncherLog.Tail(3)));
         Require(g.From == P(a, "user") && !g.WasShared && Tree(sharedSave) == treeA, "The newest save becomes the shared one (an emulator may run).");
         Require(File.ReadAllText(P(c.Windows.LongshotUser, "mouse_sens.txt")) == "2.5", "The kept save's own settings come along (mouse_sens.txt).");
         Require(g.Moved.SequenceEqual(old) && old.All(u => !Directory.Exists(P(u, "save")) && Directory.Exists(P(u, "save.moved-20261113-090000"))),

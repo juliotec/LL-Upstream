@@ -129,7 +129,14 @@ public sealed class LauncherSettings
         catch (Exception e) when (e is JsonException or IOException or UnauthorizedAccessException or NotSupportedException)
         {
             // (copied, not moved, as builds.json is: each load at start sees the same file and says so, until a save replaces it)
-            try { File.Copy(path, path + ".broken", overwrite: true); } catch (Exception) { }
+            string kept;
+            try
+            {
+                File.Copy(path, path + ".broken", overwrite: true);
+                kept = "kept as " + path + ".broken";
+            }
+            catch (Exception c) { kept = "not kept aside: " + c.Message; }
+            LauncherLog.Add($"settings.json could not be read ({e.GetType().Name}: {e.Message}): {kept}; the launcher's settings start from the defaults");
             return new LauncherSettings { Problem = e.Message };
         }
     }

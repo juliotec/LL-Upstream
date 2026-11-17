@@ -24,6 +24,10 @@ public sealed class App : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
+        // (an exception the window's thread does not catch: in the log file before it ends the launcher; not handled here, so it
+        // still does. LauncherLog.Crash writes it once, though the process's own handler sees it again: Program.Main)
+        Avalonia.Threading.Dispatcher.UIThread.UnhandledException +=
+            (_, e) => LauncherLog.Crash("unhandled exception on the window's thread", e.Exception, Program.CrashLogs);
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             desktop.ShutdownMode = ShutdownMode.OnLastWindowClose;

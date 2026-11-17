@@ -79,6 +79,7 @@ public static class Installer
             File.Delete(left);
         Register(at, version, registry);
         MakeLink(at, shortcuts);
+        LauncherLog.Add($"installed: {version} copied from {source} to {at.Program}, with its Start menu shortcut and its Apps & features entry");
         return at.Program;
     }
 
@@ -104,7 +105,11 @@ public static class Installer
     {
         var was = registry.Read(UninstallKey) is { } entry && entry.TryGetValue("DisplayVersion", out var v) ? v as string : null;
         var changed = was != (string)Entry(at, version, 0)["DisplayVersion"];
-        if (changed) MakeLink(at, shortcuts);
+        if (changed)
+        {
+            MakeLink(at, shortcuts);
+            LauncherLog.Add($"installed launcher {was ?? "(no version)"} -> {version}: its Start menu shortcut made again");
+        }
         Register(at, version, registry);
         return changed;
     }
@@ -154,8 +159,15 @@ public static class Installer
             File.Delete(at.Program);
             DeleteIfEmpty(at.Folder);
         }
+        LauncherLog.Add($"uninstalled: {at.Program}{(pending != null ? " (deleted once the window closes)" : "")}, its shortcut and entry; "
+                        + (deleteData ? "its data in " + at.Home + " deleted" : "its data kept in " + at.Home));
         var kept = new List<string>();
-        if (deleteData && Directory.Exists(at.Home)) DeleteKeeping(at.Home, keep.Select(k => Path.TrimEndingDirectorySeparator(Path.GetFullPath(k))).ToList(), kept);
+        if (deleteData && Directory.Exists(at.Home))
+        {
+            // (the log file is in the home: let go of it before the home goes, and write none after: LauncherLog.CloseFile)
+            LauncherLog.CloseFile();
+            DeleteKeeping(at.Home, keep.Select(k => Path.TrimEndingDirectorySeparator(Path.GetFullPath(k))).ToList(), kept);
+        }
         return new Removed(pending, kept);
     }
 

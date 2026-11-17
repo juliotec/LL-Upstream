@@ -18,6 +18,9 @@ static class Program
     public static string? Recovered { get; private set; }
 
     static InstanceLock? hold;
+    /// Where a crash with no log file open writes (LauncherLog.Crash): the logs folder once the home is known, null before it (the
+    /// default home may not be this launcher's: a portable one's is beside it)
+    public static string? CrashLogs { get; set; }
 
     [STAThread]
     public static int Main(string[] args)
@@ -29,6 +32,12 @@ static class Program
             Console.WriteLine(SelfUpdate.CheckLine(SelfUpdate.OwnTag()));
             return 0;
         }
+        // (an exception nothing catches, on any thread: in the log file before the process ends (LauncherLog.Crash), so a launcher
+        // that closes at its start (#152) leaves why; before the home is held, appended to its log file. A task's exception nobody
+        // looked at ends nothing: logged, the launcher carries on)
+        AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+            LauncherLog.Crash(e.IsTerminating ? "unhandled exception, the launcher ends" : "unhandled exception", e.ExceptionObject, CrashLogs);
+        TaskScheduler.UnobservedTaskException += (_, e) => LauncherLog.Crash("a background task's exception nobody saw", e.Exception);
         // (any DWriteCore.dll Skia would take before Windows' own DirectWrite, for the no-fonts message: FontCheck)
         FontCheck.FindDWriteCore();
         var platform = Platforms.Current;
@@ -52,6 +61,7 @@ static class Program
         Args = args;
         Layout = LauncherLayout.Current(platform);
         Home = LauncherHome.Resolve(platform, null, Layout);
+        CrashLogs = Home.Logs;
         Start = StartRequest.Parse(args);
         if (Start.Kind == StartKind.Play) return PlayWithoutWindow(Start);
         Uninstalling = platform == Platform.Windows && Start.Ignored.Contains(Installer.UninstallArgument);
@@ -68,7 +78,11 @@ static class Program
             }
             return 0;
         }
-        if (platform == Platform.Windows && !Uninstalling && Start.Ignored.Contains(Installer.InstallArgument)) return InstallNow();
+        // (a start that hands over to the installed launcher, on the same home, appends to the log: that one rolls it, and the run
+        // before is kept)
+        var installing = platform == Platform.Windows && !Uninstalling && Start.Ignored.Contains(Installer.InstallArgument);
+        OpenLog(roll: !installing && !(!Uninstalling && Layout.OffersInstall(SelfUpdate.OwnTag(), Environment.GetEnvironmentVariable)));
+        if (installing) return InstallNow();
         // (the Windows download started again once the launcher it installed has updated itself: that newer launcher starts, with
         // these arguments, in place of an offer to put this older one back over it. Installer.InstalledIsNewer, #129)
         if (!Uninstalling && Layout.OffersInstall(SelfUpdate.OwnTag(), Environment.GetEnvironmentVariable) && StartNewerInstalled(args)) return 0;
@@ -95,14 +109,29 @@ static class Program
         using var sigterm = OperatingSystem.IsWindows() ? null
             : System.Runtime.InteropServices.PosixSignalRegistration.Create(System.Runtime.InteropServices.PosixSignal.SIGTERM,
                                                                              _ => ViewModels.BuildStepViewModel.Current?.Terminated());
-        try { return BuildAvaloniaApp().StartWithClassicDesktopLifetime(args); }
+        try
+        {
+            var code = BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+            LauncherLog.Add($"the launcher closed ({code})");
+            return code;
+        }
         // (a PC whose DirectWrite gives the window no fonts: said, with what DirectWrite answered, not a silent crash. FontCheck)
         catch (Exception e) when (FontCheck.IsFontFailure(e))
         {
+            LauncherLog.Crash("the window could not start: no fonts", e);
             WindowsInstall.Tell(FontCheck.Message(e));
             return 1;
         }
         finally { ReleaseLock(); }
+    }
+
+    /// The log file in the home this launcher holds (LauncherLog.OpenFile; file: play.log for one that does not hold it): its
+    /// first line, which launcher on which system
+    static void OpenLog(bool roll = true, string file = LauncherLog.FileName)
+    {
+        var kind = Layout.Kind switch { LauncherKind.Installed => "installed", LauncherKind.Portable => "portable", _ => "not installed" };
+        LauncherLog.OpenFile(Home.Logs, $"Longshot Launcher {SelfUpdate.OwnTag()} ({kind}) started; {BugReport.System()}; home {Home.Root}"
+                                        + (Args.Count > 0 ? "; arguments: " + string.Join(" ", Args) : ""), file: file, roll: roll);
     }
 
     static bool TakeLock()
@@ -129,7 +158,13 @@ static class Program
         ReleaseLock();
         Layout = LauncherLayout.Current(Layout.Platform);
         Home = LauncherHome.Resolve(Layout.Platform, null, Layout);
-        if (TakeLock()) return true;
+        if (TakeLock())
+        {
+            LauncherLog.Add("now portable: its home is " + Home.Root);
+            CrashLogs = Home.Logs;
+            OpenLog();
+            return true;
+        }
         InstanceLock.Poke(Home.Root);
         return false;
     }
@@ -221,6 +256,8 @@ static class Program
     /// --play [folder]: that build's game, else the default build's, with no window
     static int PlayWithoutWindow(StartRequest start)
     {
+        // (the home is the window launcher's, which may be open: play.log, appended to, holds what this start did to the saves)
+        OpenLog(file: LauncherLog.PlayName);
         try
         {
             var service = LauncherService.Open();

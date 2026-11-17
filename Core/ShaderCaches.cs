@@ -184,14 +184,24 @@ public static class ShaderCaches
     /// exception, the ones before it gone
     public static long? Clear(string game, bool notes = false, Func<bool>? running = null)
     {
-        if ((running ?? LongshotRunning)()) return null;
-        long freed = 0;
-        foreach (var f in Clearable(game, notes))
+        if ((running ?? LongshotRunning)())
         {
-            var size = f.Length;
-            f.Delete();
-            freed += size;
+            LauncherLog.Add($"shader caches of {game} not cleared: Longshot is running");
+            return null;
         }
+        long freed = 0;
+        var count = 0;
+        try
+        {
+            foreach (var f in Clearable(game, notes))
+            {
+                var size = f.Length;
+                f.Delete();
+                freed += size;
+                count++;
+            }
+        }
+        finally { LauncherLog.Add($"shader caches of {game} cleared: {count} files, {freed} bytes{(notes ? ", the pipeline notes too" : "")}"); }
         return freed;
     }
 

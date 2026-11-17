@@ -30,6 +30,8 @@ public sealed class LauncherHome
     public string Builds => Path.Combine(Root, "builds.json");
     public string Settings => Path.Combine(Root, "settings.json");
     public string Toolchains => Path.Combine(Root, "toolchains");
+    /// The launcher's log files: launcher.log, this run's, and launcher.1.log, the run before (LauncherLog)
+    public string Logs => Path.Combine(Root, "logs");
     /// make_game.py's --work unless the player chose another: the build files, kept between builds for a faster rebuild
     public string Work => Path.Combine(Root, "work");
     /// NVIDIA's DLSS SDK, fetched by make_game.py --fetch-ngx-sdk (LONGSHOT_NGX_SDK), AMD's FSR runtime (LONGSHOT_FFX_SDK) and

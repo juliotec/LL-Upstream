@@ -93,7 +93,14 @@ public sealed class BuildRegistry
         catch (Exception e) when (e is JsonException or IOException or UnauthorizedAccessException or NotSupportedException)
         {
             // (kept beside it rather than lost: a newer launcher's list, or a broken disk, is not overwritten by an empty one)
-            try { File.Copy(path, path + ".broken", overwrite: true); } catch (Exception) { }
+            string kept;
+            try
+            {
+                File.Copy(path, path + ".broken", overwrite: true);
+                kept = "kept as " + path + ".broken";
+            }
+            catch (Exception c) { kept = "not kept aside: " + c.Message; }
+            LauncherLog.Add($"builds.json could not be read ({e.GetType().Name}: {e.Message}): {kept}; the list starts empty");
             return new BuildRegistry(path, new List<BuildEntry>(), now, true, e.Message);
         }
     }
@@ -261,7 +268,11 @@ public sealed class BuildRegistry
     public IReadOnlyList<BuildEntry> ForgetGone(IReadOnlyCollection<string>? keep = null)
     {
         var gone = builds.Where(b => keep?.Contains(b.Id) != true && Gone(b.Folder)).ToList();
-        foreach (var b in gone) builds.Remove(b);
+        foreach (var b in gone)
+        {
+            builds.Remove(b);
+            LauncherLog.Add($"build {b.Version ?? "(no version)"} dropped from the list: its folder is gone: {b.Folder}");
+        }
         if (gone.Count > 0) Normalize();
         return gone;
     }
@@ -368,6 +379,23 @@ public sealed class BuildRegistry
     public static string? DeleteFolder(string folder, Platform platform, IEnumerable<string>? keep = null, Func<string, string?>? getenv = null,
                                        SaveEnvironment? saves = null, Func<DateTime>? now = null)
     {
+        try
+        {
+            var backup = DeleteGameFolder(folder, platform, keep, getenv, saves, now);
+            LauncherLog.Add("build folder deleted: " + folder + (backup != null ? $"; the save it held is backed up in {backup}" : ""));
+            return backup;
+        }
+        catch (Exception e)
+        {
+            LauncherLog.Add($"build folder not deleted: {folder}: {e.GetType().Name}: {e.Message}"
+                            + (e is FolderNotDeleted { Backup: { } b } ? $"; the save it held is backed up in {b}" : ""));
+            throw;
+        }
+    }
+
+    static string? DeleteGameFolder(string folder, Platform platform, IEnumerable<string>? keep, Func<string, string?>? getenv,
+                                    SaveEnvironment? saves, Func<DateTime>? now)
+    {
         var full = MayDelete(folder, platform, keep, getenv, saves);
         string? backup = null;
         if (Saves.SaveIn(full) is { } save)
@@ -411,13 +439,21 @@ public sealed class BuildRegistry
     {
         // (a folder DeleteFolder refuses is left as it was: its save not gathered, nor renamed aside)
         try { MayDelete(folder, platform, keep, getenv, saves); }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return new DeletedGame(folder, false, null, null, null, e.Message); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            LauncherLog.Add($"build folder not deleted: {folder}: {e.GetType().Name}: {e.Message}");
+            return new DeletedGame(folder, false, null, null, null, e.Message);
+        }
         SaveGathered? gathered = null;
         string? gatherProblem = null;
         if (saves.Platform == Platform.Windows && Saves.SaveIn(folder) != null)
         {
             try { gathered = Saves.GatherAlone(saves, new[] { Path.Combine(Path.GetFullPath(folder), "user") }, running, now); }
-            catch (Exception e) when (e is SaveFailure or IOException or UnauthorizedAccessException) { gatherProblem = e.Message; }
+            catch (Exception e) when (e is SaveFailure or IOException or UnauthorizedAccessException)
+            {
+                gatherProblem = e.Message;
+                LauncherLog.Add($"saves gather before deleting {folder}: not done: {e.GetType().Name}: {e.Message}");
+            }
         }
         try
         {

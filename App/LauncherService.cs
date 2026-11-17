@@ -189,12 +189,23 @@ public sealed class LauncherService
         var file = release.Launcher.TryGetValue(layout.UpdateKey, out var f) ? f
             : throw new InvalidDataException($"{Versions.Shown(release.Version)} has no launcher of this kind ({layout.UpdateKey}).");
         var entry = layout.UpdateKey == ReleaseManifest.WindowsPortable ? LauncherLayout.ProgramName : null;
-        var staged = await SelfUpdate.DownloadAsync(Fetcher, file, current, progress, cancel, entry);
+        LauncherLog.Add($"launcher update: {OwnTag} -> {release.Version} ({layout.UpdateKey}), downloading {LauncherLog.Link(file.Url)}");
+        string staged;
+        try { staged = await SelfUpdate.DownloadAsync(Fetcher, file, current, progress, cancel, entry); }
+        catch (Exception e)
+        {
+            LauncherLog.Add($"launcher update: download stopped: {e.GetType().Name}: {e.Message}");
+            throw;
+        }
         try
         {
+            LauncherLog.Add($"launcher update: downloaded and checked (SHA-256) as {staged}; starting it with {SelfUpdate.CheckArgument}");
             step?.Invoke(Tr.T("Checking that the new launcher starts…"));
             if (!await SelfUpdate.SelfCheckAsync(staged, release.Version, TimeSpan.FromSeconds(60)))
+            {
+                LauncherLog.Add($"launcher update: the new launcher did not answer {SelfUpdate.CheckArgument}; not put in place");
                 throw new InvalidDataException(Tr.F("The new launcher ({0}) did not start on this PC, so it was not put in place.", release.Version));
+            }
             step?.Invoke(Tr.T("Putting the new launcher in place…"));
             SelfUpdate.Swap(current, staged, Platform);
         }
@@ -204,6 +215,7 @@ public sealed class LauncherService
         }
         // (this one lets go of the home first: the new one takes it as it starts)
         step?.Invoke(Tr.T("Starting the new launcher…"));
+        LauncherLog.Add("launcher update: starting the new launcher; this one closes");
         Program.ReleaseLock();
         using var _ = Process.Start(new ProcessStartInfo(current) { UseShellExecute = false });
     }
@@ -339,7 +351,11 @@ public sealed class LauncherService
         {
             return (Saves.GatherAlone(SaveEnv, Saves.OldUserFolders(SaveEnv, BuildFolders(), null)), null);
         }
-        catch (Exception e) when (e is SaveFailure or IOException or UnauthorizedAccessException) { return (null, e.Message); }
+        catch (Exception e) when (e is SaveFailure or IOException or UnauthorizedAccessException)
+        {
+            LauncherLog.Add($"saves gather: not done: {e.GetType().Name}: {e.Message}");
+            return (null, e.Message);
+        }
     }
 
     public void SetDefault(BuildEntry b)
@@ -394,6 +410,7 @@ public sealed class LauncherService
     {
         if (deleteFiles) BuildRegistry.DeleteFolder(b.Folder, Platform, KeepOf(b), null, SaveEnv);
         Registry.Remove(b.Id);
+        LauncherLog.Add($"build {b.Version ?? "(no version)"} removed from the list{(deleteFiles ? "" : ", its folder left on the disk")}: {b.Folder}");
         remeasure = true;   // (the game files it shared with another build are that one's alone now: Measure)
         Registry.Save();
         PruneTools();

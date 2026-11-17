@@ -75,6 +75,8 @@ static partial class Program
         SettingsChecks(Path.GetFullPath(Path.Combine(fixtures, "..", "..")));
         ProgressChecks();
         LogChecks();
+        DataLogChecks();
+        LogFileChecks();
         CommandChecks();
         ShaderCacheChecks();
         UpdatePolicyChecks();

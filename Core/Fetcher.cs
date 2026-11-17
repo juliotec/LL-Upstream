@@ -65,26 +65,26 @@ public sealed class HttpFetcher : IFetcher, IDisposable
             // (the log: what failed, in .NET's own terms; the player's words for it are the screen's)
             var inner = (Exception)e;
             while (inner.InnerException != null) inner = inner.InnerException;
-            LauncherLog.Add($"GET {uri} failed after {Took()}: {e.HttpRequestError} ({inner.GetType().Name}: {inner.Message.Trim()})");
+            LauncherLog.Add($"GET {LauncherLog.Link(uri)} failed after {Took()}: {e.HttpRequestError} ({inner.GetType().Name}: {inner.Message.Trim()})");
             throw new FetchException(NetFailure.Why(e, uri.Host, proxy), (int?)e.StatusCode, e);
         }
         catch (TaskCanceledException e) when (!cancel.IsCancellationRequested)
         {
-            LauncherLog.Add($"GET {uri} timed out after {Took()}");
+            LauncherLog.Add($"GET {LauncherLog.Link(uri)} timed out after {Took()}");
             throw new FetchException(NetFailure.TimedOut(uri.Host), null, e);
         }
         catch (OperationCanceledException)
         {
-            LauncherLog.Add($"GET {uri} cancelled after {Took()}");
+            LauncherLog.Add($"GET {LauncherLog.Link(uri)} cancelled after {Took()}");
             throw;
         }
         var final = response.RequestMessage?.RequestUri;
-        var moved = final != null && final != uri ? $" (redirected to {final})" : "";
-        LauncherLog.Add($"GET {uri}: HTTP {(int)response.StatusCode}{moved}, {Took()}");
+        var moved = final != null && final != uri ? $" (redirected to {LauncherLog.Link(final)})" : "";
+        LauncherLog.Add($"GET {LauncherLog.Link(uri)}: HTTP {(int)response.StatusCode}{moved}, {Took()}");
         if (final != null && final.Scheme != Uri.UriSchemeHttps)
         {
             response.Dispose();
-            throw new FetchException("A download was redirected away from https: " + final, 0);
+            throw new FetchException("A download was redirected away from https: " + LauncherLog.Link(final), 0);
         }
         if (!response.IsSuccessStatusCode)
         {
@@ -130,10 +130,10 @@ public sealed class HttpFetcher : IFetcher, IDisposable
         }
         catch (Exception e) when (e is FetchException or OperationCanceledException)
         {
-            LauncherLog.Add($"GET {url}: stopped after {have} bytes, {clock.ElapsedMilliseconds} ms: {e.Message}");
+            LauncherLog.Add($"GET {LauncherLog.Link(url)}: stopped after {have} bytes, {clock.ElapsedMilliseconds} ms: {e.Message}");
             throw;
         }
-        LauncherLog.Add($"GET {url}: {have} bytes in {clock.ElapsedMilliseconds} ms");
+        LauncherLog.Add($"GET {LauncherLog.Link(url)}: {have} bytes in {clock.ElapsedMilliseconds} ms");
     }
 
     /// from into to, failing (FetchException) when a read waits longer than readTimeout for its next bytes: the timer starts again

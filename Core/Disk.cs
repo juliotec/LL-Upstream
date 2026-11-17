@@ -77,11 +77,23 @@ public static class Disk
     /// WorkParts let go (a link among them is removed, never followed); the rest of work stays
     public static void FreeWork(string work)
     {
-        foreach (var p in WorkParts)
+        var gone = new List<string>();
+        try
         {
-            var path = Path.Combine(work, p);
-            if (Directory.Exists(path) || new DirectoryInfo(path).LinkTarget != null) Toolchains.DeleteTree(path);
-            else if (File.Exists(path)) File.Delete(path);
+            foreach (var p in WorkParts)
+            {
+                var path = Path.Combine(work, p);
+                if (Directory.Exists(path) || new DirectoryInfo(path).LinkTarget != null) Toolchains.DeleteTree(path);
+                else if (File.Exists(path)) File.Delete(path);
+                else continue;
+                gone.Add(p);
+            }
+            LauncherLog.Add($"free up space: deleted in {work}: {(gone.Count > 0 ? string.Join(", ", gone) : "nothing there")}");
+        }
+        catch (Exception e)
+        {
+            LauncherLog.Add($"free up space: stopped in {work} ({e.GetType().Name}: {e.Message}); deleted: {(gone.Count > 0 ? string.Join(", ", gone) : "nothing")}");
+            throw;
         }
     }
 

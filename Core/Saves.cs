@@ -749,6 +749,7 @@ public static class Saves
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
             DeleteTree(backup);
+            LauncherLog.Add($"saves gather: the backup in {backup} failed ({e.GetType().Name}: {e.Message}); nothing moved");
             throw new SaveFailure($"The saves could not be backed up ({e.Message}), so none was moved: they are as they were.");
         }
 
@@ -792,6 +793,7 @@ public static class Saves
             catch (Exception e) when (e is IOException or UnauthorizedAccessException)
             {
                 DeleteTree(staging);
+                LauncherLog.Add($"saves gather: the save of {kept.User} could not be moved into {shared} ({e.GetType().Name}: {e.Message}); nothing changed, backup in {backup}");
                 throw new SaveFailure($"The saves could not be moved ({e.Message}). Nothing was changed; a backup of them all is in {backup}.", backup: backup);
             }
             if (kept.User != shared)
@@ -817,6 +819,16 @@ public static class Saves
             }
             catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
         }
+        var movedSlots = slots.Where(s => s.MovedTo != null).Select(s => $"{s.Profile}/{s.Slot} of {s.From} to {s.MovedTo}").ToList();
+        var leftSlots = slots.Where(s => s.Left).Select(s => $"{s.Profile}/{s.Slot} of {s.From}{(s.Older ? " (older)" : "")}").ToList();
+        var tookSlots = slots.Where(s => s.From != kept.User && s.MovedTo == null && !s.Left).Select(s => $"{s.Profile}/{s.Slot} of {s.From}").ToList();
+        LauncherLog.Add($"saves gather: backed up {string.Join(", ", sides.Select(s => s.User))} to {backup}; "
+                        + (kept.User == shared ? $"the shared save in {shared} kept" : $"the save of {kept.User} copied into {shared}")
+                        + (tookSlots.Count > 0 ? $"; slots it lacked, taken in: {string.Join(", ", tookSlots)}" : "")
+                        + (movedSlots.Count > 0 ? $"; slots put in a free slot: {string.Join(", ", movedSlots)}" : "")
+                        + (leftSlots.Count > 0 ? $"; slots kept in the backup only: {string.Join(", ", leftSlots)}" : "")
+                        + (moved.Count > 0 ? $"; old saves renamed save.moved-{stamp}(-n) in {string.Join(", ", moved)}" : "")
+                        + (moved.Count < old.Count ? $"; not renamed (a file in use, or refused): {string.Join(", ", old.Except(moved))}" : ""));
         return new SaveGathered(kept.User, kept.User == shared, moved, backup, slots);
     }
 
