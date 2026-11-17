@@ -57,6 +57,7 @@ static partial class Program
         RequirementsChecks();
         GameFolderChecks();
         AtomicChecks();
+        KeepAwakeChecks(Path.GetFullPath(Path.Combine(fixtures, "..", "..")));
         VersionChecks(vectors.RootElement);
         await ReleaseChecks(Path.Combine(fixtures, "release"));
         ReleaseNotesChecks();

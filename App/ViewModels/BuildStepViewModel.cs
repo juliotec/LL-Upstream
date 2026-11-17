@@ -194,7 +194,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
             Fail(e.Message);
             return;
         }
-        running = true;
+        SetRunning(true);
         Current = this;
         watch.Start();
         ticker?.Start();
@@ -335,7 +335,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
 
     void Exited(int code, Seeded? seeded = null)
     {
-        running = false;
+        SetRunning(false);
         ticker?.Stop();
         Update();
         if (progress.Finished && code == 0)
@@ -423,7 +423,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
     /// Cancel: the build and everything it started stopped, back home
     public void Stop()
     {
-        running = false;
+        SetRunning(false);
         ticker?.Stop();
         Summarize(BuildReports.Cancelled);
         cancel.Cancel();
@@ -433,7 +433,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
 
     void Fail(string why, string outcome = BuildReports.Failed)
     {
-        running = false;
+        SetRunning(false);
         ticker?.Stop();
         Summarize(outcome);
         var at = progress.Stages.FirstOrDefault(s => s.Id == progress.Current) ?? progress.Stages.LastOrDefault(s => s.State == StageState.Done);
@@ -502,6 +502,20 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
 
     public bool Running => running;
 
+    IDisposable? awake;
+
+    /// The build running or not: while it runs the PC is kept from sleeping (KeepAwake), and let go however the build ends
+    void SetRunning(bool on)
+    {
+        running = on;
+        if (on) awake ??= KeepAwake.Hold("Building Longshot");
+        else
+        {
+            awake?.Dispose();
+            awake = null;
+        }
+    }
+
     /// A bug report (MainViewModel.Report): why it stopped, then the build, this PC's memory and GPU, the settings and the build log's
     /// last 200 lines, then the launcher's log
     public string Report(string why)
@@ -564,7 +578,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
         {
             var json = BuildReports.OnWindow<string>(Ui.Post, () =>
             {
-                running = false;
+                SetRunning(false);
                 return Summary(BuildReports.Terminated);
             }, TimeSpan.FromSeconds(1));
             if (json != null) BuildReports.SendAsync(BuildReports.Http, json, CancellationToken.None).Wait(TimeSpan.FromSeconds(2));
