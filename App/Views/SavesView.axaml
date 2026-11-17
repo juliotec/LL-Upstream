@@ -31,9 +31,17 @@
 
     <Grid Grid.Row="1" ColumnDefinitions="*,290" ColumnSpacing="24">
       <Grid RowDefinitions="Auto,*" RowSpacing="10">
-        <Grid ColumnDefinitions="*,Auto">
+        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="14">
           <TextBlock Classes="label" Text="{c:T 'YOUR LONGSHOT SAVES'}" Margin="0" VerticalAlignment="Center"/>
           <TextBlock Grid.Column="1" Classes="faint" Text="{Binding SlotCount}" VerticalAlignment="Center"/>
+          <!-- the save folder in the file manager, to find the saves by hand -->
+          <Button Grid.Column="2" Classes="link smaller" Command="{Binding OpenFolderCommand}" VerticalAlignment="Center"
+                  ToolTip.Tip="{Binding SaveFolderShown}">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <c:Icon Kind="folder" Width="13" Height="13"/>
+              <TextBlock Text="{c:T 'Open saves folder'}"/>
+            </StackPanel>
+          </Button>
         </Grid>
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" ClipToBounds="True">
           <StackPanel Spacing="10">

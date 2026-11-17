@@ -768,5 +768,9 @@
   "Moved the {0} folders.": {"one": "Przeniesiono folder.", "few": "Przeniesiono {0} foldery.", "many": "Przeniesiono {0} folderów.", "other": "Przeniesiono {0} folderu."},
   "Details": "Szczegóły",
   "Less": "Mniej",
-  "{0} instances use the old folder layout. Move puts them in {1}; saves and settings go with them.": {"one": "Twoja instancja używa starego układu folderów. Przenieś umieszcza ją w {1}; zapisy i ustawienia idą razem z nią.", "few": "{0} instancje używają starego układu folderów. Przenieś umieszcza je w {1}; zapisy i ustawienia idą razem z nimi.", "many": "{0} instancji używa starego układu folderów. Przenieś umieszcza je w {1}; zapisy i ustawienia idą razem z nimi.", "other": "{0} instancji używa starego układu folderów. Przenieś umieszcza je w {1}; zapisy i ustawienia idą razem z nimi."}
+  "{0} instances use the old folder layout. Move puts them in {1}; saves and settings go with them.": {"one": "Twoja instancja używa starego układu folderów. Przenieś umieszcza ją w {1}; zapisy i ustawienia idą razem z nią.", "few": "{0} instancje używają starego układu folderów. Przenieś umieszcza je w {1}; zapisy i ustawienia idą razem z nimi.", "many": "{0} instancji używa starego układu folderów. Przenieś umieszcza je w {1}; zapisy i ustawienia idą razem z nimi.", "other": "{0} instancji używa starego układu folderów. Przenieś umieszcza je w {1}; zapisy i ustawienia idą razem z nimi."},
+  "Open saves folder": "Otwórz folder zapisów",
+  "Open builds folder": "Otwórz folder kompilacji",
+  "Not made yet: the first build makes it": "Jeszcze nie istnieje: utworzy go pierwsza kompilacja",
+  "The saves folder could not be made: {0}": "Nie udało się utworzyć folderu zapisów: {0}"
 }

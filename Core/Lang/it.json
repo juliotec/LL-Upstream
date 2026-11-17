@@ -750,5 +750,9 @@
   "Moved the {0} folders.": {"one": "Cartella spostata.", "many": "{0} cartelle spostate.", "other": "{0} cartelle spostate."},
   "Details": "Dettagli",
   "Less": "Meno",
-  "{0} instances use the old folder layout. Move puts them in {1}; saves and settings go with them.": {"one": "La tua istanza usa la vecchia struttura delle cartelle. Sposta la mette in {1}; salvataggi e impostazioni la seguono.", "many": "{0} istanze usano la vecchia struttura delle cartelle. Sposta le mette in {1}; salvataggi e impostazioni le seguono.", "other": "{0} istanze usano la vecchia struttura delle cartelle. Sposta le mette in {1}; salvataggi e impostazioni le seguono."}
+  "{0} instances use the old folder layout. Move puts them in {1}; saves and settings go with them.": {"one": "La tua istanza usa la vecchia struttura delle cartelle. Sposta la mette in {1}; salvataggi e impostazioni la seguono.", "many": "{0} istanze usano la vecchia struttura delle cartelle. Sposta le mette in {1}; salvataggi e impostazioni le seguono.", "other": "{0} istanze usano la vecchia struttura delle cartelle. Sposta le mette in {1}; salvataggi e impostazioni le seguono."},
+  "Open saves folder": "Apri cartella dei salvataggi",
+  "Open builds folder": "Apri cartella delle build",
+  "Not made yet: the first build makes it": "Non esiste ancora: la crea la prima build",
+  "The saves folder could not be made: {0}": "Impossibile creare la cartella dei salvataggi: {0}"
 }

@@ -154,8 +154,9 @@ next time it starts. If `LongshotLauncher.exe` itself is missing, rename `Longsh
 5. **Play**. Ready can also make desktop and menu shortcuts, which start the default version.
 
 The cog on the home opens the launcher's settings: the **launcher's language**, the channel for new builds, the
-**launcher's own channel**, the builds folder (your instances, one folder per track and version), the build files
-folder (working files every build reuses, not the game; and *Free up space*), the update check at start, and on
+**launcher's own channel**, the builds folder (your instances, one folder per track and version; its folder button opens
+it in the file manager), the build files folder (working files every build reuses, not the game; and *Free up space*),
+the update check at start, and on
 Linux the launcher's entry in the applications menu.
 
 The launcher speaks the game's sixteen languages. It starts in the system's (Windows' display language; on Linux `LANGUAGE`,
@@ -173,7 +174,8 @@ launcher brings in, once, the saves each build kept in its own folder before, an
 after backing them all up ([docs/saves.md](docs/saves.md#saves-from-before-windows)). The **Saves** page imports saves from
 Lichii, Eden, NX2navi and the other emulators, and exports them back, or the whole save folder into one .zip file to
 keep or send, which it imports again after checking it is safe. You can import before playing Longshot for the first time. Every copy
-backs up what it replaces first, and *Restore from a backup…* lists those backups and puts one back.
+backs up what it replaces first, and *Restore from a backup…* lists those backups and puts one back. *Open saves folder*
+shows the save folder in the file manager, to find the saves by hand.
 
 **Coming from NX2navi?** The home offers to import saves found in its usual game folder. Choose the profile and confirm
 the import; the originals stay where they are. Portable or custom installs can be chosen by hand.

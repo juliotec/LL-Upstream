@@ -18,6 +18,9 @@ does (for Lichii, Eden, NX2navi and the rest) without the launcher.
 | Linux and Steam Deck | `$XDG_DATA_HOME/longshot/save/<user id>/` (default `~/.local/share/longshot/save/`) |
 | Windows | `%APPDATA%\Longshot\save\<user id>\`; a portable launcher's in `LongshotLauncher-data\user\save\` beside it |
 
+**Open saves folder** on the Saves page shows that `save` folder in the file manager (it is made first when there is none
+yet, as an import makes it), to look at the saves or copy them by hand while Longshot is closed.
+
 Every build uses the same saves, on both systems, so a new build or an update starts where you left off, and there is nothing
 to copy between builds. The launcher starts every build with `--user <that folder>` (on Linux, not while the build's folder
 has a `user/` of its own: the game moves an old one into the shared folder by itself, and keeps a link you made). On Linux the

@@ -714,5 +714,9 @@
   "Moved the {0} folders.": {"other": "폴더 {0}개를 옮겼습니다."},
   "Details": "자세히",
   "Less": "접기",
-  "{0} instances use the old folder layout. Move puts them in {1}; saves and settings go with them.": {"other": "인스턴스 {0}개가 예전 폴더 구조입니다. 이동하면 {1}(으)로 옮기며 세이브와 설정도 함께 옮겨집니다."}
+  "{0} instances use the old folder layout. Move puts them in {1}; saves and settings go with them.": {"other": "인스턴스 {0}개가 예전 폴더 구조입니다. 이동하면 {1}(으)로 옮기며 세이브와 설정도 함께 옮겨집니다."},
+  "Open saves folder": "세이브 폴더 열기",
+  "Open builds folder": "빌드 폴더 열기",
+  "Not made yet: the first build makes it": "아직 없음: 첫 빌드 때 만들어집니다",
+  "The saves folder could not be made: {0}": "세이브 폴더를 만들 수 없습니다: {0}"
 }

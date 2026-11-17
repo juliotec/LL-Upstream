@@ -75,9 +75,12 @@
         <Grid ColumnDefinitions="*,*" ColumnSpacing="20" Margin="0,0,0,22">
           <StackPanel>
             <TextBlock Classes="label" Text="{c:T 'BUILDS FOLDER'}"/>
-            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
               <TextBox Classes="path" Text="{Binding BuildsFolder}"/>
               <Button Grid.Column="1" Content="{c:T 'Change'}" Command="{Binding ChangeBuildsCommand}"/>
+              <!-- the builds folder in the file manager, to find the builds by hand -->
+              <Button Grid.Column="2" Classes="icon" Command="{Binding OpenBuildsCommand}" ToolTip.Tip="{Binding OpenBuildsTip}"
+                      ToolTip.ShowOnDisabled="True"><c:Icon Kind="folder"/></Button>
             </Grid>
             <TextBlock Classes="hint" Text="{Binding BuildsHint}" TextWrapping="Wrap"/>
           </StackPanel>

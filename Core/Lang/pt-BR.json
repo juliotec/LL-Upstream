@@ -750,5 +750,9 @@
   "Moved the {0} folders.": {"one": "{0} pasta movida.", "many": "{0} pastas movidas.", "other": "{0} pastas movidas."},
   "Details": "Detalhes",
   "Less": "Menos",
-  "{0} instances use the old folder layout. Move puts them in {1}; saves and settings go with them.": {"one": "{0} instância usa a estrutura de pastas antiga. Mover a coloca em {1}; saves e configurações vão junto.", "many": "{0} instâncias usam a estrutura de pastas antiga. Mover as coloca em {1}; saves e configurações vão junto.", "other": "{0} instâncias usam a estrutura de pastas antiga. Mover as coloca em {1}; saves e configurações vão junto."}
+  "{0} instances use the old folder layout. Move puts them in {1}; saves and settings go with them.": {"one": "{0} instância usa a estrutura de pastas antiga. Mover a coloca em {1}; saves e configurações vão junto.", "many": "{0} instâncias usam a estrutura de pastas antiga. Mover as coloca em {1}; saves e configurações vão junto.", "other": "{0} instâncias usam a estrutura de pastas antiga. Mover as coloca em {1}; saves e configurações vão junto."},
+  "Open saves folder": "Abrir pasta dos jogos salvos",
+  "Open builds folder": "Abrir pasta das compilações",
+  "Not made yet: the first build makes it": "Ainda não existe: a primeira compilação cria",
+  "The saves folder could not be made: {0}": "Não foi possível criar a pasta dos jogos salvos: {0}"
 }

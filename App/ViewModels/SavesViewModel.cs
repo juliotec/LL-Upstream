@@ -86,6 +86,7 @@ public sealed class SavesViewModel : ViewModelBase
         HookshotCommand = new Command(() => Main.Modal = new HookshotImportViewModel(Main));
         BackupsCommand = new Command(() => Main.Navigate(new BackupsViewModel(this)), () => Backups.Count > 0);
         DoneCommand = new Command(Main.ShowHome);
+        OpenFolderCommand = new Command(OpenFolder);
         Reload();
     }
 
@@ -114,6 +115,21 @@ public sealed class SavesViewModel : ViewModelBase
     public Command ExportCommand { get; }
     public Command DoneCommand { get; }
     public Command BackupsCommand { get; }
+    public Command OpenFolderCommand { get; }
+    public string SaveFolderShown => ShownPath.Of(Env.SaveFolder);
+
+    /// Longshot's save folder in the system's file manager, to find the saves by hand: made first when there is none yet, as an
+    /// import makes it (an empty save folder is what the game makes too)
+    void OpenFolder()
+    {
+        try { Directory.CreateDirectory(Env.SaveFolder); }
+        catch (Exception x) when (x is IOException or UnauthorizedAccessException)
+        {
+            Main.ShowToast(Tr.F("The saves folder could not be made: {0}", x.Message));
+            return;
+        }
+        Main.Host?.Open(Env.SaveFolder);
+    }
 
     /// Every save in the backups folder, newest first (SaveBackups.List)
     public IReadOnlyList<BackupSave> Backups { get; private set; } = Array.Empty<BackupSave>();
@@ -130,7 +146,7 @@ public sealed class SavesViewModel : ViewModelBase
         rows.Add(new SaveRowViewModel
         {
             Name = Tr.T("Every build"), Shared = true, IsThis = true,
-            Where = SaveViews.Short(set.Found ? set.Profiles[0].Path : Path.Combine(Env.LongshotUser, "save")),
+            Where = SaveViews.Short(set.Found ? set.Profiles[0].Path : Env.SaveFolder),
             Summary = SaveText.Long(slots, now),
         });
         rows.Add(new SaveRowViewModel { IsGroup = true, Name = Tr.T("Emulators and ports") });
@@ -497,7 +513,7 @@ public sealed class SavesConfirmViewModel : ViewModelBase
         catch (SaveFailure e)
         {
             Problem = e.Message;
-            me = new SaveSide("Longshot", Path.Combine(Page.Env.LongshotUser, "save"), Array.Empty<SaveSlot>(), null, false);
+            me = new SaveSide("Longshot", Page.Env.SaveFolder, Array.Empty<SaveSlot>(), null, false);
         }
         (From, To) = Op.IntoLongshot ? (other, me) : (me, other);
         // (where the backup goes: the dry run of the same copy; a .zip written replaces no save)
@@ -540,7 +556,7 @@ public sealed class SavesConfirmViewModel : ViewModelBase
             if (ZipExport)
             {
                 // (Longshot's save folder whole: every profile in it, not only the one shown)
-                var written = SaveArchive.ExportSave(Path.Combine(Page.Env.LongshotUser, SaveArchive.Top), Op.Zip!, Service.OwnTag);
+                var written = SaveArchive.ExportSave(Page.Env.SaveFolder, Op.Zip!, Service.OwnTag);
                 main.Navigate(new SavesResultViewModel(this, SaveResult.Done, null,
                     written.Skipped.Count > 0 ? Tr.F("Left out, being links: {0}.", string.Join(", ", written.Skipped)) : null));
                 return;

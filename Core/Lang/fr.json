@@ -750,5 +750,9 @@
   "Moved the {0} folders.": {"one": "{0} dossier déplacé.", "many": "{0} dossiers déplacés.", "other": "{0} dossiers déplacés."},
   "Details": "Détails",
   "Less": "Moins",
-  "{0} instances use the old folder layout. Move puts them in {1}; saves and settings go with them.": {"one": "{0} instance suit l'ancienne organisation des dossiers. Déplacer la met dans {1} ; les sauvegardes et les réglages la suivent.", "many": "{0} instances suivent l'ancienne organisation des dossiers. Déplacer les met dans {1} ; les sauvegardes et les réglages les suivent.", "other": "{0} instances suivent l'ancienne organisation des dossiers. Déplacer les met dans {1} ; les sauvegardes et les réglages les suivent."}
+  "{0} instances use the old folder layout. Move puts them in {1}; saves and settings go with them.": {"one": "{0} instance suit l'ancienne organisation des dossiers. Déplacer la met dans {1} ; les sauvegardes et les réglages la suivent.", "many": "{0} instances suivent l'ancienne organisation des dossiers. Déplacer les met dans {1} ; les sauvegardes et les réglages les suivent.", "other": "{0} instances suivent l'ancienne organisation des dossiers. Déplacer les met dans {1} ; les sauvegardes et les réglages les suivent."},
+  "Open saves folder": "Ouvrir le dossier des sauvegardes",
+  "Open builds folder": "Ouvrir le dossier des builds",
+  "Not made yet: the first build makes it": "Pas encore créé : le premier build le crée",
+  "The saves folder could not be made: {0}": "Le dossier des sauvegardes n'a pas pu être créé : {0}"
 }

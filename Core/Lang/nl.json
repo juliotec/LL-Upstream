@@ -732,5 +732,9 @@
   "Moved the {0} folders.": {"one": "Map verplaatst.", "other": "{0} mappen verplaatst."},
   "Details": "Details",
   "Less": "Minder",
-  "{0} instances use the old folder layout. Move puts them in {1}; saves and settings go with them.": {"one": "Je instantie gebruikt de oude mappenindeling. Verplaatsen zet haar in {1}; saves en instellingen gaan mee.", "other": "{0} instanties gebruiken de oude mappenindeling. Verplaatsen zet ze in {1}; saves en instellingen gaan mee."}
+  "{0} instances use the old folder layout. Move puts them in {1}; saves and settings go with them.": {"one": "Je instantie gebruikt de oude mappenindeling. Verplaatsen zet haar in {1}; saves en instellingen gaan mee.", "other": "{0} instanties gebruiken de oude mappenindeling. Verplaatsen zet ze in {1}; saves en instellingen gaan mee."},
+  "Open saves folder": "Map met saves openen",
+  "Open builds folder": "Map met builds openen",
+  "Not made yet: the first build makes it": "Nog niet aangemaakt: de eerste build maakt hem",
+  "The saves folder could not be made: {0}": "De map met saves kon niet worden aangemaakt: {0}"
 }

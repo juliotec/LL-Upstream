@@ -732,5 +732,9 @@
   "Moved the {0} folders.": {"one": "Ordner verschoben.", "other": "{0} Ordner verschoben."},
   "Details": "Details",
   "Less": "Weniger",
-  "{0} instances use the old folder layout. Move puts them in {1}; saves and settings go with them.": {"one": "Deine Instanz nutzt die alte Ordnerstruktur. Verschieben legt sie nach {1}; Spielstände und Einstellungen ziehen mit.", "other": "{0} Instanzen nutzen die alte Ordnerstruktur. Verschieben legt sie nach {1}; Spielstände und Einstellungen ziehen mit."}
+  "{0} instances use the old folder layout. Move puts them in {1}; saves and settings go with them.": {"one": "Deine Instanz nutzt die alte Ordnerstruktur. Verschieben legt sie nach {1}; Spielstände und Einstellungen ziehen mit.", "other": "{0} Instanzen nutzen die alte Ordnerstruktur. Verschieben legt sie nach {1}; Spielstände und Einstellungen ziehen mit."},
+  "Open saves folder": "Spielstand-Ordner öffnen",
+  "Open builds folder": "Build-Ordner öffnen",
+  "Not made yet: the first build makes it": "Noch nicht angelegt: der erste Build legt ihn an",
+  "The saves folder could not be made: {0}": "Der Spielstand-Ordner konnte nicht angelegt werden: {0}"
 }

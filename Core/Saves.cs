@@ -91,6 +91,10 @@ public sealed record SaveEnvironment(Platform Platform, Func<string, string?> Ge
         ? UserFolder ?? Path.Combine(AppData, "Longshot")
         : Path.Combine(Data, "longshot"));
 
+    /// Longshot's save folder, the one every build shares: save\<user id>\ in LongshotUser (Open saves folder, the .zip's top
+    /// folder, ImportTarget's parent)
+    public string SaveFolder => Path.Combine(LongshotUser, "save");
+
     /// Where the launcher's backups go: %LOCALAPPDATA%\Longshot\oot-save-backups on Windows (Longshot's scripts/longshot_saves.py
     /// writes its own there too), $XDG_DATA_HOME/longshot/save-backup on Linux (since #80, beside the saves), or a portable
     /// launcher's own folder. On Linux the script and the game's own backups (Longshot#1428) still go to OldLinuxBackups, as the
@@ -327,7 +331,7 @@ public static class Saves
     }
 
     /// Where Longshot's save of a profile goes when there is none yet: &lt;LongshotUser&gt;\save\&lt;id&gt;
-    public static string SharedSavePath(SaveEnvironment env, string profile) => System.IO.Path.Combine(env.LongshotUser, "save", profile);
+    public static string SharedSavePath(SaveEnvironment env, string profile) => System.IO.Path.Combine(env.SaveFolder, profile);
 
     /// Where an import goes: the save of the one user the game opens (UserId: host/nn_applet.c's user_uid, which host/nn_fs.c
     /// names save\&lt;high word&gt;&lt;low word&gt;), whether it is there yet or not. Another profile folder in save\ (a stray one, a copy

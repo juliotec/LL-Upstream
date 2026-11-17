@@ -752,5 +752,9 @@
   "Moved the {0} folders.": {"one": "Carpeta movida.", "many": "{0} carpetas movidas.", "other": "{0} carpetas movidas."},
   "Details": "Detalles",
   "Less": "Menos",
-  "{0} instances use the old folder layout. Move puts them in {1}; saves and settings go with them.": {"one": "Tu instancia usa la estructura de carpetas antigua. Mover la pone en {1}; las partidas y los ajustes van con ella.", "many": "{0} instancias usan la estructura de carpetas antigua. Mover las pone en {1}; las partidas y los ajustes van con ellas.", "other": "{0} instancias usan la estructura de carpetas antigua. Mover las pone en {1}; las partidas y los ajustes van con ellas."}
+  "{0} instances use the old folder layout. Move puts them in {1}; saves and settings go with them.": {"one": "Tu instancia usa la estructura de carpetas antigua. Mover la pone en {1}; las partidas y los ajustes van con ella.", "many": "{0} instancias usan la estructura de carpetas antigua. Mover las pone en {1}; las partidas y los ajustes van con ellas.", "other": "{0} instancias usan la estructura de carpetas antigua. Mover las pone en {1}; las partidas y los ajustes van con ellas."},
+  "Open saves folder": "Abrir carpeta de partidas",
+  "Open builds folder": "Abrir carpeta de compilaciones",
+  "Not made yet: the first build makes it": "Aún no existe: la crea la primera compilación",
+  "The saves folder could not be made: {0}": "No se pudo crear la carpeta de partidas: {0}"
 }

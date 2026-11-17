@@ -47,6 +47,11 @@ static partial class Program
         var windows = new SaveEnvironment(Platform.Windows, Env);
         var linux = new SaveEnvironment(Platform.Linux, Env);
         var sharedSave = Path.Combine(windows.LongshotUser, "save");
+        // (Open saves folder shows the folder every build shares, the one ImportTarget's profile is in, on both systems)
+        Require(windows.SaveFolder == sharedSave && linux.SaveFolder == Path.Combine(linux.LongshotUser, "save")
+                && Path.GetDirectoryName(Saves.ImportTarget(windows)) == windows.SaveFolder
+                && Path.GetDirectoryName(Saves.ImportTarget(linux)) == linux.SaveFolder,
+            "The saves folder Open saves folder shows is LongshotUser's save, the one the game's profile is in.");
         var held = Path.GetFullPath(Path.Combine(game, "user", "save"));
         var ownSave = Tree(held);
         Require(Saves.SaveIn(game) == held, "A version's folder with its own save holds it (SaveIn).");

@@ -57,6 +57,7 @@ public sealed class SettingsViewModel : ViewModelBase
         LauncherChannels = ChannelPickerViewModel.All.Select(c => new LauncherChannelOption(this, c.Id, c.Name)).ToList();
         DoneCommand = new Command(Done);
         ChangeBuildsCommand = new Command(() => _ = ChangeBuildsAsync());
+        OpenBuildsCommand = new Command(() => Main.Host?.Open(Main.Service.BuildsFolder), () => Directory.Exists(Main.Service.BuildsFolder));
         ChangeWorkCommand = new Command(() => _ = ChangeWorkAsync());
         DefaultWorkCommand = new Command(() => { s.Work = null; Save(); RaiseAll(nameof(Work)); MeasureWork(); });
         FreeingCommand = new BusyCommand(FreeSpaceAsync, null, e => Main.ShowToast(Tr.F("The build files could not all be deleted: {0}", e.Message)));
@@ -192,6 +193,8 @@ public sealed class SettingsViewModel : ViewModelBase
             s.BuildsFolder = string.IsNullOrWhiteSpace(value) ? null : ShownPath.Typed(value.Trim());
             Save();
             Raise();
+            RaiseAll(nameof(OpenBuildsTip));
+            OpenBuildsCommand.Changed();
         }
     }
 
@@ -290,6 +293,12 @@ public sealed class SettingsViewModel : ViewModelBase
 
     public Command DoneCommand { get; }
     public Command ChangeBuildsCommand { get; }
+
+    /// The builds folder in the system's file manager; off until there is one (the first build makes it: a folder typed here is
+    /// not made just to be shown, as it may be mistyped)
+    public Command OpenBuildsCommand { get; }
+    public string OpenBuildsTip => Directory.Exists(Main.Service.BuildsFolder) ? Tr.T("Open builds folder")
+        : Tr.T("Not made yet: the first build makes it");
     public Command ChangeWorkCommand { get; }
     public Command DefaultWorkCommand { get; }
     /// Opens the confirmation (FreeSpaceViewModel), which lists what goes

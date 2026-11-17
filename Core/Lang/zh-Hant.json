@@ -714,5 +714,9 @@
   "Moved the {0} folders.": {"other": "已移動 {0} 個資料夾。"},
   "Details": "詳細資料",
   "Less": "收合",
-  "{0} instances use the old folder layout. Move puts them in {1}; saves and settings go with them.": {"other": "{0} 個執行個體使用舊資料夾結構。移動會把它們放到 {1}，存檔和設定一起移過去。"}
+  "{0} instances use the old folder layout. Move puts them in {1}; saves and settings go with them.": {"other": "{0} 個執行個體使用舊資料夾結構。移動會把它們放到 {1}，存檔和設定一起移過去。"},
+  "Open saves folder": "開啟存檔資料夾",
+  "Open builds folder": "開啟建置資料夾",
+  "Not made yet: the first build makes it": "尚未建立：首次建置時建立",
+  "The saves folder could not be made: {0}": "無法建立存檔資料夾：{0}"
 }
