@@ -155,6 +155,46 @@ public static class ShaderCaches
                   .OrderBy(f => f.Name, StringComparer.Ordinal).ToList();
     }
 
+    /// The shader caches clearing a game folder lets go (Free up space, a cold build): its cache/ files the game reads back
+    /// (IsCache), and what a copy into it left half made (.part); never a link, nor anything else there. Not the pipeline
+    /// notes unless notes: they hold the list the build shipped (make_game.py seed_pipelines), which only a build writes
+    /// again, and without it the game prepares less ahead until then. A cold build clears them too: it writes them again
+    public static IReadOnlyList<FileInfo> Clearable(string game, bool notes = false)
+    {
+        var dir = new DirectoryInfo(Path.Combine(game, CacheDir));
+        try
+        {
+            if (!dir.Exists || dir.LinkTarget != null) return Array.Empty<FileInfo>();
+            return dir.EnumerateFiles()
+                      .Where(f => f.LinkTarget == null && (IsCache(f.Name) || f.Name.EndsWith(Part, StringComparison.Ordinal) && IsCache(f.Name[..^Part.Length]))
+                                  && (notes || f.Name != Notes))
+                      .OrderBy(f => f.Name, StringComparer.Ordinal).ToList();
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.Security.SecurityException) { return Array.Empty<FileInfo>(); }
+    }
+
+    /// The bytes Clearable would let go in game
+    public static long ClearableBytes(string game, bool notes = false) => Clearable(game, notes).Sum(f => f.Length);
+
+    /// Whether Longshot runs: it holds its caches and writes them as it plays
+    static bool LongshotRunning() => Saves.Running(Platforms.Current).Any(n => n.Contains(Saves.Longshot.Display, StringComparison.Ordinal));
+
+    /// game's shader caches deleted (Clearable): the game prepares them again when it next starts. Null, and nothing deleted,
+    /// while Longshot runs (running: the tests' stand-in); else the bytes freed. A file that cannot be deleted is the caller's
+    /// exception, the ones before it gone
+    public static long? Clear(string game, bool notes = false, Func<bool>? running = null)
+    {
+        if ((running ?? LongshotRunning)()) return null;
+        long freed = 0;
+        foreach (var f in Clearable(game, notes))
+        {
+            var size = f.Length;
+            f.Delete();
+            freed += size;
+        }
+        return freed;
+    }
+
     /// The caches of the game folder from, taken into the game folder to, when to has none and both versions' tools (fromTools,
     /// toTools; null when a version's tools are not on this PC) translate shaders the same way, with the same compiler (Stamp).
     /// Moved when both folders are on one drive: once the update is done its old folder is no longer listed, so its caches
@@ -177,8 +217,7 @@ public static class ShaderCaches
         if (Caches(to).Count > 0) return new CachesResult(CachesKept.HasCaches);
         if (fromTools == null || toTools == null || Stamp(fromTools) is not { } old || Stamp(toTools) != old)
             return new CachesResult(CachesKept.OtherTranslator);
-        if ((running ?? (() => Saves.Running(Platforms.Current).Any(n => n.Contains(Saves.Longshot.Display,StringComparison.Ordinal))))())
-            return new CachesResult(CachesKept.Running);
+        if ((running ?? LongshotRunning)()) return new CachesResult(CachesKept.Running);
         var bytes = files.Sum(f => f.Length);
         var target = Path.Combine(to, CacheDir);
         string PartOf(FileInfo f) => Path.Combine(target, f.Name + Part);

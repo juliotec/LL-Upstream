@@ -19,13 +19,34 @@ public static class Disk
     public const string ObjectStore = "obj-store";
     public const string LiftStore = "lift-store";
 
-    /// The bytes Free up space would let go in work
-    public static long WorkBytes(string work) => WorkParts.Sum(p =>
+    /// What Free up space lists before it deletes, in this order: a name, what it is kept for (English: Tr.T where shown), and
+    /// the WorkParts it covers. Every one of WorkParts is in exactly one (tests/launcher_core ScreenChecks)
+    public sealed record WorkGroup(string Name, string About, IReadOnlyList<string> Parts);
+
+    public static readonly IReadOnlyList<WorkGroup> WorkGroups = new[]
     {
-        var path = Path.Combine(work, p);
+        new WorkGroup(Tr.N("Compiled game code"), Tr.N("Kept so an update or a rebuild compiles only what changed."), new[] { "objcache", "system_headers.txt" }),
+        new WorkGroup(Tr.N("The game's code, translated to C"), Tr.N("Kept so building the same version again skips translating it."), new[] { "sa" }),
+        new WorkGroup(Tr.N("The game's program, unpacked"), Tr.N("Unpacked from your dump again by the next build."), new[] { "exefs" }),
+        new WorkGroup(Tr.N("What checking your dump unpacked"), Tr.N("Made again the next time a dump is checked."), new[] { "probe" }),
+        new WorkGroup(Tr.N("Other versions' compiled code"), Tr.N("The object store: switching to a version you built before compiles only what it lacks."), new[] { ObjectStore }),
+        new WorkGroup(Tr.N("Other versions' translations"), Tr.N("The lift store: switching to a version you built before copies its translation instead of making it again."), new[] { LiftStore }),
+    };
+
+    /// The bytes Free up space would let go in work
+    public static long WorkBytes(string work) => WorkParts.Sum(p => PartBytes(work, p));
+
+    /// The bytes of each of WorkGroups in work, in their order
+    public static IReadOnlyList<long> GroupBytes(string work) => WorkGroups.Select(g => g.Parts.Sum(p => PartBytes(work, p))).ToList();
+
+    /// The bytes one of WorkParts takes in work: a file's, a folder's (a link counts nothing), the object store's less what is
+    /// one file with objcache (ObjectStoreBytes)
+    static long PartBytes(string work, string part)
+    {
+        var path = Path.Combine(work, part);
         var file = new FileInfo(path);
-        return file.Exists ? (file.LinkTarget == null ? file.Length : 0) : p == ObjectStore ? ObjectStoreBytes(work) : FolderBytes(path);
-    });
+        return file.Exists ? (file.LinkTarget == null ? file.Length : 0) : part == ObjectStore ? ObjectStoreBytes(work) : FolderBytes(path);
+    }
 
     /// The object store's bytes, less its objects that are one file with the work folder's objcache's, hard-linked: counted with
     /// objcache. They are in the store's folder for the compiler and headers the work folder last built with, named by the first

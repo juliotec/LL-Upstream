@@ -273,6 +273,49 @@ static partial class Program
                 "A file the old folder still has only loses its new name.");
         Require(ShaderCaches.Undo(moved, failed, new CachesResult(CachesKept.HasCaches)) == 0 && ShaderCaches.Undo(moved, failed, gone) == 0,
                 "Nothing taken, or nothing left to put back: nothing done.");
+        ClearCacheChecks();
+    }
+
+    /// Clearing a game folder's shader caches (Free up space, a cold build): the caches and a copy's leftovers, the pipeline notes
+    /// only when asked, nothing else in cache/ or the folder, never while Longshot runs
+    static void ClearCacheChecks()
+    {
+        var game = Folder("clear-caches");
+        string At(string name) => Path.Combine(game, ShaderCaches.CacheDir, name);
+        void Fill()
+        {
+            Touch(At("longshot_programs.bin"), new string('p', 100));
+            Touch(At("longshot_programs.idx"), new string('i', 10));
+            Touch(At("longshot_vk_pipelines_play_2.bin"), new string('v', 20));
+            Touch(At("longshot_programs.idx.part"), new string('x', 5));
+            Touch(At("longshot_pipelines.bin"), "the shipped list");
+            Touch(At("longshot_log.txt"), "not a cache");
+            Touch(At("notes.part"), "not a cache's copy");
+            Touch(Path.Combine(game, "user", "save", "slot0.bin"), "a save");
+        }
+        Fill();
+        Require(ShaderCaches.ClearableBytes(game) == 135 && ShaderCaches.ClearableBytes(game, notes: true) == 135 + "the shipped list".Length
+                && ShaderCaches.ClearableBytes(Path.Combine(game, "none")) == 0, "What clearing the caches lets go: " + ShaderCaches.ClearableBytes(game));
+        Require(ShaderCaches.Clear(game, running: () => true) == null && File.Exists(At("longshot_programs.bin")),
+                "Nothing is cleared while Longshot runs.");
+        Require(ShaderCaches.Clear(game, running: () => false) == 135 && !File.Exists(At("longshot_programs.bin")) && !File.Exists(At("longshot_programs.idx.part"))
+                && !File.Exists(At("longshot_vk_pipelines_play_2.bin")) && File.ReadAllText(At("longshot_pipelines.bin")) == "the shipped list"
+                && File.Exists(At("longshot_log.txt")) && File.Exists(At("notes.part")) && File.Exists(Path.Combine(game, "user", "save", "slot0.bin")),
+                "Free up space clears the caches, keeps the shipped pipeline list, and touches nothing else.");
+        Fill();
+        Require(ShaderCaches.Clear(game, notes: true, running: () => false) == 135 + "the shipped list".Length && !File.Exists(At("longshot_pipelines.bin"))
+                && File.Exists(At("longshot_log.txt")) && File.Exists(Path.Combine(game, "user", "save", "slot0.bin")),
+                "A cold build clears the pipeline notes too, and nothing else.");
+        // (a cache/ that is a link: another folder's, never cleared from here)
+        var other = Folder("clear-caches-other");
+        Touch(Path.Combine(other, "longshot_programs.bin"), "theirs");
+        var linked = Folder("clear-caches-linked");
+        if (TestLinks.Available)
+        {
+            Directory.CreateSymbolicLink(Path.Combine(linked, ShaderCaches.CacheDir), other);
+            Require(ShaderCaches.ClearableBytes(linked) == 0 && ShaderCaches.Clear(linked, running: () => false) == 0
+                    && File.Exists(Path.Combine(other, "longshot_programs.bin")), "A linked cache/ is not followed.");
+        }
     }
 
     static bool Link(string from, string to)

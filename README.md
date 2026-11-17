@@ -388,6 +388,12 @@ Calls made here, most of them the design mockup's; each can be changed:
   nightly-164; tools from before them ignore the variables.
 - **Free up space** (the launcher's settings) lets go of what make_game made in the build files folder (`objcache`, `sa`,
   `exefs`, `probe`, as the 2.x Builder, and the two stores), never the folder itself, which the player may have chosen.
+  It asks first, listing each part in plain words with its size and what it was kept for (`Disk.WorkGroups`), and what the
+  next build then costs. It can clear the versions' shader caches too, unticked by default (`ShaderCaches.Clear`): each
+  game folder's `cache/` files the game reads back, never anything else there, never while Longshot runs, and never the
+  pipeline notes (`longshot_pipelines.bin`), which hold the list the build shipped and only a build writes again. Each
+  version then prepares its shaders again at its next start. The settings say what is kept and why, with the shader
+  caches' size beside the build files'.
 - **The shortcuts** Ready makes (desktop, Start menu / applications menu), ticked by default and made as Ready shows,
   start `--play`, the default build, so they follow "Play starts this version" and updates. A portable launcher's ticks
   start as the shortcuts that start it already are, and it makes or removes them only when ticked; it never writes over

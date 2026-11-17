@@ -727,6 +727,16 @@ static partial class Program
             Touch(Path.Combine(work, "system_headers.txt"), bad);
             Require(Disk.WorkBytes(work) == bad.Length + objects + 100 + 200, "A stamp of no store folder: every object counts: " + Disk.WorkBytes(work));
         }
+        // (what the confirmation lists: each part in one group, the groups' bytes adding up to what it deletes)
+        Require(Disk.WorkGroups.SelectMany(g => g.Parts).OrderBy(p => p, StringComparer.Ordinal).SequenceEqual(Disk.WorkParts.OrderBy(p => p, StringComparer.Ordinal))
+                && Disk.WorkGroups.All(g => g.Name.Length > 0 && g.About.Length > 0), "Free up space names every part it deletes, each once.");
+        Touch(Path.Combine(work, "system_headers.txt"), stamp);
+        Touch(Path.Combine(work, "exefs", "main"), new string('e', 40));
+        var groups = Disk.GroupBytes(work);
+        int GroupOf(string part) => Disk.WorkGroups.Select((g, i) => (g, i)).First(p => p.g.Parts.Contains(part)).i;
+        Require(groups.Sum() == Disk.WorkBytes(work) && groups[GroupOf("objcache")] == stamp.Length + 100 + 70 && groups[GroupOf("exefs")] == 40
+                && groups[GroupOf(Disk.ObjectStore)] == 70 + 50 + 30 && groups[GroupOf(Disk.LiftStore)] == 200 && groups[GroupOf("probe")] == 0,
+                "Each part's size, the object store less what is one file with objcache: " + string.Join(",", groups));
         Disk.FreeWork(work);
         Require(!Directory.Exists(Path.Combine(work, Disk.ObjectStore)) && !Directory.Exists(Path.Combine(work, Disk.LiftStore))
                 && File.Exists(Path.Combine(work, "My notes.txt")) && Disk.WorkBytes(work) == 0, "Free up space let go of the stores too.");

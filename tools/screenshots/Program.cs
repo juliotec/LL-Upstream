@@ -137,6 +137,11 @@ static class Program
         new("settings-go-back", "Step 2 going back to an older nightly, in the build's own folder", Platform.Windows, NightliesListed,
             m => new SettingsStepViewModel(new BuildJob(m, JobKind.Update, Versions.Nightly, "nightly-187-9e6f231d", m.Service.Registry.Builds[0]))
                  { Free = 412L << 30 }),
+        // (Free up space, confirmed first: what it deletes, each part's size, the shader caches as an option)
+        new("free-space", "Free up space in the launcher's Settings: what it deletes and why it was kept, the shader caches as an option",
+            Platform.Windows, NightliesListed, m => new SettingsViewModel(m),
+            m => m.Modal = new FreeSpaceViewModel((SettingsViewModel)m.Page,
+                                                  ([3_100_000_000, 1_640_000_000, 410_000_000, 0, 2_900_000_000, 3_280_000_000], 9_800_000_000, 1))),
         new("hookshot-import-problem", "Importing Hookshot's saves failed, Copy for a bug report", Platform.Windows, null, _ => null,
             m => m.Modal = new HookshotImportViewModel(m) { Problem = @"The saves could not be copied: Access to the path 'C:\Users\Player\Saved Games\Longshot\slot1' is denied." }),
         // (the settings tick: off, Longshot's game options replace Lichii's; on, Lichii keeps its own option.sav)

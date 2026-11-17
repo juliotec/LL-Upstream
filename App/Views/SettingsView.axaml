@@ -90,10 +90,11 @@
             <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,8,0,0">
               <TextBlock FontSize="12" Foreground="{StaticResource InkSoft}" Text="{Binding WorkNote}" VerticalAlignment="Center"/>
               <Button Classes="link smaller" Command="{Binding FreeSpaceCommand}">
-                <c:BusyContent Content="{c:T 'Free up space'}" IsBusy="{Binding FreeSpaceCommand.IsBusy}" BusyText="{c:T 'Freeing…'}"/>
+                <c:BusyContent Content="{c:T 'Free up space'}" IsBusy="{Binding FreeingCommand.IsBusy}" BusyText="{c:T 'Freeing…'}"/>
               </Button>
               <Button Classes="link smaller" Content="{c:T 'Default'}" Command="{Binding DefaultWorkCommand}"/>
             </StackPanel>
+            <TextBlock Classes="hint" Text="{Binding WorkHint}" TextWrapping="Wrap"/>
           </StackPanel>
         </Grid>
         <CheckBox Classes="tick" Content="{c:T 'Check for updates when the launcher starts'}" IsChecked="{Binding CheckUpdates}"/>
