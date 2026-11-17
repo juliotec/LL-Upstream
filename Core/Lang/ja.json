@@ -667,5 +667,8 @@
   "Replaced: Longshot's whole save folder ({0}) and every file in it, its game settings (option.sav) kept.": "置き換え：Longshot のセーブフォルダー全体（{0}）とその中のすべてのファイル。ゲームの設定（option.sav）は残します。",
   "Replaced: Longshot's whole save folder ({0}) and every file in it, its game settings (option.sav) too.": "置き換え：Longshot のセーブフォルダー全体（{0}）とその中のすべてのファイル。ゲームの設定（option.sav）も含みます。",
   "Left out, being links: {0}.": "リンクのため除外：{0}。",
-  "Nothing in your saves was changed.": "セーブデータは何も変更されていません。"
+  "Nothing in your saves was changed.": "セーブデータは何も変更されていません。",
+  "{0} versions were found in their own folders and are listed again: {1}.": {
+    "other": "{0} 個のバージョンが専用のフォルダーで見つかり、再び一覧に表示されます：{1}。"
+  }
 }

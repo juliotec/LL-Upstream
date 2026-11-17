@@ -667,5 +667,8 @@
   "Replaced: Longshot's whole save folder ({0}) and every file in it, its game settings (option.sav) kept.": "대체됨: Longshot의 세이브 폴더 전체({0})와 그 안의 모든 파일. 게임 설정(option.sav)은 유지됩니다.",
   "Replaced: Longshot's whole save folder ({0}) and every file in it, its game settings (option.sav) too.": "대체됨: Longshot의 세이브 폴더 전체({0})와 그 안의 모든 파일, 게임 설정(option.sav)도 포함.",
   "Left out, being links: {0}.": "링크라서 제외됨: {0}.",
-  "Nothing in your saves was changed.": "세이브는 아무것도 바뀌지 않았습니다."
+  "Nothing in your saves was changed.": "세이브는 아무것도 바뀌지 않았습니다.",
+  "{0} versions were found in their own folders and are listed again: {1}.": {
+    "other": "버전 {0}개를 자체 폴더에서 찾아 다시 목록에 표시합니다: {1}."
+  }
 }

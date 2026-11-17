@@ -667,5 +667,8 @@
   "Replaced: Longshot's whole save folder ({0}) and every file in it, its game settings (option.sav) kept.": "將被取代：Longshot 的整個存檔資料夾（{0}）及其中的所有檔案；保留其遊戲設定（option.sav）。",
   "Replaced: Longshot's whole save folder ({0}) and every file in it, its game settings (option.sav) too.": "將被取代：Longshot 的整個存檔資料夾（{0}）及其中的所有檔案，包括其遊戲設定（option.sav）。",
   "Left out, being links: {0}.": "因是連結而未包含：{0}。",
-  "Nothing in your saves was changed.": "你的存檔沒有任何變更。"
+  "Nothing in your saves was changed.": "你的存檔沒有任何變更。",
+  "{0} versions were found in their own folders and are listed again: {1}.": {
+    "other": "在各自的資料夾中找到了 {0} 個版本，它們已重新列出：{1}。"
+  }
 }

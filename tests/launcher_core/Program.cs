@@ -71,6 +71,7 @@ static partial class Program
         await PrefetchChecks();
         RegistryChecks();
         LeftoverChecks();
+        UnlistedChecks();
         DeleteSaveChecks();
         SettingsChecks(Path.GetFullPath(Path.Combine(fixtures, "..", "..")));
         ProgressChecks();

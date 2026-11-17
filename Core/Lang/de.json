@@ -684,5 +684,9 @@
   "Replaced: Longshot's whole save folder ({0}) and every file in it, its game settings (option.sav) kept.": "Ersetzt: der ganze Spielstand-Ordner von Longshot ({0}) und jede Datei darin; seine Spieleinstellungen (option.sav) bleiben.",
   "Replaced: Longshot's whole save folder ({0}) and every file in it, its game settings (option.sav) too.": "Ersetzt: der ganze Spielstand-Ordner von Longshot ({0}) und jede Datei darin, auch seine Spieleinstellungen (option.sav).",
   "Left out, being links: {0}.": "Ausgelassen, weil es Verknüpfungen sind: {0}.",
-  "Nothing in your saves was changed.": "An deinen Spielständen wurde nichts geändert."
+  "Nothing in your saves was changed.": "An deinen Spielständen wurde nichts geändert.",
+  "{0} versions were found in their own folders and are listed again: {1}.": {
+    "one": "{0} Version wurde in ihrem eigenen Ordner gefunden und ist wieder aufgeführt: {1}.",
+    "other": "{0} Versionen wurden in ihren eigenen Ordnern gefunden und sind wieder aufgeführt: {1}."
+  }
 }

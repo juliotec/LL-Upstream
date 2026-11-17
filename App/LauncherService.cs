@@ -369,23 +369,27 @@ public sealed class LauncherService
     public IReadOnlyList<Leftover> FindLeftovers() =>
         Leftovers.Find(BuildsFolder, Registry.Builds.Select(b => b.Folder), Platform, Settings.KeptFolders, new[] { Home.Root });
 
-    /// The rows that lost the game their update built in a new folder (Leftovers.LostUpdate) given it back, saved, and returned
-    public IReadOnlyList<BuildEntry> RelistLostUpdates()
+    /// The games in the builds folder a row should have, listed: first a row that lost the game its update built in a new folder
+    /// takes it back (Leftovers.LostUpdate), then each game whose row went is listed again (Leftovers.Relist, #141). Saved once,
+    /// the tools pruned once (after both: a tool a game listed again uses stays); the rows given a game, returned
+    public IReadOnlyList<BuildEntry> Relist()
     {
+        var keep = new[] { Home.Root };
         var moved = new List<BuildEntry>();
         foreach (var b in Registry.Builds.ToList())
         {
-            var listed = Registry.Builds.Select(x => x.Folder).Append(Home.Root);
-            if (Leftovers.LostUpdate(BuildsFolder, b, listed, Platform) is not { } found) continue;
+            if (Leftovers.LostUpdate(BuildsFolder, b, Registry.Builds.Select(x => x.Folder), Platform, keep) is not { } found) continue;
             LauncherLog.Add($"{b.Version} in {b.Folder} has no game; its update's {found.Version} in {found.Folder} is listed in its place");
             moved.Add(Registry.Replace(b.Id, found.Folder, found.Version, b.Channel));
         }
-        if (moved.Count == 0) return moved;
+        var added = Leftovers.Relist(Registry, BuildsFolder, Platform, keep, Settings.KeptFolders);
+        foreach (var b in added) LauncherLog.Add($"build {b.Version} in {b.Folder} was in no row of the list: listed again");
+        if (moved.Count + added.Count == 0) return moved;
         remeasure = true;
         try { Registry.Save(); }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
         PruneTools();
-        return moved;
+        return moved.Concat(added).ToList();
     }
 
     /// What deleting them frees: their files with no hard link outside them (Disk.Measure: a game file a build was linked to

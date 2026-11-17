@@ -707,9 +707,14 @@ public sealed class HomeViewModel : ViewModelBase
             Service.Ensure(start.Folder);
         }
         Notice = notes.Count > 0 ? string.Join("\n", notes) : null;
-        // (before the leftovers: the game a row takes back is no leftover)
-        foreach (var b in Service.RelistLostUpdates())
-            Main.ShowToast(Tr.F("{0} was found in its own folder and is listed again.", Versions.Shown(b.Version)));
+        // (before the leftovers: the game a row takes back, or a game whose row went (#141), is no leftover)
+        // (one toast for all: a toast shows one at a time)
+        var relisted = Service.Relist();
+        if (relisted.Count == 1) Main.ShowToast(Tr.F("{0} was found in its own folder and is listed again.", Versions.Shown(relisted[0].Version)));
+        else if (relisted.Count > 1)
+            Main.ShowToast(Tr.P(relisted.Count, "{0} versions were found in their own folders and are listed again: {1}.",
+                                "{0} versions were found in their own folders and are listed again: {1}.",
+                                string.Join(", ", relisted.Select(b => Versions.Shown(b.Version)))));
         OfferHookshot();
         OfferNx2navi();
         OfferLeftovers();

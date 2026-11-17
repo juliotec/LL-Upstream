@@ -718,5 +718,11 @@
   "Replaced: Longshot's whole save folder ({0}) and every file in it, its game settings (option.sav) kept.": "Заменяется: вся папка сохранений Longshot ({0}) и все файлы в ней; её настройки игры (option.sav) сохраняются.",
   "Replaced: Longshot's whole save folder ({0}) and every file in it, its game settings (option.sav) too.": "Заменяется: вся папка сохранений Longshot ({0}) и все файлы в ней, включая настройки игры (option.sav).",
   "Left out, being links: {0}.": "Пропущены, так как это ссылки: {0}.",
-  "Nothing in your saves was changed.": "В ваших сохранениях ничего не изменилось."
+  "Nothing in your saves was changed.": "В ваших сохранениях ничего не изменилось.",
+  "{0} versions were found in their own folders and are listed again: {1}.": {
+    "one": "{0} версия найдена в своей папке и снова в списке: {1}.",
+    "few": "{0} версии найдены в своих папках и снова в списке: {1}.",
+    "many": "{0} версий найдено в своих папках и снова в списке: {1}.",
+    "other": "{0} версии найдено в своих папках и снова в списке: {1}."
+  }
 }

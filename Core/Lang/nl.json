@@ -684,5 +684,9 @@
   "Replaced: Longshot's whole save folder ({0}) and every file in it, its game settings (option.sav) kept.": "Vervangen: de hele savemap van Longshot ({0}) en elk bestand erin; de spelinstellingen (option.sav) blijven.",
   "Replaced: Longshot's whole save folder ({0}) and every file in it, its game settings (option.sav) too.": "Vervangen: de hele savemap van Longshot ({0}) en elk bestand erin, ook de spelinstellingen (option.sav).",
   "Left out, being links: {0}.": "Weggelaten, omdat het koppelingen zijn: {0}.",
-  "Nothing in your saves was changed.": "Er is niets aan je saves veranderd."
+  "Nothing in your saves was changed.": "Er is niets aan je saves veranderd.",
+  "{0} versions were found in their own folders and are listed again: {1}.": {
+    "one": "{0} versie is in zijn eigen map gevonden en staat weer in de lijst: {1}.",
+    "other": "{0} versies zijn in hun eigen mappen gevonden en staan weer in de lijst: {1}."
+  }
 }

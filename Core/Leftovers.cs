@@ -13,7 +13,8 @@ public sealed record Leftover(string Folder, string? Version)
 public static class Leftovers
 {
     /// The game folders directly in buildsFolder that no build lists, with nothing of the player's left in them. Left out:
-    ///   a link, or a folder that holds a build's folder or is in one (builds), or the launcher's home (keep)
+    ///   a link, or a folder that holds a build's folder or is in one (builds), or that holds the launcher's home (keep; a
+    ///     portable launcher's builds folder is in its home, so a folder in it is no reason)
     ///   one whose user/save still holds a save, or whose user/ or user/save is a link (the player's own arrangement): on Windows
     ///     Saves.Gather takes the old folders' saves into the shared one at the start (renamed save.moved-*), so a folder whose
     ///     saves were not taken in yet stays until they are
@@ -24,7 +25,8 @@ public static class Leftovers
     public static IReadOnlyList<Leftover> Find(string buildsFolder, IEnumerable<string> builds, Platform platform,
                                                IEnumerable<string>? kept = null, IEnumerable<string>? keep = null)
     {
-        var listed = builds.Concat(keep ?? Array.Empty<string>()).ToList();
+        var listed = builds.ToList();
+        var homes = (keep ?? Array.Empty<string>()).ToList();
         var keptList = (kept ?? Array.Empty<string>()).ToList();
         var found = new List<Leftover>();
         IEnumerable<string> dirs;
@@ -35,7 +37,7 @@ public static class Leftovers
             try
             {
                 if (new DirectoryInfo(dir).LinkTarget != null || !GameFolder.IsGameFolder(dir, platform)) continue;
-                if (listed.Any(b => BuildRegistry.Holds(dir, b) || BuildRegistry.Holds(b, dir))) continue;
+                if (Taken(dir, listed, homes)) continue;
                 if (keptList.Any(k => BuildRegistry.SameFolder(k, dir))) continue;
                 if (!PlayerLeftNothing(dir)) continue;
                 var version = GameFolder.Version(dir);
@@ -66,12 +68,13 @@ public static class Leftovers
     /// closed, or builds.json was not written), the row kept the old folder and the new game stayed unlisted. Seen as a row whose
     /// folder has no game to play, and an unlisted game folder directly in buildsFolder that plays, on the row's channel and newer
     /// than its version: the newest of them, which the row takes back (BuildRegistry.Replace). Null when the row plays, or none is
-    /// there. listed: the builds' folders and the launcher's home, as Find's
-    public static Leftover? LostUpdate(string buildsFolder, BuildEntry row, IEnumerable<string> listed, Platform platform)
+    /// there. listed: the builds' folders; keep: the launcher's home, as Find's
+    public static Leftover? LostUpdate(string buildsFolder, BuildEntry row, IEnumerable<string> listed, Platform platform, IEnumerable<string>? keep = null)
     {
         if (GameFolder.IsBuilt(row.Folder, platform)) return null;
         var channel = UpdatePolicy.ChannelOf(row.Channel, row.Version);
         var all = listed.ToList();
+        var homes = (keep ?? Array.Empty<string>()).ToList();
         IEnumerable<string> dirs;
         try { dirs = Directory.Exists(buildsFolder) ? Directory.EnumerateDirectories(buildsFolder).ToList() : Enumerable.Empty<string>(); }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return null; }
@@ -81,7 +84,7 @@ public static class Leftovers
             try
             {
                 if (new DirectoryInfo(dir).LinkTarget != null || !GameFolder.IsBuilt(dir, platform)) continue;
-                if (all.Any(b => BuildRegistry.Holds(dir, b) || BuildRegistry.Holds(b, dir))) continue;
+                if (Taken(dir, all, homes)) continue;
                 if (GameFolder.Version(dir) is not { } v || !OnChannel(v, channel) || !Versions.Newer(v, row.Version)) continue;
                 if (best == null || Versions.Newer(v, best.Version)) best = new Leftover(dir, v);
             }
@@ -89,6 +92,60 @@ public static class Leftovers
         }
         return best;
     }
+
+    /// The game folders directly in buildsFolder whose row went, listed again in registry (issue #141: a portable launcher's rows
+    /// dropped by ForgetGone after its folder was renamed, before FollowHome, its games still in its builds folder; or a list lost
+    /// with builds.json). Each one that plays, with a version in its stamp, that is no listed build's folder nor holds one or the
+    /// launcher's home (keep; a portable launcher's builds folder is in its home: no reason), nor kept by the player when the home
+    /// offered it for deletion (kept), whose version is a release or a nightly, and that is its channel's newest that no listed
+    /// build plays (NewestOfItsChannel, Find's rule for what is never offered for deletion) nor any row has (its game there or not).
+    /// Of two on one channel, the newer: the
+    /// older stays unlisted, an old version Find offers as before. In the order stable, release candidate, nightly, so that the
+    /// first, the default when the list was empty, is a release; on the channel its folder is named after (rc, stable, nightly:
+    /// LauncherSettings.FolderFor) when its version is one that channel follows, else its version's. The entries added; registry
+    /// is not saved
+    public static IReadOnlyList<BuildEntry> Relist(BuildRegistry registry, string buildsFolder, Platform platform, IEnumerable<string>? keep = null,
+                                                   IEnumerable<string>? kept = null)
+    {
+        var listed = registry.Builds.Select(b => b.Folder).ToList();
+        var homes = (keep ?? Array.Empty<string>()).ToList();
+        var keptList = (kept ?? Array.Empty<string>()).ToList();
+        var found = new List<(string Dir, string Version)>();
+        IEnumerable<string> dirs;
+        try { dirs = Directory.Exists(buildsFolder) ? Directory.EnumerateDirectories(buildsFolder).ToList() : Enumerable.Empty<string>(); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return Array.Empty<BuildEntry>(); }
+        foreach (var dir in dirs)
+        {
+            try
+            {
+                if (new DirectoryInfo(dir).LinkTarget != null || !GameFolder.IsBuilt(dir, platform)) continue;
+                if (Taken(dir, listed, homes) || keptList.Any(k => BuildRegistry.SameFolder(k, dir))) continue;
+                if (GameFolder.Version(dir) is { } v && (Versions.IsRelease(v) || Versions.TrackOf(v) == Versions.Nightly)) found.Add((dir, v));
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+        }
+        int Rank(string version) => Versions.TrackOf(version) switch { Versions.Stable => 0, Versions.Candidate => 1, _ => 2 };
+        // (the newest first within a channel, so that an older one meets the newer one already listed)
+        found.Sort((a, b) => Rank(a.Version) != Rank(b.Version) ? Rank(a.Version).CompareTo(Rank(b.Version))
+                             : Versions.Newer(a.Version, b.Version) ? -1 : Versions.Newer(b.Version, a.Version) ? 1 : string.CompareOrdinal(a.Dir, b.Dir));
+        var added = new List<BuildEntry>();
+        foreach (var (dir, version) in found)
+        {
+            if (!NewestOfItsChannel(dir, version, listed, platform)) continue;
+            // (nor when a row of its channel has a version as new, its game there or not: a row on an unplugged drive, or whose
+            // game an antivirus took, never brings an older one back beside it)
+            if (registry.Builds.Any(b => b.Version is { } rv && OnChannel(rv, Versions.TrackOf(version)) && !Versions.Newer(version, rv))) continue;
+            var name = Path.GetFileName(Path.TrimEndingDirectorySeparator(dir));
+            added.Add(registry.Add(dir, version, Versions.IsChannel(name) && OnChannel(version, name) ? name : null));
+            listed.Add(dir);
+        }
+        return added;
+    }
+
+    /// dir is a build's folder, holds one or is in one (builds), or holds the launcher's home (homes: one way only, a portable
+    /// launcher's builds folder being in its home)
+    static bool Taken(string dir, IReadOnlyList<string> builds, IReadOnlyList<string> homes) =>
+        builds.Any(b => BuildRegistry.Holds(dir, b) || BuildRegistry.Holds(b, dir)) || homes.Any(h => BuildRegistry.Holds(dir, h));
 
     /// Nothing of the player's in the folder: no save in user/save, neither user/ nor user/save a link, nothing in mods/
     static bool PlayerLeftNothing(string dir)
