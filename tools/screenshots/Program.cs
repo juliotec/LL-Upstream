@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using Avalonia.VisualTree;
 // The launcher's screens drawn without a display, into PNGs: each scene sets up a launcher of its own (a home in a temporary
 // folder, no game files, no network) and the page it shows, and the window is rendered by Skia through Avalonia.Headless.
@@ -203,6 +204,31 @@ static class Program
             SavesFixture, m => SavesConfirm(m, keep: true)),
         new("saves-confirm-no-settings", "Export confirm: Lichii's save has no game settings to keep, so the tick is not shown",
             Platform.Windows, SavesNoSettingsFixture, m => SavesConfirm(m, keep: false)),
+        // (the save editor: Longshot's own editor in the build's tools. Nothing is run here: its answers are the report in
+        // save-editor-report.json, authored with invented names, and the few lines of text an edit says)
+        new("saves-progress", "Saves: each slot has Progress, which opens the save editor", Platform.Linux, s => EditorReady(s), m => new SavesViewModel(m)),
+        new("saves-progress-off", "Saves with a version whose tools have no save editor yet: Progress is off, and says why", Platform.Linux,
+            s => { SeedSlots(s); s.SaveEditorOverride = () => (null, SaveEditorWhy.NoEditor); }, m => new SavesViewModel(m)),
+        new("save-editor", "A slot's progress: every category with what the slot has, and what is missing by name and area", Platform.Linux,
+            s => EditorReady(s), m => Editor(m)),
+        new("save-editor-skulltulas", "A category with areas: what the slot has in each, and every missing one by name and where", Platform.Linux, s => EditorReady(s),
+            m => Editor(m), m => Opened(m).Categories.First(c => c.Category.Id == "skulltulas").PickCommand.Execute(null)),
+        new("save-editor-confirm", "Set one area: what the editor says it would change, where the backup goes", Platform.Linux, s => EditorReady(s),
+            m => Editor(m), m => m.Modal = new SaveEditConfirmViewModel(Opened(m), SaveEditPlan.Set("slot_00", "skulltulas/HollowWood", "Set everything in Gold Skulltulas, Hollow Wood: done, owned or found."), null)),
+        new("save-editor-running", "The same edit while a game runs: refused, nothing changed", Platform.Linux, s => EditorReady(s, ["Longshot"]),
+            m => Editor(m), m =>
+            {
+                var confirm = new SaveEditConfirmViewModel(Opened(m), SaveEditPlan.Set("slot_00", "skulltulas/HollowWood", "Set everything in Gold Skulltulas, Hollow Wood: done, owned or found."), null);
+                m.Modal = confirm;
+                confirm.ApplyCommand.Execute(null);
+            }),
+        new("save-editor-give", "Give: an item, hearts, rupees or a dungeon's small keys, within what the game allows", Platform.Linux, s => EditorReady(s),
+            m => Editor(m), m => m.Modal = new SaveEditAskViewModel(Opened(m), SaveAsk.Give)),
+        new("save-editor-start", "Start place: where Link begins, from the places the game has", Platform.Linux, s => EditorReady(s),
+            m => Editor(m), m => m.Modal = new SaveEditAskViewModel(Opened(m), SaveAsk.Start)),
+        new("save-editor-failed", "The editor could not read the slot (a damaged file here): the launcher's words and the editor's, Try again, Copy for a bug report", Platform.Linux,
+            s => EditorReady(s, tells: _ => EditorRefuses("report", "damaged", "slot_00/progress.sav is 23 bytes: not a save file")),
+            m => Editor(m)),
     ];
 
     /// Longshot's shared save and Lichii's, both with slots and game settings, for the export confirm screens
@@ -286,6 +312,111 @@ static class Program
             File.SetLastWriteTime(Path.Combine(folder, slots[i], "progress.sav"), DateTime.Now - ago[i % ago.Length]);
         }
     }
+
+    // ---- the save editor's scenes ----
+
+    static readonly SaveEditorTool EditorTool = new("/home/player/.local/share/longshot/launcher/toolchains/v3.1.0/usr/python/bin/python3",
+        "/home/player/.local/share/longshot/launcher/toolchains/v3.1.0/usr/share/longshot/scripts/longshot_save_editor.py",
+        "/home/player/.local/share/longshot/launcher/toolchains/v3.1.0/usr/share/longshot", "/home/player/Games/Longshot/v3.1.0");
+
+    /// The editor's answers as JSON (its guide, "For programs"): invented items, places and dungeons that match the authored report
+    static string EditorItems() => new JsonObject
+    {
+        ["schema"] = 1, ["command"] = "items", ["ok"] = true,
+        ["items"] = new JsonArray(new (string Id, string Label, string Category, bool Counted)[]
+        {
+            ("Blade_Dawn", "Sword of Dawn", "equipment", false), ("Item_Lantern", "Lantern of Dusk", "items", false), ("Item_Claw", "Grapple Claw", "items", false),
+            ("Item_Bomb", "Bombs", "items", true), ("Item_Arrow", "Arrows", "items", true), ("Pouch_L", "Large Bomb Pouch", "upgrades", false),
+            ("Quiver_L", "Large Quiver", "upgrades", false), ("Wallet_L", "Large Wallet", "upgrades", false),
+        }.Select(i => (JsonNode)new JsonObject { ["id"] = i.Id, ["label"] = i.Label, ["category"] = i.Category, ["counted"] = i.Counted }).ToArray()),
+        ["gives"] = new JsonArray("hearts", "rupees"),
+        ["small_keys"] = new JsonArray(new[] { ("StoneKeep", 4), ("HollowTemple", 6), ("SaltCavern", 5), ("EmberDepths", 7) }
+            .Select(k => (JsonNode)new JsonObject { ["dungeon"] = k.Item1, ["of"] = k.Item2 }).ToArray()),
+        ["hearts"] = new JsonObject { ["min"] = 1, ["max"] = 20 },
+    }.ToJsonString();
+
+    static string EditorPlaces() => new JsonObject
+    {
+        ["schema"] = 1, ["command"] = "places", ["ok"] = true,
+        ["places"] = new JsonArray(new (string Area, string Name, string? Age)[]
+        {
+            ("MeadowVillage_Adult", "(default)", "adult"), ("MeadowVillage_Adult", "Gate", "adult"), ("MeadowVillage_Child", "(default)", "child"),
+            ("StoneMarket", "(default)", null), ("StoneMarket", "Fountain", null), ("HollowWood", "Clearing", null), ("SaltCavern", "EntrancePos", null),
+        }.Select(p => (JsonNode)new JsonObject
+        {
+            ["area"] = p.Area, ["name"] = p.Name, ["default"] = p.Name == "(default)", ["spec"] = p.Area + "/" + p.Name, ["age"] = p.Age, ["loadable"] = true,
+        }).ToArray()),
+    }.ToJsonString();
+
+    /// An edit's answer: what it said, the files, and (not a dry run) the backup it made and what it read back
+    static string EditorEdit(string command, string slot, string[] said, string[] files, bool dry) => new JsonObject
+    {
+        ["schema"] = 1, ["command"] = command, ["ok"] = true, ["slot"] = slot, ["dry_run"] = dry, ["changed"] = true,
+        ["said"] = new JsonArray(said.Select(x => (JsonNode)x).ToArray()), ["changes"] = new JsonArray(),
+        ["files"] = new JsonArray(files.Select(x => (JsonNode)x).ToArray()),
+        ["backup"] = dry ? null : "/home/player/.local/share/longshot/save-backup/edit-5a3c9e1f0b7d2468-20261116-091503",
+        ["read_back"] = dry ? null : new JsonObject { ["complete"] = false, ["missing_total"] = 346 },
+    }.ToJsonString();
+
+    /// What the editor says to a command (the arguments after its fixed ones): the authored report, the lists, and each edit's answer
+    static SaveEditorRun EditorSays(IReadOnlyList<string> args)
+    {
+        switch (args[0])
+        {
+            case "report": return new SaveEditorRun(0, File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "save-editor-report.json")), "");
+            case "items": return new SaveEditorRun(0, EditorItems(), "");
+            case "places": return new SaveEditorRun(0, EditorPlaces(), "");
+        }
+        var dry = args.Contains("--dry-run");
+        var progress = new[] { $"{args[1]}/progress.sav", $"{args[1]}/caption.sav" };
+        return new SaveEditorRun(0, args[0] switch
+        {
+            "set" or "clear" => EditorEdit(args[0], args[1], [$"{args[0]} {args[2]}: 3 of 7 changed"], progress, dry),
+            "give" => EditorEdit("give", args[1], args.Skip(2).Where(a => !a.StartsWith('-')).Select(a => a.Contains('=') ? a.Replace('=', ':').Replace("hearts:", "hearts: ") : a + ": given").ToArray(), progress, dry),
+            "start" => EditorEdit("start", args[1], ["start: adult Link in StoneMarket at 12.0, 5.0, -4.0"], progress, dry),
+            _ => EditorEdit("copy", args[2], [$"copy {args[1]} -> {args[2]} (caption.sav, progress.sav)"], [$"{args[2]}/caption.sav", $"{args[2]}/progress.sav"], dry),
+        }, "");
+    }
+
+    /// A refusal as the editor says it: JSON on stdout, exit 1
+    static SaveEditorRun EditorRefuses(string command, string code, string message) =>
+        new(1, new JsonObject { ["schema"] = 1, ["command"] = command, ["ok"] = false, ["error"] = new JsonObject { ["code"] = code, ["message"] = message } }.ToJsonString(), "");
+
+    /// Saves for the scene: three slots in the shared save folder of the scene's own home
+    static string SeedSlots(LauncherService service)
+    {
+        var folder = Saves.ImportTarget(service.SaveEnv);
+        Directory.CreateDirectory(folder);
+        File.WriteAllText(Path.Combine(folder, "account.sav"), "x");
+        var now = DateTime.Now;
+        foreach (var (n, ago) in new[] { (0, TimeSpan.FromHours(3)), (1, TimeSpan.FromDays(2)), (2, TimeSpan.FromDays(9)) })
+        {
+            var slot = Directory.CreateDirectory(Path.Combine(folder, $"slot_{n:00}")).FullName;
+            File.WriteAllText(Path.Combine(slot, "progress.sav"), "x");
+            File.SetLastWriteTime(Path.Combine(slot, "progress.sav"), now - ago);
+        }
+        return folder;
+    }
+
+    /// A save editor that can run: the slots seeded, the editor answering as EditorSays (or as tells says), a game running or not
+    static void EditorReady(LauncherService service, IReadOnlyList<string>? running = null, Func<IReadOnlyList<string>, SaveEditorRun>? tells = null)
+    {
+        var folder = SeedSlots(service);
+        // (the build's game folder, with its version's stamp: the page says whose game files it reads)
+        var game = Directory.CreateDirectory(Path.Combine(service.SaveEnv.Getenv("HOME")!, "Games", "Longshot", "v3.1.0")).FullName;
+        File.WriteAllText(Path.Combine(game, GameFolder.StampName), "version=v3.1.0\n");
+        var tool = EditorTool with { Game = game };
+        // (the folder the backups go to, as the player's would be, not the scene's own home)
+        service.SaveEnv = service.SaveEnv with { BackupFolder = "/home/player/.local/share/longshot/save-backup" };
+        var runner = new SaveEditorRunner((start, _) => Task.FromResult((tells ?? EditorSays)(start.ArgumentList.Skip(9).ToList())));
+        service.SaveEditorOverride = () => (new SaveEditing(tool, service.SaveEnv, folder, runner, () => running ?? []), SaveEditorWhy.Ready);
+    }
+
+    /// The Saves page with its slot 1 opened in the editor
+    static SaveEditorViewModel Editor(MainViewModel main) =>
+        new(new SavesViewModel(main), main.Service.SaveEditor().Editing!, "slot_00");
+
+    static SaveEditorViewModel Opened(MainViewModel main) => (SaveEditorViewModel)main.Page;
 
     /// A v3.0.0 build with v3.2.0 out on its channel, and the release list the update check read (two stables since)
     static void UpdateOffered(LauncherService service)

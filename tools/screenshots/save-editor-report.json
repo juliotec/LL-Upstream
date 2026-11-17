@@ -1,0 +1,1583 @@
+{
+  "schema": 1,
+  "command": "report",
+  "ok": true,
+  "save": "/home/player/.local/share/longshot/save/5a3c9e1f0b7d24680000000000000001",
+  "game_revision": 4242,
+  "slots": [
+    {
+      "slot": "slot_00",
+      "place": {
+        "area": "MeadowVillage",
+        "name": "Meadow Village"
+      },
+      "age": "adult",
+      "hearts": 12.0,
+      "rupees": 300,
+      "clock": "day 4 18:20",
+      "cleared": false,
+      "saved": "2026-11-14 21:40",
+      "categories": [
+        {
+          "id": "equipment",
+          "title": "Equipment",
+          "have": 4,
+          "of": 6,
+          "note": null,
+          "areas": [],
+          "missing": [
+            {
+              "id": "equipment/Boots_Iron",
+              "label": "Iron Greaves",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": null
+            },
+            {
+              "id": "equipment/Tunic_Moon",
+              "label": "Moonlit Mail",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": null
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "items",
+          "title": "Items",
+          "have": 6,
+          "of": 12,
+          "note": null,
+          "areas": [],
+          "missing": [
+            {
+              "id": "items/Item_Lantern",
+              "label": "Lantern of Dusk",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": null
+            },
+            {
+              "id": "items/Item_Claw",
+              "label": "Grapple Claw",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": null
+            },
+            {
+              "id": "items/Item_Bomb",
+              "label": "Bombs",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": "12 of 30"
+            },
+            {
+              "id": "items/Item_Arrow",
+              "label": "Arrows",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": "20 of 40"
+            },
+            {
+              "id": "items/Item_Bottle_Fairy",
+              "label": "Bottled Fairy",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": null
+            },
+            {
+              "id": "items/Item_Glass",
+              "label": "Lens of Insight",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": null
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "masks",
+          "title": "Masks",
+          "have": 3,
+          "of": 6,
+          "note": null,
+          "areas": [],
+          "missing": [
+            {
+              "id": "masks/Mask_Bear",
+              "label": "Bear Mask",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": null
+            },
+            {
+              "id": "masks/Mask_Heron",
+              "label": "Heron Mask",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": null
+            },
+            {
+              "id": "masks/Mask_Moth",
+              "label": "Moth Mask",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": null
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "upgrades",
+          "title": "Upgrades",
+          "have": 7,
+          "of": 10,
+          "note": null,
+          "areas": [],
+          "missing": [
+            {
+              "id": "upgrades/Pouch_L",
+              "label": "Large Bomb Pouch",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": null
+            },
+            {
+              "id": "upgrades/Quiver_L",
+              "label": "Large Quiver",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": null
+            },
+            {
+              "id": "upgrades/Wallet_L",
+              "label": "Large Wallet",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": null
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "songs",
+          "title": "Songs",
+          "have": 7,
+          "of": 9,
+          "note": null,
+          "areas": [],
+          "missing": [
+            {
+              "id": "songs/Song_3",
+              "label": "Hollow Chorus",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": null
+            },
+            {
+              "id": "songs/Song_6",
+              "label": "Marsh Waltz",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": null
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "quest",
+          "title": "Quest items",
+          "have": 6,
+          "of": 9,
+          "note": null,
+          "areas": [],
+          "missing": [
+            {
+              "id": "quest/Stone_3",
+              "label": "Spirit Stone 3",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": null
+            },
+            {
+              "id": "quest/Medal_5",
+              "label": "Sage Medal 5",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": null
+            },
+            {
+              "id": "quest/Medal_6",
+              "label": "Sage Medal 6",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": null
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "hearts",
+          "title": "Hearts",
+          "have": 12,
+          "of": 20,
+          "note": null,
+          "areas": [],
+          "missing": [
+            {
+              "id": "hearts/hearts",
+              "label": "Hearts",
+              "area": "",
+              "have": 12,
+              "of": 20,
+              "note": null
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "heart-containers",
+          "title": "Heart containers",
+          "have": 2,
+          "of": 4,
+          "note": null,
+          "areas": [
+            {
+              "area": "StoneKeep",
+              "have": 1,
+              "of": 1
+            },
+            {
+              "area": "HollowTemple",
+              "have": 1,
+              "of": 1
+            },
+            {
+              "area": "SaltCavern",
+              "have": 0,
+              "of": 1
+            },
+            {
+              "area": "EmberDepths",
+              "have": 0,
+              "of": 1
+            }
+          ],
+          "missing": [
+            {
+              "id": "heart-containers/SaltCavern/1",
+              "label": "Heart container in Salt Cavern",
+              "area": "SaltCavern",
+              "have": 0,
+              "of": 1,
+              "note": null
+            },
+            {
+              "id": "heart-containers/EmberDepths/1",
+              "label": "Heart container in Ember Depths",
+              "area": "EmberDepths",
+              "have": 0,
+              "of": 1,
+              "note": null
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "heart-pieces",
+          "title": "Heart pieces",
+          "have": 14,
+          "of": 26,
+          "note": null,
+          "areas": [
+            {
+              "area": "MeadowVillage",
+              "have": 3,
+              "of": 4
+            },
+            {
+              "area": "HollowWood",
+              "have": 2,
+              "of": 4
+            },
+            {
+              "area": "StoneMarket",
+              "have": 3,
+              "of": 3
+            },
+            {
+              "area": "LanternPass",
+              "have": 2,
+              "of": 5
+            },
+            {
+              "area": "SaltMarsh",
+              "have": 0,
+              "of": 4
+            },
+            {
+              "area": "TideCoast",
+              "have": 4,
+              "of": 6
+            }
+          ],
+          "missing": [
+            {
+              "id": "heart-pieces/MeadowVillage/4",
+              "label": "Heart piece 4 in Meadow Village",
+              "area": "MeadowVillage",
+              "have": 0,
+              "of": 1,
+              "note": null
+            },
+            {
+              "id": "heart-pieces/HollowWood/3",
+              "label": "Heart piece 3 in Hollow Wood",
+              "area": "HollowWood",
+              "have": 0,
+              "of": 1,
+              "note": null
+            },
+            {
+              "id": "heart-pieces/HollowWood/4",
+              "label": "Heart piece 4 in Hollow Wood",
+              "area": "HollowWood",
+              "have": 0,
+              "of": 1,
+              "note": null
+            },
+            {
+              "id": "heart-pieces/LanternPass/3",
+              "label": "Heart piece 3 in Lantern Pass",
+              "area": "LanternPass",
+              "have": 0,
+              "of": 1,
+              "note": null
+            },
+            {
+              "id": "heart-pieces/LanternPass/4",
+              "label": "Heart piece 4 in Lantern Pass",
+              "area": "LanternPass",
+              "have": 0,
+              "of": 1,
+              "note": null
+            },
+            {
+              "id": "heart-pieces/LanternPass/5",
+              "label": "Heart piece 5 in Lantern Pass",
+              "area": "LanternPass",
+              "have": 0,
+              "of": 1,
+              "note": null
+            },
+            {
+              "id": "heart-pieces/SaltMarsh/1",
+              "label": "Heart piece 1 in Salt Marsh",
+              "area": "SaltMarsh",
+              "have": 0,
+              "of": 1,
+              "note": null
+            },
+            {
+              "id": "heart-pieces/SaltMarsh/2",
+              "label": "Heart piece 2 in Salt Marsh",
+              "area": "SaltMarsh",
+              "have": 0,
+              "of": 1,
+              "note": null
+            },
+            {
+              "id": "heart-pieces/SaltMarsh/3",
+              "label": "Heart piece 3 in Salt Marsh",
+              "area": "SaltMarsh",
+              "have": 0,
+              "of": 1,
+              "note": null
+            },
+            {
+              "id": "heart-pieces/SaltMarsh/4",
+              "label": "Heart piece 4 in Salt Marsh",
+              "area": "SaltMarsh",
+              "have": 0,
+              "of": 1,
+              "note": null
+            },
+            {
+              "id": "heart-pieces/TideCoast/5",
+              "label": "Heart piece 5 in Tide Coast",
+              "area": "TideCoast",
+              "have": 0,
+              "of": 1,
+              "note": null
+            },
+            {
+              "id": "heart-pieces/TideCoast/6",
+              "label": "Heart piece 6 in Tide Coast",
+              "area": "TideCoast",
+              "have": 0,
+              "of": 1,
+              "note": null
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "rupees",
+          "title": "Rupees",
+          "have": 300,
+          "of": 500,
+          "note": null,
+          "areas": [],
+          "missing": [
+            {
+              "id": "rupees/rupees",
+              "label": "Rupees",
+              "area": "",
+              "have": 300,
+              "of": 500,
+              "note": null
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "chests",
+          "title": "Chests opened",
+          "have": 97,
+          "of": 150,
+          "note": null,
+          "areas": [
+            {
+              "area": "MeadowVillage",
+              "have": 12,
+              "of": 12
+            },
+            {
+              "area": "HollowWood",
+              "have": 9,
+              "of": 14
+            },
+            {
+              "area": "StoneMarket",
+              "have": 9,
+              "of": 9
+            },
+            {
+              "area": "LanternPass",
+              "have": 11,
+              "of": 16
+            },
+            {
+              "area": "SaltMarsh",
+              "have": 4,
+              "of": 12
+            },
+            {
+              "area": "TideCoast",
+              "have": 8,
+              "of": 10
+            },
+            {
+              "area": "StoneKeep",
+              "have": 18,
+              "of": 18
+            },
+            {
+              "area": "HollowTemple",
+              "have": 20,
+              "of": 22
+            },
+            {
+              "area": "SaltCavern",
+              "have": 6,
+              "of": 17
+            },
+            {
+              "area": "EmberDepths",
+              "have": 0,
+              "of": 20
+            }
+          ],
+          "missing": [
+            {
+              "id": "chests/HollowWood/10",
+              "label": "Chest 10 in Hollow Wood",
+              "area": "HollowWood",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at 15, 35, -115"
+            },
+            {
+              "id": "chests/HollowWood/11",
+              "label": "Chest 11 in Hollow Wood",
+              "area": "HollowWood",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at -195, 37, 284"
+            },
+            {
+              "id": "chests/HollowWood/12",
+              "label": "Chest 12 in Hollow Wood",
+              "area": "HollowWood",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at -108, 23, -201"
+            },
+            {
+              "id": "chests/HollowWood/13",
+              "label": "Chest 13 in Hollow Wood",
+              "area": "HollowWood",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at 260, 4, 277"
+            },
+            {
+              "id": "chests/HollowWood/14",
+              "label": "Chest 14 in Hollow Wood",
+              "area": "HollowWood",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at -239, 39, -90"
+            },
+            {
+              "id": "chests/LanternPass/12",
+              "label": "Chest 12 in Lantern Pass",
+              "area": "LanternPass",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at 208, 34, 137"
+            },
+            {
+              "id": "chests/LanternPass/13",
+              "label": "Chest 13 in Lantern Pass",
+              "area": "LanternPass",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at 21, 29, 299"
+            },
+            {
+              "id": "chests/LanternPass/14",
+              "label": "Chest 14 in Lantern Pass",
+              "area": "LanternPass",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at 164, 23, 6"
+            },
+            {
+              "id": "chests/LanternPass/15",
+              "label": "Chest 15 in Lantern Pass",
+              "area": "LanternPass",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at -46, 11, -51"
+            },
+            {
+              "id": "chests/LanternPass/16",
+              "label": "Chest 16 in Lantern Pass",
+              "area": "LanternPass",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at -217, 36, 7"
+            },
+            {
+              "id": "chests/SaltMarsh/5",
+              "label": "Chest 5 in Salt Marsh",
+              "area": "SaltMarsh",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at 237, 31, 51"
+            },
+            {
+              "id": "chests/SaltMarsh/6",
+              "label": "Chest 6 in Salt Marsh",
+              "area": "SaltMarsh",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at 159, 18, -226"
+            },
+            {
+              "id": "chests/SaltMarsh/7",
+              "label": "Chest 7 in Salt Marsh",
+              "area": "SaltMarsh",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at -180, 32, 128"
+            },
+            {
+              "id": "chests/SaltMarsh/8",
+              "label": "Chest 8 in Salt Marsh",
+              "area": "SaltMarsh",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at -132, 21, -145"
+            },
+            {
+              "id": "chests/SaltMarsh/9",
+              "label": "Chest 9 in Salt Marsh",
+              "area": "SaltMarsh",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at 200, 26, -260"
+            },
+            {
+              "id": "chests/SaltMarsh/10",
+              "label": "Chest 10 in Salt Marsh",
+              "area": "SaltMarsh",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at -221, 35, 286"
+            },
+            {
+              "id": "chests/SaltMarsh/11",
+              "label": "Chest 11 in Salt Marsh",
+              "area": "SaltMarsh",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at 21, 21, 58"
+            },
+            {
+              "id": "chests/SaltMarsh/12",
+              "label": "Chest 12 in Salt Marsh",
+              "area": "SaltMarsh",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at 208, 37, 167"
+            },
+            {
+              "id": "chests/TideCoast/9",
+              "label": "Chest 9 in Tide Coast",
+              "area": "TideCoast",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at -230, 5, -24"
+            },
+            {
+              "id": "chests/TideCoast/10",
+              "label": "Chest 10 in Tide Coast",
+              "area": "TideCoast",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at 185, 4, -238"
+            },
+            {
+              "id": "chests/HollowTemple/21",
+              "label": "Chest 21 in Hollow Temple",
+              "area": "HollowTemple",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at 17, 36, 156"
+            },
+            {
+              "id": "chests/HollowTemple/22",
+              "label": "Chest 22 in Hollow Temple",
+              "area": "HollowTemple",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at -9, 24, 55"
+            },
+            {
+              "id": "chests/SaltCavern/7",
+              "label": "Chest 7 in Salt Cavern",
+              "area": "SaltCavern",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at -277, 29, 63"
+            },
+            {
+              "id": "chests/SaltCavern/8",
+              "label": "Chest 8 in Salt Cavern",
+              "area": "SaltCavern",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at -128, 39, -181"
+            },
+            {
+              "id": "chests/SaltCavern/9",
+              "label": "Chest 9 in Salt Cavern",
+              "area": "SaltCavern",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at 205, 3, -77"
+            },
+            {
+              "id": "chests/SaltCavern/10",
+              "label": "Chest 10 in Salt Cavern",
+              "area": "SaltCavern",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at -6, 8, -47"
+            },
+            {
+              "id": "chests/SaltCavern/11",
+              "label": "Chest 11 in Salt Cavern",
+              "area": "SaltCavern",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at 107, 25, 208"
+            },
+            {
+              "id": "chests/SaltCavern/12",
+              "label": "Chest 12 in Salt Cavern",
+              "area": "SaltCavern",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at -218, 10, 159"
+            },
+            {
+              "id": "chests/SaltCavern/13",
+              "label": "Chest 13 in Salt Cavern",
+              "area": "SaltCavern",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at 111, 35, -16"
+            },
+            {
+              "id": "chests/SaltCavern/14",
+              "label": "Chest 14 in Salt Cavern",
+              "area": "SaltCavern",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at -160, 27, 263"
+            },
+            {
+              "id": "chests/SaltCavern/15",
+              "label": "Chest 15 in Salt Cavern",
+              "area": "SaltCavern",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at -15, 26, 67"
+            },
+            {
+              "id": "chests/SaltCavern/16",
+              "label": "Chest 16 in Salt Cavern",
+              "area": "SaltCavern",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at 89, 14, -146"
+            },
+            {
+              "id": "chests/SaltCavern/17",
+              "label": "Chest 17 in Salt Cavern",
+              "area": "SaltCavern",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at -216, 11, -146"
+            },
+            {
+              "id": "chests/EmberDepths/1",
+              "label": "Chest 1 in Ember Depths",
+              "area": "EmberDepths",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at -63, 14, -288"
+            },
+            {
+              "id": "chests/EmberDepths/2",
+              "label": "Chest 2 in Ember Depths",
+              "area": "EmberDepths",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at 196, 37, -114"
+            },
+            {
+              "id": "chests/EmberDepths/3",
+              "label": "Chest 3 in Ember Depths",
+              "area": "EmberDepths",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at -31, 18, -296"
+            },
+            {
+              "id": "chests/EmberDepths/4",
+              "label": "Chest 4 in Ember Depths",
+              "area": "EmberDepths",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at -151, 26, 247"
+            },
+            {
+              "id": "chests/EmberDepths/5",
+              "label": "Chest 5 in Ember Depths",
+              "area": "EmberDepths",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at 78, 39, 279"
+            },
+            {
+              "id": "chests/EmberDepths/6",
+              "label": "Chest 6 in Ember Depths",
+              "area": "EmberDepths",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at 26, 8, 227"
+            },
+            {
+              "id": "chests/EmberDepths/7",
+              "label": "Chest 7 in Ember Depths",
+              "area": "EmberDepths",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at -245, 29, 272"
+            },
+            {
+              "id": "chests/EmberDepths/8",
+              "label": "Chest 8 in Ember Depths",
+              "area": "EmberDepths",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at 101, 25, 108"
+            },
+            {
+              "id": "chests/EmberDepths/9",
+              "label": "Chest 9 in Ember Depths",
+              "area": "EmberDepths",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at 103, 6, 193"
+            },
+            {
+              "id": "chests/EmberDepths/10",
+              "label": "Chest 10 in Ember Depths",
+              "area": "EmberDepths",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at 110, 3, -105"
+            },
+            {
+              "id": "chests/EmberDepths/11",
+              "label": "Chest 11 in Ember Depths",
+              "area": "EmberDepths",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at -232, 13, 151"
+            },
+            {
+              "id": "chests/EmberDepths/12",
+              "label": "Chest 12 in Ember Depths",
+              "area": "EmberDepths",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at -134, 7, 48"
+            },
+            {
+              "id": "chests/EmberDepths/13",
+              "label": "Chest 13 in Ember Depths",
+              "area": "EmberDepths",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at -247, 6, -300"
+            },
+            {
+              "id": "chests/EmberDepths/14",
+              "label": "Chest 14 in Ember Depths",
+              "area": "EmberDepths",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at 280, 9, 249"
+            },
+            {
+              "id": "chests/EmberDepths/15",
+              "label": "Chest 15 in Ember Depths",
+              "area": "EmberDepths",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at -197, 23, -274"
+            },
+            {
+              "id": "chests/EmberDepths/16",
+              "label": "Chest 16 in Ember Depths",
+              "area": "EmberDepths",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at -228, 13, 85"
+            },
+            {
+              "id": "chests/EmberDepths/17",
+              "label": "Chest 17 in Ember Depths",
+              "area": "EmberDepths",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at -148, 40, -42"
+            },
+            {
+              "id": "chests/EmberDepths/18",
+              "label": "Chest 18 in Ember Depths",
+              "area": "EmberDepths",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at 55, 38, 72"
+            },
+            {
+              "id": "chests/EmberDepths/19",
+              "label": "Chest 19 in Ember Depths",
+              "area": "EmberDepths",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at 185, 7, -182"
+            },
+            {
+              "id": "chests/EmberDepths/20",
+              "label": "Chest 20 in Ember Depths",
+              "area": "EmberDepths",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at 199, 29, 191"
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "skulltulas",
+          "title": "Gold Skulltulas",
+          "have": 38,
+          "of": 68,
+          "note": null,
+          "areas": [
+            {
+              "area": "MeadowVillage",
+              "have": 5,
+              "of": 5
+            },
+            {
+              "area": "HollowWood",
+              "have": 4,
+              "of": 7
+            },
+            {
+              "area": "StoneMarket",
+              "have": 6,
+              "of": 8
+            },
+            {
+              "area": "LanternPass",
+              "have": 3,
+              "of": 6
+            },
+            {
+              "area": "SaltMarsh",
+              "have": 0,
+              "of": 4
+            },
+            {
+              "area": "TideCoast",
+              "have": 7,
+              "of": 9
+            },
+            {
+              "area": "StoneKeep",
+              "have": 6,
+              "of": 6
+            },
+            {
+              "area": "HollowTemple",
+              "have": 5,
+              "of": 8
+            },
+            {
+              "area": "SaltCavern",
+              "have": 2,
+              "of": 7
+            },
+            {
+              "area": "EmberDepths",
+              "have": 0,
+              "of": 8
+            }
+          ],
+          "missing": [
+            {
+              "id": "skulltulas/HollowWood/5",
+              "label": "Gold Skulltula 5 in Hollow Wood (at 195, 19, -213)",
+              "area": "HollowWood",
+              "have": 0,
+              "of": 1,
+              "note": "195, 19, -213"
+            },
+            {
+              "id": "skulltulas/HollowWood/6",
+              "label": "Gold Skulltula 6 in Hollow Wood (at -153, 6, 50)",
+              "area": "HollowWood",
+              "have": 0,
+              "of": 1,
+              "note": "-153, 6, 50"
+            },
+            {
+              "id": "skulltulas/HollowWood/7",
+              "label": "Gold Skulltula 7 in Hollow Wood (at -29, 30, -135)",
+              "area": "HollowWood",
+              "have": 0,
+              "of": 1,
+              "note": "-29, 30, -135"
+            },
+            {
+              "id": "skulltulas/StoneMarket/7",
+              "label": "Gold Skulltula 7 in Stone Market (at 228, 1, -90)",
+              "area": "StoneMarket",
+              "have": 0,
+              "of": 1,
+              "note": "228, 1, -90"
+            },
+            {
+              "id": "skulltulas/StoneMarket/8",
+              "label": "Gold Skulltula 8 in Stone Market (at 240, 23, -150)",
+              "area": "StoneMarket",
+              "have": 0,
+              "of": 1,
+              "note": "240, 23, -150"
+            },
+            {
+              "id": "skulltulas/LanternPass/4",
+              "label": "Gold Skulltula 4 in Lantern Pass (at 256, 1, 240)",
+              "area": "LanternPass",
+              "have": 0,
+              "of": 1,
+              "note": "256, 1, 240"
+            },
+            {
+              "id": "skulltulas/LanternPass/5",
+              "label": "Gold Skulltula 5 in Lantern Pass (at 5, 5, -33)",
+              "area": "LanternPass",
+              "have": 0,
+              "of": 1,
+              "note": "5, 5, -33"
+            },
+            {
+              "id": "skulltulas/LanternPass/6",
+              "label": "Gold Skulltula 6 in Lantern Pass (at 230, 23, -129)",
+              "area": "LanternPass",
+              "have": 0,
+              "of": 1,
+              "note": "230, 23, -129"
+            },
+            {
+              "id": "skulltulas/SaltMarsh/1",
+              "label": "Gold Skulltula 1 in Salt Marsh (at 64, 14, 245)",
+              "area": "SaltMarsh",
+              "have": 0,
+              "of": 1,
+              "note": "64, 14, 245"
+            },
+            {
+              "id": "skulltulas/SaltMarsh/2",
+              "label": "Gold Skulltula 2 in Salt Marsh (at 254, 32, 37)",
+              "area": "SaltMarsh",
+              "have": 0,
+              "of": 1,
+              "note": "254, 32, 37"
+            },
+            {
+              "id": "skulltulas/SaltMarsh/3",
+              "label": "Gold Skulltula 3 in Salt Marsh (at -72, 39, -101)",
+              "area": "SaltMarsh",
+              "have": 0,
+              "of": 1,
+              "note": "-72, 39, -101"
+            },
+            {
+              "id": "skulltulas/SaltMarsh/4",
+              "label": "Gold Skulltula 4 in Salt Marsh (at -55, 25, -68)",
+              "area": "SaltMarsh",
+              "have": 0,
+              "of": 1,
+              "note": "-55, 25, -68"
+            },
+            {
+              "id": "skulltulas/TideCoast/8",
+              "label": "Gold Skulltula 8 in Tide Coast (at -96, 33, 204)",
+              "area": "TideCoast",
+              "have": 0,
+              "of": 1,
+              "note": "-96, 33, 204"
+            },
+            {
+              "id": "skulltulas/TideCoast/9",
+              "label": "Gold Skulltula 9 in Tide Coast (at 64, 1, -272)",
+              "area": "TideCoast",
+              "have": 0,
+              "of": 1,
+              "note": "64, 1, -272"
+            },
+            {
+              "id": "skulltulas/HollowTemple/6",
+              "label": "Gold Skulltula 6 in Hollow Temple (at -14, 30, -35)",
+              "area": "HollowTemple",
+              "have": 0,
+              "of": 1,
+              "note": "-14, 30, -35"
+            },
+            {
+              "id": "skulltulas/HollowTemple/7",
+              "label": "Gold Skulltula 7 in Hollow Temple (at -102, 38, 52)",
+              "area": "HollowTemple",
+              "have": 0,
+              "of": 1,
+              "note": "-102, 38, 52"
+            },
+            {
+              "id": "skulltulas/HollowTemple/8",
+              "label": "Gold Skulltula 8 in Hollow Temple (at 157, 22, 73)",
+              "area": "HollowTemple",
+              "have": 0,
+              "of": 1,
+              "note": "157, 22, 73"
+            },
+            {
+              "id": "skulltulas/SaltCavern/3",
+              "label": "Gold Skulltula 3 in Salt Cavern (at -218, 14, -196)",
+              "area": "SaltCavern",
+              "have": 0,
+              "of": 1,
+              "note": "-218, 14, -196"
+            },
+            {
+              "id": "skulltulas/SaltCavern/4",
+              "label": "Gold Skulltula 4 in Salt Cavern (at -68, 30, -99)",
+              "area": "SaltCavern",
+              "have": 0,
+              "of": 1,
+              "note": "-68, 30, -99"
+            },
+            {
+              "id": "skulltulas/SaltCavern/5",
+              "label": "Gold Skulltula 5 in Salt Cavern (at 45, 13, 194)",
+              "area": "SaltCavern",
+              "have": 0,
+              "of": 1,
+              "note": "45, 13, 194"
+            },
+            {
+              "id": "skulltulas/SaltCavern/6",
+              "label": "Gold Skulltula 6 in Salt Cavern (at -299, 30, 52)",
+              "area": "SaltCavern",
+              "have": 0,
+              "of": 1,
+              "note": "-299, 30, 52"
+            },
+            {
+              "id": "skulltulas/SaltCavern/7",
+              "label": "Gold Skulltula 7 in Salt Cavern (at -214, 7, 97)",
+              "area": "SaltCavern",
+              "have": 0,
+              "of": 1,
+              "note": "-214, 7, 97"
+            },
+            {
+              "id": "skulltulas/EmberDepths/1",
+              "label": "Gold Skulltula 1 in Ember Depths (at -96, 30, -118)",
+              "area": "EmberDepths",
+              "have": 0,
+              "of": 1,
+              "note": "-96, 30, -118"
+            },
+            {
+              "id": "skulltulas/EmberDepths/2",
+              "label": "Gold Skulltula 2 in Ember Depths (at 144, 40, 40)",
+              "area": "EmberDepths",
+              "have": 0,
+              "of": 1,
+              "note": "144, 40, 40"
+            },
+            {
+              "id": "skulltulas/EmberDepths/3",
+              "label": "Gold Skulltula 3 in Ember Depths (at -212, 25, 174)",
+              "area": "EmberDepths",
+              "have": 0,
+              "of": 1,
+              "note": "-212, 25, 174"
+            },
+            {
+              "id": "skulltulas/EmberDepths/4",
+              "label": "Gold Skulltula 4 in Ember Depths (at 111, 5, -138)",
+              "area": "EmberDepths",
+              "have": 0,
+              "of": 1,
+              "note": "111, 5, -138"
+            },
+            {
+              "id": "skulltulas/EmberDepths/5",
+              "label": "Gold Skulltula 5 in Ember Depths (at -126, 8, -272)",
+              "area": "EmberDepths",
+              "have": 0,
+              "of": 1,
+              "note": "-126, 8, -272"
+            },
+            {
+              "id": "skulltulas/EmberDepths/6",
+              "label": "Gold Skulltula 6 in Ember Depths (at -146, 37, 176)",
+              "area": "EmberDepths",
+              "have": 0,
+              "of": 1,
+              "note": "-146, 37, 176"
+            },
+            {
+              "id": "skulltulas/EmberDepths/7",
+              "label": "Gold Skulltula 7 in Ember Depths (at -151, 39, 185)",
+              "area": "EmberDepths",
+              "have": 0,
+              "of": 1,
+              "note": "-151, 39, 185"
+            },
+            {
+              "id": "skulltulas/EmberDepths/8",
+              "label": "Gold Skulltula 8 in Ember Depths (at 58, 9, 261)",
+              "area": "EmberDepths",
+              "have": 0,
+              "of": 1,
+              "note": "58, 9, 261"
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "dungeons",
+          "title": "Dungeon maps, compasses and boss keys",
+          "have": 6,
+          "of": 12,
+          "note": null,
+          "areas": [
+            {
+              "area": "StoneKeep",
+              "have": 3,
+              "of": 3
+            },
+            {
+              "area": "HollowTemple",
+              "have": 2,
+              "of": 3
+            },
+            {
+              "area": "SaltCavern",
+              "have": 1,
+              "of": 3
+            },
+            {
+              "area": "EmberDepths",
+              "have": 0,
+              "of": 3
+            }
+          ],
+          "missing": [
+            {
+              "id": "dungeons/HollowTemple/bosskey",
+              "label": "Hollow Temple: boss key",
+              "area": "HollowTemple",
+              "have": 0,
+              "of": 1,
+              "note": null
+            },
+            {
+              "id": "dungeons/SaltCavern/compass",
+              "label": "Salt Cavern: compass",
+              "area": "SaltCavern",
+              "have": 0,
+              "of": 1,
+              "note": null
+            },
+            {
+              "id": "dungeons/SaltCavern/bosskey",
+              "label": "Salt Cavern: boss key",
+              "area": "SaltCavern",
+              "have": 0,
+              "of": 1,
+              "note": null
+            },
+            {
+              "id": "dungeons/EmberDepths/map",
+              "label": "Ember Depths: map",
+              "area": "EmberDepths",
+              "have": 0,
+              "of": 1,
+              "note": null
+            },
+            {
+              "id": "dungeons/EmberDepths/compass",
+              "label": "Ember Depths: compass",
+              "area": "EmberDepths",
+              "have": 0,
+              "of": 1,
+              "note": null
+            },
+            {
+              "id": "dungeons/EmberDepths/bosskey",
+              "label": "Ember Depths: boss key",
+              "area": "EmberDepths",
+              "have": 0,
+              "of": 1,
+              "note": null
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "small-keys",
+          "title": "Small keys",
+          "have": 12,
+          "of": 22,
+          "note": null,
+          "areas": [
+            {
+              "area": "StoneKeep",
+              "have": 4,
+              "of": 4
+            },
+            {
+              "area": "HollowTemple",
+              "have": 6,
+              "of": 6
+            },
+            {
+              "area": "SaltCavern",
+              "have": 2,
+              "of": 5
+            },
+            {
+              "area": "EmberDepths",
+              "have": 0,
+              "of": 7
+            }
+          ],
+          "missing": [
+            {
+              "id": "small-keys/SaltCavern/keys",
+              "label": "Salt Cavern: small keys",
+              "area": "SaltCavern",
+              "have": 2,
+              "of": 5,
+              "note": "0 in hand"
+            },
+            {
+              "id": "small-keys/EmberDepths/keys",
+              "label": "Ember Depths: small keys",
+              "area": "EmberDepths",
+              "have": 0,
+              "of": 7,
+              "note": "0 in hand"
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "bosses",
+          "title": "Bosses beaten",
+          "have": 2,
+          "of": 4,
+          "note": null,
+          "areas": [
+            {
+              "area": "StoneKeep",
+              "have": 1,
+              "of": 1
+            },
+            {
+              "area": "HollowTemple",
+              "have": 1,
+              "of": 1
+            },
+            {
+              "area": "SaltCavern",
+              "have": 0,
+              "of": 1
+            },
+            {
+              "area": "EmberDepths",
+              "have": 0,
+              "of": 1
+            }
+          ],
+          "missing": [
+            {
+              "id": "bosses/SaltCavern/BrineTyrant",
+              "label": "Brine Tyrant",
+              "area": "SaltCavern",
+              "have": 0,
+              "of": 1,
+              "note": null
+            },
+            {
+              "id": "bosses/EmberDepths/CinderKing",
+              "label": "Cinder King",
+              "area": "EmberDepths",
+              "have": 0,
+              "of": 1,
+              "note": null
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "enemies",
+          "title": "Hall of Fallen Foes (enemies defeated)",
+          "have": 8,
+          "of": 12,
+          "note": null,
+          "areas": [],
+          "missing": [
+            {
+              "id": "enemies/Foe_3",
+              "label": "Thorn Beetle",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": null
+            },
+            {
+              "id": "enemies/Foe_6",
+              "label": "Reed Spider",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": null
+            },
+            {
+              "id": "enemies/Foe_9",
+              "label": "Ember Hound",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": null
+            },
+            {
+              "id": "enemies/Foe_12",
+              "label": "Tide Serpent",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": null
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "story",
+          "title": "Story",
+          "have": 5,
+          "of": 6,
+          "note": null,
+          "areas": [],
+          "missing": [
+            {
+              "id": "story/Quest_6",
+              "label": "The Last Beacon",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": "Step02"
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "side-quests",
+          "title": "Side quests",
+          "have": 2,
+          "of": 4,
+          "note": null,
+          "areas": [],
+          "missing": [
+            {
+              "id": "side-quests/Side_2",
+              "label": "Letters for the Market",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": "Ready"
+            },
+            {
+              "id": "side-quests/Side_4",
+              "label": "Night at the Marsh",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": "Ready"
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "mini-games",
+          "title": "Mini-games",
+          "have": 0,
+          "of": 4,
+          "note": "not counted for 100%: they go back to the start each time",
+          "areas": [],
+          "missing": [
+            {
+              "id": "mini-games/Game_1",
+              "label": "Target Range",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": "Ready"
+            },
+            {
+              "id": "mini-games/Game_2",
+              "label": "Fishing Pond",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": "Ready"
+            },
+            {
+              "id": "mini-games/Game_3",
+              "label": "Treasure Dig",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": "Ready"
+            },
+            {
+              "id": "mini-games/Game_4",
+              "label": "Reed Race",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": "Ready"
+            }
+          ],
+          "unreadable": [],
+          "counted": false
+        }
+      ],
+      "complete": false,
+      "missing_total": 349
+    }
+  ]
+}

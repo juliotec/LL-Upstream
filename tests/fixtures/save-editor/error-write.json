@@ -1,0 +1,10 @@
+{
+  "schema": 1,
+  "command": "set",
+  "ok": false,
+  "error": {
+    "code": "write_failed",
+    "message": "<save>/slot_00/progress.sav reads back different from what was written",
+    "backup": "<backups>/edit-5a3c9e1f0b7d2468-<stamp>"
+  }
+}

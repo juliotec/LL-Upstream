@@ -41,9 +41,14 @@ public sealed record GatheredSlot(string Profile, string Slot, string From, bool
 }
 
 /// A copy refused, and why (longshot_saves.Fail)
-public sealed class SaveFailure(string message, SaveRefusal reason = SaveRefusal.Other, IReadOnlyList<string>? who = null, string? backup = null)
+public sealed class SaveFailure(string message, SaveRefusal reason = SaveRefusal.Other, IReadOnlyList<string>? who = null, string? backup = null,
+                                string? code = null)
     : Exception(message)
 {
+    /// The save editor's reason code for a refusal (`running`, `needs_bag`, `other_version`... : docs/save-editor.md in Longshot),
+    /// for a program to switch on; null for any other failure
+    public string? Code { get; } = code;
+
     /// The backup a failed copy made before it stopped (the target is as it was; this is a second copy of it), for the window to
     /// show; null when there was none
     public string? Backup { get; } = backup;

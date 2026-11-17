@@ -1,0 +1,9 @@
+{
+  "schema": 1,
+  "command": "set",
+  "ok": false,
+  "error": {
+    "code": "unknown_target",
+    "message": "nothing called 'nothing' (see: targets)"
+  }
+}

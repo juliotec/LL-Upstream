@@ -1,0 +1,2011 @@
+{
+  "schema": 1,
+  "command": "report",
+  "ok": true,
+  "save": "<save>",
+  "game_revision": 4242,
+  "slots": [
+    {
+      "slot": "slot_00",
+      "place": {
+        "area": "",
+        "name": null
+      },
+      "age": "child",
+      "hearts": 3.0,
+      "rupees": 0,
+      "clock": "day 0 00:00",
+      "cleared": false,
+      "saved": "2026-11-09 20:08",
+      "categories": [
+        {
+          "id": "equipment",
+          "title": "Equipment",
+          "have": 0,
+          "of": 1,
+          "note": null,
+          "areas": [],
+          "missing": [
+            {
+              "id": "equipment/Weapon_Sword_Master",
+              "label": "Master Sword",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": null
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "items",
+          "title": "Items",
+          "have": 0,
+          "of": 3,
+          "note": null,
+          "areas": [],
+          "missing": [
+            {
+              "id": "items/Item_Hookshot",
+              "label": "Hookshot",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": null
+            },
+            {
+              "id": "items/Item_Bomb",
+              "label": "Item Bomb",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": "0 of 0"
+            },
+            {
+              "id": "items/Item_Bottle_Poe",
+              "label": "Item Bottle Poe",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": null
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "masks",
+          "title": "Masks",
+          "have": 0,
+          "of": 1,
+          "note": null,
+          "areas": [],
+          "missing": [
+            {
+              "id": "masks/Armor_Child_Mask_Goron",
+              "label": "Armor Child Mask Goron",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": null
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "upgrades",
+          "title": "Upgrades",
+          "have": 0,
+          "of": 5,
+          "note": null,
+          "areas": [],
+          "missing": [
+            {
+              "id": "upgrades/Item_BombBag_Medium",
+              "label": "Item Bomb Bag Medium",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": null
+            },
+            {
+              "id": "upgrades/Item_BombBag_Small",
+              "label": "Item Bomb Bag Small",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": null
+            },
+            {
+              "id": "upgrades/Item_FairyBless_MP",
+              "label": "Item Fairy Bless MP",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": null
+            },
+            {
+              "id": "upgrades/Item_Wallet_Medium",
+              "label": "Item Wallet Medium",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": null
+            },
+            {
+              "id": "upgrades/Item_Wallet_Small",
+              "label": "Item Wallet Small",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": null
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "songs",
+          "title": "Songs",
+          "have": 0,
+          "of": 1,
+          "note": null,
+          "areas": [],
+          "missing": [
+            {
+              "id": "songs/Item_Melody_ZeldaLullaby",
+              "label": "Item Melody Zelda Lullaby",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": null
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "quest",
+          "title": "Quest items",
+          "have": 0,
+          "of": 1,
+          "note": null,
+          "areas": [],
+          "missing": [
+            {
+              "id": "quest/Item_Stone_Forest",
+              "label": "Item Stone Forest",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": null
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "hearts",
+          "title": "Hearts",
+          "have": 3,
+          "of": 5,
+          "note": null,
+          "areas": [],
+          "missing": [
+            {
+              "id": "hearts/hearts",
+              "label": "Hearts",
+              "area": "",
+              "have": 3,
+              "of": 5,
+              "note": null
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "heart-containers",
+          "title": "Heart containers",
+          "have": 0,
+          "of": 1,
+          "note": null,
+          "areas": [
+            {
+              "area": "TestTemple",
+              "have": 0,
+              "of": 1
+            }
+          ],
+          "missing": [
+            {
+              "id": "heart-containers/TestTemple/1",
+              "label": "Heart container in Test Temple",
+              "area": "TestTemple",
+              "have": 0,
+              "of": 1,
+              "note": "0, 0, 0"
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "heart-pieces",
+          "title": "Heart pieces",
+          "have": 0,
+          "of": 4,
+          "note": null,
+          "areas": [
+            {
+              "area": "TestArea",
+              "have": 0,
+              "of": 4
+            }
+          ],
+          "missing": [
+            {
+              "id": "heart-pieces/TestArea/1",
+              "label": "Heart piece 1 in Test Area",
+              "area": "TestArea",
+              "have": 0,
+              "of": 1,
+              "note": "0, 0, 0"
+            },
+            {
+              "id": "heart-pieces/TestArea/2",
+              "label": "Heart piece 2 in Test Area (in a chest)",
+              "area": "TestArea",
+              "have": 0,
+              "of": 1,
+              "note": "0, 0, 0"
+            },
+            {
+              "id": "heart-pieces/TestArea/3",
+              "label": "Heart piece 3 in Test Area (Heart Piece Dive)",
+              "area": "TestArea",
+              "have": 0,
+              "of": 1,
+              "note": null
+            },
+            {
+              "id": "heart-pieces/TestArea/4",
+              "label": "Heart piece 4 in Test Area (Heart Piece Fishing)",
+              "area": "TestArea",
+              "have": 0,
+              "of": 1,
+              "note": null
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "rupees",
+          "title": "Rupees",
+          "have": 0,
+          "of": 0,
+          "note": null,
+          "areas": [],
+          "missing": [],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "chests",
+          "title": "Chests opened",
+          "have": 0,
+          "of": 6,
+          "note": null,
+          "areas": [
+            {
+              "area": "TestArea",
+              "have": 0,
+              "of": 1
+            },
+            {
+              "area": "TestTemple",
+              "have": 0,
+              "of": 5
+            }
+          ],
+          "missing": [
+            {
+              "id": "chests/TestArea/1",
+              "label": "Chest 1 in Test Area (Obj Heart Piece)",
+              "area": "TestArea",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at 1, 2, 3"
+            },
+            {
+              "id": "chests/TestTemple/1",
+              "label": "Chest 1 in Test Temple (Dungeon Compass)",
+              "area": "TestTemple",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at 1, 2, 3"
+            },
+            {
+              "id": "chests/TestTemple/2",
+              "label": "Chest 2 in Test Temple (Dungeon Boss Key)",
+              "area": "TestTemple",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at 1, 2, 3"
+            },
+            {
+              "id": "chests/TestTemple/3",
+              "label": "Chest 3 in Test Temple (Dungeon Small Key)",
+              "area": "TestTemple",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at 1, 2, 3"
+            },
+            {
+              "id": "chests/TestTemple/4",
+              "label": "Chest 4 in Test Temple (Dungeon Small Key)",
+              "area": "TestTemple",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at 1, 2, 3"
+            },
+            {
+              "id": "chests/TestTemple/5",
+              "label": "Chest 5 in Test Temple (Dungeon Map)",
+              "area": "TestTemple",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at 1, 2, 3"
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "skulltulas",
+          "title": "Gold Skulltulas",
+          "have": 0,
+          "of": 3,
+          "note": null,
+          "areas": [
+            {
+              "area": "OtherArea",
+              "have": 0,
+              "of": 1
+            },
+            {
+              "area": "TestArea",
+              "have": 0,
+              "of": 2
+            }
+          ],
+          "missing": [
+            {
+              "id": "skulltulas/OtherArea/1",
+              "label": "Gold Skulltula 1 in Other Area (at 7, 0, 7)",
+              "area": "OtherArea",
+              "have": 0,
+              "of": 1,
+              "note": "7, 0, 7"
+            },
+            {
+              "id": "skulltulas/TestArea/1",
+              "label": "Gold Skulltula 1 in Test Area (at 10, 0, 5)",
+              "area": "TestArea",
+              "have": 0,
+              "of": 1,
+              "note": "10, 0, 5"
+            },
+            {
+              "id": "skulltulas/TestArea/2",
+              "label": "Gold Skulltula 2 in Test Area (at 20, 0, 5)",
+              "area": "TestArea",
+              "have": 0,
+              "of": 1,
+              "note": "20, 0, 5"
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "dungeons",
+          "title": "Dungeon maps, compasses and boss keys",
+          "have": 0,
+          "of": 3,
+          "note": null,
+          "areas": [
+            {
+              "area": "TestTemple",
+              "have": 0,
+              "of": 3
+            }
+          ],
+          "missing": [
+            {
+              "id": "dungeons/TestTemple/map",
+              "label": "Test Temple: map",
+              "area": "TestTemple",
+              "have": 0,
+              "of": 1,
+              "note": null
+            },
+            {
+              "id": "dungeons/TestTemple/compass",
+              "label": "Test Temple: compass",
+              "area": "TestTemple",
+              "have": 0,
+              "of": 1,
+              "note": null
+            },
+            {
+              "id": "dungeons/TestTemple/bosskey",
+              "label": "Test Temple: boss key",
+              "area": "TestTemple",
+              "have": 0,
+              "of": 1,
+              "note": null
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "small-keys",
+          "title": "Small keys",
+          "have": 0,
+          "of": 3,
+          "note": null,
+          "areas": [
+            {
+              "area": "TestTemple",
+              "have": 0,
+              "of": 3
+            }
+          ],
+          "missing": [
+            {
+              "id": "small-keys/TestTemple/keys",
+              "label": "Test Temple: small keys",
+              "area": "TestTemple",
+              "have": 0,
+              "of": 3,
+              "note": "0 in hand"
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "bosses",
+          "title": "Bosses beaten",
+          "have": 0,
+          "of": 1,
+          "note": null,
+          "areas": [
+            {
+              "area": "TestTemple",
+              "have": 0,
+              "of": 1
+            }
+          ],
+          "missing": [
+            {
+              "id": "bosses/TestTemple/Testa",
+              "label": "Testa",
+              "area": "TestTemple",
+              "have": 0,
+              "of": 1,
+              "note": null
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "enemies",
+          "title": "Hall of Fallen Foes (enemies defeated)",
+          "have": 0,
+          "of": 1,
+          "note": null,
+          "areas": [],
+          "missing": [
+            {
+              "id": "enemies/Enemy_Test",
+              "label": "Tester",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": null
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "story",
+          "title": "Story",
+          "have": 0,
+          "of": 1,
+          "note": null,
+          "areas": [],
+          "missing": [
+            {
+              "id": "story/QuestA",
+              "label": "Quest A",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": "NotReady"
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "side-quests",
+          "title": "Side quests",
+          "have": 0,
+          "of": 1,
+          "note": null,
+          "areas": [],
+          "missing": [
+            {
+              "id": "side-quests/QuestB",
+              "label": "Quest B",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": "Ready"
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "mini-games",
+          "title": "Mini-games",
+          "have": 0,
+          "of": 1,
+          "note": "not counted for 100%: they go back to the start each time",
+          "areas": [],
+          "missing": [
+            {
+              "id": "mini-games/Mini",
+              "label": "Mini",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": "Ready"
+            }
+          ],
+          "unreadable": [],
+          "counted": false
+        }
+      ],
+      "complete": false,
+      "missing_total": 38
+    },
+    {
+      "slot": "slot_01",
+      "place": {
+        "area": "TestArea_Child",
+        "name": "Test Area"
+      },
+      "age": "child",
+      "hearts": 5.0,
+      "rupees": 0,
+      "clock": "day 0 00:00",
+      "cleared": false,
+      "saved": "2026-11-09 20:08",
+      "categories": [
+        {
+          "id": "equipment",
+          "title": "Equipment",
+          "have": 0,
+          "of": 1,
+          "note": null,
+          "areas": [],
+          "missing": [
+            {
+              "id": "equipment/Weapon_Sword_Master",
+              "label": "Master Sword",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": null
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "items",
+          "title": "Items",
+          "have": 1,
+          "of": 3,
+          "note": null,
+          "areas": [],
+          "missing": [
+            {
+              "id": "items/Item_Bomb",
+              "label": "Item Bomb",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": "0 of 0"
+            },
+            {
+              "id": "items/Item_Bottle_Poe",
+              "label": "Item Bottle Poe",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": null
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "masks",
+          "title": "Masks",
+          "have": 0,
+          "of": 1,
+          "note": null,
+          "areas": [],
+          "missing": [
+            {
+              "id": "masks/Armor_Child_Mask_Goron",
+              "label": "Armor Child Mask Goron",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": null
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "upgrades",
+          "title": "Upgrades",
+          "have": 0,
+          "of": 5,
+          "note": null,
+          "areas": [],
+          "missing": [
+            {
+              "id": "upgrades/Item_BombBag_Medium",
+              "label": "Item Bomb Bag Medium",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": null
+            },
+            {
+              "id": "upgrades/Item_BombBag_Small",
+              "label": "Item Bomb Bag Small",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": null
+            },
+            {
+              "id": "upgrades/Item_FairyBless_MP",
+              "label": "Item Fairy Bless MP",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": null
+            },
+            {
+              "id": "upgrades/Item_Wallet_Medium",
+              "label": "Item Wallet Medium",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": null
+            },
+            {
+              "id": "upgrades/Item_Wallet_Small",
+              "label": "Item Wallet Small",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": null
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "songs",
+          "title": "Songs",
+          "have": 0,
+          "of": 1,
+          "note": null,
+          "areas": [],
+          "missing": [
+            {
+              "id": "songs/Item_Melody_ZeldaLullaby",
+              "label": "Item Melody Zelda Lullaby",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": null
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "quest",
+          "title": "Quest items",
+          "have": 0,
+          "of": 1,
+          "note": null,
+          "areas": [],
+          "missing": [
+            {
+              "id": "quest/Item_Stone_Forest",
+              "label": "Item Stone Forest",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": null
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "hearts",
+          "title": "Hearts",
+          "have": 5,
+          "of": 5,
+          "note": null,
+          "areas": [],
+          "missing": [],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "heart-containers",
+          "title": "Heart containers",
+          "have": 0,
+          "of": 1,
+          "note": null,
+          "areas": [
+            {
+              "area": "TestTemple",
+              "have": 0,
+              "of": 1
+            }
+          ],
+          "missing": [
+            {
+              "id": "heart-containers/TestTemple/1",
+              "label": "Heart container in Test Temple",
+              "area": "TestTemple",
+              "have": 0,
+              "of": 1,
+              "note": "0, 0, 0"
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "heart-pieces",
+          "title": "Heart pieces",
+          "have": 1,
+          "of": 4,
+          "note": null,
+          "areas": [
+            {
+              "area": "TestArea",
+              "have": 1,
+              "of": 4
+            }
+          ],
+          "missing": [
+            {
+              "id": "heart-pieces/TestArea/1",
+              "label": "Heart piece 1 in Test Area",
+              "area": "TestArea",
+              "have": 0,
+              "of": 1,
+              "note": "0, 0, 0"
+            },
+            {
+              "id": "heart-pieces/TestArea/2",
+              "label": "Heart piece 2 in Test Area (in a chest)",
+              "area": "TestArea",
+              "have": 0,
+              "of": 1,
+              "note": "0, 0, 0"
+            },
+            {
+              "id": "heart-pieces/TestArea/3",
+              "label": "Heart piece 3 in Test Area (Heart Piece Dive)",
+              "area": "TestArea",
+              "have": 0,
+              "of": 1,
+              "note": null
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "rupees",
+          "title": "Rupees",
+          "have": 0,
+          "of": 0,
+          "note": null,
+          "areas": [],
+          "missing": [],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "chests",
+          "title": "Chests opened",
+          "have": 0,
+          "of": 6,
+          "note": null,
+          "areas": [
+            {
+              "area": "TestArea",
+              "have": 0,
+              "of": 1
+            },
+            {
+              "area": "TestTemple",
+              "have": 0,
+              "of": 5
+            }
+          ],
+          "missing": [
+            {
+              "id": "chests/TestArea/1",
+              "label": "Chest 1 in Test Area (Obj Heart Piece)",
+              "area": "TestArea",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at 1, 2, 3"
+            },
+            {
+              "id": "chests/TestTemple/1",
+              "label": "Chest 1 in Test Temple (Dungeon Compass)",
+              "area": "TestTemple",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at 1, 2, 3"
+            },
+            {
+              "id": "chests/TestTemple/2",
+              "label": "Chest 2 in Test Temple (Dungeon Boss Key)",
+              "area": "TestTemple",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at 1, 2, 3"
+            },
+            {
+              "id": "chests/TestTemple/3",
+              "label": "Chest 3 in Test Temple (Dungeon Small Key)",
+              "area": "TestTemple",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at 1, 2, 3"
+            },
+            {
+              "id": "chests/TestTemple/4",
+              "label": "Chest 4 in Test Temple (Dungeon Small Key)",
+              "area": "TestTemple",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at 1, 2, 3"
+            },
+            {
+              "id": "chests/TestTemple/5",
+              "label": "Chest 5 in Test Temple (Dungeon Map)",
+              "area": "TestTemple",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at 1, 2, 3"
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "skulltulas",
+          "title": "Gold Skulltulas",
+          "have": 1,
+          "of": 3,
+          "note": null,
+          "areas": [
+            {
+              "area": "OtherArea",
+              "have": 0,
+              "of": 1
+            },
+            {
+              "area": "TestArea",
+              "have": 1,
+              "of": 2
+            }
+          ],
+          "missing": [
+            {
+              "id": "skulltulas/OtherArea/1",
+              "label": "Gold Skulltula 1 in Other Area (at 7, 0, 7)",
+              "area": "OtherArea",
+              "have": 0,
+              "of": 1,
+              "note": "7, 0, 7"
+            },
+            {
+              "id": "skulltulas/TestArea/2",
+              "label": "Gold Skulltula 2 in Test Area (at 20, 0, 5)",
+              "area": "TestArea",
+              "have": 0,
+              "of": 1,
+              "note": "20, 0, 5"
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "dungeons",
+          "title": "Dungeon maps, compasses and boss keys",
+          "have": 0,
+          "of": 3,
+          "note": null,
+          "areas": [
+            {
+              "area": "TestTemple",
+              "have": 0,
+              "of": 3
+            }
+          ],
+          "missing": [
+            {
+              "id": "dungeons/TestTemple/map",
+              "label": "Test Temple: map",
+              "area": "TestTemple",
+              "have": 0,
+              "of": 1,
+              "note": null
+            },
+            {
+              "id": "dungeons/TestTemple/compass",
+              "label": "Test Temple: compass",
+              "area": "TestTemple",
+              "have": 0,
+              "of": 1,
+              "note": null
+            },
+            {
+              "id": "dungeons/TestTemple/bosskey",
+              "label": "Test Temple: boss key",
+              "area": "TestTemple",
+              "have": 0,
+              "of": 1,
+              "note": null
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "small-keys",
+          "title": "Small keys",
+          "have": 0,
+          "of": 3,
+          "note": null,
+          "areas": [
+            {
+              "area": "TestTemple",
+              "have": 0,
+              "of": 3
+            }
+          ],
+          "missing": [
+            {
+              "id": "small-keys/TestTemple/keys",
+              "label": "Test Temple: small keys",
+              "area": "TestTemple",
+              "have": 0,
+              "of": 3,
+              "note": "0 in hand"
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "bosses",
+          "title": "Bosses beaten",
+          "have": 0,
+          "of": 1,
+          "note": null,
+          "areas": [
+            {
+              "area": "TestTemple",
+              "have": 0,
+              "of": 1
+            }
+          ],
+          "missing": [
+            {
+              "id": "bosses/TestTemple/Testa",
+              "label": "Testa",
+              "area": "TestTemple",
+              "have": 0,
+              "of": 1,
+              "note": null
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "enemies",
+          "title": "Hall of Fallen Foes (enemies defeated)",
+          "have": 1,
+          "of": 1,
+          "note": null,
+          "areas": [],
+          "missing": [],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "story",
+          "title": "Story",
+          "have": 0,
+          "of": 1,
+          "note": null,
+          "areas": [],
+          "missing": [
+            {
+              "id": "story/QuestA",
+              "label": "Quest A",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": "NotReady"
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "side-quests",
+          "title": "Side quests",
+          "have": 0,
+          "of": 1,
+          "note": null,
+          "areas": [],
+          "missing": [
+            {
+              "id": "side-quests/QuestB",
+              "label": "Quest B",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": "Ready"
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "mini-games",
+          "title": "Mini-games",
+          "have": 0,
+          "of": 1,
+          "note": "not counted for 100%: they go back to the start each time",
+          "areas": [],
+          "missing": [
+            {
+              "id": "mini-games/Mini",
+              "label": "Mini",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": "Ready"
+            }
+          ],
+          "unreadable": [],
+          "counted": false
+        }
+      ],
+      "complete": false,
+      "missing_total": 32
+    },
+    {
+      "slot": "slot_02",
+      "unreadable": "slot_02/progress.sav is 23 bytes: not a save file"
+    },
+    {
+      "slot": "slot_03",
+      "place": {
+        "area": "",
+        "name": null
+      },
+      "age": "child",
+      "hearts": 5.0,
+      "rupees": 500,
+      "clock": "day 0 00:00",
+      "cleared": false,
+      "saved": "2026-11-09 20:08",
+      "categories": [
+        {
+          "id": "equipment",
+          "title": "Equipment",
+          "have": 1,
+          "of": 1,
+          "note": null,
+          "areas": [],
+          "missing": [],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "items",
+          "title": "Items",
+          "have": 3,
+          "of": 3,
+          "note": null,
+          "areas": [],
+          "missing": [],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "masks",
+          "title": "Masks",
+          "have": 1,
+          "of": 1,
+          "note": null,
+          "areas": [],
+          "missing": [],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "upgrades",
+          "title": "Upgrades",
+          "have": 5,
+          "of": 5,
+          "note": null,
+          "areas": [],
+          "missing": [],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "songs",
+          "title": "Songs",
+          "have": 1,
+          "of": 1,
+          "note": null,
+          "areas": [],
+          "missing": [],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "quest",
+          "title": "Quest items",
+          "have": 1,
+          "of": 1,
+          "note": null,
+          "areas": [],
+          "missing": [],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "hearts",
+          "title": "Hearts",
+          "have": 5,
+          "of": 5,
+          "note": null,
+          "areas": [],
+          "missing": [],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "heart-containers",
+          "title": "Heart containers",
+          "have": 1,
+          "of": 1,
+          "note": null,
+          "areas": [
+            {
+              "area": "TestTemple",
+              "have": 1,
+              "of": 1
+            }
+          ],
+          "missing": [],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "heart-pieces",
+          "title": "Heart pieces",
+          "have": 4,
+          "of": 4,
+          "note": null,
+          "areas": [
+            {
+              "area": "TestArea",
+              "have": 4,
+              "of": 4
+            }
+          ],
+          "missing": [],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "rupees",
+          "title": "Rupees",
+          "have": 500,
+          "of": 500,
+          "note": null,
+          "areas": [],
+          "missing": [],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "chests",
+          "title": "Chests opened",
+          "have": 6,
+          "of": 6,
+          "note": null,
+          "areas": [
+            {
+              "area": "TestArea",
+              "have": 1,
+              "of": 1
+            },
+            {
+              "area": "TestTemple",
+              "have": 5,
+              "of": 5
+            }
+          ],
+          "missing": [],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "skulltulas",
+          "title": "Gold Skulltulas",
+          "have": 3,
+          "of": 3,
+          "note": null,
+          "areas": [
+            {
+              "area": "OtherArea",
+              "have": 1,
+              "of": 1
+            },
+            {
+              "area": "TestArea",
+              "have": 2,
+              "of": 2
+            }
+          ],
+          "missing": [],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "dungeons",
+          "title": "Dungeon maps, compasses and boss keys",
+          "have": 3,
+          "of": 3,
+          "note": null,
+          "areas": [
+            {
+              "area": "TestTemple",
+              "have": 3,
+              "of": 3
+            }
+          ],
+          "missing": [],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "small-keys",
+          "title": "Small keys",
+          "have": 3,
+          "of": 3,
+          "note": null,
+          "areas": [
+            {
+              "area": "TestTemple",
+              "have": 3,
+              "of": 3
+            }
+          ],
+          "missing": [],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "bosses",
+          "title": "Bosses beaten",
+          "have": 1,
+          "of": 1,
+          "note": null,
+          "areas": [
+            {
+              "area": "TestTemple",
+              "have": 1,
+              "of": 1
+            }
+          ],
+          "missing": [],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "enemies",
+          "title": "Hall of Fallen Foes (enemies defeated)",
+          "have": 1,
+          "of": 1,
+          "note": null,
+          "areas": [],
+          "missing": [],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "story",
+          "title": "Story",
+          "have": 1,
+          "of": 1,
+          "note": null,
+          "areas": [],
+          "missing": [],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "side-quests",
+          "title": "Side quests",
+          "have": 1,
+          "of": 1,
+          "note": null,
+          "areas": [],
+          "missing": [],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "mini-games",
+          "title": "Mini-games",
+          "have": 0,
+          "of": 1,
+          "note": "not counted for 100%: they go back to the start each time",
+          "areas": [],
+          "missing": [
+            {
+              "id": "mini-games/Mini",
+              "label": "Mini",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": "Ready"
+            }
+          ],
+          "unreadable": [],
+          "counted": false
+        }
+      ],
+      "complete": true,
+      "missing_total": 0
+    },
+    {
+      "slot": "slot_06",
+      "problem": "slot_06/progress.sav was saved by another game version (flag list revision 4243; this game's is 4242)",
+      "place": {
+        "area": "",
+        "name": null
+      },
+      "age": "child",
+      "hearts": 3.0,
+      "rupees": 0,
+      "clock": "day 0 00:00",
+      "cleared": false,
+      "saved": null,
+      "categories": [
+        {
+          "id": "equipment",
+          "title": "Equipment",
+          "have": 0,
+          "of": 1,
+          "note": null,
+          "areas": [],
+          "missing": [
+            {
+              "id": "equipment/Weapon_Sword_Master",
+              "label": "Master Sword",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": null
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "items",
+          "title": "Items",
+          "have": 0,
+          "of": 3,
+          "note": null,
+          "areas": [],
+          "missing": [
+            {
+              "id": "items/Item_Hookshot",
+              "label": "Hookshot",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": null
+            },
+            {
+              "id": "items/Item_Bomb",
+              "label": "Item Bomb",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": "0 of 0"
+            },
+            {
+              "id": "items/Item_Bottle_Poe",
+              "label": "Item Bottle Poe",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": null
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "masks",
+          "title": "Masks",
+          "have": 0,
+          "of": 1,
+          "note": null,
+          "areas": [],
+          "missing": [
+            {
+              "id": "masks/Armor_Child_Mask_Goron",
+              "label": "Armor Child Mask Goron",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": null
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "upgrades",
+          "title": "Upgrades",
+          "have": 0,
+          "of": 5,
+          "note": null,
+          "areas": [],
+          "missing": [
+            {
+              "id": "upgrades/Item_BombBag_Medium",
+              "label": "Item Bomb Bag Medium",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": null
+            },
+            {
+              "id": "upgrades/Item_BombBag_Small",
+              "label": "Item Bomb Bag Small",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": null
+            },
+            {
+              "id": "upgrades/Item_FairyBless_MP",
+              "label": "Item Fairy Bless MP",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": null
+            },
+            {
+              "id": "upgrades/Item_Wallet_Medium",
+              "label": "Item Wallet Medium",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": null
+            },
+            {
+              "id": "upgrades/Item_Wallet_Small",
+              "label": "Item Wallet Small",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": null
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "songs",
+          "title": "Songs",
+          "have": 0,
+          "of": 1,
+          "note": null,
+          "areas": [],
+          "missing": [
+            {
+              "id": "songs/Item_Melody_ZeldaLullaby",
+              "label": "Item Melody Zelda Lullaby",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": null
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "quest",
+          "title": "Quest items",
+          "have": 0,
+          "of": 1,
+          "note": null,
+          "areas": [],
+          "missing": [
+            {
+              "id": "quest/Item_Stone_Forest",
+              "label": "Item Stone Forest",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": null
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "hearts",
+          "title": "Hearts",
+          "have": 3,
+          "of": 5,
+          "note": null,
+          "areas": [],
+          "missing": [
+            {
+              "id": "hearts/hearts",
+              "label": "Hearts",
+              "area": "",
+              "have": 3,
+              "of": 5,
+              "note": null
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "heart-containers",
+          "title": "Heart containers",
+          "have": 0,
+          "of": 1,
+          "note": null,
+          "areas": [
+            {
+              "area": "TestTemple",
+              "have": 0,
+              "of": 1
+            }
+          ],
+          "missing": [
+            {
+              "id": "heart-containers/TestTemple/1",
+              "label": "Heart container in Test Temple",
+              "area": "TestTemple",
+              "have": 0,
+              "of": 1,
+              "note": "0, 0, 0"
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "heart-pieces",
+          "title": "Heart pieces",
+          "have": 0,
+          "of": 4,
+          "note": null,
+          "areas": [
+            {
+              "area": "TestArea",
+              "have": 0,
+              "of": 4
+            }
+          ],
+          "missing": [
+            {
+              "id": "heart-pieces/TestArea/1",
+              "label": "Heart piece 1 in Test Area",
+              "area": "TestArea",
+              "have": 0,
+              "of": 1,
+              "note": "0, 0, 0"
+            },
+            {
+              "id": "heart-pieces/TestArea/2",
+              "label": "Heart piece 2 in Test Area (in a chest)",
+              "area": "TestArea",
+              "have": 0,
+              "of": 1,
+              "note": "0, 0, 0"
+            },
+            {
+              "id": "heart-pieces/TestArea/3",
+              "label": "Heart piece 3 in Test Area (Heart Piece Dive)",
+              "area": "TestArea",
+              "have": 0,
+              "of": 1,
+              "note": null
+            },
+            {
+              "id": "heart-pieces/TestArea/4",
+              "label": "Heart piece 4 in Test Area (Heart Piece Fishing)",
+              "area": "TestArea",
+              "have": 0,
+              "of": 1,
+              "note": null
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "rupees",
+          "title": "Rupees",
+          "have": 0,
+          "of": 0,
+          "note": null,
+          "areas": [],
+          "missing": [],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "chests",
+          "title": "Chests opened",
+          "have": 0,
+          "of": 6,
+          "note": null,
+          "areas": [
+            {
+              "area": "TestArea",
+              "have": 0,
+              "of": 1
+            },
+            {
+              "area": "TestTemple",
+              "have": 0,
+              "of": 5
+            }
+          ],
+          "missing": [
+            {
+              "id": "chests/TestArea/1",
+              "label": "Chest 1 in Test Area (Obj Heart Piece)",
+              "area": "TestArea",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at 1, 2, 3"
+            },
+            {
+              "id": "chests/TestTemple/1",
+              "label": "Chest 1 in Test Temple (Dungeon Compass)",
+              "area": "TestTemple",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at 1, 2, 3"
+            },
+            {
+              "id": "chests/TestTemple/2",
+              "label": "Chest 2 in Test Temple (Dungeon Boss Key)",
+              "area": "TestTemple",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at 1, 2, 3"
+            },
+            {
+              "id": "chests/TestTemple/3",
+              "label": "Chest 3 in Test Temple (Dungeon Small Key)",
+              "area": "TestTemple",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at 1, 2, 3"
+            },
+            {
+              "id": "chests/TestTemple/4",
+              "label": "Chest 4 in Test Temple (Dungeon Small Key)",
+              "area": "TestTemple",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at 1, 2, 3"
+            },
+            {
+              "id": "chests/TestTemple/5",
+              "label": "Chest 5 in Test Temple (Dungeon Map)",
+              "area": "TestTemple",
+              "have": 0,
+              "of": 1,
+              "note": "room -1 at 1, 2, 3"
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "skulltulas",
+          "title": "Gold Skulltulas",
+          "have": 0,
+          "of": 3,
+          "note": null,
+          "areas": [
+            {
+              "area": "OtherArea",
+              "have": 0,
+              "of": 1
+            },
+            {
+              "area": "TestArea",
+              "have": 0,
+              "of": 2
+            }
+          ],
+          "missing": [
+            {
+              "id": "skulltulas/OtherArea/1",
+              "label": "Gold Skulltula 1 in Other Area (at 7, 0, 7)",
+              "area": "OtherArea",
+              "have": 0,
+              "of": 1,
+              "note": "7, 0, 7"
+            },
+            {
+              "id": "skulltulas/TestArea/1",
+              "label": "Gold Skulltula 1 in Test Area (at 10, 0, 5)",
+              "area": "TestArea",
+              "have": 0,
+              "of": 1,
+              "note": "10, 0, 5"
+            },
+            {
+              "id": "skulltulas/TestArea/2",
+              "label": "Gold Skulltula 2 in Test Area (at 20, 0, 5)",
+              "area": "TestArea",
+              "have": 0,
+              "of": 1,
+              "note": "20, 0, 5"
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "dungeons",
+          "title": "Dungeon maps, compasses and boss keys",
+          "have": 0,
+          "of": 3,
+          "note": null,
+          "areas": [
+            {
+              "area": "TestTemple",
+              "have": 0,
+              "of": 3
+            }
+          ],
+          "missing": [
+            {
+              "id": "dungeons/TestTemple/map",
+              "label": "Test Temple: map",
+              "area": "TestTemple",
+              "have": 0,
+              "of": 1,
+              "note": null
+            },
+            {
+              "id": "dungeons/TestTemple/compass",
+              "label": "Test Temple: compass",
+              "area": "TestTemple",
+              "have": 0,
+              "of": 1,
+              "note": null
+            },
+            {
+              "id": "dungeons/TestTemple/bosskey",
+              "label": "Test Temple: boss key",
+              "area": "TestTemple",
+              "have": 0,
+              "of": 1,
+              "note": null
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "small-keys",
+          "title": "Small keys",
+          "have": 0,
+          "of": 3,
+          "note": null,
+          "areas": [
+            {
+              "area": "TestTemple",
+              "have": 0,
+              "of": 3
+            }
+          ],
+          "missing": [
+            {
+              "id": "small-keys/TestTemple/keys",
+              "label": "Test Temple: small keys",
+              "area": "TestTemple",
+              "have": 0,
+              "of": 3,
+              "note": "0 in hand"
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "bosses",
+          "title": "Bosses beaten",
+          "have": 0,
+          "of": 1,
+          "note": null,
+          "areas": [
+            {
+              "area": "TestTemple",
+              "have": 0,
+              "of": 1
+            }
+          ],
+          "missing": [
+            {
+              "id": "bosses/TestTemple/Testa",
+              "label": "Testa",
+              "area": "TestTemple",
+              "have": 0,
+              "of": 1,
+              "note": null
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "enemies",
+          "title": "Hall of Fallen Foes (enemies defeated)",
+          "have": 0,
+          "of": 1,
+          "note": null,
+          "areas": [],
+          "missing": [
+            {
+              "id": "enemies/Enemy_Test",
+              "label": "Tester",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": null
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "story",
+          "title": "Story",
+          "have": 0,
+          "of": 1,
+          "note": null,
+          "areas": [],
+          "missing": [
+            {
+              "id": "story/QuestA",
+              "label": "Quest A",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": "NotReady"
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "side-quests",
+          "title": "Side quests",
+          "have": 0,
+          "of": 1,
+          "note": null,
+          "areas": [],
+          "missing": [
+            {
+              "id": "side-quests/QuestB",
+              "label": "Quest B",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": "Ready"
+            }
+          ],
+          "unreadable": [],
+          "counted": true
+        },
+        {
+          "id": "mini-games",
+          "title": "Mini-games",
+          "have": 0,
+          "of": 1,
+          "note": "not counted for 100%: they go back to the start each time",
+          "areas": [],
+          "missing": [
+            {
+              "id": "mini-games/Mini",
+              "label": "Mini",
+              "area": "",
+              "have": 0,
+              "of": 1,
+              "note": "Ready"
+            }
+          ],
+          "unreadable": [],
+          "counted": false
+        }
+      ],
+      "complete": false,
+      "missing_total": 38
+    }
+  ]
+}

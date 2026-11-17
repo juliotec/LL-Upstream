@@ -1,0 +1,10 @@
+{
+  "schema": 1,
+  "command": "set",
+  "ok": false,
+  "error": {
+    "code": "io_error",
+    "message": "disk full",
+    "backup": "<backups>/edit-5a3c9e1f0b7d2468-<stamp>"
+  }
+}

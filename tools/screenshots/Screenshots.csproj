@@ -13,4 +13,8 @@
   <ItemGroup>
     <ProjectReference Include="../../App/LongshotLauncher.csproj"/>
   </ItemGroup>
+  <ItemGroup>
+    <!-- (the save editor's scenes: a report authored with invented names, in the shape of the editor report) -->
+    <None Include="save-editor-report.json" CopyToOutputDirectory="PreserveNewest"/>
+  </ItemGroup>
 </Project>

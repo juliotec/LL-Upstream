@@ -43,22 +43,25 @@
                   <TextBlock Text="{c:T 'Start where you left off'}" FontWeight="SemiBold"/>
                   <TextBlock Classes="note" Text="{Binding EmptyHint}" TextWrapping="Wrap"/>
                 </StackPanel>
-                <ItemsControl ItemsSource="{Binding Slots}">
+                <ItemsControl ItemsSource="{Binding SlotRows}">
                   <ItemsControl.ItemTemplate>
-                    <DataTemplate x:DataType="vm:SlotViewModel">
-                      <Grid ColumnDefinitions="26,*,Auto" ColumnSpacing="10" Height="35">
+                    <DataTemplate x:DataType="vm:SlotRowViewModel">
+                      <Grid ColumnDefinitions="26,*,Auto,Auto" ColumnSpacing="10" Height="40">
                         <Border Width="24" Height="24" CornerRadius="12" Background="{StaticResource SoftNum}" VerticalAlignment="Center">
                           <TextBlock Text="{Binding Number}" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource InkSoft}"
                                      HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <TextBlock Grid.Column="1" Text="{Binding Name}" FontSize="13" VerticalAlignment="Center"/>
                         <TextBlock Grid.Column="2" Classes="faint tnum" Text="{Binding Saved}" VerticalAlignment="Center"/>
+                        <Button Grid.Column="3" Classes="small" Content="{c:T 'Progress'}" Command="{Binding ProgressCommand}"
+                                ToolTip.Tip="{Binding Why}" ToolTip.ShowOnDisabled="True" VerticalAlignment="Center"/>
                       </Grid>
                     </DataTemplate>
                   </ItemsControl.ItemTemplate>
                 </ItemsControl>
               </Panel>
             </Border>
+            <TextBlock Classes="faint" Text="{Binding EditorNote}" IsVisible="{Binding HasEditorNote}" TextWrapping="Wrap" Margin="4,0"/>
             <Expander Background="#0BFFFFFF" BorderBrush="{StaticResource GlassLine}" BorderThickness="1" CornerRadius="10" Header="{Binding OtherSavesLabel}" IsVisible="{Binding HasOtherSaves}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
               <ItemsControl ItemsSource="{Binding OtherSaves}">
                 <ItemsControl.ItemTemplate>

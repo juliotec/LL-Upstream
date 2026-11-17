@@ -5,8 +5,9 @@ are tests/fixtures/release's (made by scripts/release.py). Its scratch folder is
     python -I tests/test_launcher_core.py [--dotnet <dotnet>] [--strict] [--longshot <checkout of MagicBeanDev/Longshot>] [--pinned]
 
 With --longshot it also checks what the launcher copies from Longshot: make_game.py's languages, the SDK commits the DLSS and
-FSR 4 licence texts name, the first-import player ID, and the shader caches' names, the translator's stamped files and its
-compiler's tools.lock parts. CI checks out the commit tests/longshot.ref pins (--pinned
+FSR 4 licence texts name, the first-import player ID, the shader caches' names, the translator's stamped files and its
+compiler's tools.lock parts, and what the save editor (scripts/longshot_save_editor.py) prints, which the launcher's Progress view
+reads (tests/save_editor_fixtures.py; skipped for a Longshot from before the editor). CI checks out the commit tests/longshot.ref pins (--pinned
 makes the test refuse a checkout that is at another commit); a scheduled CI run also checks Longshot's main, as advice. To
 move the pin, see docs/ci.md.
 
@@ -183,6 +184,20 @@ def check_package_desktop_name():
                          "game it runs (#118)" % names)
 
 
+def check_save_editor(longshot):
+    """The launcher's Progress view (Core/SaveEditor.cs) reads what Longshot's save editor prints: tests/fixtures/save-editor is
+    that output on the made-up game of Longshot's own tests, and must be what the checkout prints now. A Longshot from before the
+    editor, or a Python with no zstd for the made-up game, has nothing to check: said, not a failure"""
+    sys.path.insert(0, str(ROOT / "tests"))
+    import save_editor_fixtures
+    try:
+        now = save_editor_fixtures.outputs(longshot)
+    except save_editor_fixtures.Unavailable as e:
+        print("save editor fixtures: skipped: %s" % e)
+        return
+    save_editor_fixtures.check(now)
+
+
 def check_translations():
     """The catalogs' texts are the window's, with their placeholders and plural forms (scripts/translations.py). A text a catalog
     lacks shows in English: said, not a failure"""
@@ -215,6 +230,7 @@ def main():
         check_licences(args.longshot)
         check_save_user(args.longshot)
         check_shader_caches(args.longshot)
+        check_save_editor(args.longshot)
     elif args.strict:
         raise SystemExit("--strict needs --longshot <checkout of MagicBeanDev/Longshot>")
     dotnet = args.dotnet or shutil.which("dotnet") or (str(Path.home() / ".dotnet" / "dotnet")

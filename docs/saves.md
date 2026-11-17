@@ -221,6 +221,48 @@ Either way the zip is unpacked into a folder of its own in the system's temporar
 backups), checked there, and deleted when the import is done or left; one an import never finished (the launcher closed in
 between) goes at the next import, a day later.
 
+## Progress and edits
+
+The **Progress** button on each slot of the Saves page shows what the slot has and is missing, and changes it. It is Longshot's
+own save editor ([`scripts/longshot_save_editor.py`](https://git.magicbean.dev/MagicBeanDev/Longshot/src/branch/main/docs/save-editor.md),
+which also runs from the command line): the launcher does not read the game or a save itself, it runs that script from the
+default build's own tools with that version's Python, asks it for JSON (`--json`), and shows what it answers
+(`Core/SaveEditor.cs`, following how `PerfReports` runs `perf_report.py`). The rules about what a save can have, and where, are the editor's alone.
+
+**What it needs.** A build the launcher made, whose version's tools are still on this PC and have the editor (a version from
+before it has none: Progress is off, and the page says so), and the game's files in the build's folder (`romfs`, which the editor
+reads the game's own lists from: its names, chests, Gold Skulltulas, dungeons, quests). Nothing of the game is kept by the
+launcher or leaves the PC. The page edits the save the Saves page lists; a save written by another game version is shown and not
+edited (edit it with the build that wrote it).
+
+**What it shows.** The slot's place, hearts, rupees, the game's clock and when it was saved; then every category with how many the
+slot has of how many (equipment, items, masks, upgrades, songs, quest items, hearts, heart containers and pieces, rupees, chests,
+Gold Skulltulas, dungeon maps, compasses, boss keys and small keys, bosses, the Hall of Fallen Foes, story and side quests,
+and the mini-games, which are listed and never count), and for the one you pick: its areas, and every missing entry by its
+name in the game's text and by its area. The slot is 100% when nothing counted is missing; the percentage under the title never
+says 100 while one thing is.
+
+**Edits.** Each is asked first (what the editor says it would change, from its own `--dry-run`, where the backup goes, and that the
+game must be closed) and then made:
+
+| | |
+|---|---|
+| Set all, Set, Take away | a category, an area of it, or one entry: done, owned or found; or taken away again |
+| Give… | an item (a counted one with an amount, within what the bags Link has hold), hearts, rupees (within the wallet), or a dungeon's small keys |
+| Start place… | one of the game's named start places, with Link's age where the area has both |
+| Copy slot… | this slot's files to another slot; a slot that holds a save is replaced only when you choose it |
+
+An edit writes the flags the game's own lists name and nothing more (the editor's guide says what that leaves out: a boss set done
+is not a boss fight won, a heart piece set does not raise the hearts, items are not equipped for you).
+
+**Safety.** Refused while a game or an emulator runs (the launcher checks, leaving itself out, and the editor checks again); the whole
+save folder is copied first to the backup folder above, named `edit-<player>-<date>-<time>`; each file is written whole beside its
+place and swapped in by a rename, read back, and put back when that fails. The launcher never passes the editor's `--force`.
+Nothing is edited that the editor refuses (an unknown target, a cap, another game version, a link in the save folder). A refusal
+comes with a reason code: for a game running, NX2navi waiting, a link, a failed write, another game version and a few others the
+launcher says it in its own words, and for the rest (a count the game does not allow, the bag to give first, a name that fits two
+items) the editor's own words are shown as they are.
+
 ## Tests
 
 The launcher's tests use no real save and nothing from the game:
@@ -231,6 +273,12 @@ The launcher's tests use no real save and nothing from the game:
 - `SaveArchiveChecks.cs` makes its saves and its zips itself: a save folder with a nested folder, an empty one, a file
   nobody knows, a binary file and another profile, exported and imported back byte for byte; links left out; and the zips
   a careless or a hostile one would be (a path out of the zip, a drive, a link, a bomb, a file that is no save).
+- `tests/launcher_core/SaveEditorChecks.cs` reads `tests/fixtures/save-editor`: what Longshot's save editor answers with
+  `--json` (its guide, "For programs") on the made-up game and made-up saves of Longshot's own tests, kept as JSON text (the report,
+  the item and place lists, each edit's answer, and the refusals with their codes), and stands a script in for the tools' Python to
+  run the real process code. With `--longshot`, `tests/save_editor_fixtures.py` runs the editor in the checkout and fails when it
+  answers something else, so a change to what the launcher reads shows there first (`--write` regenerates the files; read the
+  diff). `tools/screenshots/save-editor-report.json` is a report authored with invented names, for the screenshots.
 - `HookshotSettingsChecks.cs` uses authored INI and language text, including the merge into an existing
   `longshot_options.ini`, replacement backups, failed writes, restoration, skipped values and linked paths.
 

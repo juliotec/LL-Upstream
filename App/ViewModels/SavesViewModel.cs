@@ -31,6 +31,27 @@ public sealed class SaveRowViewModel
 /// A save slot of the build on the right
 public sealed record SlotViewModel(int Number, string Name, string Saved);
 
+/// A slot of the Saves page: its number and when it was saved, and the button that opens its progress (the save editor), off with
+/// the reason when there is no editor for the default build
+public sealed class SlotRowViewModel
+{
+    public SlotRowViewModel(SlotViewModel slot, Command progress, string? why)
+    {
+        Slot = slot;
+        ProgressCommand = progress;
+        Why = why;
+    }
+
+    public SlotViewModel Slot { get; }
+    public int Number => Slot.Number;
+    public string Name => Slot.Name;
+    public string Saved => Slot.Saved;
+    public Command ProgressCommand { get; }
+
+    /// Why the button is off, for its tooltip (null: it is on)
+    public string? Why { get; }
+}
+
 static class SaveViews
 {
     /// A long path shortened as the mockup does: its first part, …, its last two
@@ -48,6 +69,9 @@ static class SaveViews
                                             s.Saved is { } t ? Durations.When(t, DateTime.Now) : "")).ToList();
 
     public static IReadOnlyList<SaveSlot> Describe(SaveProfile? p) => p == null ? Array.Empty<SaveSlot>() : Saves.Describe(p.Path);
+
+    public static SlotViewModel Slot(SaveSlot s) =>
+        new(SaveText.Number(s.Name), Tr.F("Slot {0}", SaveText.Number(s.Name)), s.Saved is { } t ? Durations.When(t, DateTime.Now) : "");
 }
 
 /// Saves: Longshot's slots, which every build shares, every other save found on this PC (the emulators'), and the copies: import
@@ -70,6 +94,10 @@ public sealed class SavesViewModel : ViewModelBase
     public SaveEnvironment Env => Service.SaveEnv;
     public IReadOnlyList<SaveRowViewModel> Rows { get; private set; } = Array.Empty<SaveRowViewModel>();
     public IReadOnlyList<SlotViewModel> Slots { get; private set; } = Array.Empty<SlotViewModel>();
+    public IReadOnlyList<SlotRowViewModel> SlotRows { get; private set; } = Array.Empty<SlotRowViewModel>();
+    /// Why there is no save editor for the slots (null: there is one, or no slot)
+    public string? EditorNote { get; private set; }
+    public bool HasEditorNote => EditorNote != null;
     public IReadOnlyList<SaveSet> Emulators { get; private set; } = Array.Empty<SaveSet>();
     public bool HasSlots => Slots.Count > 0;
     public bool NoSlots => Slots.Count == 0;
@@ -118,8 +146,14 @@ public sealed class SavesViewModel : ViewModelBase
         for (var i = 1; i < rows.Count; i++) rows[i].AfterGroup = rows[i - 1].IsGroup;
         Rows = rows;
         Slots = SaveViews.Slots(slots);
+        var (editing, why) = Service.SaveEditor();
+        var note = editing == null ? SaveEditing.Say(why) : null;
+        SlotRows = slots.Select(s => new SlotRowViewModel(SaveViews.Slot(s),
+            new Command(() => Main.Navigate(new SaveEditorViewModel(this, editing!, s.Name)), () => editing != null && s.Saved != null),
+            note ?? (s.Saved == null ? Tr.T("This slot has no progress.sav yet.") : null))).ToList();
+        EditorNote = slots.Count > 0 ? note : null;
         RaiseAll(nameof(Rows), nameof(Slots), nameof(HasSlots), nameof(NoSlots), nameof(SlotCount), nameof(OtherSaves), nameof(HasOtherSaves),
-                 nameof(OtherSavesLabel), nameof(ExportHint));
+                 nameof(OtherSavesLabel), nameof(ExportHint), nameof(SlotRows), nameof(EditorNote), nameof(HasEditorNote));
         ExportCommand.Changed();
     }
 }

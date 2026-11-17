@@ -1,0 +1,9 @@
+{
+  "schema": 1,
+  "command": "give",
+  "ok": false,
+  "error": {
+    "code": "out_of_range",
+    "message": "hearts: 1 to 5 (3 to start, 1 heart containers, 4 heart pieces)"
+  }
+}

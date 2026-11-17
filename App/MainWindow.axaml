@@ -150,6 +150,7 @@
             <DataTemplate DataType="vm:SavesViewModel"><views:SavesView/></DataTemplate>
             <DataTemplate DataType="vm:SavesConfirmViewModel"><views:SavesConfirmView/></DataTemplate>
             <DataTemplate DataType="vm:SavesResultViewModel"><views:SavesResultView/></DataTemplate>
+            <DataTemplate DataType="vm:SaveEditorViewModel"><views:SaveEditorView/></DataTemplate>
           </TransitioningContentControl.DataTemplates>
         </TransitioningContentControl>
       </Grid>
@@ -167,6 +168,8 @@
             <DataTemplate DataType="vm:HookshotImportViewModel"><views:HookshotImportView/></DataTemplate>
             <DataTemplate DataType="vm:HookshotSettingsViewModel"><views:HookshotSettingsView/></DataTemplate>
             <DataTemplate DataType="vm:ReleaseNotesViewModel"><views:ReleaseNotesView/></DataTemplate>
+            <DataTemplate DataType="vm:SaveEditAskViewModel"><views:SaveEditAskView/></DataTemplate>
+            <DataTemplate DataType="vm:SaveEditConfirmViewModel"><views:SaveEditConfirmView/></DataTemplate>
           </ContentControl.DataTemplates>
         </ContentControl>
       </Border>

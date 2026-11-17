@@ -481,10 +481,26 @@ public sealed class LauncherService
         });
     }
 
-    /// Longshot's save slots, the same for every build (Saves.Shared)
-    public IReadOnlyList<SaveSlot> SaveSlots()
+    /// Longshot's save folder, the same for every build (Saves.Shared): the one the Saves page lists and the save editor edits; null
+    /// when there is none
+    public string? SaveFolder()
     {
         var set = Saves.Shared(SaveEnv);
-        return set.Found ? Saves.Describe(set.Profiles[0].Path) : Array.Empty<SaveSlot>();
+        return set.Found ? set.Profiles[0].Path : null;
+    }
+
+    /// Longshot's save slots, the same for every build
+    public IReadOnlyList<SaveSlot> SaveSlots() => SaveFolder() is { } folder ? Saves.Describe(folder) : Array.Empty<SaveSlot>();
+
+    /// The save editor, for the save the Saves page lists (SaveFolder) and the default build's own tools and game files, or why
+    /// there is none (SaveEditing.Find). The screenshots give their own
+    public Func<(SaveEditing? Editing, SaveEditorWhy Why)>? SaveEditorOverride { get; set; }
+
+    public (SaveEditing? Editing, SaveEditorWhy Why) SaveEditor()
+    {
+        if (SaveEditorOverride is { } own) return own();
+        if (SaveFolder() is not { } save) return (null, SaveEditorWhy.NoSave);
+        var (tool, why) = SaveEditing.Find(Registry.Default, Tools);
+        return tool == null ? (null, why) : (new SaveEditing(tool, SaveEnv, save), why);
     }
 }

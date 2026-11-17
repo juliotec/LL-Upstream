@@ -84,6 +84,7 @@ static partial class Program
         SavesChecks.Run(Folder("saves"));
         SaveArchiveChecks.Run(Folder("save-archive"));
         HookshotChecks(fixtures);
+        SaveEditorChecks(fixtures);
         HookshotSettingsChecks();
         SettingsCarryChecks();
         DriverSettingsChecks();

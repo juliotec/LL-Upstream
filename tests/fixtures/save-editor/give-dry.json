@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "command": "give",
+  "ok": true,
+  "slot": "slot_00",
+  "dry_run": true,
+  "changed": true,
+  "said": [
+    "Hookshot: given",
+    "rupees: 0"
+  ],
+  "changes": [
+    {
+      "give": "Item_Hookshot",
+      "value": null
+    },
+    {
+      "give": "rupees",
+      "value": 0
+    }
+  ],
+  "files": [
+    "slot_00/progress.sav",
+    "slot_00/caption.sav"
+  ],
+  "backup": null,
+  "read_back": null
+}

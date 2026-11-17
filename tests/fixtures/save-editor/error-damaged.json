@@ -1,0 +1,9 @@
+{
+  "schema": 1,
+  "command": "set",
+  "ok": false,
+  "error": {
+    "code": "damaged",
+    "message": "slot_02/progress.sav is 23 bytes: not a save file"
+  }
+}
