@@ -88,7 +88,7 @@ static class FontCheck
         try
         {
             var windows = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
-            var own = Path.GetDirectoryName(typeof(SKFontManager).Assembly.Location is { Length: > 0 } l ? l : AppContext.BaseDirectory) ?? "";
+            var own = Path.GetDirectoryName(AppContext.BaseDirectory) ?? "";
             var others = Process.GetCurrentProcess().Modules.Cast<ProcessModule>().Select(m => m.FileName)
                 .Where(f => !f.StartsWith(windows, StringComparison.OrdinalIgnoreCase) && !f.StartsWith(AppContext.BaseDirectory, StringComparison.OrdinalIgnoreCase)
                             && (own.Length == 0 || !f.StartsWith(own, StringComparison.OrdinalIgnoreCase))
