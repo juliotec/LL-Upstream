@@ -236,6 +236,19 @@ public static class Saves
                               $"start the game in {program.Display} once and save, or choose its folder.");
     }
 
+    /// The folder an export writes to: the folder the player chose needs no save yet (the export makes it the save folder:
+    /// account.sav, option.sav and slot_* in it), where an emulator's folder is found by its layout (Locate)
+    public static (string Folder, IReadOnlyList<SaveProfile> Profiles) ExportTarget(SaveProgram program, string? folder, SaveEnvironment env)
+    {
+        if (folder == null || program.Name != Folder.Name) return Locate(program, folder, env);
+        if (!Directory.Exists(folder)) throw new SaveFailure($"No folder at {folder}.");
+        // (a copy puts the new save in place by moving a folder in beside it: the top of a drive has no place beside it)
+        if (Base(folder).Length == 0) throw new SaveFailure($"{folder} is the top of a drive: make a folder in it and export to that.");
+        var found = Find(folder);
+        if (found.Count > 0) return (folder, found);
+        return (folder, new[] { new SaveProfile(Base(folder), folder) });
+    }
+
     /// longshot_saves.pick: the one profile, or the one asked for; several and none asked for is an error that lists them
     public static SaveProfile Pick(IReadOnlyList<SaveProfile> found, string name, string? wanted = null)
     {
@@ -506,16 +519,20 @@ public static class Saves
         var files = new[] { "account.sav", "option.sav" }.Where(f => File.Exists(System.IO.Path.Combine(src, f))).ToList();
         if (keepSettings) files.Remove("option.sav");
         var had = Directory.Exists(dst);
-        var result = new SaveCopy(src, dst, had ? backup : null, names, files, keepSettings, dryRun);
+        var target = had ? Real(dst) : System.IO.Path.GetFullPath(dst);
+        // (a target with no save file in it has nothing to back up: a folder made for the copy, or one that holds only other
+        // files. Those stay: the staging below copies everything but slot_* and account.sav/option.sav)
+        var hadSave = had && (SlotNames(target).Count > 0
+                              || new[] { "account.sav", "option.sav" }.Any(f => File.Exists(System.IO.Path.Combine(target, f))));
+        var result = new SaveCopy(src, dst, hadSave ? backup : null, names, files, keepSettings, dryRun);
         if (dryRun) return result;
 
         // (never less than before: dst is backed up, the new save is made whole in a folder beside it, and only then does it take
         // dst's place, by two renames. Any failure on the way leaves dst as it was, and says where the backup is)
-        var target = had ? Real(dst) : System.IO.Path.GetFullPath(dst);
         var (staging, aside) = Beside(target);
         DeleteTree(staging);
         DeleteTree(aside);
-        if (had)
+        if (hadSave)
         {
             try
             {
@@ -560,12 +577,13 @@ public static class Saves
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
             DeleteTree(staging);
-            var kept = !had || Directory.Exists(target) || Restore(backup, target);
-            var where = had ? $" A backup of it is in {backup}." : "";
+            var kept = !had || Directory.Exists(target) || (hadSave && Restore(backup, target));
+            var where = hadSave ? $" A backup of it is in {backup}." : "";
             throw new SaveFailure(kept
                 ? $"The copy failed ({e.Message}). Nothing was changed: {dst} is as it was.{where}"
-                : $"The copy failed ({e.Message}) and {dst} could not be put back by itself.{where} Copy it back from there.",
-                backup: had ? backup : null);
+                : $"The copy failed ({e.Message}) and {dst} could not be put back by itself.{where}" +
+                  (hadSave ? " Copy it back from there." : $" What waited beside it is in {aside}."),
+                backup: hadSave ? backup : null);
         }
         return result;
     }
@@ -583,13 +601,14 @@ public static class Saves
 
     /// Import (an emulator's save into Longshot) and export (Longshot's save into an emulator), as longshot_saves.run picks the two sides:
     /// Longshot's one profile, the emulator's (profile: when it has several); folder: the emulator's folder instead of where it is
-    /// looked for (a portable user folder, NX2navi's game folder, any folder holding a save)
+    /// looked for (a portable user folder, NX2navi's game folder, any folder holding a save). An export's folder may hold
+    /// no save yet: it becomes the save folder (ExportTarget)
     public static SaveCopy ImportExport(bool import, SaveProgram other, string? folder, SaveEnvironment env, string? profile = null,
                                         bool keepSettings = false, bool dryRun = false, bool force = false, string? backupRoot = null,
                                         Func<IReadOnlyList<string>>? running = null, Func<DateTime>? now = null)
     {
         var build = Shared(env);
-        var em = Locate(other, folder, env).Profiles;
+        var em = (import ? Locate(other, folder, env) : ExportTarget(other, folder, env)).Profiles;
         var emulator = Pick(em, other.Display, profile);
         if (!import && !build.Found) throw new SaveFailure((build.Problem ?? "No Longshot save found.") + " Start Longshot once and save first.");
         var hs = import ? ImportTarget(env) : Pick(build.Profiles, "Longshot").Path;

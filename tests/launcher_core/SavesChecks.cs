@@ -266,6 +266,37 @@ static class SavesChecks
         Directory.CreateDirectory(target);
         t.Run(false, "eglantine", P(t.Tmp, "Eglantine", "user"));
         Require(Tree(target) == Tree(t.Hs), "To a portable folder whose game never saved.");
+
+        // (the launcher's rule, which the script does not have: the folder a player picks for an export may hold no save yet.
+        // The export makes it the save folder, and only a folder that already had a save is backed up)
+        var ne = new Case(root, "to-new");
+        var picked = P(ne.Tmp, "a folder with no save");
+        Directory.CreateDirectory(picked);
+        var previewNew = Saves.ImportExport(false, Saves.Folder, picked, ne.Linux, dryRun: true, backupRoot: ne.Backups, running: () => ne.Busy);
+        Require(previewNew.Target == picked && previewNew.Backup == null && Tree(picked) == "",
+                "A folder with no save: the preview names it and changes nothing.");
+        var made = Saves.ImportExport(false, Saves.Folder, picked, ne.Linux, backupRoot: ne.Backups, running: () => ne.Busy);
+        Require(made.Backup == null && Tree(picked) == Tree(ne.Hs) && ne.BackupDirs().Count == 0,
+                "A folder with no save: the save is made in it, and nothing was backed up.");
+        Require(Saves.Locate(Saves.Folder, picked, ne.Linux).Profiles.SequenceEqual(new[] { new SaveProfile("a folder with no save", picked) }),
+                "A folder with no save: it is the save folder afterwards.");
+        var again = Saves.ImportExport(false, Saves.Folder, picked, ne.Linux, backupRoot: ne.Backups, running: () => ne.Busy);
+        Require(again.Backup != null && Directory.Exists(again.Backup) && Tree(picked) == Tree(ne.Hs),
+                "A folder that has the save: it is backed up and replaced.");
+        var filled = P(ne.Tmp, "a folder with other files");
+        Directory.CreateDirectory(filled);
+        File.WriteAllText(P(filled, "notes.txt"), "keep me");
+        Saves.ImportExport(false, Saves.Folder, filled, ne.Linux, backupRoot: ne.Backups, running: () => ne.Busy);
+        Require(File.ReadAllText(P(filled, "notes.txt")) == "keep me"
+                && Tree(filled).Split('\n').Where(l => !l.StartsWith("notes.txt=", StringComparison.Ordinal)).SequenceEqual(Tree(ne.Hs).Split('\n')),
+                "A folder with other files: the save joins them, and they stay.");
+        Fails(() => Saves.ExportTarget(Saves.Folder, P(ne.Tmp, "not there"), ne.Linux), "No folder", "A folder that is not there.");
+        var emulatorFolder = P(ne.Tmp, "an emulator folder with no save");
+        Directory.CreateDirectory(emulatorFolder);
+        Fails(() => Saves.ExportTarget(Saves.Named("lichii"), emulatorFolder, ne.Linux), "No save of the game",
+              "An emulator's folder with no save is still refused.");
+        Fails(() => Saves.ExportTarget(Saves.Folder, Path.GetPathRoot(Path.GetFullPath(ne.Tmp))!, ne.Linux), "top of a drive",
+              "The top of a drive has no place beside it for the copy.");
         // (test_links_in_a_save_refused)
         if (!OperatingSystem.IsWindows())
         {

@@ -359,7 +359,9 @@ public sealed class SavesConfirmViewModel : ViewModelBase
         SaveSide other;
         try
         {
-            var (_, found) = Saves.Locate(Op.Program, Op.Folder, Page.Env);
+            var (_, found) = Op.Mode == SaveMode.Export
+                ? Saves.ExportTarget(Op.Program, Op.Folder, Page.Env)
+                : Saves.Locate(Op.Program, Op.Folder, Page.Env);
             var p = Saves.Pick(found, Op.OtherName, Op.Profile);
             other = new SaveSide(Op.OtherName, p.Path + (found.Count > 1 ? Tr.F(" (profile {0}…)", p.Id[..Math.Min(8, p.Id.Length)]) : ""), Saves.Describe(p.Path), p.Path, true);
         }

@@ -172,8 +172,8 @@ This does not import shader caches, `env.txt`, launcher or builder preferences, 
 ## Exporting
 
 **Export to emulator** copies the build's save into an emulator's save folder (the same emulators as the import), or into
-any folder you pick with *Choose a folder*. The emulator's save is backed up first, as for every copy. The launcher does
-not export to Hookshot.
+any folder you pick with *Choose a folder*; a folder with no save in it is made into the save folder, and the other files
+in it stay. A save it replaces is backed up first, as for every copy. The launcher does not export to Hookshot.
 
 To keep a copy of your saves yourself, copy the save folder from the table at the top of this page. Copy it while the game
 is closed.
