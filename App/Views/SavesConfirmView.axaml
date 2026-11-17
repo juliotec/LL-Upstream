@@ -69,10 +69,10 @@
           </Grid>
         </Border>
         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="24" Margin="0,14,0,0">
-          <CheckBox Classes="tick" IsChecked="{Binding KeepSettings}" VerticalAlignment="Top">
+          <CheckBox Classes="tick" IsChecked="{Binding KeepSettings}" IsVisible="{Binding KeepVisible}" VerticalAlignment="Top">
             <StackPanel Spacing="2">
               <TextBlock FontSize="13" FontWeight="Medium" Text="{Binding KeepLabel}"/>
-              <TextBlock FontSize="12" Foreground="{StaticResource InkFaintText}" Text="{c:T 'Camera, text speed and the game\'s other options stay as they are there.'}"/>
+              <TextBlock FontSize="12" Foreground="{StaticResource InkFaintText}" Text="{Binding KeepHint}" TextWrapping="Wrap"/>
             </StackPanel>
           </CheckBox>
           <Grid Grid.Column="1" ColumnDefinitions="Auto,*" ColumnSpacing="8" MaxWidth="380">

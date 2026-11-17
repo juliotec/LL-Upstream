@@ -323,11 +323,21 @@ public sealed class SavesConfirmViewModel : ViewModelBase
     public string Sub => Tr.F("Check what gets replaced. Nothing changes until you choose {0}.", Op.Verb);
     public string Verb => Op.Verb;
 
-    public string Replaced => Tr.F(Op.KeepSettings ? "Replaced in {0}: {1}, its account.sav." : "Replaced in {0}: {1}, its account.sav, and its game settings (option.sav).",
+    public string Replaced => Tr.F(Op.KeepSettings
+                                       ? "Replaced in {0}: {1} and its account.sav. Its game settings (option.sav) stay as they are."
+                                       : "Replaced in {0}: {1}, its account.sav, and its game settings (option.sav).",
                                    To.Name, To.Slots.Count == 0 ? Tr.T("nothing saved yet") : SaveText.Long(To.Slots, DateTime.Now));
 
-    public string KeepLabel => Op.Mode == SaveMode.Export ? Tr.F("Keep {0}'s game settings (option.sav)", To.Name)
-        : Tr.T("Keep Longshot's game settings (option.sav)");
+    public string KeepLabel => Tr.F("Keep {0}'s own game settings (option.sav)", To.Name);
+
+    /// What the tick does, either way: the destination keeps its own settings, or the source's replace them
+    public string KeepHint => Op.KeepSettings
+        ? Tr.T("Its camera, text speed and other game options stay as they are.")
+        : Tr.F("Camera, text speed and other game options from {0} replace them.", From.Name);
+
+    /// Whether there are game settings in the destination to keep at all: a folder with no option.sav has none, and a tick
+    /// that "keeps" them would only leave the game on its defaults, so it is not shown
+    public bool KeepVisible => To.Path != null && File.Exists(Path.Combine(To.Path, "option.sav"));
 
     public bool KeepSettings
     {
@@ -335,7 +345,7 @@ public sealed class SavesConfirmViewModel : ViewModelBase
         set
         {
             Op.KeepSettings = value;
-            RaiseAll(nameof(KeepSettings), nameof(Replaced));
+            RaiseAll(nameof(KeepSettings), nameof(Replaced), nameof(KeepHint));
         }
     }
 

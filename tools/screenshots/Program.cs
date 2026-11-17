@@ -139,7 +139,64 @@ static class Program
                  { Free = 412L << 30 }),
         new("hookshot-import-problem", "Importing Hookshot's saves failed, Copy for a bug report", Platform.Windows, null, _ => null,
             m => m.Modal = new HookshotImportViewModel(m) { Problem = @"The saves could not be copied: Access to the path 'C:\Users\Player\Saved Games\Longshot\slot1' is denied." }),
+        // (the settings tick: off, Longshot's game options replace Lichii's; on, Lichii keeps its own option.sav)
+        new("saves-confirm-replace", "Export confirm: Longshot's game settings replace Lichii's (the tick is off)", Platform.Windows,
+            SavesFixture, m => SavesConfirm(m, keep: false)),
+        new("saves-confirm-keep", "Export confirm: the tick keeps Lichii's game settings (option.sav)", Platform.Windows,
+            SavesFixture, m => SavesConfirm(m, keep: true)),
+        new("saves-confirm-no-settings", "Export confirm: Lichii's save has no game settings to keep, so the tick is not shown",
+            Platform.Windows, SavesNoSettingsFixture, m => SavesConfirm(m, keep: false)),
     ];
+
+    /// Longshot's shared save and Lichii's, both with slots and game settings, for the export confirm screens
+    static void SavesFixture(LauncherService service) => SavesFixture(service, settings: true);
+
+    /// The same, with Lichii's save holding no option.sav: the tick that keeps its settings is not shown
+    static void SavesNoSettingsFixture(LauncherService service) => SavesFixture(service, settings: false);
+
+    static void SavesFixture(LauncherService service, bool settings)
+    {
+        // (a player's backup folder, as the confirm page names it: the scene's home is a temporary one)
+        service.SaveEnv = service.SaveEnv with { BackupFolder = @"C:\Users\Player\AppData\Local\Longshot\oot-save-backups" };
+        SaveWithSlots(Saves.ImportTarget(service.SaveEnv), 2, settings: true);
+        SaveWithSlots(LichiiSave(service.SaveEnv), settings ? 3 : 2, settings);
+    }
+
+    static void SaveWithSlots(string folder, int slots, bool settings = true)
+    {
+        Directory.CreateDirectory(folder);
+        File.WriteAllText(Path.Combine(folder, "account.sav"), "account");
+        if (settings) File.WriteAllText(Path.Combine(folder, "option.sav"), "option");
+        for (var n = 0; n < slots; n++)
+        {
+            var slot = Directory.CreateDirectory(Path.Combine(folder, $"slot_{n:00}")).FullName;
+            File.WriteAllText(Path.Combine(slot, "progress.sav"), "progress");
+            File.WriteAllText(Path.Combine(slot, "caption.sav"), "caption");
+        }
+    }
+
+    /// Lichii's data folder and the save inside it (Core/Saves.cs's layouts: nand/user/save/account/&lt;profile&gt;/&lt;title&gt;)
+    static string LichiiFolder(SaveEnvironment env) => Path.Combine(Path.GetDirectoryName(env.LongshotUser)!, "lichii");
+
+    static string LichiiSave(SaveEnvironment env) =>
+        Path.Combine(LichiiFolder(env), "nand", "user", "save", Saves.NoAccount, "0123456789abcdef0123456789abcdef", Saves.Title);
+
+    /// The export confirm screen, its settings tick as asked
+    static SavesConfirmViewModel SavesConfirm(MainViewModel main, bool keep)
+    {
+        var page = new SavesViewModel(main);
+        var env = main.Service.SaveEnv;
+        var program = Saves.Named("lichii");
+        var (folder, profiles) = Saves.Locate(program, LichiiFolder(env), env);
+        var confirm = new SavesConfirmViewModel(page, new SaveOp
+        {
+            Mode = SaveMode.Export,
+            Set = new SaveSet(program.Name, program.Display, folder, profiles, null),
+            Folder = folder,
+        });
+        confirm.KeepSettings = keep;
+        return confirm;
+    }
 
     /// A v3.0.0 build with v3.2.0 out on its channel, and the release list the update check read (two stables since)
     static void UpdateOffered(LauncherService service)
