@@ -54,6 +54,7 @@ Discord: https://discord.gg/magicbean
 | **Updates the game** | Offers each build its channel's newest version and builds it from the game files the build kept |
 | **Updates itself** | From its own signed releases, checked and tested before it replaces itself; `--rollback` puts the previous one back |
 | **Saves** | One save folder for every build, imports saves from emulators and from Hookshot, exports them to emulators, and to and from one .zip file; a Progress view per slot shows what a save has and is missing and edits it, with a backup first; and it restores the backups every copy makes ([docs/saves.md](docs/saves.md)) |
+| **Pull requests** | The *Pull request* track builds an open Longshot pull request on your PC to help test it: the ones a BigBean wrote or approved are listed, any other found by its number, with warnings before its code is built; it updates with each push ([docs/pull-requests.md](docs/pull-requests.md)) |
 | **NFC** | Keeps the NFC tag dumps of figures you own, which the game's NFC tab lists: add one, many or a folder of them, scan one with a Switch 2 Pro Controller (Windows), delete them ([docs/nfc.md](docs/nfc.md)) |
 
 ## Download

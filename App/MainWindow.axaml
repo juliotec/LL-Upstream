@@ -7,7 +7,7 @@
         x:DataType="vm:MainViewModel"
         Title="Longshot"
         Icon="avares://LongshotLauncher/Assets/longshot.png"
-        Width="960" Height="600" CanResize="False"
+        Width="1040" Height="680" CanResize="False"
         WindowDecorations="None" Background="Transparent" TransparencyLevelHint="Transparent"
         DragDrop.AllowDrop="True"
         WindowStartupLocation="CenterScreen">
@@ -173,6 +173,9 @@
             <DataTemplate DataType="vm:SaveEditAskViewModel"><views:SaveEditAskView/></DataTemplate>
             <DataTemplate DataType="vm:SaveEditConfirmViewModel"><views:SaveEditConfirmView/></DataTemplate>
             <DataTemplate DataType="vm:NfcDeleteViewModel"><views:NfcDeleteView/></DataTemplate>
+            <DataTemplate DataType="vm:PullRequestWarningViewModel"><views:PullRequestWarningView/></DataTemplate>
+            <DataTemplate DataType="vm:PullRequestConfirmViewModel"><views:PullRequestConfirmView/></DataTemplate>
+            <DataTemplate DataType="vm:PullRequestFindViewModel"><views:PullRequestFindView/></DataTemplate>
           </ContentControl.DataTemplates>
         </ContentControl>
       </Border>

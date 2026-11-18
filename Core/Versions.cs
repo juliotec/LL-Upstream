@@ -5,15 +5,21 @@ namespace LongshotLauncher.Core;
 
 /// The channels and the version order (docs/releases.md), the same for Longshot's releases and the launcher's own: a stable is
 /// vX.Y.Z, a release candidate vX.Y.Z-rc.N, a nightly nightly-&lt;commit count&gt;-&lt;commit&gt;. Longshot's numbers start at v3.0.0, the
-/// launcher's at v1.0.0 (FirstMajor). Nothing else is a version: it is on no track and never ordered.
+/// launcher's at v1.0.0 (FirstMajor). A pull request's build, pr-&lt;number&gt;-&lt;commit&gt;, is on its own track (PullRequest): not a
+/// channel, never ordered against anything, updated only by a newer push of the same pull request (UpdatePolicy). Nothing else
+/// is a version: it is on no track and never ordered.
 /// tests/test_launcher_core.py holds the vectors it is checked against.
 public static class Versions
 {
     /// The three channels: stable (vX.Y.Z), rc (vX.Y.Z-rc.N, and the stables: the newest of both) and nightly (from main)
     public const string Stable = "stable", Candidate = "rc", Nightly = "nightly";
     public static readonly IReadOnlyList<string> Channels = new[] { Stable, Candidate, Nightly };
+    /// A pull request's builds' track (docs/pull-requests.md): not a channel (IsChannel is false), so nothing
+    /// is offered to it or from it but a newer push of its own pull request
+    public const string PullRequest = "pr";
 
     static readonly Regex NightlyName = new(@"^nightly-([0-9]{1,9})-([0-9a-f]{8})(-dirty)?$", RegexOptions.CultureInvariant);
+    static readonly Regex PullRequestName = new(@"^pr-([1-9][0-9]{0,8})-([0-9a-f]{8})$", RegexOptions.CultureInvariant);
     static readonly Regex ReleaseName = new(@"^v(\d+)\.(\d+)\.(\d+)(?:-rc\.(\d+))?$", RegexOptions.CultureInvariant);
     static readonly Regex TagName = new(@"^[0-9A-Za-z._+-]{1,128}$", RegexOptions.CultureInvariant);
 
@@ -23,11 +29,15 @@ public static class Versions
 
     public static bool IsChannel(string? channel) => channel is Stable or Candidate or Nightly;
 
+    /// A track a build can be on: a channel, or the pull requests' (its folder builds/pr/, the home's Track dropdown)
+    public static bool IsTrack(string? track) => IsChannel(track) || track == PullRequest;
+
     /// A build's track from its version: nightly-2029-c544828f (nightly-&lt;commit count&gt;-&lt;commit&gt;) is the nightly; v3.1.0-rc.1 a
-    /// release candidate; anything else (and no version) a release
+    /// release candidate; pr-222-1a2b3c4d a pull request's build; anything else (and no version) a release
     public static string TrackOf(string? version, int firstMajor = FirstMajor) =>
         version == null ? Stable
         : NightlyKey(version) != null ? Nightly
+        : PullRequestOf(version) != null ? PullRequest
         : IsRelease(version, firstMajor) && version.Contains('-') ? Candidate
         : Stable;
 
@@ -40,11 +50,27 @@ public static class Versions
     /// A name a version folder may have (the setup lists' rule): [0-9A-Za-z._+-]{1,128}, not "." or ".."
     public static bool IsTagName(string? tag) => tag != null && TagName.IsMatch(tag) && tag != "." && tag != "..";
 
-    /// A version as players see it: nightly-2029-c544828f as "Nightly 2029 · c544828f" (-dirty kept), any other as it is.
-    /// Files and logs keep the version itself
+    /// A pull request's build's number and commit (the first 8 hex of the head it was built from), from pr-&lt;number&gt;-&lt;commit&gt;;
+    /// null: not one
+    public static (int Number, string Commit)? PullRequestOf(string? version) =>
+        version != null && PullRequestName.Match(version) is { Success: true } m
+            ? (int.Parse(m.Groups[1].Value, NumberStyles.None, CultureInfo.InvariantCulture), m.Groups[2].Value)
+            : null;
+
+    public static bool IsPullRequest(string? version) => PullRequestOf(version) != null;
+
+    /// A pull request's build's name: its number and the first 8 hex of the commit it is built from
+    public static string PullRequestTag(int number, string commit) =>
+        number > 0 && commit.Length >= 8 && commit.All(char.IsAsciiHexDigit)
+            ? $"pr-{number.ToString(CultureInfo.InvariantCulture)}-{commit[..8].ToLowerInvariant()}"
+            : throw new ArgumentException("Not a pull request's commit: " + commit, nameof(commit));
+
+    /// A version as players see it: nightly-2029-c544828f as "Nightly 2029 · c544828f" (-dirty kept), pr-222-1a2b3c4d as
+    /// "PR #222 · 1a2b3c4d", any other as it is. Files and logs keep the version itself
     public static string Shown(string? version) =>
         version != null && NightlyName.Match(version) is { Success: true } m
             ? $"Nightly {m.Groups[1].Value} \u00b7 {m.Groups[2].Value}{m.Groups[3].Value}"
+            : PullRequestOf(version) is { } pr ? $"PR #{pr.Number.ToString(CultureInfo.InvariantCulture)} \u00b7 {pr.Commit}"
             : version ?? "";
 
     /// A nightly's place in the nightly order (null: no nightly): nightly-&lt;count&gt;-&lt;commit&gt; by its count, -dirty after the

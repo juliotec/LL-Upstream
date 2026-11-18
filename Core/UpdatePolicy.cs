@@ -5,7 +5,9 @@ namespace LongshotLauncher.Core;
 /// newer than its channel's newest (a release candidate after its channel moved on, a test build) is left alone, and nothing
 /// is offered across a nightly and a release, which are not ordered (docs/versioning.md, "Update tracks"): a release build
 /// put on the nightly channel, or a nightly on a release's, is offered nothing until it is built again from that channel. A
-/// version that names neither a release nor a nightly (a hash, "dev") is on no track, and is offered its channel's newest.
+/// version that names neither a release nor a nightly (a hash, "dev") is on no track, and is offered its channel's newest. A pull
+/// request's build (pr-&lt;number&gt;-&lt;commit&gt;) is offered only a newer push of the same pull request: never a channel's version,
+/// and no channel's build is ever offered one.
 public static class UpdatePolicy
 {
     /// The channel a build follows: the one chosen for it, else the track of its version
@@ -15,6 +17,8 @@ public static class UpdatePolicy
     public static string? UpdateTo(string? version, string channel, string? newest)
     {
         if (newest == null || version == null || newest == version) return null;
+        if (Versions.PullRequestOf(version) is { } pr) return Versions.PullRequestOf(newest)?.Number == pr.Number ? newest : null;
+        if (Versions.IsPullRequest(newest)) return null;
         if (!Versions.IsRelease(version) && Versions.TrackOf(version) != Versions.Nightly) return newest;
         return Versions.Newer(newest, version) ? newest : null;
     }

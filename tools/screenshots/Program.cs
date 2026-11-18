@@ -195,6 +195,26 @@ static class Program
                 s.SetNewest(Versions.Stable, "v3.0.0");
             },
             _ => null),
+        // (the Pull request track: a pull request's build behind its newer push, and Beanstalk's list of open ones)
+        new("home-pr-track", "The Pull request track: a pull request's build with a newer push, who wrote it, Read it, Find a pull request",
+            Platform.Linux, PullRequestsListed, _ => null, m => m.Home.PickTrack = m.Home.Tracks.First(t => t.Id == Versions.PullRequest)),
+        new("home-pr-versions", "The Version dropdown on the Pull request track: the installed one, then the ones a BigBean wrote or approved",
+            Platform.Linux, PullRequestsListed, _ => null, m => m.Home.PickTrack = m.Home.Tracks.First(t => t.Id == Versions.PullRequest),
+            OpenDropdown: 1),
+        new("home-pr-switch", "Another pull request picked: Switch to it, built in the place of the one installed", Platform.Linux,
+            PullRequestsListed, _ => null, m =>
+            {
+                m.Home.PickTrack = m.Home.Tracks.First(t => t.Id == Versions.PullRequest);
+                m.Home.PickVersion = m.Home.TrackVersions.First(v => v.Tag.StartsWith("pr-1563-", StringComparison.Ordinal));
+            }),
+        new("pr-warning-trusted", "Building a pull request a BigBean wrote: one softer warning", Platform.Linux, PullRequestsListed, _ => null,
+            m => m.Modal = new PullRequestWarningViewModel(m, new PullRequestBuild(m.Service.PullRequestOf(1563)!, JobKind.Update, m.Service.Registry.Builds.First(b => b.Channel == Versions.PullRequest)))),
+        new("pr-warning", "Building a pull request nobody approved: the first warning, then Continue", Platform.Linux, PullRequestsListed, _ => null,
+            m => m.Modal = new PullRequestWarningViewModel(m, new PullRequestBuild(m.Service.PullRequestOf(1571)!, JobKind.Build, null))),
+        new("pr-confirm", "Building a pull request nobody approved: the second warning, to confirm", Platform.Linux, PullRequestsListed, _ => null,
+            m => m.Modal = new PullRequestConfirmViewModel(m, new PullRequestBuild(m.Service.PullRequestOf(1571)!, JobKind.Build, null))),
+        new("pr-find", "Find a pull request by its number or link", Platform.Linux, PullRequestsListed, _ => null,
+            m => m.Modal = new PullRequestFindViewModel(m) { Text = "https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/1571" }),
         new("home-go-back", "An older nightly picked: Go back to it, built in the nightly build's place", Platform.Windows, NightliesListed,
             _ => null, m => m.Home.PickVersion = m.Home.TrackVersions.First(v => v.Tag == "nightly-187-9e6f231d")),
         new("home-build-track", "A track with no build picked: Build its newest, into a folder of its own", Platform.Windows,
@@ -539,6 +559,27 @@ static class Program
                 "- **A page on reporting slow performance**, with the switches that measure it ([help](https://git.magicbean.dev/MagicBeanDev/Longshot))\n\n" +
                 "**Fixed:**\n\n- The start-up screen counts the compute pipelines (#721)\n- Honor `cache-off` for rolling pipeline files (#415)"),
         ];
+    }
+
+    /// A nightly build (the default) and a pull request's build one push behind, and the open pull requests Beanstalk lists: one a
+    /// BigBean wrote, one a BigBean approved, one nobody approved (found only by its number), a draft
+    static void PullRequestsListed(LauncherService service)
+    {
+        // (Linux paths: a folder under one that is missing is not taken for a build deleted outside the launcher)
+        service.Registry.Add("/home/player/Games/Longshot/nightly/nightly-189-aa95d35f", "nightly-189-aa95d35f", Versions.Nightly, makeDefault: true);
+        service.SetNewest(Versions.Nightly, "nightly-189-aa95d35f");
+        service.Registry.Add("/home/player/Games/Longshot/pr/pr-1548-3f9a0c21", "pr-1548-3f9a0c21", Versions.PullRequest);
+        PullRequest Pr(int n, string title, string author, string head, bool bigbean, bool approved, bool draft = false) =>
+            new(n, title, author, head + new string('0', 40 - head.Length), draft, [], bigbean, approved, approved ? ["mooki"] : []);
+        service.SetPullRequests(
+        [
+            Pr(1571, "perf(renderer): batch the shadow draws by material", "newcomer42", "c0ffee12", false, false),
+            Pr(1563, "fix(audio): Navi's voice no longer cuts out after a cutscene", "mooki", "8d2e41b7", true, false),
+            Pr(1560, "feat(menu): a page for the controller's gyro", "TrashPanda", "51aa9e03", false, true),
+            Pr(1558, "WIP: perf(host): filter translated store marks", "HumanBean", "b268d901", true, false, draft: true),
+            Pr(1548, "fix(saves): the Kokiri sword keeps its slot after a reload", "omgitsgela", "a7c4410e", false, true),
+        ]);
+        service.AddFound(1571);
     }
 
     /// A nightly build of the newest nightly, and the release list the update check read: the 5 nightlies the server keeps

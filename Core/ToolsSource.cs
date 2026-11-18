@@ -5,19 +5,24 @@ public sealed record ToolsDownloadProgress(double Fraction, long Total);
 
 /// A version's builder and build tools for the wizard's first step: the installed ones, else its release's (Windows: the builder's
 /// zip and the tools of its tools.lock; Linux: its AppImage and the tools of the tools.lock inside it), checked against the release's signed SHA256SUMS, installed with
-/// Toolchains
+/// Toolchains. A pull request's (pr-&lt;number&gt;-&lt;commit&gt;): its source over the newest nightly's, PullRequestSource
 public static class ToolsSource
 {
-    /// extract: how a Linux AppImage is unpacked (by default its own --appimage-extract; the tests pass theirs)
+    /// extract: how a Linux AppImage is unpacked (by default its own --appimage-extract; the tests pass theirs). pullRequest: a
+    /// pull request as Beanstalk lists it now, for a pull request's build (none: such a build cannot be made)
     public static async Task<Toolchain> EnsureAsync(Toolchains chains, Releases releases, string tag,
                                                     Action<ToolsDownloadProgress>? progress = null, CancellationToken cancel = default,
-                                                    Func<string, string, CancellationToken, Task>? extract = null)
+                                                    Func<string, string, CancellationToken, Task>? extract = null,
+                                                    Func<int, CancellationToken, Task<PullRequest?>>? pullRequest = null)
     {
         if (chains.Find(tag) is { } have)
         {
             progress?.Invoke(new ToolsDownloadProgress(1, 0));
             return have;
         }
+        if (Versions.IsPullRequest(tag))
+            return await PullRequestSource.EnsureAsync(chains, releases, tag, pullRequest ?? ((_, _) => Task.FromResult<PullRequest?>(null)),
+                                                       progress, cancel, extract).ConfigureAwait(false);
         if (releases.Platform != Platform.Windows)   // (Linux: the release's AppImage, then the tools its tools.lock names)
         {
             var image = await releases.BuilderAsync(tag, cancel).ConfigureAwait(false);

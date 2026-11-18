@@ -55,6 +55,24 @@ public static class VersionPick
         return rows.OrderByDescending(r => r.Tag, order).ToList();
     }
 
+    /// The pull request track's versions: the installed pull requests' builds first (an older push of one that moved on stays
+    /// its build's version: its update is the newer push, UpdatePolicy), then the open ones Beanstalk lists that a BigBean wrote or
+    /// approved, or that the player found by number (found), each at its head, newest change first; a draft, one for the other
+    /// system, or one already installed left out. pulls: null before Beanstalk answered, then only the installed ones
+    public static IReadOnlyList<TrackVersion> OfPullRequests(IEnumerable<BuildEntry> builds, IReadOnlyList<PullRequest>? pulls,
+                                                             Platform platform, IReadOnlySet<int>? found = null)
+    {
+        var mine = On(Versions.PullRequest, builds);
+        var rows = new List<TrackVersion>();
+        foreach (var tag in mine.Select(b => b.Version).OfType<string>().Distinct(StringComparer.Ordinal))
+            rows.Add(new TrackVersion(tag, null, false, BuildOf(tag, mine)));
+        var have = mine.Select(b => Versions.PullRequestOf(b.Version)?.Number).OfType<int>().ToHashSet();
+        foreach (var pr in pulls ?? Array.Empty<PullRequest>())
+            if ((pr.Trusted || found?.Contains(pr.Number) == true) && PullRequests.Problem(pr, platform) == null && have.Add(pr.Number))
+                rows.Add(new TrackVersion(pr.Tag, null, false, null));
+        return rows;
+    }
+
     /// What the main button does for version on track. chosen: the build the player picked in Your versions (the row selected),
     /// the one a Replace takes the place of when it is on the track
     public static PickPlan Plan(string track, string version, IEnumerable<BuildEntry> builds, BuildEntry? chosen = null)

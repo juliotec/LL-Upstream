@@ -1,0 +1,30 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:LongshotLauncher.ViewModels"
+             xmlns:c="using:LongshotLauncher.Controls"
+             x:Class="LongshotLauncher.Views.PullRequestFindView"
+             x:DataType="vm:PullRequestFindViewModel">
+  <!-- a pull request by its number or link: listed and picked on the Pull request track, built only after its warnings -->
+  <Border Classes="dialog">
+    <StackPanel>
+      <TextBlock Classes="modaltitle" Text="{c:T 'Find a pull request'}"/>
+      <TextBlock Classes="sub" TextWrapping="Wrap"
+                 Text="{c:T 'Its number, or its link copied from git.magicbean.dev. The list shows only the ones a BigBean wrote or approved.'}"/>
+      <TextBox Classes="path" FontFamily="{StaticResource Ui}" Margin="0,14,0,0" Text="{Binding Text}"
+               PlaceholderText="{c:T '1558, or https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/1558'}">
+        <TextBox.KeyBindings>
+          <KeyBinding Gesture="Enter" Command="{Binding FindCommand}"/>
+        </TextBox.KeyBindings>
+      </TextBox>
+      <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,10,0,0" IsVisible="{Binding Loading}">
+        <c:Spinner VerticalAlignment="Center"/>
+        <TextBlock Classes="note" Text="{Binding FindCommand.Status}"/>
+      </StackPanel>
+      <TextBlock Classes="bad" Margin="0,10,0,0" TextWrapping="Wrap" Text="{Binding Problem}" IsVisible="{Binding HasProblem}"/>
+      <StackPanel Classes="buttons">
+        <Button Content="{c:T 'Cancel'}" Command="{Binding CancelCommand}"/>
+        <Button Classes="primary" Content="{c:T 'Find'}" Command="{Binding FindCommand}"/>
+      </StackPanel>
+    </StackPanel>
+  </Border>
+</UserControl>

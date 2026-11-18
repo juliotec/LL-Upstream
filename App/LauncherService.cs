@@ -41,6 +41,11 @@ public sealed class LauncherService
     public bool Checked { get; set; }
 
     readonly Dictionary<string, string?> newest = new();
+    /// Longshot's open pull requests as Beanstalk last listed them (PullRequests.ListAsync), and when: null before it answered
+    IReadOnlyList<PullRequest>? pulls;
+    DateTime pullsAt;
+    /// How long a list is good for before it is asked again (Beanstalk's own copy is at most a minute old)
+    static readonly TimeSpan PullsFresh = TimeSpan.FromMinutes(1);
 
     LauncherService(Platform platform, LauncherHome home)
     {
@@ -62,7 +67,8 @@ public sealed class LauncherService
         Releases = new Releases(check, platform, keys, product: Product.Longshot);
         // (the launcher's own releases: its own versions on its own three channels, chosen apart from the builds' in Settings)
         LauncherReleases = new Releases(check, platform, keys, product: Product.Launcher);
-        Prefetch = new ToolsPrefetch((tag, progress, cancel) => ToolsSource.EnsureAsync(Tools, Releases, tag, progress, cancel));
+        Prefetch = new ToolsPrefetch((tag, progress, cancel) => ToolsSource.EnsureAsync(Tools, Releases, tag, progress, cancel,
+                                                                                        pullRequest: FindPullRequestAsync));
         // (a prune put off while a fetch ran, once none does: PruneTools)
         Prefetch.Idle += () => ViewModels.Ui.Post(() => { if (Interlocked.Exchange(ref pruneLater, 0) == 1) PruneTools(); });
         SaveEnv = SaveEnvironment.Current() with
@@ -209,6 +215,9 @@ public sealed class LauncherService
         if (Program.Layout.File != null && await LauncherReleases.ChannelAsync(LauncherChannel, cancel) is { } own
             && SelfUpdate.UpdateTo(OwnTag, own, Platform, LauncherChannel, Program.Layout.UpdateKey) != null)
             LauncherUpdate = own;
+        // (after the launcher's own, and only with a pull request's build installed: one question to Beanstalk for all of them,
+        // which costs git.magicbean.dev nothing; a slow answer holds back nothing else)
+        if (Registry.Builds.Any(b => Versions.IsPullRequest(b.Version))) await PullRequestsAsync(fresh: true, cancel);
         Checked = true;
         if (any) PrefetchLikely();
         return any;
@@ -220,7 +229,9 @@ public sealed class LauncherService
     public void PrefetchLikely()
     {
         if (!ToolsPrefetch.EnabledBy(Environment.GetEnvironmentVariable)) return;
-        if (ToolsPrefetch.Likely(Registry.Builds, NewestOf(DefaultChannel), UpdateFor, Tools.IsInstalled, Settings.DownloadUpdatesEarly) is { } tag)
+        // (never a pull request's: nothing of its code is fetched before the player has read its warnings)
+        if (ToolsPrefetch.Likely(Registry.Builds, NewestOf(DefaultChannel), b => Versions.IsPullRequest(b.Version) ? null : UpdateFor(b),
+                                 Tools.IsInstalled, Settings.DownloadUpdatesEarly) is { } tag)
             Prefetch.Get(tag, early: true);
     }
 
@@ -269,11 +280,56 @@ public sealed class LauncherService
         using var _ = Process.Start(new ProcessStartInfo(current) { UseShellExecute = false });
     }
 
-    public string? UpdateFor(BuildEntry b) => UpdatePolicy.UpdateTo(b, newest);
+    /// The version a build updates to, or null: its channel's newest (UpdatePolicy); for a pull request's build, the build of the
+    /// pull request's newer push, while it is open and this PC can build it
+    public string? UpdateFor(BuildEntry b) =>
+        Versions.PullRequestOf(b.Version) is { } pr
+            ? UpdatePolicy.UpdateTo(b.Version, Versions.PullRequest,
+                                    PullRequestOf(pr.Number) is { } open && PullRequests.Problem(open, Platform) == null ? open.Tag : null)
+            : UpdatePolicy.UpdateTo(b, newest);
+
+    /// The open pull requests as Beanstalk last listed them; null before it answered
+    public IReadOnlyList<PullRequest>? Pulls => pulls;
+
+    /// A pull request from the last list (null: not open, or no list yet)
+    public PullRequest? PullRequestOf(int number) => pulls?.FirstOrDefault(p => p.Number == number);
+
+    /// The open pull requests, asked of Beanstalk again when the last list is older than a minute or fresh is set; the last list
+    /// when it does not answer (null: none yet)
+    public async Task<IReadOnlyList<PullRequest>?> PullRequestsAsync(bool fresh = false, CancellationToken cancel = default)
+    {
+        if (pulls != null && !fresh && DateTime.UtcNow - pullsAt < PullsFresh) return pulls;
+        if (await PullRequests.ListAsync(Releases.Fetcher, cancel) is { } list)
+        {
+            pulls = list;
+            pullsAt = DateTime.UtcNow;
+            LauncherLog.Add($"pull requests: {list.Count} open, from Beanstalk");
+        }
+        else LauncherLog.Add("pull requests: Beanstalk did not answer");
+        return pulls;
+    }
+
+    /// A pull request as it is now, for its build's tools (PullRequestSource): from a list at most a minute old; null when it is
+    /// not open any more, or Beanstalk did not answer
+    async Task<PullRequest?> FindPullRequestAsync(int number, CancellationToken cancel) =>
+        (await PullRequestsAsync(cancel: cancel).ConfigureAwait(false))?.FirstOrDefault(p => p.Number == number);
+
+    /// The pull requests the update check reads (the screenshots' stand-in for Beanstalk)
+    public void SetPullRequests(IReadOnlyList<PullRequest>? list)
+    {
+        pulls = list;
+        pullsAt = DateTime.UtcNow;
+    }
 
     /// A track's versions for the home's Version dropdown (VersionPick.Of), from the list the update check read: only the
     /// installed ones before it answered
-    public IReadOnlyList<TrackVersion> VersionsOn(string track) => VersionPick.Of(track, Registry.Builds, Releases.Listed, Product.Longshot);
+    public IReadOnlyList<TrackVersion> VersionsOn(string track) =>
+        track == Versions.PullRequest ? VersionPick.OfPullRequests(Registry.Builds, pulls, Platform, foundPulls)
+        : VersionPick.Of(track, Registry.Builds, Releases.Listed, Product.Longshot);
+
+    /// The pull requests the player found by their number (Find a pull request): listed on the track with the trusted ones
+    readonly HashSet<int> foundPulls = new();
+    public void AddFound(int number) => foundPulls.Add(number);
 
     /// What's new from a build's version to the one offered, from the list the update check read (ReleaseNotes)
     public IReadOnlyList<ReleaseNote> NotesFor(string? have, string offered) => ReleaseNotes.Between(Releases.Listed, have, offered, Product.Longshot);

@@ -40,11 +40,11 @@ public static class InstanceFolders
         return string.Join(sep, names.Skip(Math.Max(0, names.Count - count)));
     }
 
-    /// A track's folder's name: stable, rc, nightly or Longshot (LauncherSettings.TrackFolder), with " (2)" and on
+    /// A track's folder's name: stable, rc, nightly, pr or Longshot (LauncherSettings.TrackFolder), with " (2)" and on
     public static bool TrackName(string name)
     {
         var b = Base(name);
-        return Versions.IsChannel(b) || b == "Longshot";
+        return Versions.IsTrack(b) || b == "Longshot";
     }
 
     /// folder is in the builds folder's layout: builds/&lt;track&gt;/&lt;a name&gt;. Only such a folder is renamed when it updates

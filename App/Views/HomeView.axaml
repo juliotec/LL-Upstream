@@ -338,7 +338,11 @@
           <c:Icon Kind="arrowUp" Width="15" Height="15" Foreground="{StaticResource BrandInk}" VerticalAlignment="Center"/>
           <TextBlock FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource BrandInk}" Text="{Binding TrackUpdate}"
                      TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
-          <Button Classes="link" Content="{c:T 'What\'s new'}" Command="{Binding NotesDefaultCommand}" VerticalAlignment="Center"/>
+          <Button Classes="link" Content="{c:T 'What\'s new'}" Command="{Binding NotesDefaultCommand}" VerticalAlignment="Center"
+                  IsVisible="{Binding !TrackUpdateIsPullRequest}"/>
+          <!-- (a pull request's newer push has no release notes: the pull request itself) -->
+          <Button Classes="link" Content="{c:T 'Read it'}" Command="{Binding ReadPullRequestCommand}" VerticalAlignment="Center"
+                  IsVisible="{Binding TrackUpdateIsPullRequest}"/>
         </StackPanel>
         <StackPanel Grid.Row="1" VerticalAlignment="Top">
           <!-- the track (its name only: what it holds is the Version field's), then one of its versions (VersionPick): a check
@@ -385,6 +389,19 @@
               </DataTemplate>
             </ComboBox.ItemTemplate>
           </ComboBox>
+          <!-- the Pull request track: who wrote the one picked and whether a BigBean approved it, Read it, and Find a pull request
+               for one the list leaves out (it lists the ones a BigBean wrote or approved) -->
+          <StackPanel IsVisible="{Binding IsPullRequestTrack}" Margin="0,8,0,0" Spacing="4">
+            <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding HasPickedPullRequest}">
+              <c:Icon Kind="check" Width="13" Height="13" Foreground="{StaticResource Go}" VerticalAlignment="Center" IsVisible="{Binding PullRequestTrusted}"/>
+              <c:Icon Kind="alert" Width="13" Height="13" Foreground="{StaticResource Warn}" VerticalAlignment="Center" IsVisible="{Binding PullRequestUntrusted}"/>
+              <TextBlock Classes="note" Text="{Binding PullRequestTrust}" TextTrimming="CharacterEllipsis" MaxWidth="280" VerticalAlignment="Center"/>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="16">
+              <Button Classes="link smaller" Content="{c:T 'Read it'}" Command="{Binding ReadPullRequestCommand}" IsVisible="{Binding HasPickedPullRequest}"/>
+              <Button Classes="link smaller" Content="{c:T 'Find a pull request…'}" Command="{Binding FindPullRequestCommand}"/>
+            </StackPanel>
+          </StackPanel>
           <!-- the pick's button: Play when it is installed, else Update to, Go back to or Build; Update beside Play, the same size
                and with its icon, when the build has a newer version (it takes the room left, its words cut rather than the row) -->
           <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12" Margin="0,14,0,0">
@@ -491,13 +508,13 @@
                               <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                                 <Border Classes="chip small update" IsVisible="{Binding ShowUpdateBadge}"><TextBlock Text="{c:T 'Update available'}"/></Border>
                                 <Border Classes="chip quiet" IsVisible="{Binding IsDefault}"><TextBlock Text="{c:T 'Default'}"/></Border>
-                                <Border Classes="tag" Classes.rc="{Binding IsCandidate}" Classes.nightly="{Binding IsNightly}">
+                                <Border Classes="tag" Classes.rc="{Binding IsCandidate}" Classes.nightly="{Binding IsNightly}" Classes.pr="{Binding IsPullRequest}">
                                   <TextBlock Text="{Binding Channel}"/>
                                 </Border>
                               </StackPanel>
                             </Grid>
                           </Button>
-                          <!-- (the left side wraps, so the buttons on the right always show whole in the 960-wide window) -->
+                          <!-- (the left side wraps, so the buttons on the right always show whole in the 1040-wide window) -->
                           <Grid Grid.Row="1" Grid.ColumnSpan="2" ColumnDefinitions="*,Auto" ColumnSpacing="8" Margin="50,0,12,12" IsVisible="{Binding ShowActions}">
                             <Grid ColumnDefinitions="Auto,*" ColumnSpacing="6" IsVisible="{Binding ShowDefaultNote}" Margin="4,0,0,0" VerticalAlignment="Center">
                               <c:Icon Kind="star" Width="13" Height="13" Foreground="{StaticResource Warn}" VerticalAlignment="Center"/>

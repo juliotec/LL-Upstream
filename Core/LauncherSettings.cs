@@ -116,8 +116,9 @@ public sealed class LauncherSettings
         return path;
     }
 
-    /// A track's folder's name in the builds folder: the channel's (stable, rc, nightly), Longshot for any other
-    public static string TrackFolder(string? channel) => Versions.IsChannel(channel) ? channel! : "Longshot";
+    /// A track's folder's name in the builds folder: the channel's (stable, rc, nightly) or the pull requests' (pr), Longshot for
+    /// any other
+    public static string TrackFolder(string? channel) => Versions.IsTrack(channel) ? channel! : "Longshot";
 
     /// A version's folder's name in its track's folder: the version itself (nightly-2029-c544828f, v3.0.1), Longshot when there
     /// is none or it is no name a folder can have

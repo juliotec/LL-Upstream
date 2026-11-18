@@ -66,10 +66,12 @@ static partial class Program
                 && System.Text.RegularExpressions.Regex.IsMatch(app, "<Style Selector=\"Button.hero\">\\s*<Setter Property=\"Height\" Value=\"50\"/>\\s*<Setter Property=\"Padding\" Value=\"34,0\"/>"),
                 "Update beside Play has its arrow and Play's height and padding.");
         Require(view.Contains("IsVisible=\"{Binding HasTrackUpdate}\"") && view.Contains("Text=\"{Binding TrackUpdate}\"")
-                && view.Contains("Command=\"{Binding NotesDefaultCommand}\" VerticalAlignment=\"Center\"/>")
+                && view.Contains("Command=\"{Binding NotesDefaultCommand}\" VerticalAlignment=\"Center\"")
+                && view.Contains("IsVisible=\"{Binding !TrackUpdateIsPullRequest}\"/>")
+                && view.Contains("Command=\"{Binding ReadPullRequestCommand}\" VerticalAlignment=\"Center\"")
                 && !view.Contains("{Binding HeroUpdate}") && !home.Contains("is out on the {1} channel")
                 && home.Contains("NotesDefaultCommand = new Command(() => { if (TrackUpdateItem is { } d) ShowNotes(d); });"),
-                "The picked track's newest version and What's new are opposite the title, once, by their shown name.");
+                "The picked track's newest version and What's new (a pull request's newer push: Read it) are opposite the title, once, by their shown name.");
         Require(home.Contains("Tr.P(n, \"1 instance uses {1} in {2}.\", \"{0} instances use {1} in {2}.\"")
                 && home.Contains("Tr.P(n, \"1 instance in {1}.\", \"{0} instances in {1}.\""),
                 "The footer counts instances, as the list's heading says.");

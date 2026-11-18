@@ -229,6 +229,11 @@
       <Setter Property="Background" Value="{StaticResource BrandSoft}"/>
       <Setter Property="TextElement.Foreground" Value="{StaticResource BrandInk}"/>
     </Style>
+    <!-- a pull request's build (red: code that is not in a release) -->
+    <Style Selector="Border.tag.pr">
+      <Setter Property="Background" Value="{StaticResource BadSoft}"/>
+      <Setter Property="TextElement.Foreground" Value="{StaticResource Bad}"/>
+    </Style>
 
     <!-- buttons: quiet (glass), primary (blue: the step's action), go (green: Play), bad (red: delete), link, icon, caption -->
     <Style Selector="Button">
@@ -828,6 +833,17 @@
     </Style>
     <Style Selector="TextBox">
       <Setter Property="FocusAdorner" Value="{x:Null}"/>
+    </Style>
+
+    <!-- a stronger warning box: a pull request nobody approved -->
+    <Style Selector="Border.badbox">
+      <Setter Property="Background" Value="{StaticResource BadSoft}"/>
+      <Setter Property="BorderBrush" Value="#44E2776B"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="CornerRadius" Value="8"/>
+      <Setter Property="Padding" Value="12,10"/>
+      <Setter Property="Margin" Value="0,16,0,0"/>
+      <Setter Property="TextElement.FontSize" Value="13"/>
     </Style>
 
     <!-- a warning box -->

@@ -1,0 +1,32 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:LongshotLauncher.ViewModels"
+             xmlns:c="using:LongshotLauncher.Controls"
+             x:Class="LongshotLauncher.Views.PullRequestConfirmView"
+             x:DataType="vm:PullRequestConfirmViewModel">
+  <!-- the second warning, for a pull request no BigBean wrote or approved: Cancel is the safe way out, Build it anyway in red -->
+  <Border Classes="dialog wide">
+    <StackPanel>
+      <StackPanel Orientation="Horizontal" Spacing="10">
+        <c:Icon Kind="alert" Width="20" Height="20" Foreground="{StaticResource Bad}" VerticalAlignment="Center"/>
+        <TextBlock Classes="modaltitle" Text="{Binding Title}" VerticalAlignment="Center"/>
+      </StackPanel>
+      <TextBlock Classes="sub" Margin="0,8,0,0" Text="{Binding Sub}" TextWrapping="Wrap"/>
+      <Border Classes="badbox">
+        <StackPanel Spacing="8">
+          <TextBlock TextWrapping="Wrap" FontWeight="SemiBold"
+                     Text="{c:T 'Nobody who reviews Longshot has looked at this code.'}"/>
+          <TextBlock TextWrapping="Wrap"
+                     Text="{c:T 'Building it runs its scripts on your PC, and playing it runs its game, with the same rights as you: they could read, change or delete your files. Build it only if you know and trust its author.'}"/>
+        </StackPanel>
+      </Border>
+      <TextBlock Classes="hint" Margin="0,12,0,0" TextWrapping="Wrap"
+                 Text="{c:T 'To have it checked first, ask a BigBean to approve it for the Test Farm on its page.'}"/>
+      <StackPanel Classes="buttons">
+        <Button Classes="link" Content="{c:T 'Read it'}" Command="{Binding ReadCommand}" Margin="0,0,8,0"/>
+        <Button Classes="primary" Content="{c:T 'Cancel'}" Command="{Binding CancelCommand}"/>
+        <Button Classes="bad" Content="{c:T 'Build it anyway'}" Command="{Binding GoCommand}"/>
+      </StackPanel>
+    </StackPanel>
+  </Border>
+</UserControl>

@@ -48,6 +48,8 @@ public sealed class Toolchains
     }
 
     public string Root => root;
+    /// What the tools are downloaded with (a pull request's source too: PullRequestSource)
+    public IFetcher Fetcher => fetcher;
 
     public string PathOf(string tag) =>
         Versions.IsTagName(tag) ? Path.Combine(root, tag) : throw new ArgumentException("Not a version name: " + tag, nameof(tag));
@@ -291,6 +293,117 @@ public sealed class Toolchains
 
     /// The tools.lock a Linux builder carries (builder/linux/AppRun, scripts/linux/appimage.sh)
     public const string LinuxToolsLock = "usr/share/longshot/tools.lock";
+
+    /// A pull request's tools (PullRequestSource): from's folder again under tag, its files hard links to from's (copies on a disk
+    /// without them, FileLinks), so it costs the disk ~50 MB beside the nightly's ~900 MB. But for the source: each top folder or
+    /// file of from's ToolsRoot the source has too (nx2, host, gpu, scripts, assets, builder, third_party, tools.lock...) is the
+    /// source's, written anew, and what the source lacks of from's third_party (the native helpers a release builds into it,
+    /// liba64emit.so, zbic.so, and their stamps, which rebuild them when their sources changed) is copied, never linked, so a build
+    /// that rewrites one leaves from's alone. The rest (Python, the compilers, the sysroot, cpm) stays from's, so the lift and
+    /// object stores (MakeGameCommand) find the same tools and reuse from's translation when the pull request leaves the
+    /// translator alone. VERSION names tag (nx2/version.py, with no git history). Its record keeps only the parts no source file
+    /// replaced, so another version reuses its tools (Reuse) but never takes the pull request's source for its own. Refused when the
+    /// source's tools.lock names other tools for this system than from's
+    public Toolchain InstallPullRequest(string tag, Toolchain from, IReadOnlyList<SourceFile> source, Platform platform,
+                                        CancellationToken cancel = default)
+    {
+        if (!Versions.IsPullRequest(tag)) throw new ArgumentException("Not a pull request's build: " + tag, nameof(tag));
+        var system = ReleaseManifest.PlatformKey(platform);
+        var theirs = source.FirstOrDefault(f => f.Path == "tools.lock")
+                     ?? throw new InvalidDataException("The pull request's source has no tools.lock.");
+        var ours = new[] { Path.Combine(from.ToolsRoot, "tools.lock"), Path.Combine(Path.GetDirectoryName(from.ToolsRoot)!, "tools.lock") }
+                       .FirstOrDefault(File.Exists)
+                   ?? throw new InvalidDataException($"{from.Tag}'s tools have no tools.lock to compare the pull request's with.");
+        static string Key(Part p) => $"{p.Sha} {p.Dest} {p.From} {p.To}";
+        IEnumerable<string> want, got;
+        try
+        {
+            want = ToolsLock.Parse(System.Text.Encoding.UTF8.GetString(theirs.Bytes), system).Select(Key).Order(StringComparer.Ordinal).ToList();
+            got = ToolsLock.Parse(File.ReadAllText(ours), system).Select(Key).Order(StringComparer.Ordinal).ToList();
+        }
+        catch (FormatException e) { throw new InvalidDataException("The pull request's tools.lock cannot be read: " + e.Message, e); }
+        if (!want.SequenceEqual(got))
+            throw new InvalidDataException(Tr.F("This pull request changes the build tools (its tools.lock), so it can't be built with {0}'s.", Versions.Shown(from.Tag)));
+        var record = Read(from.Folder) ?? throw new InvalidDataException($"{from.Tag}'s tools have no record.");
+
+        var dest = PathOf(tag);
+        var work = dest + ".part";
+        Directory.CreateDirectory(root);
+        if (Directory.Exists(work)) DeleteTree(work);
+        var tree = Path.Combine(work, "tree");
+        try
+        {
+            var toolsRoot = Path.GetRelativePath(from.Folder, from.ToolsRoot);
+            var replaced = new HashSet<string>(StringComparer.Ordinal);
+            if (Directory.Exists(from.ToolsRoot))
+                foreach (var e in new DirectoryInfo(from.ToolsRoot).EnumerateFileSystemInfos("*", AllEntries))
+                    if (source.Any(f => f.Path == e.Name || f.Path.StartsWith(e.Name + "/", StringComparison.Ordinal))) replaced.Add(e.Name);
+            replaced.Add("VERSION");
+            Mirror(from.Folder, tree, rel => rel == RecordName
+                || (Path.GetDirectoryName(rel) is { } parent && parent == toolsRoot && replaced.Contains(Path.GetFileName(rel))), cancel);
+            var srcRoot = Path.Combine(tree, toolsRoot);
+            foreach (var f in source)
+            {
+                cancel.ThrowIfCancellationRequested();
+                if (!replaced.Contains(f.Path.Split('/')[0])) continue;   // (docs, tests, the website: no build reads them)
+                var path = Path.Combine(srcRoot, Native(f.Path));
+                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+                File.WriteAllBytes(path, f.Bytes);
+                if (f.Executable && !OperatingSystem.IsWindows())
+                    File.SetUnixFileMode(path, File.GetUnixFileMode(path) | UnixFileMode.UserExecute | UnixFileMode.GroupExecute | UnixFileMode.OtherExecute);
+            }
+            var helpers = Path.Combine(from.ToolsRoot, "third_party");
+            if (replaced.Contains("third_party") && Directory.Exists(helpers))
+                foreach (var file in Directory.EnumerateFiles(helpers, "*", new EnumerationOptions { RecurseSubdirectories = true, AttributesToSkip = 0 }))
+                {
+                    var target = Path.Combine(srcRoot, "third_party", Path.GetRelativePath(helpers, file));
+                    if (File.Exists(target) || new FileInfo(file).LinkTarget != null) continue;
+                    Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+                    File.Copy(file, target);
+                }
+            File.WriteAllText(Path.Combine(srcRoot, "VERSION"), tag + "\n");
+            CheckLinksInside(tree);
+            // (only the parts the source left alone: a part with a file under a replaced folder would hand the pull request's
+            // source to the next version that reuses it)
+            var prefix = toolsRoot.Replace(Path.DirectorySeparatorChar, '/') + "/";
+            record.Tag = tag;
+            record.Parts = record.Parts.Where(p => p.Dest != "." && !p.Entries.Any(e =>
+                e.Path.StartsWith(prefix, StringComparison.Ordinal) && replaced.Contains(e.Path[prefix.Length..].Split('/')[0]))).ToList();
+            using (var f = new FileStream(Path.Combine(tree, RecordName), FileMode.CreateNew, FileAccess.Write))
+                JsonSerializer.Serialize(f, record, CoreJson.Default.Record);
+            cancel.ThrowIfCancellationRequested();
+            if (Directory.Exists(dest)) DeleteTree(dest);
+            Directory.Move(tree, dest);
+        }
+        finally
+        {
+            if (Directory.Exists(work)) DeleteTree(work);
+        }
+        return new Toolchain(tag, dest, from.Kind, from.Run);
+    }
+
+    static readonly EnumerationOptions AllEntries = new() { AttributesToSkip = 0 };
+
+    /// from's files again under to: hard links (copies on a disk without them), links made again as they are, folders made; skip
+    /// (a path relative to from) leaves one out
+    static void Mirror(string from, string to, Func<string, bool> skip, CancellationToken cancel, string rel = "")
+    {
+        Directory.CreateDirectory(to);
+        foreach (var e in new DirectoryInfo(from).EnumerateFileSystemInfos("*", AllEntries))
+        {
+            cancel.ThrowIfCancellationRequested();
+            var path = rel.Length == 0 ? e.Name : Path.Combine(rel, e.Name);
+            if (skip(path)) continue;
+            var target = Path.Combine(to, e.Name);
+            if (e.LinkTarget is { } link)
+            {
+                if (e is DirectoryInfo) Directory.CreateSymbolicLink(target, link);
+                else File.CreateSymbolicLink(target, link);
+            }
+            else if (e is DirectoryInfo d) Mirror(d.FullName, target, skip, cancel, path);
+            else FileLinks.LinkOrCopy(e.FullName, target);
+        }
+    }
 
     /// Each part into tree (a Linux builder's), kept from another installed version when one has it, else downloaded and
     /// unpacked; recorded for the next version's reuse. The bar goes from start to 1 by the parts' bytes

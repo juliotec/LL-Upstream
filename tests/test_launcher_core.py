@@ -39,6 +39,9 @@ TRACKS = [
     ("nightly-2029", "stable"), ("nightly-2029-c544828", "stable"), ("nightly-2029-C544828F", "stable"),
     ("nightly-x-c544828f", "stable"), ("nightly-1234567890-c544828f", "stable"),
     ("v3.1.0-rc.1-3-g1a2b3c4", "stable"), ("v2.1.0-rc.1", "stable"), ("v2.0.7", "stable"),
+    # (a pull request's build: pr-<number>-<8 lowercase hex of its head>, on its own track; anything else is no version)
+    ("pr-222-1a2b3c4d", "pr"), ("pr-1-00000000", "pr"),
+    ("pr-0-1a2b3c4d", "stable"), ("pr-222-1A2B3C4D", "stable"), ("pr-222-1a2b3c4", "stable"), ("pr-222", "stable"),
 ]
 # newer, older (semver: a release candidate before its release, rc.N by number; nightlies by their count, a changed
 # checkout after the build of its commit)
@@ -54,6 +57,8 @@ UNORDERED = [
     ("nightly-2029-c544828f", "v3.1.0"), ("nightly-2029-c544828f", "v3.1.0-rc.3"), ("nightly-1-aaaaaaaa", "v3.0.1"),
     ("v3.1.0", "v2.9.0"), ("v3.0.0", "v2.2.0-rc.1"), ("v3.1.0-rc.3-248-gc544828f", "v3.1.0"),
     ("nightly-2029-c544828f", "dev"), ("v3.1.0", "dev"), ("nightly-2029-c544828f", "nightly"),
+    ("pr-222-bbbbbbbb", "pr-222-1a2b3c4d"), ("pr-223-1a2b3c4d", "pr-222-1a2b3c4d"), ("pr-222-1a2b3c4d", "nightly-2029-c544828f"),
+    ("pr-222-1a2b3c4d", "v3.1.0"),
 ]
 
 def vectors():

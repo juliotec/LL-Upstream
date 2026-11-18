@@ -37,6 +37,8 @@ public sealed class BuildItemViewModel : ViewModelBase
     public bool IsRelease => Channel == Versions.Stable;
     public bool IsCandidate => Channel == Versions.Candidate;
     public bool IsNightly => Channel == Versions.Nightly;
+    /// A pull request's build (pr-&lt;number&gt;-&lt;commit&gt;): its update is a newer push of the same pull request
+    public bool IsPullRequest => Channel == Versions.PullRequest;
     public bool IsDefault => Entry.Default;
     public bool IsBuilt { get; }
     public string? Update { get; }
@@ -49,6 +51,9 @@ public sealed class BuildItemViewModel : ViewModelBase
         {
             var bits = new List<string> { Tr.F("Built {0}", Durations.Day(Entry.Updated.LocalDateTime, DateTime.Now)) };
             if (!IsBuilt) bits.Add(Tr.T("not built"));
+            // (its pull request merged or closed since: Beanstalk lists only the open ones. The build stays until the player deletes it)
+            if (Versions.PullRequestOf(Entry.Version) is { } pr && home.Main.Service.Pulls != null && home.Main.Service.PullRequestOf(pr.Number) == null)
+                bits.Add(Tr.T("its pull request is closed"));
             if (Entry.Bytes is long b) bits.Add(Durations.Size(b));
             return string.Join(Tr.T(", "), bits);
         }
@@ -99,8 +104,19 @@ public sealed class VersionChoice(string tag) : ViewModelBase
     bool installed, hasUpdate;
     string note = "";
 
+    string? label;
+
     public string Tag => tag;
-    public string Shown => Versions.Shown(tag);
+    /// "Nightly 429 · 6112edb6"; a pull request's "#1558 · its title" once Beanstalk named it
+    public string Shown => label ?? Versions.Shown(tag);
+    public string? Label
+    {
+        get => label;
+        set
+        {
+            if (Set(ref label, value)) Raise(nameof(Shown));
+        }
+    }
     public bool Installed
     {
         get => installed;
@@ -161,6 +177,11 @@ public sealed class HomeViewModel : ViewModelBase
         NfcCommand = new Command(Main.ShowNfc);
         CancelLauncherUpdateCommand = new Command(() => UpdateLauncherCommand.Cancel());
         NotesDefaultCommand = new Command(() => { if (TrackUpdateItem is { } d) ShowNotes(d); });
+        ReadPullRequestCommand = new Command(() =>
+        {
+            if (Versions.PullRequestOf(TrackUpdateItem?.Update ?? pickTag) is { } n) Main.Host?.Open(PullRequests.PageOf(n.Number));
+        }, () => HasPickedPullRequest || TrackUpdateIsPullRequest);
+        FindPullRequestCommand = new Command(() => Main.Modal = new PullRequestFindViewModel(Main), () => CanStartBuild);
         LauncherNotesCommand = new Command(ShowLauncherNotes, () => HasLauncherUpdate);
         // (not while the launcher updates itself: a check forgets the update it is putting in place)
         CheckForUpdatesCommand = new Command(() =>
@@ -240,7 +261,8 @@ public sealed class HomeViewModel : ViewModelBase
     /// the dropdowns' items are made again on every Refresh, and found again by these
     string? pickTrack, pickTag;
 
-    public IReadOnlyList<TrackChoice> Tracks { get; } = ChannelPickerViewModel.All.Select(c => new TrackChoice(c.Id, c.Name)).ToList();
+    public IReadOnlyList<TrackChoice> Tracks { get; } = ChannelPickerViewModel.All.Select(c => new TrackChoice(c.Id, c.Name))
+        .Append(new TrackChoice(Versions.PullRequest, Tr.N("Pull request"))).ToList();
     public ObservableCollection<VersionChoice> TrackVersions { get; } = new();
     public bool HasTrackVersions => TrackVersions.Count > 0;
 
@@ -254,6 +276,8 @@ public sealed class HomeViewModel : ViewModelBase
             pickTrack = value.Id;
             pickTag = null;
             ShowPick();
+            // (the pull requests: asked of Beanstalk when the track is picked, not at every start)
+            if (pickTrack == Versions.PullRequest) _ = LoadPullRequestsAsync();
         }
     }
 
@@ -287,6 +311,8 @@ public sealed class HomeViewModel : ViewModelBase
     public string GoText => Plan switch
     {
         { Action: PickAction.Play } => Tr.T("Play"),
+        { Action: PickAction.Replace } p when IsPullRequestTrack => Tr.F("Switch to #{0}", Versions.PullRequestOf(p.Version)!.Value.Number),
+        { } p when IsPullRequestTrack => Tr.F("Build #{0}", Versions.PullRequestOf(p.Version)!.Value.Number),
         { Action: PickAction.Replace } p => Tr.F(p.Older ? "Go back to {0}" : "Update to {0}", Versions.Shown(p.Version)),
         { } p => Tr.F("Build {0}", Versions.Shown(p.Version)),
         _ => Tr.T("Play"),
@@ -311,6 +337,13 @@ public sealed class HomeViewModel : ViewModelBase
         {
             case { Action: PickAction.Play }:
                 if (HeroItem is { } h) Play(h);
+                break;
+            case { Action: PickAction.Replace, Build: { } b } p when IsPullRequestTrack:
+                // (another pull request in the place of the one installed: switching, in its folder, after the warnings)
+                AskPullRequest(p.Version, JobKind.Update, b);
+                break;
+            case { Action: PickAction.Build } p when IsPullRequestTrack:
+                AskPullRequest(p.Version, JobKind.Build, null);
                 break;
             case { Action: PickAction.Replace, Build: { } b } p:
                 // (in its folder, as Update does: the row then that version; an older one goes back, BuildJob.Older)
@@ -351,6 +384,11 @@ public sealed class HomeViewModel : ViewModelBase
             var build = versions[i].Build;
             item.Show(versions[i], defaultId != null && build?.Id == defaultId,
                       build != null && Builds.Any(x => x.Entry.Id == build.Id && x.HasUpdate));
+            if (Versions.PullRequestOf(versions[i].Tag) is { } number && Service.PullRequestOf(number.Number) is { } pr)
+            {
+                item.Label = pr.Title.Length > 0 ? $"#{pr.Number} \u00b7 {pr.Title}" : null;
+                if (item.Note.Length == 0) item.Note = pr.Approved ? Tr.T("approved") : pr.AuthorBigBean ? Tr.T("BigBean") : Tr.T("not approved");
+            }
         }
         Raise(nameof(HasTrackVersions));
         RaisePick();
@@ -359,7 +397,10 @@ public sealed class HomeViewModel : ViewModelBase
     void RaisePick()
     {
         RaiseAll(nameof(PickTrack), nameof(PickVersion), nameof(GoText), nameof(GoIsPlay), nameof(GoIsBuild), nameof(ShowRemove),
-                 nameof(HeroNote), nameof(HeroHasUpdate), nameof(PickHasUpdate), nameof(HasTrackUpdate), nameof(TrackUpdate));
+                 nameof(HeroNote), nameof(HeroHasUpdate), nameof(PickHasUpdate), nameof(HasTrackUpdate), nameof(TrackUpdate),
+                 nameof(IsPullRequestTrack), nameof(PickedPullRequest), nameof(HasPickedPullRequest), nameof(PullRequestTrust),
+                 nameof(PullRequestTrusted), nameof(PullRequestUntrusted), nameof(TrackUpdateIsPullRequest));
+        ReadPullRequestCommand.Changed();
         GoCommand.Changed();
         RemoveCommand.Changed();
         UpdateDefaultCommand.Changed();
@@ -369,6 +410,13 @@ public sealed class HomeViewModel : ViewModelBase
     /// DLSS."), the build a version replaces, or a new build's folder
     public string HeroNote => Plan switch
     {
+        null when IsPullRequestTrack => loadingPulls ? Tr.T("Asking Beanstalk for the pull requests…")
+            : Service.Pulls == null ? Tr.T("Beanstalk did not answer, so the pull requests are not known.")
+            : Tr.T("No pull request a BigBean wrote or approved is open. Find one by its number."),
+        { Action: PickAction.Replace, Build: { } b } p when IsPullRequestTrack => Tr.F("{0} is built from its source on this PC, in place of {1}, in its folder.",
+            Versions.Shown(p.Version), b.Version is { } v ? Versions.Shown(v) : b.Name),
+        { Action: PickAction.Build } when IsPullRequestTrack =>
+            Tr.T("Built from its source on this PC, in about 15 to 30 minutes, with the newest nightly's tools."),
         { Action: PickAction.Play } when HeroItem is { } d => Tr.F(d.IsDefault ? "Your default version. {0}." : "Installed. {0}.", BuildLine(d)),
         { Action: PickAction.Replace, Build: { } b } p => Tr.F(p.Older
             ? "{0} is built in place of {1}, in its folder. Update brings the newest back whenever you want it."
@@ -404,7 +452,79 @@ public sealed class HomeViewModel : ViewModelBase
         : Builds.Where(b => b.HasUpdate && !b.IsDeleting && VersionPick.TrackOf(b.Entry) == pickTrack).OrderByDescending(b => b.IsDefault).FirstOrDefault();
     public bool HasTrackUpdate => TrackUpdateItem != null;
     /// "Nightly 429 · 6112edb6 is out"
-    public string TrackUpdate => TrackUpdateItem is { Update: { } u } ? Tr.F("{0} is out", Versions.Shown(u)) : "";
+    public string TrackUpdate => TrackUpdateItem is { Update: { } u } ? Versions.PullRequestOf(u) is { } pr
+            ? Tr.F("#{0} has a newer push: {1}", pr.Number, pr.Commit)
+            : Tr.F("{0} is out", Versions.Shown(u)) : "";
+    /// The update opposite the title is a pull request's newer push: Read it, in place of What's new (it has no release notes)
+    public bool TrackUpdateIsPullRequest => TrackUpdateItem?.IsPullRequest == true;
+
+    // ---- the Pull request track (docs/pull-requests.md) ----
+
+    bool loadingPulls;
+
+    public bool IsPullRequestTrack => pickTrack == Versions.PullRequest;
+
+    /// The pull request picked, as Beanstalk lists it (null: none, or no longer open)
+    public PullRequest? PickedPullRequest =>
+        IsPullRequestTrack && Versions.PullRequestOf(pickTag) is { } n ? Service.PullRequestOf(n.Number) : null;
+    public bool HasPickedPullRequest => IsPullRequestTrack && Versions.IsPullRequest(pickTag);
+    public bool PullRequestTrusted => PickedPullRequest?.Trusted == true;
+    public bool PullRequestUntrusted => PickedPullRequest is { Trusted: false };
+    /// Under the button: who wrote it and whether a BigBean approved it, or that it is closed
+    public string PullRequestTrust => PickedPullRequest switch
+    {
+        { Approved: true } pr => Tr.F("by {0} · approved for the Test Farm", pr.Author),
+        { AuthorBigBean: true } pr => Tr.F("by {0}, a BigBean", pr.Author),
+        { } pr => Tr.F("by {0} · not approved by a BigBean", pr.Author),
+        null when HasPickedPullRequest && Service.Pulls != null => Tr.T("Its pull request is closed."),
+        _ => "",
+    };
+
+    /// Read: the pull request picked, on git.magicbean.dev
+    public Command ReadPullRequestCommand { get; }
+    /// Find a pull request…: by its number or link (PullRequestFindViewModel)
+    public Command FindPullRequestCommand { get; }
+
+    async Task LoadPullRequestsAsync()
+    {
+        if (loadingPulls) return;
+        loadingPulls = true;
+        RaisePick();
+        try { await Service.PullRequestsAsync(); }
+        finally
+        {
+            loadingPulls = false;
+            Refresh();
+        }
+    }
+
+    /// One the player found (PullRequestFindViewModel): the Pull request track, with it picked
+    public void PickPullRequest(PullRequest pr)
+    {
+        pickTrack = Versions.PullRequest;
+        // (its build when it is installed, at whichever push; else its head)
+        pickTag = Service.Registry.Builds.Select(b => b.Version).FirstOrDefault(v => Versions.PullRequestOf(v)?.Number == pr.Number) ?? pr.Tag;
+        ShowPick();
+    }
+
+    /// A pull request's build, after its warnings (PullRequestWarningViewModel): tag at its head, now (a newer push since the list
+    /// was read is refused by PullRequestSource, which says so)
+    void AskPullRequest(string tag, JobKind kind, BuildEntry? replaces)
+    {
+        if (Versions.PullRequestOf(tag) is not { } n) return;
+        // (a build of that very push again: the player agreed to its code already)
+        if (Service.Registry.Builds.FirstOrDefault(b => b.Version == tag) is { } same)
+        {
+            Main.StartWizard(JobKind.Rebuild, Versions.PullRequest, tag, same);
+            return;
+        }
+        if (Service.PullRequestOf(n.Number) is not { } pr)
+        {
+            Notice = Tr.F("#{0} is not open any more, or Beanstalk did not answer.", n.Number);
+            return;
+        }
+        Main.Modal = new PullRequestWarningViewModel(Main, new PullRequestBuild(pr, kind, replaces));
+    }
 
     /// "3 instances use 116.7 GB in D:\Games\Longshot."
     public string Footer
@@ -1059,6 +1179,12 @@ public sealed class HomeViewModel : ViewModelBase
     public void UpdateBuild(BuildItemViewModel b)
     {
         if (b.Update is not { } to) return;
+        // (a pull request's newer push: new code, so its warnings again; approval is pinned to a commit)
+        if (Versions.IsPullRequest(to))
+        {
+            AskPullRequest(to, JobKind.Update, b.Entry);
+            return;
+        }
         Main.StartWizard(JobKind.Update, b.Channel, to, b.Entry);
     }
 
