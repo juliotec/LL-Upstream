@@ -15,19 +15,20 @@ public static class Leftovers
     /// The game folders directly in buildsFolder that no build lists, with nothing of the player's left in them. Left out:
     ///   a link, or a folder that holds a build's folder or is in one (builds), or that holds the launcher's home (keep; a
     ///     portable launcher's builds folder is in its home, so a folder in it is no reason)
-    ///   one whose user/save still holds a save, or whose user/ or user/save is a link (the player's own arrangement): on Windows
-    ///     Saves.Gather takes the old folders' saves into the shared one at the start (renamed save.moved-*), so a folder whose
-    ///     saves were not taken in yet stays until they are
+    ///   one whose user/save still holds a save, or whose user/ or user/save is a link (the player's own arrangement; not the link
+    ///     Saves.LinkSaves made to the shared save, saves): on Windows Saves.Gather takes the old folders' saves into the shared one
+    ///     at the start (renamed save.moved-*, a link to the shared save in their place), so a folder whose saves were not taken in
+    ///     yet stays until they are
     ///   one whose mods/ holds anything: an update in a new folder left the player's mods behind in the old one
     /// (A build that stopped before its first finish left no stamp: no game folder, so not one of these. A finished one keeps
     /// make_game.py's .longshot_exefs and .longshot_romfs, the game files it read, so those say nothing here)
     ///   one the player chose to keep (kept)
     public static IReadOnlyList<Leftover> Find(string buildsFolder, IEnumerable<string> builds, Platform platform,
-                                               IEnumerable<string>? kept = null, IEnumerable<string>? keep = null)
+                                               IEnumerable<string>? kept = null, IEnumerable<string>? keep = null, SaveEnvironment? saves = null)
     {
         var listed = builds.ToList();
         return Unlisted(buildsFolder, listed, (keep ?? Array.Empty<string>()).ToList(), platform, (kept ?? Array.Empty<string>()).ToList(),
-                        dir => GameFolder.IsGameFolder(dir, platform) && PlayerLeftNothing(dir)
+                        dir => GameFolder.IsGameFolder(dir, platform) && PlayerLeftNothing(dir, saves)
                                && !NewestOfItsChannel(dir, GameFolder.Version(dir), listed, platform))
                .Select(f => new Leftover(f.Dir, f.Version)).ToList();
     }
@@ -149,13 +150,21 @@ public static class Leftovers
     static bool Taken(string dir, IReadOnlyList<string> builds, IReadOnlyList<string> homes) =>
         builds.Any(b => BuildRegistry.Holds(dir, b) || BuildRegistry.Holds(b, dir)) || homes.Any(h => BuildRegistry.Holds(dir, h));
 
-    /// Nothing of the player's in the folder: no save in user/save, neither user/ nor user/save a link, nothing in mods/
-    static bool PlayerLeftNothing(string dir)
+    /// Nothing of the player's in the folder: no save in user/save, neither user/ nor user/save a link (but the launcher's own to the
+    /// shared save), nothing in mods/
+    static bool PlayerLeftNothing(string dir, SaveEnvironment? saves)
     {
         var user = Path.Combine(dir, "user");
         var save = Path.Combine(user, "save");
-        if (IsLink(user) || IsLink(save)) return false;
+        if (IsLink(user)) return false;
+        // (the launcher's own link to the shared save, which Gather and LinkSaves leave in a folder, holds nothing of the player's)
+        if (IsLink(save)) return saves != null && Saves.LinksToShared(saves, save) && NoMods(dir);
         if (Directory.Exists(save) && Saves.Find(save).Count > 0) return false;   // (only save/: Gather leaves the ones it took in as save.moved-*)
+        return NoMods(dir);
+    }
+
+    static bool NoMods(string dir)
+    {
         var mods = Path.Combine(dir, "mods");
         if (IsLink(mods) || Directory.Exists(mods) && Directory.EnumerateFileSystemEntries(mods, "*", SearchOption.AllDirectories)
                                                                .Any(e => File.Exists(e))) return false;

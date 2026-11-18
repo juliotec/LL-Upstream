@@ -112,6 +112,28 @@ static partial class Program
             Directory.CreateSymbolicLink(Path.Combine(builds, "linked-game"), nightly);
             Require(Leftovers.Find(builds, Array.Empty<string>(), p).All(l => !l.Folder.EndsWith("linked-game", StringComparison.Ordinal)),
                     "A builds folder entry that is a link is not a leftover.");
+
+            // (the launcher's own link to the shared save, which a gather leaves where it took a save in (Saves.LinkSaves), holds nothing of
+            // the player's: the folder is offered as one whose save was renamed aside. A link to anywhere else is still the player's own)
+            var windows = new SaveEnvironment(Platform.Windows, k => k == "APPDATA" ? Folder("leftovers-appdata") : null);
+            var sharedSave = Path.Combine(windows.LongshotUser, "save");
+            Directory.CreateDirectory(sharedSave);
+            var own = Game("nightly-171-55555555");
+            Directory.CreateDirectory(Path.Combine(own, "user"));
+            Directory.CreateSymbolicLink(Path.Combine(own, "user", "save"), sharedSave);
+            var theirs = Game("nightly-172-66666666");
+            Directory.CreateDirectory(Path.Combine(theirs, "user"));
+            Directory.CreateSymbolicLink(Path.Combine(theirs, "user", "save"), Folder("leftovers-synced"));
+            var withMods = Game("nightly-173-77777777");
+            Directory.CreateDirectory(Path.Combine(withMods, "user"));
+            Directory.CreateSymbolicLink(Path.Combine(withMods, "user", "save"), sharedSave);
+            Write(Path.Combine(withMods, "mods", "texture-pack", "a.dds"));
+            var offered = Names(Leftovers.Find(builds, new[] { nightly }, p, saves: windows));
+            Require(offered.Contains("nightly-171-55555555", StringComparison.Ordinal) && !offered.Contains("nightly-172-66666666", StringComparison.Ordinal)
+                    && !offered.Contains("nightly-173-77777777", StringComparison.Ordinal),
+                    "A folder with the launcher's own link to the shared save is offered; the player's own link, and mods, keep one.");
+            Require(!Names(Leftovers.Find(builds, new[] { nightly }, p)).Contains("nightly-171-55555555", StringComparison.Ordinal),
+                    "Without the launcher's save folder to compare, a link is the player's own.");
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {

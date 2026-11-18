@@ -8,7 +8,8 @@ namespace LongshotLauncher.Core;
 /// paths with one identity are hard links of one file (a build's game files linked from another's: BuildRegistry.SameGameFiles)
 readonly record struct FileId(ulong Volume, ulong File);
 
-/// Hard links, which .NET has no call for: a part kept from another installed version takes no second copy on the same disk
+/// Hard links and junctions, which .NET has no call for: a part kept from another installed version takes no second copy on the
+/// same disk, and a game folder's user\save can be the shared save (Saves.LinkSaves)
 static class FileLinks
 {
     [DllImport("libc", EntryPoint = "link", SetLastError = true)]
@@ -143,6 +144,11 @@ static class FileLinks
     [return: MarshalAs(UnmanagedType.Bool)]
     static extern bool WindowsFileInfoEx(SafeFileHandle file, int infoClass, [Out] byte[] info, uint size);
 
+    [DllImport("kernel32.dll", EntryPoint = "DeviceIoControl", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    static extern bool WindowsControl(SafeFileHandle device, uint code, byte[] input, uint inputSize, IntPtr output, uint outputSize,
+                                      out uint returned, IntPtr overlapped);
+
     const uint FileListDirectory = 0x1, FileReadAttributes = 0x80, ShareAll = 0x7, OpenExisting = 3, BackupSemantics = 0x02000000;
     const int IdBothDirectoryInfo = 10, IdBothDirectoryRestartInfo = 11, ErrorNoMoreFiles = 18;
     [ThreadStatic] static byte[]? listBuffer;
@@ -202,6 +208,71 @@ static class FileLinks
             return info.VolumeSerial == id.Volume && (((ulong)info.IndexHigh << 32) | info.IndexLow) == id.File ? info.Links : 0;
         }
         catch (Exception e) when (e is DllNotFoundException or EntryPointNotFoundException or IOException or ArgumentException) { return 0; }
+    }
+
+    const uint GenericWrite = 0x40000000, ControlSetReparsePoint = 0x000900A4;
+
+    /// The data FSCTL_SET_REPARSE_POINT takes to make a junction to target (REPARSE_DATA_BUFFER, a mount point): its tag, the length
+    /// of what follows, the offset and length of the two names (the target as the system names it, \??\C:\..., then as it is shown,
+    /// C:\...), and the names, each ended by a zero. A junction names a folder of one of this PC's disks, in full
+    internal static byte[] JunctionData(string target)
+    {
+        var shown = Path.TrimEndingDirectorySeparator(Path.GetFullPath(target));
+        var system = Encoding.Unicode.GetBytes(@"\??\" + shown);
+        var print = Encoding.Unicode.GetBytes(shown);
+        var data = new byte[16 + system.Length + 2 + print.Length + 2];
+        BitConverter.TryWriteBytes(data.AsSpan(0), TagMountPoint);
+        BitConverter.TryWriteBytes(data.AsSpan(4), (ushort)(data.Length - 8));
+        BitConverter.TryWriteBytes(data.AsSpan(10), (ushort)system.Length);
+        BitConverter.TryWriteBytes(data.AsSpan(12), (ushort)(system.Length + 2));
+        BitConverter.TryWriteBytes(data.AsSpan(14), (ushort)print.Length);
+        system.CopyTo(data, 16);
+        print.CopyTo(data, 16 + system.Length + 2);
+        return data;
+    }
+
+    /// A link at link to the folder target, which is there: on Windows a junction (made by anyone, where a symbolic link needs a
+    /// privilege or Developer Mode), and a symbolic link where the disk gives none or elsewhere. False when none could be made;
+    /// nothing is left at link then
+    public static bool TryDirectoryLink(string link, string target)
+    {
+        try
+        {
+            if (OperatingSystem.IsWindows() && TryJunction(link, target)) return true;
+            Directory.CreateSymbolicLink(link, target);
+            return true;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException
+                                      or DllNotFoundException or EntryPointNotFoundException)
+        {
+            return false;
+        }
+    }
+
+    /// A junction at link: an empty folder there is given the reparse point. False when the folder is on a share, link is not
+    /// empty or on a disk with no reparse points, or Windows says no; the folder made is gone again then
+    static bool TryJunction(string link, string target)
+    {
+        var full = Path.GetFullPath(target);
+        if (full.StartsWith(@"\\", StringComparison.Ordinal)) return false;   // (a junction cannot name a share)
+        Directory.CreateDirectory(link);
+        var made = false;
+        try
+        {
+            using var handle = WindowsOpen(LongPath(Path.GetFullPath(link)), GenericWrite, ShareAll, IntPtr.Zero, OpenExisting,
+                                           BackupSemantics | OpenReparsePoint, IntPtr.Zero);
+            var data = JunctionData(full);
+            made = !handle.IsInvalid && WindowsControl(handle, ControlSetReparsePoint, data, (uint)data.Length, IntPtr.Zero, 0, out _, IntPtr.Zero);
+        }
+        finally
+        {
+            if (!made)
+            {
+                try { Directory.Delete(link); }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+            }
+        }
+        return made;
     }
 
     /// A Windows path past MAX_PATH as CreateFileW takes it (a romfs is deep): \\?\C:\..., \\?\UNC\server\share\...

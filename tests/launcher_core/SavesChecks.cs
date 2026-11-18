@@ -1,3 +1,4 @@
+using System.Text;
 using LongshotLauncher.Core;
 
 /// launcher/Core/Saves.cs over tests/test_longshot_saves.py's vectors (the same folders, the same expectations), so the launcher and
@@ -540,6 +541,8 @@ static class SavesChecks
         Require(Tree(c.Li) == Tree(c.Hs), "Export from Linux's shared save.");
         Gather(root);
         GatherSlots(root);
+        GatherLink(root);
+        LinkSavesChecks(root);
     }
 
     /// Every file of a folder written at that time
@@ -548,9 +551,19 @@ static class SavesChecks
         foreach (var f in Directory.EnumerateFiles(folder, "*", SearchOption.AllDirectories)) File.SetLastWriteTime(f, when);
     }
 
+    /// The merge checks below put a plain user\save in again after each start, as a build started on its own did before Gather left a
+    /// link there (issue 146's slots, merged): for them the link fails, as on a disk with no junctions, and the folder stays a plain
+    /// one. then is the check's own fault, if it has one
+    static Action<string> NoLink(Action<string>? then = null) => s =>
+    {
+        if (s == "link") throw new IOException("no junction on this disk");
+        then?.Invoke(s);
+    };
+
     static void Gather(string root)
     {
         // (Windows: the saves each build kept in its own folder, and the 2.x Builder's, into the one every build shares)
+        Saves.Fault = NoLink();
         var c = new Case(root, "gather");
         var builds = P(c.Home, "Games", "Longshot");   // (the 2.x Builder's game folder, the launcher's builds folder in it)
         var a = P(builds, "v3.0.0-rc.1");
@@ -612,9 +625,9 @@ static class SavesChecks
         // (a swap that fails: the shared save and the old one as they were, the backup kept)
         MakeSave(P(a, "user", "save", Uid), "A4");
         Age(P(a, "user", "save"), when.AddDays(1));
-        Saves.Fault = s => { if (s == "swap") throw new IOException("disk full"); };
+        Saves.Fault = NoLink(s => { if (s == "swap") throw new IOException("disk full"); });
         try { Fails(() => Saves.Gather(c.Windows, old, () => c.Busy, () => when.AddHours(3)), "Nothing was changed", "A gather that fails half way."); }
-        finally { Saves.Fault = null; }
+        finally { Saves.Fault = NoLink(); }
         Require(Tree(sharedSave) == kept && Directory.Exists(P(a, "user", "save")) && !Directory.Exists(P(c.Windows.LongshotUser, ".save.longshot-old")),
                 "After a failed gather: the shared save and the old one as they were.");
 
@@ -644,6 +657,7 @@ static class SavesChecks
             Require(Saves.Gather(c.Windows, new[] { P(linked, "user") }, () => c.Busy, () => when.AddHours(6)) == null
                     && Tree(sharedSave) == keptNow && Directory.Exists(P(linked, "user", "save")), "A linked save folder is never gathered nor renamed.");
         }
+        Saves.Fault = null;
     }
 
     /// One slot's files, as Tree gives them ("" when the slot is not there)
@@ -651,6 +665,7 @@ static class SavesChecks
 
     static void GatherSlots(string root)
     {
+        Saves.Fault = NoLink();
         // (issue #146: a gather merges slot by slot, and never over a slot of the shared save. The shared save has slots 1-3. An old
         // build's folder has a slot 2 saved later (an old build started on its own: a new game begun in that slot, or the same one
         // played on), a slot 5 the shared one lacks, and a slot 1 saved at the same time as the shared one's. The shared slots stay;
@@ -836,10 +851,234 @@ static class SavesChecks
         var (keptShared, backedUp) = (Tree(sharedSave), Directory.EnumerateFiles(sharedSave, "*", SearchOption.AllDirectories).Count()
                                                         + Directory.EnumerateFiles(P(h, "user", "save"), "*", SearchOption.AllDirectories).Count());
         var copied = 0;
-        Saves.Fault = s => { if (s == "file" && ++copied > backedUp) throw new IOException("disk full"); };
+        Saves.Fault = NoLink(s => { if (s == "file" && ++copied > backedUp) throw new IOException("disk full"); });
         try { Fails(() => Saves.Gather(c.Windows, Saves.OldUserFolders(c.Windows, new[] { h }, null), () => c.Busy, () => when.AddHours(2)), "Nothing was changed", "A merge that fails while it copies."); }
-        finally { Saves.Fault = null; }
+        finally { Saves.Fault = NoLink(); }
         Require(copied > backedUp && Tree(sharedSave) == keptShared && Directory.Exists(P(h, "user", "save"))
                 && !Directory.Exists(P(c.Windows.LongshotUser, ".save.longshot-staging")), "After a merge that failed while copying: everything as it was.");
+        Saves.Fault = null;
+    }
+
+    static void GatherLink(string root)
+    {
+        // (Longshot#639: a build started on its own, without --user, keeps its saves in its own folder's user\save. The launcher's start
+        // took them in and renamed the folder aside, so that game found no save, began a new one there, and the next start of the launcher
+        // took that in and moved it again: every start moved the folder. The folder taken in is now a link to the shared save, so the
+        // game started on its own plays the same adventure, and the next start finds nothing to take in)
+        var c = new Case(root, "gather-link");
+        var build = P(c.Home, "Games", "Longshot", "nightly-170-6c9edffe");
+        var user = P(build, "user");
+        var ownSave = P(user, "save");
+        var sharedSave = P(c.Windows.LongshotUser, "save");
+        var when = new DateTime(2026, 11, 17, 12, 0, 0);
+        MakeSave(P(ownSave, Uid), "OUT", "slot_00", "slot_01");
+        Age(ownSave, when.AddDays(-1));
+        var played = Tree(ownSave);
+        var old = Saves.OldUserFolders(c.Windows, new[] { build }, null);
+
+        var g = Saves.Gather(c.Windows, old, () => c.Busy, () => when)!;
+        var aside = P(user, "save.moved-20261117-120000");
+        Require(g.Moved.SequenceEqual(old) && Tree(aside) == played && Tree(sharedSave) == played,
+                "Taken in as before: the shared save has it, the folder is renamed aside, nothing is deleted.");
+        Require(new DirectoryInfo(ownSave).LinkTarget != null && Tree(ownSave) == played,
+                "user\\save is then a link to the shared save: a game started on its own finds the saves there.");
+
+        Require(LauncherLog.Tail(6).Any(l => l.Contains(" saves link: ", StringComparison.Ordinal) && l.Contains("is now a link to", StringComparison.Ordinal)
+                                             && l.Contains(Privacy.Scrub(sharedSave), StringComparison.Ordinal)),
+                "The link is in the launcher's log: " + string.Join(" | ", LauncherLog.Tail(6)));
+
+        // (that game plays on and saves, through the link)
+        var progress = P(sharedSave, Uid, "slot_00", "progress.sav");
+        File.WriteAllText(P(ownSave, Uid, "slot_00", "progress.sav"), "played on");
+        Require(File.ReadAllText(progress) == "played on", "What the game started on its own saves is the shared save.");
+
+        // (the launcher's next starts: nothing to take in, nothing moved, whatever the game saved meanwhile)
+        var entries = Directory.EnumerateFileSystemEntries(user).Order(StringComparer.Ordinal).ToList();
+        for (var start = 1; start <= 3; start++)
+            Require(Saves.Gather(c.Windows, old, () => c.Busy, () => when.AddHours(start)) == null
+                    && Directory.EnumerateFileSystemEntries(user).Order(StringComparer.Ordinal).SequenceEqual(entries)
+                    && Tree(aside) == played && File.ReadAllText(progress) == "played on" && Directory.GetDirectories(c.Windows.BackupRoot).Length == 1,
+                    $"Start {start} of the launcher moves nothing: the game's folder as it was, one backup only, the saves as the game left them.");
+
+        Require(Saves.SaveIn(build) == null && Saves.LinksToShared(c.Windows, ownSave) && !Saves.LinksToShared(c.Windows, aside),
+                "A linked user\\save is not a save the folder holds itself (so Delete backs nothing up), and is the launcher's own link to the shared save.");
+
+        // (a link that cannot be made, a drive with no junctions: what a gather always left, the folder renamed aside)
+        var d = new Case(root, "gather-nolink");
+        var plain = P(d.Home, "Games", "Longshot", "nightly-170-6c9edffe", "user");
+        MakeSave(P(plain, "save", Uid), "OUT");
+        var plainTree = Tree(P(plain, "save"));
+        Saves.Fault = s => { if (s == "link") throw new IOException("no junction on this drive"); };
+        SaveGathered? plainGather;
+        try { plainGather = Saves.Gather(d.Windows, Saves.OldUserFolders(d.Windows, new[] { Path.GetDirectoryName(plain)! }, null), () => d.Busy, () => when); }
+        finally { Saves.Fault = null; }
+        Require(plainGather is { Moved.Count: 1 } && !Directory.Exists(P(plain, "save")) && Tree(P(plain, "save.moved-20261117-120000")) == plainTree
+                && Tree(P(d.Windows.LongshotUser, "save")) == plainTree, "A link that cannot be made leaves the gather as it was: taken in, renamed aside, nothing failed.");
+    }
+
+    static bool IsLink(string path) => new DirectoryInfo(path).LinkTarget != null;
+
+    static void LinkSavesChecks(string root)
+    {
+        // (Saves.LinkSaves: the link a gather leaves where it took a save in, made too where a game folder has no user\save, or one with no
+        // save in it, so that a build started on its own reads the shared saves from its first start)
+        var c = new Case(root, "link-saves");
+        var when = new DateTime(2026, 11, 17, 13, 0, 0);
+        var sharedSave = P(c.Windows.LongshotUser, "save");
+        string Game(string name)
+        {
+            var dir = P(c.Home, "Games", "Longshot", name);
+            Directory.CreateDirectory(dir);
+            File.WriteAllText(P(dir, GameFolder.StampName), $"version={name}\n");
+            return dir;
+        }
+        IReadOnlyList<string> Link(SaveEnvironment env, params string[] folders) => Saves.LinkSaves(env, folders, () => c.Busy, () => when);
+
+        // (no user\save: the link is made, and the shared save folder with it; what the game writes there is the shared save)
+        var fresh = Game("nightly-170-6c9edffe");
+        var link = P(fresh, "user", "save");
+        Require(Link(c.Windows, fresh).SequenceEqual(new[] { fresh }) && IsLink(link) && Saves.LinksToShared(c.Windows, link) && Directory.Exists(sharedSave),
+                "A game folder with no user\\save is given the link, and the shared save folder is there.");
+        MakeSave(P(link, Uid), "NEW", "slot_00");
+        Require(Tree(sharedSave) == Tree(P(link)) && File.Exists(P(sharedSave, Uid, "slot_00", "progress.sav")),
+                "A save the game makes through the link is in the shared save.");
+        Require(Link(c.Windows, fresh).Count == 0 && IsLink(link), "Done once: the second start makes nothing.");
+
+        // (a folder that is no game folder, and a folder that is not there: untouched)
+        var photos = P(c.Home, "Games", "Longshot", "photos");
+        Directory.CreateDirectory(photos);
+        Require(Link(c.Windows, photos, P(c.Home, "nowhere")).Count == 0 && !Directory.Exists(P(photos, "user")) && !Directory.Exists(P(c.Home, "nowhere")),
+                "A folder that is not a game folder, or not there, is left alone.");
+
+        // (only on Windows)
+        var onLinux = Game("v3.1.0");
+        Require(Link(c.Linux, onLinux).Count == 0 && !Directory.Exists(P(onLinux, "user")), "Nothing on Linux, where the game shares the saves itself.");
+
+        // (a folder with the game's own options and no save: set aside, nothing deleted, then the link)
+        var options = Game("nightly-171-7a7a7a7a");
+        Directory.CreateDirectory(P(options, "user", "save", Uid));
+        File.WriteAllText(P(options, "user", "save", Uid, "option.sav"), "options only");
+        Require(Link(c.Windows, options).Count == 1 && IsLink(P(options, "user", "save"))
+                && File.ReadAllText(P(options, "user", "save.moved-20261117-130000", Uid, "option.sav")) == "options only"
+                && File.ReadAllText(P(sharedSave, Uid, "option.sav")) == "option-NEW",
+                "A folder with no save in it, only the game's options, is renamed aside and given the link; the shared save's own options stay.");
+
+        Require(LauncherLog.Tail(4).Any(l => l.Contains(" saves link: ", StringComparison.Ordinal) && l.Contains("what was there is renamed", StringComparison.Ordinal)
+                                             && l.Contains("save.moved-20261117-130000", StringComparison.Ordinal)),
+                "What was set aside is in the launcher's log: " + string.Join(" | ", LauncherLog.Tail(4)));
+
+        // (an empty one: replaced, nothing to set aside)
+        var empty = Game("nightly-172-8b8b8b8b");
+        Directory.CreateDirectory(P(empty, "user", "save"));
+        Require(Link(c.Windows, empty).Count == 1 && IsLink(P(empty, "user", "save")) && Directory.GetDirectories(P(empty, "user"), "save.moved-*").Length == 0,
+                "An empty user\\save is replaced by the link.");
+
+        // (a save in it: the gather's to take in, not the link's; the player's own links stay)
+        var held = Game("nightly-173-9c9c9c9c");
+        MakeSave(P(held, "user", "save", Uid), "HELD");
+        var heldTree = Tree(P(held, "user", "save"));
+        var synced = P(c.Tmp, "synced-saves");
+        Directory.CreateDirectory(synced);
+        var theirs = Game("nightly-174-adadadad");
+        Directory.CreateDirectory(P(theirs, "user"));
+        Directory.CreateSymbolicLink(P(theirs, "user", "save"), synced);
+        var userLink = Game("nightly-175-bebebebe");
+        Directory.CreateSymbolicLink(P(userLink, "user"), synced);
+        Require(Link(c.Windows, held, theirs, userLink).Count == 0 && Tree(P(held, "user", "save")) == heldTree && !IsLink(P(held, "user", "save"))
+                && Path.GetFullPath(new DirectoryInfo(P(theirs, "user", "save")).LinkTarget!) == Path.GetFullPath(synced) && !Directory.Exists(P(userLink, "user", "save.moved-20261117-130000")),
+                "A folder with a save in it, a link of the player's own, and a user\\ that is a link are left alone.");
+        Require(!Saves.LinksToShared(c.Windows, P(theirs, "user", "save")), "The player's own link is not the launcher's.");
+
+        // (a game folder whose user\save is the shared save itself, a portable launcher put beside its game: never made a link to itself)
+        var inside = Game("nightly-181-b4b4b4b4");
+        var itself = c.Windows with { UserFolder = P(inside, "user") };
+        Directory.CreateDirectory(P(inside, "user", "save", Uid));
+        File.WriteAllText(P(inside, "user", "save", Uid, "option.sav"), "options only");
+        var insideTree = Tree(P(inside, "user", "save"));
+        Require(Link(itself, inside).Count == 0 && !IsLink(P(inside, "user", "save")) && Tree(P(inside, "user", "save")) == insideTree
+                && Directory.GetDirectories(P(inside, "user"), "save.moved-*").Length == 0,
+                "A game folder whose user\\save is the shared save itself is left alone: never set aside, never a link to itself.");
+        Directory.Delete(P(inside, "user", "save"), true);
+        Require(Link(itself, inside).Count == 0 && !IsLink(P(inside, "user", "save")), "Nor made where the shared save is yet to be.");
+
+        // (the shared save gone: the link names nothing now; its folder is made again, the link stays)
+        Directory.Delete(sharedSave, true);
+        Require(!Directory.Exists(link) && Link(c.Windows, fresh).Count == 0 && Directory.Exists(sharedSave) && Directory.Exists(link) && IsLink(link),
+                "A link whose shared save folder is gone: the folder is made again, the link kept.");
+
+        // (never while Longshot runs, nor against another launcher's gather; no error)
+        var busy = Game("nightly-176-cfcfcfcf");
+        Require(Saves.LinkSaves(c.Windows, new[] { busy }, () => new[] { "Longshot" }, () => when).Count == 0 && !Directory.Exists(P(busy, "user")),
+                "Not while Longshot runs: the next start tries again.");
+        Saves.GatherWait = TimeSpan.FromMilliseconds(100);
+        try
+        {
+            using (Saves.HoldGatherLock(c.Windows))
+                Require(Link(c.Windows, busy).Count == 0 && !Directory.Exists(P(busy, "user")), "Another gather holds the lock: nothing is changed, nothing fails.");
+        }
+        finally { Saves.GatherWait = TimeSpan.FromSeconds(10); }
+        Require(Link(c.Windows, busy).Count == 1 && IsLink(P(busy, "user", "save")), "And the next start makes it.");
+
+        // (a link that cannot be made: what was there stays, no error; a folder set aside for it stays set aside)
+        var failing = Game("nightly-177-d0d0d0d0");
+        Directory.CreateDirectory(P(failing, "user", "save", Uid));
+        File.WriteAllText(P(failing, "user", "save", Uid, "option.sav"), "options only");
+        Saves.Fault = NoLink();
+        try { Require(Link(c.Windows, failing).Count == 0 && !Directory.Exists(P(failing, "user", "save")), "A link that cannot be made is not an error."); }
+        finally { Saves.Fault = null; }
+        Require(LauncherLog.Tail(3).Any(l => l.Contains(" saves link: no link could be made at ", StringComparison.Ordinal) && l.Contains("stays renamed", StringComparison.Ordinal)),
+                "A link that could not be made is in the launcher's log: " + string.Join(" | ", LauncherLog.Tail(3)));
+        Require(File.ReadAllText(P(failing, "user", "save.moved-20261117-130000", Uid, "option.sav")) == "options only", "What was set aside is still there.");
+        Require(Link(c.Windows, failing).Count == 1 && IsLink(P(failing, "user", "save")), "The next start makes the link where the folder was set aside.");
+
+        // (a portable launcher's link: its folder moved, so the link names nothing; made again at the new place. A link of the player's own that
+        // names nothing, such as a synced folder on a drive that is out, is not touched)
+        var before = c.Windows with { UserFolder = P(c.Tmp, "portable-before", LauncherLayout.PortableData, "user") };
+        var portable = Game("nightly-178-e1e1e1e1");
+        Require(Link(before, portable).Count == 1 && Saves.LinksToShared(before, P(portable, "user", "save")), "A portable launcher's link names its own user folder.");
+        Directory.Delete(P(c.Tmp, "portable-before"), true);
+        var after = c.Windows with { UserFolder = P(c.Tmp, "portable-after", LauncherLayout.PortableData, "user") };
+        var away = Game("nightly-179-f2f2f2f2");
+        Directory.CreateDirectory(P(away, "user"));
+        Directory.CreateSymbolicLink(P(away, "user", "save"), P(c.Tmp, "drive-out", "Longshot-saves"));
+        Require(!Directory.Exists(P(portable, "user", "save")) && Link(after, portable, away).SequenceEqual(new[] { portable })
+                && Saves.LinksToShared(after, P(portable, "user", "save")) && Directory.Exists(P(portable, "user", "save"))
+                && !Directory.Exists(P(away, "user", "save")) && Path.GetFullPath(new DirectoryInfo(P(away, "user", "save")).LinkTarget!) == Path.GetFullPath(P(c.Tmp, "drive-out", "Longshot-saves")),
+                "A portable launcher's link whose folder moved is made again at the new place; a dangling link of the player's own is left.");
+
+        // (what a delete does with it: the link goes, never the save it names)
+        var gone = Game("nightly-180-a3a3a3a3");
+        MakeSave(P(sharedSave, Uid), "KEPT");
+        Link(c.Windows, gone);
+        var kept = Tree(sharedSave);
+        BuildRegistry.DeleteFolder(gone, Platform.Windows, null, null, c.Windows);
+        Require(!Directory.Exists(gone) && Tree(sharedSave) == kept && kept != "", "Deleting a folder that holds the link takes the link and never the save it names.");
+
+        // (a link that names something other than the shared save, as a junction made wrong would: taken away again, the folder as it was)
+        var wrong = Game("nightly-182-c5c5c5c5");
+        var elsewhere = P(c.Tmp, "elsewhere");
+        Directory.CreateDirectory(elsewhere);
+        Saves.LinkMaker = (l, _) => FileLinks.TryDirectoryLink(l, elsewhere);
+        try
+        {
+            Require(Link(c.Windows, wrong).Count == 0 && !Directory.Exists(P(wrong, "user", "save")) && !IsLink(P(wrong, "user", "save")),
+                    "A link that does not name the shared save is taken away again.");
+        }
+        finally { Saves.LinkMaker = null; }
+        Require(Directory.Exists(elsewhere) && Link(c.Windows, wrong).Count == 1 && Saves.LinksToShared(c.Windows, P(wrong, "user", "save")),
+                "What it named stays, and the next start makes the right link.");
+
+        // (the junction's data, as FSCTL_SET_REPARSE_POINT takes it: the tag, the length after the header, the two names with their zeros)
+        var data = FileLinks.JunctionData(P(c.Tmp, "target", "save") + Path.DirectorySeparatorChar);
+        var shown = Path.GetFullPath(P(c.Tmp, "target", "save"));
+        var system = Encoding.Unicode.GetBytes(@"\??\" + shown);
+        var print = Encoding.Unicode.GetBytes(shown);
+        Require(BitConverter.ToUInt32(data, 0) == 0xA0000003 && BitConverter.ToUInt16(data, 4) == data.Length - 8 && BitConverter.ToUInt16(data, 6) == 0
+                && BitConverter.ToUInt16(data, 8) == 0 && BitConverter.ToUInt16(data, 10) == system.Length
+                && BitConverter.ToUInt16(data, 12) == system.Length + 2 && BitConverter.ToUInt16(data, 14) == print.Length
+                && data.Length == 16 + system.Length + 2 + print.Length + 2
+                && data.AsSpan(16, system.Length).SequenceEqual(system) && data[16 + system.Length] == 0 && data[17 + system.Length] == 0
+                && data.AsSpan(16 + system.Length + 2, print.Length).SequenceEqual(print) && data[^1] == 0 && data[^2] == 0,
+                "The junction's reparse data: a mount point, the target as the system and the player name it, each ended by a zero.");
     }
 }

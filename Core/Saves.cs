@@ -731,11 +731,14 @@ public static class Saves
     /// is told which of each (SaveGathered.Slots). Every one of them is backed up whole
     /// first, in one folder (&lt;backups&gt;/gather-&lt;yyyyMMdd-HHmmss&gt;/&lt;name&gt;); the merge is made beside the shared save\ and
     /// takes its place by two renames, so a failure leaves it as it was; and each old folder's save\ is then renamed
-    /// save.moved-&lt;stamp&gt;, so the game does not find it there again and nothing is deleted. An old folder
+    /// save.moved-&lt;stamp&gt;, so that nothing is deleted, and made a link to the shared save in its place (Longshot#639): a game
+    /// started on its own, without --user, keeps its save in that folder, and finds the shared one there instead of none, so that
+    /// no start of the launcher takes that folder in again and moves it. An old folder
     /// that is a link, or holds one as its user\ or save\ (a player's own synced folder, or the shared one itself), is the
     /// player's own arrangement and is left alone. Null when no old folder has a save, or while Longshot runs (the next start
     /// tries again). A failure changes nothing (SaveFailure). An old save that cannot be renamed (a file in use) is taken in
-    /// again at the next start, where its slots are the same as the shared one's and change nothing
+    /// again at the next start, where its slots are the same as the shared one's and change nothing; a link that cannot be made
+    /// (a disk with no junctions) leaves the folder renamed, as it was before links, and LinkSaves tries again
     public static SaveGathered? Gather(SaveEnvironment env, IReadOnlyList<string> oldUsers, Func<IReadOnlyList<string>>? running = null,
                                        Func<DateTime>? now = null)
     {
@@ -848,7 +851,10 @@ public static class Saves
                 Directory.Move(System.IO.Path.Combine(u, "save"), to);
                 moved.Add(u);
             }
-            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { continue; }
+            var link = System.IO.Path.Combine(u, "save");
+            LauncherLog.Add(MakeLink(link, sharedSave) ? $"saves link: {link} is now a link to {sharedSave}, the shared save"
+                                                       : $"saves link: no link could be made at {link}; the folder stays renamed aside");
         }
         var movedSlots = slots.Where(s => s.MovedTo != null).Select(s => $"{s.Profile}/{s.Slot} of {s.From} to {s.MovedTo}").ToList();
         var leftSlots = slots.Where(s => s.Left).Select(s => $"{s.Profile}/{s.Slot} of {s.From}{(s.Older ? " (older)" : "")}").ToList();
@@ -861,6 +867,160 @@ public static class Saves
                         + (moved.Count > 0 ? $"; old saves renamed save.moved-{stamp}(-n) in {string.Join(", ", moved)}" : "")
                         + (moved.Count < old.Count ? $"; not renamed (a file in use, or refused): {string.Join(", ", old.Except(moved))}" : ""));
         return new SaveGathered(kept.User, kept.User == shared, moved, backup, slots);
+    }
+
+    // ---- Windows: a build started on its own finds the shared save ----
+
+    /// What a link at path points at as written, whether that is there or not; null when path is no link
+    static string? LinkText(string path)
+    {
+        try { return new DirectoryInfo(path).LinkTarget; }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return null; }
+    }
+
+    /// The folder a link at path names, in full (a relative link is read from the folder that holds it; a junction's text may keep
+    /// the system's \??\ in front on Windows); null: path is no link
+    static string? LinkedTo(string path)
+    {
+        if (LinkText(path) is not { Length: > 0 } text) return null;
+        if (OperatingSystem.IsWindows() && text.StartsWith(@"\??\", StringComparison.Ordinal)) text = text[4..];
+        return System.IO.Path.GetFullPath(text, System.IO.Path.GetDirectoryName(System.IO.Path.GetFullPath(path)) ?? "");
+    }
+
+    static bool SamePath(string a, string b) =>
+        string.Equals(System.IO.Path.TrimEndingDirectorySeparator(System.IO.Path.GetFullPath(a)),
+                      System.IO.Path.TrimEndingDirectorySeparator(System.IO.Path.GetFullPath(b)),
+                      OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
+
+    /// path is a link to the shared save of env (the launcher's own, not one the player made to a place of their own)
+    public static bool LinksToShared(SaveEnvironment env, string path) =>
+        LinkedTo(path) is { } target && SamePath(target, System.IO.Path.Combine(env.LongshotUser, "save"));
+
+    /// The link at path taken away, whether what it names is there or not (Unix says no such folder to Directory.Delete for a link
+    /// to nothing); what it names stays
+    static void RemoveLink(string path)
+    {
+        try { Directory.Delete(path); }
+        catch (DirectoryNotFoundException) when (LinkText(path) != null) { File.Delete(path); }
+    }
+
+    /// The tests' way to make a link that names something else, as a junction made wrong would; null: FileLinks.TryDirectoryLink
+    internal static Func<string, string, bool>? LinkMaker { get; set; }
+
+    /// A link at link to the shared save, made best effort and checked: it names the shared save and what it names can be read, else
+    /// it is taken away again (a link that names anything else would send a game's saves there). False when none was made (the
+    /// caller leaves the folder as it was)
+    static bool MakeLink(string link, string sharedSave)
+    {
+        try
+        {
+            Directory.CreateDirectory(sharedSave);
+            Fault?.Invoke("link");
+            if (!(LinkMaker ?? FileLinks.TryDirectoryLink)(link, sharedSave)) return false;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return false; }
+        if (Directory.Exists(link) && (LinkedTo(link) is { } named && SamePath(named, sharedSave) || SamePath(Real(link), Real(sharedSave)))) return true;
+        try { RemoveLink(link); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+        return false;
+    }
+
+    enum LinkPlan { Nothing, Heal, Make, Aside, Empty, Repoint }
+
+    /// What LinkSaves does with a game folder's user\save: Nothing; Heal, the shared save the link names is gone; Make the link
+    /// where there is no folder; Aside, then Make, where a folder with no save in it is (the game's own options, say); Empty
+    /// where an empty one is; Repoint a portable launcher's link whose folder has moved, so that it names nothing now
+    static LinkPlan PlanLink(string gameFolder, string sharedSave)
+    {
+        var user = System.IO.Path.Combine(gameFolder, "user");
+        var save = System.IO.Path.Combine(user, "save");
+        if (LinkText(user) != null) return LinkPlan.Nothing;   // (user\ itself a link: the player's own arrangement)
+        // (the shared save itself, or a folder in it or holding it, is never made a link: a game folder whose user\save is the shared one)
+        if (LinkText(save) == null && (Inside(Real(sharedSave), Real(save)) || Inside(Real(save), Real(sharedSave)))) return LinkPlan.Nothing;
+        if (LinkedTo(save) is { } target)
+        {
+            if (SamePath(target, sharedSave)) return Directory.Exists(sharedSave) ? LinkPlan.Nothing : LinkPlan.Heal;
+            // (a portable launcher's folder moved: its link names the shared save where it was, which is not there now; any other
+            // link is the player's own)
+            var tail = System.IO.Path.DirectorySeparatorChar + LauncherLayout.PortableData + System.IO.Path.DirectorySeparatorChar + "user"
+                       + System.IO.Path.DirectorySeparatorChar + "save";
+            return !Directory.Exists(save) && target.Replace('/', System.IO.Path.DirectorySeparatorChar).EndsWith(tail, StringComparison.OrdinalIgnoreCase)
+                ? LinkPlan.Repoint : LinkPlan.Nothing;
+        }
+        if (File.Exists(save)) return LinkPlan.Nothing;
+        if (!Directory.Exists(save)) return LinkPlan.Make;
+        if (HasSave(user)) return LinkPlan.Nothing;   // (a save no gather has taken in yet: it comes first, and the folder is not ours to take)
+        return Directory.EnumerateFileSystemEntries(save).Any() ? LinkPlan.Aside : LinkPlan.Empty;
+    }
+
+    /// (Windows) Each game folder's user\save made a link to the shared save, so that a build started on its own, without --user,
+    /// reads and writes the shared saves instead of a folder of its own that the launcher would take in and move at its next start
+    /// (Longshot#639; Gather makes the link where it renames a save aside). Where there is no user\save the link is made; where
+    /// there is a folder with no save in it (the game's own options, say) it is renamed save.moved-&lt;stamp&gt; first and nothing is
+    /// deleted; a link of a portable launcher whose folder moved is made again; a link the player made, a user\ that is a link, a
+    /// folder with a save in it (Gather's to take in) and anything that is not a game folder are left alone. Nothing is done while
+    /// Longshot runs, or when another launcher holds the gather lock: the next start tries again. Best effort: what cannot be done
+    /// is left as it was, with no error. The folders linked
+    public static IReadOnlyList<string> LinkSaves(SaveEnvironment env, IEnumerable<string> gameFolders, Func<IReadOnlyList<string>>? running = null,
+                                                  Func<DateTime>? now = null)
+    {
+        var linked = new List<string>();
+        if (env.Platform != Platform.Windows) return linked;
+        var sharedSave = System.IO.Path.Combine(env.LongshotUser, "save");
+        var folders = new List<string>();
+        foreach (var folder in gameFolders)
+        {
+            try
+            {
+                var full = System.IO.Path.GetFullPath(folder);
+                if (!folders.Contains(full, StringComparer.OrdinalIgnoreCase) && GameFolder.IsGameFolder(full, env.Platform)
+                    && PlanLink(full, sharedSave) != LinkPlan.Nothing) folders.Add(full);
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException) { }
+        }
+        if (folders.Count == 0) return linked;
+        if ((running ?? (() => Running(Platforms.Current)))().Any(n => n.Contains(Longshot.Display, StringComparison.Ordinal))) return linked;
+        FileStream held;
+        try { held = HoldGatherLock(env); }
+        catch (Exception e) when (e is SaveFailure or IOException or UnauthorizedAccessException) { return linked; }
+        using var _ = held;
+        var stamp = (now ?? (() => DateTime.Now))().ToString("yyyyMMdd-HHmmss", System.Globalization.CultureInfo.InvariantCulture);
+        foreach (var folder in folders)
+        {
+            try
+            {
+                var save = System.IO.Path.Combine(folder, "user", "save");
+                var plan = PlanLink(folder, sharedSave);   // (again, now that no other launcher is changing it)
+                string? setAside = null;
+                switch (plan)
+                {
+                    case LinkPlan.Nothing: continue;
+                    case LinkPlan.Heal:
+                        Directory.CreateDirectory(sharedSave);
+                        LauncherLog.Add($"saves link: the shared save {sharedSave}, which {save} names, was gone and is made again");
+                        continue;
+                    case LinkPlan.Repoint: RemoveLink(save); break;   // (the link that names nothing goes: what it named is not there)
+                    case LinkPlan.Empty: DeleteTree(save); break;
+                    case LinkPlan.Aside:
+                        var to = save + ".moved-" + stamp;
+                        for (var n = 2; Directory.Exists(to) || File.Exists(to); n++) to = $"{save}.moved-{stamp}-{n}";
+                        Fault?.Invoke("rename");
+                        Directory.Move(save, to);
+                        setAside = to;
+                        break;
+                }
+                Directory.CreateDirectory(System.IO.Path.GetDirectoryName(save)!);
+                if (MakeLink(save, sharedSave))
+                {
+                    linked.Add(folder);
+                    LauncherLog.Add($"saves link: {save} is now a link to {sharedSave}, the shared save"
+                                    + (plan == LinkPlan.Repoint ? "; the link before named a folder that is gone" : setAside != null ? $"; what was there is renamed {setAside}" : ""));
+                }
+                else LauncherLog.Add($"saves link: no link could be made at {save}" + (setAside != null ? $"; what was there stays renamed {setAside}" : ""));
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+        }
+        return linked;
     }
 
     /// When a slot was last saved: its progress.sav's time (DateTime.MinValue when it has none, or an empty one: never the newest)

@@ -301,6 +301,8 @@ public sealed class LauncherService
     public string? PlayFolder(string folder)
     {
         var said = GatherSaid(GatherSaves());
+        // (a folder named by --play that no list holds: its user\save the shared save too)
+        if (Platform == Platform.Windows) Saves.LinkSaves(SaveEnv, new[] { folder });
         var user = GamePlay.UserFolder(SaveEnv, folder);
         if (user != null)
         {
@@ -387,15 +389,19 @@ public sealed class LauncherService
     public static string? GatherSaid((SaveGathered? Done, string? Problem) g) =>
         g.Done != null ? SaveText.Gathered(g.Done) : g.Problem != null ? Tr.F("Your saves were not brought together: {0}", g.Problem) : null;
 
-    /// (Windows) The saves the builds kept in their own folders (BuildFolders) brought into the shared one (Saves.Gather): when
-    /// the window opens and before a game starts. Done: what it did (null: nothing to bring, or Longshot runs); Problem: why it
-    /// could not, with nothing changed
+    /// (Windows) The saves the builds kept in their own folders (BuildFolders) brought into the shared one (Saves.Gather), and each
+    /// build's user\save made a link to it (Saves.LinkSaves), so that a build started on its own, without --user, finds the shared
+    /// saves and the next start has nothing to move: when the window opens and before a game starts. Done: what the gather did
+    /// (null: nothing to bring, or Longshot runs); Problem: why it could not, with nothing changed
     public (SaveGathered? Done, string? Problem) GatherSaves()
     {
         if (Platform != Platform.Windows) return (null, null);
         try
         {
-            return (Saves.GatherAlone(SaveEnv, Saves.OldUserFolders(SaveEnv, BuildFolders(), null)), null);
+            var folders = BuildFolders();
+            var done = Saves.GatherAlone(SaveEnv, Saves.OldUserFolders(SaveEnv, folders, null));
+            Saves.LinkSaves(SaveEnv, folders);
+            return (done, null);
         }
         catch (Exception e) when (e is SaveFailure or IOException or UnauthorizedAccessException)
         {
@@ -412,7 +418,7 @@ public sealed class LauncherService
 
     /// The old versions' folders an update left in the builds folder, with nothing of the player's in them (Leftovers.Find)
     public IReadOnlyList<Leftover> FindLeftovers() =>
-        Leftovers.Find(BuildsFolder, Registry.Builds.Select(b => b.Folder), Platform, Settings.KeptFolders, new[] { Home.Root });
+        Leftovers.Find(BuildsFolder, Registry.Builds.Select(b => b.Folder), Platform, Settings.KeptFolders, new[] { Home.Root }, SaveEnv);
 
     /// The games in the builds folder a row should have, listed: first a row that lost the game its update built in a new folder
     /// takes it back (Leftovers.LostUpdate), then, once (Leftovers.ShouldRelist), each game whose row went is listed again

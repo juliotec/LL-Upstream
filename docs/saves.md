@@ -29,8 +29,14 @@ with *Choose a folder*, which backs up the save it replaces.
 Every build uses the same saves, on both systems, so a new build or an update starts where you left off, and there is nothing
 to copy between builds. The launcher starts every build with `--user <that folder>` (on Linux, not while the build's folder
 has a `user/` of its own: the game moves an old one into the shared folder by itself, and keeps a link you made). On Linux the
-game also finds that folder by itself; on Windows a build started on its own (`bin\longshot.exe` double-clicked) still keeps
-its saves in its own folder's `user\`, and the launcher brings them in at its next start (below).
+game also finds that folder by itself. On Windows a build started on its own (`bin\longshot.exe` double-clicked, a taskbar pin,
+Steam) has no `--user`, so the game keeps its saves in its own folder's `user\save`. The launcher takes such a folder in at its
+next start (below) and makes `user\save` a link to the shared save, a junction, so that the game started on its own reads and
+writes the shared saves from then on: the same adventure however it is started, and nothing for the launcher to move at its
+next start. The launcher also makes that link in a build that has no `user\save` yet (the folder of a build that never ran
+there, or one that holds only the game's own options), before it starts the build and when it opens. It leaves a `user` or
+`user\save` that is a link of yours alone, and does nothing while Longshot runs. A disk that gives no junction (a folder on a
+share, a drive that is not NTFS) gets none, and a build started on its own there keeps its saves in its own folder as before.
 
 The game settings (`longshot_options.ini`: the Insert menu's choices and your controls) are in the same folder once a build
 that keeps them there has run. Before Play, a build that has none of its own, such as a new build of another channel, gets the
@@ -73,9 +79,11 @@ shared folder by itself (`Saves.Gather`):
 - **Every one is backed up first,** whole, in one folder: `oot-save-backups\gather-<yyyyMMdd-HHmmss>\<game folder name>`
   (`shared` for the one that was already shared). The home says once which slots came from which version's folder, and
   into which slot, which stayed in the backup only, and where the backup is.
-- **Nothing is deleted.** Each old `save` folder is renamed `save.moved-<yyyyMMdd-HHmmss>` beside it, so the game no longer
-  finds it there. A folder an update left behind (no longer listed) is then offered for deletion on the home, `save.moved-*`
-  with it: the backup above keeps its save.
+- **Nothing is deleted.** Each old `save` folder is renamed `save.moved-<yyyyMMdd-HHmmss>` beside it, and a link to the shared
+  save is made where it was (see above), so that a game started on its own finds the shared save there, not no save, and the
+  next start of the launcher has nothing to take in. A folder an update left behind (no longer listed) is then offered for
+  deletion on the home, `save.moved-*` and the link with it (deleting it removes the link and never follows it): the backup
+  above keeps its save.
 - **Never while Longshot runs:** the next start tries again. A failure changes nothing and says why.
 - **Deleting a version takes its save in first.** Before a version's folder is deleted (*Delete* on its row), a save in its
   own `user\save` (a build started outside the launcher, from Explorer, the taskbar or Steam, saves there) is brought into

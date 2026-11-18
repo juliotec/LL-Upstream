@@ -350,7 +350,9 @@ Calls made here, most of them the design mockup's; each can be changed:
   `--user ~/.local/share/longshot` on Linux (`GamePlay.UserFolder`; not on Linux while the build's folder has a `user/` of
   its own, which the game takes in itself), so an update or a new build starts where you left off. The saves builds kept in
   their own folders before are brought in once (`Saves.Gather`): the one with the newest progress is kept, all of them
-  backed up, the old ones renamed aside and never deleted.
+  backed up, the old ones renamed aside and never deleted. Where one was, `user\save` becomes a link (a junction) to the shared
+  save, and `Saves.LinkSaves` makes the same link in a build that has none, so a build started on its own on Windows (no
+  `--user`) reads and writes the shared saves, and the next start has nothing to take in again (Longshot#639).
 - **The game settings follow too.** A Longshot that takes `--user` for them keeps `longshot_options.ini` in that folder.
   Before Play, a build whose own file holds no setting (a new build: `compile_shaders=` alone) is filled
   from the newest of the user folder's and the other builds' files, its `compile_shaders=` kept (`SettingsCarry`), so a
@@ -389,8 +391,8 @@ Calls made here, most of them the design mockup's; each can be changed:
   a version, no longer in the list of versions. **The home offers to delete them** (*Old versions left on the disk*: Keep
   or Delete; `Leftovers`): the game folders in the builds folder and in its tracks' folders (`InstanceFolders.Folders`)
   that no build lists, once nothing of the player's is in them (no save left in `user/save`, which `Saves.Gather` takes in
-  first on Windows; neither `user/` nor `user/save` a link; nothing in `mods/`), and never one that holds a build's folder
-  or the launcher's home. It says what deleting them frees (their files with no hard link outside them), deletes nothing
+  first on Windows; neither `user/` nor `user/save` a link, but the launcher's own to the shared save; nothing in `mods/`),
+  and never one that holds a build's folder or the launcher's home. It says what deleting them frees (their files with no hard link outside them), deletes nothing
   while Longshot runs, and Keep is remembered (`KeptFolders` in settings.json).
 - **Instances from before this layout move into it when the player says so.** They are right in the builds folder,
   named after their track (`nightly`, `nightly (2)`: launchers v1.0.0-rc.7 and on) or after the version they were first
