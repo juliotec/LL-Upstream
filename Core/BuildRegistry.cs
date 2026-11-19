@@ -377,8 +377,20 @@ public sealed class BuildRegistry
     }
 
     /// A build's folder renamed on the disk (InstanceFolders.Rename): its row follows it, all else stays (its name, version,
-    /// default, measurements: the same files)
-    public void Moved(string id, string folder) => (Find(id) ?? throw new KeyNotFoundException("No build " + id)).Folder = folder;
+    /// default, measurements: the same files). The game files any row was made from that were in it follow it too
+    /// (InstanceFolders.Follow: an update's picked romfs and exefs in the folder it renames)
+    public void Moved(string id, string folder)
+    {
+        var entry = Find(id) ?? throw new KeyNotFoundException("No build " + id);
+        var from = entry.Folder;
+        entry.Folder = folder;
+        foreach (var b in builds)
+        {
+            b.Nup = InstanceFolders.Follow(b.Nup, from, folder);
+            b.Romfs = InstanceFolders.Follow(b.Romfs, from, folder);
+            b.Exefs = InstanceFolders.Follow(b.Exefs, from, folder);
+        }
+    }
 
     public void SetChannel(string id, string channel)
     {

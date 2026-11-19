@@ -182,5 +182,16 @@ public sealed class LauncherSettings
         return this;
     }
 
+    /// The game files last picked (Nup, Romfs, Exefs) after the folder from holding them was renamed to to (InstanceFolders.Follow):
+    /// the next build is offered them where they are now. True when one changed
+    public bool Follow(string from, string to)
+    {
+        var (nup, romfs, exefs) = (Nup, Romfs, Exefs);
+        Nup = InstanceFolders.Follow(Nup, from, to);
+        Romfs = InstanceFolders.Follow(Romfs, from, to);
+        Exefs = InstanceFolders.Follow(Exefs, from, to);
+        return nup != Nup || romfs != Romfs || exefs != Exefs;
+    }
+
     public void Save(string path) => AtomicFile.Write(path, JsonSerializer.Serialize(Checked(), CoreJson.Default.LauncherSettings));
 }

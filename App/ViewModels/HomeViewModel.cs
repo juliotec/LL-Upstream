@@ -909,7 +909,11 @@ public sealed class HomeViewModel : ViewModelBase
         var failed = new List<string>();
         foreach (var m in doing)
         {
-            try { await Task.Run(() => InstanceFolders.Rename(Service.Registry, m, Service.Platform, Service.SaveEnv)); }
+            try
+            {
+                await Task.Run(() => InstanceFolders.Rename(Service.Registry, m, Service.Platform, Service.SaveEnv));
+                Service.FolderMoved(m.From, m.To);
+            }
             catch (Exception e) when (e is IOException or UnauthorizedAccessException)
             {
                 failed.Add(Tr.F("{0} could not be moved: {1}", m.From, e.Message));

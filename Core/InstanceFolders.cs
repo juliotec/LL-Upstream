@@ -32,6 +32,22 @@ public static class InstanceFolders
         catch (Exception e) when (e is ArgumentException or NotSupportedException or PathTooLongException) { return null; }
     }
 
+    /// path at its place in to when it is in from (or is from itself), a folder that was moved there; any other path as it is.
+    /// The game files a build is made from can be in an instance's own folder (a player picks its romfs and .longshot_exefs for
+    /// the next update, so the dump is not needed again): when that folder is renamed, the paths to them follow it (the
+    /// list's rows: BuildRegistry.Moved; the remembered ones: LauncherSettings.Follow; the build's own: FoundGameFile.Follow).
+    /// Before, an update renamed the folder, then gave make_game.py the old path, and it stopped: "does not hold the game's files"
+    public static string? Follow(string? path, string from, string to)
+    {
+        if (string.IsNullOrEmpty(path) || !BuildRegistry.Holds(from, path)) return path;
+        try
+        {
+            var rest = Path.GetRelativePath(Path.GetFullPath(from), Path.GetFullPath(path));
+            return rest == "." ? to : Path.Combine(to, rest);
+        }
+        catch (Exception e) when (e is ArgumentException or NotSupportedException or PathTooLongException) { return path; }
+    }
+
     /// The last count names of path, joined by the separator it has
     static string Tail(string path, int count)
     {

@@ -156,12 +156,37 @@ static partial class Program
         var down = registry.FolderOf(two, builds, Versions.Nightly, n199, p);
         Require(down == Path.Combine(builds, "nightly", n199), "Going back: the older version's name.");
         var goBack = new InstanceFolders.Move(two, two.Folder, down);
+        // (the game files picked in the folder being renamed, its own romfs and .longshot_exefs: they follow it. Before, the rename
+        // left make_game.py the old path, and it stopped: "does not hold the game's files")
+        string In(string folder, string name) => Path.Combine(folder, name);
+        var dump = Path.Combine(root, "dump");
+        two.Romfs = In(update, "romfs");
+        two.Exefs = In(update, ".longshot_exefs");
+        one.Romfs = In(update, "romfs");                                                   // (another row made from the same files)
+        one.Exefs = In(dump, "exefs");                                                     // (and from files elsewhere)
+        var remembered = new LauncherSettings { Romfs = In(update, "romfs"), Exefs = In(update, ".longshot_exefs") };
+        var picked = new FoundGameFile(update, "Last used", 0, DateTime.UtcNow, true, In(update, "romfs"), In(update, ".longshot_exefs"));
         InstanceFolders.Rename(registry, goBack, p, running: None);
         Require(two.Folder == down && HasThings(down), "Going back renames it too.");
+        Require(two.Romfs == In(down, "romfs") && two.Exefs == In(down, ".longshot_exefs") && one.Romfs == In(down, "romfs")
+                && one.Exefs == In(dump, "exefs"),
+                "Game files a row was made from that were in the renamed folder follow it; files elsewhere stay as they were.");
+        Require(BuildRegistry.Load(listPath).Find(two.Id)?.Romfs == In(down, "romfs"), "And the saved list says so.");
+        Require(remembered.Follow(update, down) && remembered.Romfs == In(down, "romfs") && remembered.Exefs == In(down, ".longshot_exefs")
+                && !remembered.Follow(update, down),
+                "The game files last picked (the next build's Last used) follow it too, once.");
+        Require(picked.Follow(update, down) is { Source: BuildSource.Folders { Romfs: var r, Exefs: var x } } moved && moved.Path == down
+                && r == In(down, "romfs") && x == In(down, ".longshot_exefs") && picked.Follow(second, down) == picked,
+                "The build's own pick is read from the renamed folder (make_game.py --romfs, --exefs); one elsewhere as it was.");
+        Require(InstanceFolders.Follow(In(update + "-other", "romfs"), update, down) == In(update + "-other", "romfs")
+                && InstanceFolders.Follow(update, update, down) == down && InstanceFolders.Follow(null, update, down) == null,
+                "Only paths in the folder follow it (not a folder whose name starts the same); the folder itself does.");
         Require(InstanceFolders.MoveBack(registry, goBack, TimeSpan.Zero), "The build failed or was stopped: it goes back.");
         Require(two.Folder == update && Directory.Exists(update) && !Directory.Exists(down) && HasThings(update) && two.Version == n205,
                 "Back to the name of the version the row still has, everything in it.");
+        Require(two.Romfs == In(update, "romfs") && one.Romfs == In(update, "romfs"), "Its game files go back with it.");
         Require(BuildRegistry.Load(listPath).Find(two.Id)?.Folder == update, "And the saved list says so.");
+        one.Romfs = one.Exefs = two.Romfs = two.Exefs = null;
         Require(one.Folder == first && Directory.Exists(first), "The other instance is untouched.");
 
         // ---- a rename that cannot happen changes nothing ----

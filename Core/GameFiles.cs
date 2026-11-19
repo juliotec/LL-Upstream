@@ -10,6 +10,14 @@ public sealed record FoundGameFile(string Path, string Where, long Size, DateTim
     public BuildSource Source => Folders
         ? new BuildSource.Folders(Romfs ?? System.IO.Path.Combine(Path, "romfs"), Exefs ?? System.IO.Path.Combine(Path, "exefs"))
         : new BuildSource.Nup(Path);
+
+    /// The same files after the folder from holding them was renamed to to (InstanceFolders.Follow); itself when they are elsewhere
+    public FoundGameFile Follow(string from, string to) => this with
+    {
+        Path = InstanceFolders.Follow(Path, from, to)!,
+        Romfs = InstanceFolders.Follow(Romfs, from, to),
+        Exefs = InstanceFolders.Follow(Exefs, from, to),
+    };
 }
 
 /// The player's game files where people keep them (builder/LongshotBuilder/Finder.cs, FindDumps): .nup files in Downloads,

@@ -455,6 +455,14 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
         old.Folder = job.InstallDir;   // (the row the job holds, if the list was read again since)
         renamed = move;
         log.Add($"instance folder: {from} renamed to {job.InstallDir}");
+        // (game files picked in the folder itself, its romfs and .longshot_exefs: read from where they are now, or make_game.py
+        // finds nothing at the old path. InstanceFolders.Follow)
+        if (job.Picked is { } picked && picked.Follow(from, job.InstallDir) is var moved && moved != picked)
+        {
+            job.Picked = moved;
+            log.Add($"game files: in the renamed folder, read from {(moved.Source is BuildSource.Folders f ? f.Romfs : moved.Path)}");
+        }
+        job.Service.FolderMoved(from, job.InstallDir);
         return true;
     }
 
@@ -466,7 +474,13 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
         renamed = null;
         var back = InstanceFolders.MoveBack(Job.Service.Registry, m, TimeSpan.FromSeconds(10));
         if (back) m.Build.Folder = m.From;
-        Ui.Post(() => log.Add(back ? $"instance folder: back to {m.From}" : $"instance folder: left at {m.To}, it could not go back to {m.From}"));
+        Ui.Post(() =>
+        {
+            log.Add(back ? $"instance folder: back to {m.From}" : $"instance folder: left at {m.To}, it could not go back to {m.From}");
+            if (!back) return;
+            Job.Picked = Job.Picked?.Follow(m.To, m.From);   // (a retry reads them at their old place again)
+            Job.Service.FolderMoved(m.To, m.From);
+        });
     }
 
     /// The rows, the bar and the time left from the progress and the clock

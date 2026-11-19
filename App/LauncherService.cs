@@ -131,6 +131,15 @@ public sealed class LauncherService
 
     public void SaveSettings() => Settings.Save(Home.Settings);
 
+    /// An instance's folder renamed (an update's or a go-back's, the home's move, or one put back): the game files last picked
+    /// follow it when they were in it (LauncherSettings.Follow), saved. The list's rows follow in BuildRegistry.Moved
+    public void FolderMoved(string from, string to)
+    {
+        if (!Settings.Follow(from, to)) return;
+        try { SaveSettings(); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { LauncherLog.Add($"settings: not saved after {from} moved: {e.Message}"); }
+    }
+
     /// Where new builds go: the folder chosen, else ~/Games/Longshot, or a portable launcher's own builds folder
     public string BuildsFolder => string.IsNullOrWhiteSpace(Settings.BuildsFolder) && Home.Portable ? Home.PortableBuilds : Settings.BuildsFolderOrDefault();
     public string Work => string.IsNullOrWhiteSpace(Settings.Work) ? Home.Work : Settings.Work;
