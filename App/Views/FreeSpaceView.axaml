@@ -36,7 +36,7 @@
         <TextBlock Classes="hint" Margin="28,0,0,0" TextWrapping="Wrap" Text="{Binding CacheHint}"/>
       </StackPanel>
       <StackPanel Classes="buttons">
-        <Button Content="{c:T 'Keep them'}" Command="{Binding KeepCommand}"/>
+        <Button Content="{c:T 'Keep them'}" Command="{Binding KeepCommand}" c:Pad.Back="True"/>
         <Button Classes="bad" Content="{c:T 'Delete'}" Command="{Binding DeleteCommand}"/>
       </StackPanel>
     </StackPanel>

@@ -136,7 +136,7 @@
         <c:Icon Kind="check" Width="14" Height="14" Foreground="{StaticResource Go}" VerticalAlignment="Center"/>
         <TextBlock Classes="faint" Text="{c:T 'Existing saves are backed up before every transfer.'}" VerticalAlignment="Center"/>
       </StackPanel>
-      <Button Grid.Column="1" Classes="primary" Content="{c:T 'Done'}" Command="{Binding DoneCommand}"/>
+      <Button Grid.Column="1" Classes="primary" Content="{c:T 'Done'}" Command="{Binding DoneCommand}" c:Pad.Back="True"/>
     </Grid>
   </Grid>
 </UserControl>

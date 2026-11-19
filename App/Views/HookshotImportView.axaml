@@ -49,10 +49,10 @@
         <StackPanel Classes="buttons" Margin="0,16,0,0" IsVisible="{Binding Listing}">
           <Button Content="{c:T 'Import graphics and controls…'}" Command="{Binding SettingsCommand}"/>
           <Button Content="{c:T 'Choose a folder…'}" Command="{Binding PickFolderCommand}"/>
-          <Button Content="{c:T 'Close'}" Command="{Binding CloseCommand}"/>
+          <Button Content="{c:T 'Close'}" Command="{Binding CloseCommand}" c:Pad.Back="True"/>
         </StackPanel>
         <StackPanel Classes="buttons" Margin="0,16,0,0" IsVisible="{Binding Asking}">
-          <Button Content="{c:T 'Keep Longshot\'s save'}" Command="{Binding KeepCommand}"/>
+          <Button Content="{c:T 'Keep Longshot\'s save'}" Command="{Binding KeepCommand}" c:Pad.Back="True"/>
           <Button Classes="bad" Content="{c:T 'Back it up and replace it'}" Command="{Binding ReplaceCommand}"/>
         </StackPanel>
       </StackPanel>

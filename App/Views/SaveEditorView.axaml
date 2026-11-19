@@ -154,7 +154,7 @@
         <c:Icon Kind="check" Width="14" Height="14" Foreground="{StaticResource Go}" VerticalAlignment="Center"/>
         <TextBlock Classes="faint" Text="{c:T 'Backed up first. Close the game before editing.'}" VerticalAlignment="Center"/>
       </StackPanel>
-      <Button Grid.Column="4" Classes="primary" Content="{c:T 'Back to saves'}" Command="{Binding BackCommand}"/>
+      <Button Grid.Column="4" Classes="primary" Content="{c:T 'Back to saves'}" Command="{Binding BackCommand}" c:Pad.Back="True"/>
     </Grid>
   </Grid>
 </UserControl>

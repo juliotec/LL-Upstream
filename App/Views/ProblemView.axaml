@@ -12,7 +12,7 @@
         <Button Classes="link soft" Content="{c:T 'Copy for a bug report'}" Command="{Binding CopyCommand}"/>
       </StackPanel>
       <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
-        <Button Content="{c:T 'Back'}" Command="{Binding BackCommand}"/>
+        <Button Content="{c:T 'Back'}" Command="{Binding BackCommand}" c:Pad.Back="True"/>
         <Button Classes="primary" Content="{c:T 'Build again'}" Command="{Binding RetryCommand}"/>
       </StackPanel>
     </Grid>

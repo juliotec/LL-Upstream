@@ -1,10 +1,13 @@
 using System.Diagnostics;
+using Avalonia;
 using Avalonia.Animation;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Input.Platform;
+using Avalonia.Media;
 using Avalonia.Platform;
 using Avalonia.Platform.Storage;
+using LongshotLauncher.Core;
 using LongshotLauncher.ViewModels;
 
 namespace LongshotLauncher;
@@ -13,9 +16,34 @@ namespace LongshotLauncher;
 /// it, the toast; and what the view models ask of it (IWindowHost)
 public sealed partial class MainWindow : Window, IWindowHost
 {
+    /// The size the pages are drawn for; the TV view and a window that fills the screen scale them up to it, keeping their shape
+    const double DesignWidth = 1040, DesignHeight = 680;
+
+    /// The TV view (Core/TvMode: Steam's Gaming Mode and Big Picture, gamescope): full screen, scaled up, square corners, no
+    /// Minimize
+    readonly bool tv = TvMode.Detect(Environment.GetEnvironmentVariable);
+    PadInput? pad;
+    /// tools/screenshots: no controller of this PC is read; its scenes press for themselves (Press)
+    public static bool Headless { get; set; }
+
+    /// A controller's press, as if made on one (tools/screenshots)
+    public void Press(PadAction action) => (pad ??= new PadInput(this, read: false)).Do(action);
+
+    /// Where a controller's moves stay (PadInput): the dialog while one is open, else null (the whole window)
+    internal Control? PadScope => (DataContext as MainViewModel)?.HasModal == true ? Dialog : null;
+    /// The page, for a controller's first press and its B
+    internal Control PadPage => Pages;
+
     public MainWindow()
     {
         InitializeComponent();
+        if (tv)
+        {
+            CanResize = true;
+            WindowState = WindowState.FullScreen;
+            MinimizeButton.IsVisible = false;
+        }
+        Shape();
         // (Windows: the .ico, so the title bar, taskbar and Alt-Tab each take their size, not the 512 pixel logo scaled down)
         if (OperatingSystem.IsWindows()) Icon = new WindowIcon(AssetLoader.Open(new Uri("avares://LongshotLauncher/Assets/longshot.ico")));
         // (pages cross-fade quickly; with less motion asked for, they change at once and nothing in the window animates)
@@ -23,8 +51,20 @@ public sealed partial class MainWindow : Window, IWindowHost
         Pages.PageTransition = Motion.Reduced ? null : new CrossFade(TimeSpan.FromMilliseconds(140));
         TitleBar.PointerPressed += (_, e) =>
         {
-            if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) BeginMoveDrag(e);
+            if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed && WindowState == WindowState.Normal) BeginMoveDrag(e);
         };
+        // (F11: full screen and back, as in a browser; the TV view starts in it)
+        KeyDown += (_, e) =>
+        {
+            if (e.Key != Key.F11 || e.KeyModifiers != KeyModifiers.None) return;
+            var full = WindowState != WindowState.FullScreen;
+            if (full) CanResize = true;
+            WindowState = full ? WindowState.FullScreen : WindowState.Normal;
+            if (!full && !tv) CanResize = false;
+            e.Handled = true;
+        };
+        Opened += (_, _) => pad ??= new PadInput(this, read: !Design.IsDesignMode && !Headless);
+        Closed += (_, _) => pad?.Dispose();
         // (back to the launcher: a build's folder deleted meanwhile, in the file manager, leaves the list)
         Activated += (_, _) => (DataContext as MainViewModel)?.HomeAgain();
         AddHandler(DragDrop.DragEnterEvent, (_, e) => Drag(e, true));
@@ -42,6 +82,7 @@ public sealed partial class MainWindow : Window, IWindowHost
     {
         base.OnDataContextChanged(e);
         if (DataContext is MainViewModel vm) vm.Host = this;
+        Shape();
     }
 
     /// Closing while a build runs asks first, as Cancel does (make_game and its compilers would go on with no window and no row in
@@ -58,6 +99,32 @@ public sealed partial class MainWindow : Window, IWindowHost
         }
         if (vm.Page is FilesStepViewModel files) files.Job.Stop();
         else if (vm.Page is SettingsStepViewModel settings) settings.Job.Stop();
+    }
+
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+        if (change.Property == WindowStateProperty || change.Property == ClientSizeProperty || change.Property == ActualTransparencyLevelProperty)
+            Shape();
+    }
+
+    /// The window's corners and scale: the platform's corners (Core/WindowCorners), square and borderless when the window fills
+    /// the screen, where the pages are scaled up to it (wider screens give them a little more width, never a smaller font)
+    void Shape()
+    {
+        if (Frame == null) return;
+        var fills = tv || WindowState is WindowState.FullScreen or WindowState.Maximized;
+        // (the launcher's platform: tools/screenshots draws Windows' window on Linux too, as Windows 11's)
+        var platform = (DataContext as MainViewModel)?.Linux is { } linux ? (linux ? Platform.Linux : Platform.Windows)
+            : OperatingSystem.IsWindows() ? Platform.Windows : Platform.Linux;
+        var build = OperatingSystem.IsWindows() ? Environment.OSVersion.Version.Build : 22000;
+        var radius = WindowCorners.Radius(platform, build, Environment.GetEnvironmentVariable("XDG_CURRENT_DESKTOP"), fills,
+            ActualTransparencyLevel != WindowTransparencyLevel.None);
+        Frame.CornerRadius = new CornerRadius(radius);
+        Frame.BorderThickness = new Thickness(fills ? 0 : 1);
+        var scale = fills && ClientSize.Width > 0 && ClientSize.Height > 0
+            ? Math.Min(ClientSize.Width / DesignWidth, ClientSize.Height / DesignHeight) : 1;
+        Scaler.LayoutTransform = Math.Abs(scale - 1) < 0.01 ? null : new ScaleTransform(scale, scale);
     }
 
     void Drag(DragEventArgs e, bool over)

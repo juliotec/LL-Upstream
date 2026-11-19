@@ -97,6 +97,7 @@ static partial class Program
         EditBackupsChecks();
         NfcChecks();
         NfcReaderChecks();
+        PadChecks(Path.GetFullPath(Path.Combine(fixtures, "..", "..")));
         Utf8Checks();
         await ScreenChecks();
         await BusyChecks(Path.GetFullPath(Path.Combine(fixtures, "..", "..")));

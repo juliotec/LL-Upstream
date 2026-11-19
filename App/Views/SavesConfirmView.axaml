@@ -28,7 +28,7 @@
     <Grid DockPanel.Dock="Bottom" ColumnDefinitions="*,Auto" Margin="0,14,0,0">
       <TextBlock Classes="faint" Text="{Binding CloseFirst}" VerticalAlignment="Center"/>
       <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
-        <Button Content="{c:T 'Back'}" Command="{Binding BackCommand}"/>
+        <Button Content="{c:T 'Back'}" Command="{Binding BackCommand}" c:Pad.Back="True"/>
         <Button Classes="primary" Content="{Binding Verb}" Command="{Binding RunCommand}"/>
       </StackPanel>
     </Grid>

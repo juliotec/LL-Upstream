@@ -32,7 +32,7 @@
       </Border>
       <TextBlock Classes="hint" Margin="0,12,0,0" IsVisible="{Binding HasReplaces}" Text="{Binding ReplacesText}" TextWrapping="Wrap"/>
       <StackPanel Classes="buttons">
-        <Button Content="{c:T 'Cancel'}" Command="{Binding CancelCommand}"/>
+        <Button Content="{c:T 'Cancel'}" Command="{Binding CancelCommand}" c:Pad.Back="True"/>
         <Button Classes="primary" Content="{Binding GoText}" Command="{Binding GoCommand}"/>
       </StackPanel>
     </StackPanel>

@@ -48,8 +48,8 @@
       <TextBlock Classes="faint" Text="{c:T 'Close the game first: a running game writes its save again when it quits and would undo the edit.'}"
                  TextWrapping="Wrap" Margin="0,6,0,0" IsVisible="{Binding NotBusy}"/>
       <StackPanel Classes="buttons">
-        <Button Content="{c:T 'Back'}" Command="{Binding BackCommand}" IsVisible="{Binding HasBack}"/>
-        <Button Content="{c:T 'Cancel'}" Command="{Binding CancelCommand}"/>
+        <Button Content="{c:T 'Back'}" Command="{Binding BackCommand}" c:Pad.Back="True" IsVisible="{Binding HasBack}"/>
+        <Button Content="{c:T 'Cancel'}" Command="{Binding CancelCommand}" c:Pad.Back="True"/>
         <Button Classes="primary" Content="{c:T 'Make the edit'}" Command="{Binding ApplyCommand}"/>
       </StackPanel>
     </StackPanel>

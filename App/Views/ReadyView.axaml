@@ -27,6 +27,6 @@
       <CheckBox Classes="tick" Content="{Binding MenuLabel}" IsChecked="{Binding Menu}"/>
       <CheckBox Classes="tick" Content="{c:T 'Play starts this version'}" IsChecked="{Binding IsDefault}" IsVisible="{Binding ShowDefaultTick}"/>
     </StackPanel>
-    <Button Classes="link soft" Content="{c:T 'Back to your versions'}" Command="{Binding HomeCommand}" HorizontalAlignment="Center" Margin="0,22,0,0"/>
+    <Button Classes="link soft" Content="{c:T 'Back to your versions'}" Command="{Binding HomeCommand}" c:Pad.Back="True" HorizontalAlignment="Center" Margin="0,22,0,0"/>
   </StackPanel>
 </UserControl>

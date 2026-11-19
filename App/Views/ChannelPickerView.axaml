@@ -37,7 +37,7 @@
       <TextBlock Classes="hint" Margin="0,12,0,0" IsVisible="{Binding Again}"
                  Text="{c:T 'Building it again replaces that build, with the settings you choose next. Your saves stay.'}"/>
       <StackPanel Classes="buttons">
-        <Button Content="{c:T 'Cancel'}" Command="{Binding CancelCommand}"/>
+        <Button Content="{c:T 'Cancel'}" Command="{Binding CancelCommand}" c:Pad.Back="True"/>
         <Button Classes="primary" Content="{Binding GoText}" Command="{Binding GoCommand}"/>
       </StackPanel>
     </StackPanel>

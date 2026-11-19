@@ -31,7 +31,7 @@
       <Grid ColumnDefinitions="*,Auto" Margin="0,22,0,0">
         <Button Classes="link" Content="{c:T 'Open the release page'}" Command="{Binding PageCommand}" VerticalAlignment="Center"/>
         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
-          <Button Content="{c:T 'Close'}" Command="{Binding CloseCommand}"/>
+          <Button Content="{c:T 'Close'}" Command="{Binding CloseCommand}" c:Pad.Back="True"/>
           <Button Classes="primary" Content="{Binding GoText}" Command="{Binding GoCommand}" IsVisible="{Binding CanGo}"/>
         </StackPanel>
       </Grid>

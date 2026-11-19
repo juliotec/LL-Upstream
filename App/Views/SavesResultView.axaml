@@ -20,10 +20,10 @@
       <Button Command="{Binding BackupCommand}" IsVisible="{Binding HasBackup}">
         <StackPanel Orientation="Horizontal" Spacing="8"><c:Icon Kind="folder" Width="16" Height="16"/><TextBlock Text="{c:T 'Open backup folder'}"/></StackPanel>
       </Button>
-      <Button Classes="primary" Content="{c:T 'Back to saves'}" Command="{Binding BackCommand}"/>
+      <Button Classes="primary" Content="{c:T 'Back to saves'}" Command="{Binding BackCommand}" c:Pad.Back="True"/>
     </StackPanel>
     <StackPanel Orientation="Horizontal" Spacing="12" HorizontalAlignment="Center" Margin="0,28,0,0" IsVisible="{Binding Refused}">
-      <Button Content="{c:T 'Back to saves'}" Command="{Binding BackCommand}"/>
+      <Button Content="{c:T 'Back to saves'}" Command="{Binding BackCommand}" c:Pad.Back="True"/>
       <Button Classes="primary" Content="{c:T 'Try again'}" Command="{Binding RetryCommand}"/>
     </StackPanel>
     <Button Classes="link soft" HorizontalAlignment="Center" Margin="0,14,0,0" Content="{c:T 'Copy for a bug report'}"

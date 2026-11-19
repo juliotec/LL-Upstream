@@ -22,7 +22,7 @@
   <DockPanel>
     <Grid DockPanel.Dock="Bottom" ColumnDefinitions="*,Auto" Margin="0,14,0,0">
       <Button Classes="link soft" Content="{Binding LogButton}" Command="{Binding ToggleLogCommand}"/>
-      <Button Grid.Column="1" Content="{c:T 'Cancel'}" Command="{Binding CancelCommand}"/>
+      <Button Grid.Column="1" Content="{c:T 'Cancel'}" Command="{Binding CancelCommand}" c:Pad.Back="True"/>
     </Grid>
     <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" ColumnSpacing="24">
       <StackPanel VerticalAlignment="Bottom">

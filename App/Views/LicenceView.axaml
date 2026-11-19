@@ -15,7 +15,7 @@
         </ScrollViewer>
       </Border>
       <StackPanel Classes="buttons">
-        <Button Content="{c:T 'Decline'}" Command="{Binding DeclineCommand}"/>
+        <Button Content="{c:T 'Decline'}" Command="{Binding DeclineCommand}" c:Pad.Back="True"/>
         <Button Classes="primary" Content="{Binding AcceptText}" Command="{Binding AcceptCommand}"/>
       </StackPanel>
     </StackPanel>

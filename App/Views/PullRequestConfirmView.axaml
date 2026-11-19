@@ -24,7 +24,7 @@
                  Text="{c:T 'To have it checked first, ask a BigBean to approve it for the Test Farm on its page.'}"/>
       <StackPanel Classes="buttons">
         <Button Classes="link" Content="{c:T 'Read it'}" Command="{Binding ReadCommand}" Margin="0,0,8,0"/>
-        <Button Classes="primary" Content="{c:T 'Cancel'}" Command="{Binding CancelCommand}"/>
+        <Button Classes="primary" Content="{c:T 'Cancel'}" Command="{Binding CancelCommand}" c:Pad.Back="True"/>
         <Button Classes="bad" Content="{c:T 'Build it anyway'}" Command="{Binding GoCommand}"/>
       </StackPanel>
     </StackPanel>

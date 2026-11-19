@@ -80,7 +80,7 @@
         <TextBlock Text="{Binding Problem}" TextWrapping="Wrap"/>
       </Border>
       <StackPanel Classes="buttons">
-        <Button Content="{c:T 'Cancel'}" Command="{Binding CancelCommand}"/>
+        <Button Content="{c:T 'Cancel'}" Command="{Binding CancelCommand}" c:Pad.Back="True"/>
         <Button Classes="primary" Content="{c:T 'Review'}" Command="{Binding ReviewCommand}"/>
       </StackPanel>
     </StackPanel>

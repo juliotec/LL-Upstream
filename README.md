@@ -55,6 +55,7 @@ Discord: https://discord.gg/magicbean
 | **Updates itself** | From its own signed releases, checked and tested before it replaces itself; `--rollback` puts the previous one back |
 | **Saves** | One save folder for every build, imports saves from emulators and from Hookshot, exports them to emulators, and to and from one .zip file; a Progress view per slot shows what a save has and is missing and edits it, with a backup first; and it restores the backups every copy makes ([docs/saves.md](docs/saves.md)) |
 | **Pull requests** | The *Pull request* track builds an open Longshot pull request on your PC to help test it: the ones a BigBean wrote or approved are listed, any other found by its number, with warnings before its code is built; it updates with each push ([docs/pull-requests.md](docs/pull-requests.md)) |
+| **Controller and TV** | The whole launcher with a controller (the d-pad or stick moves, A presses, B goes back), and in Steam's Gaming Mode or Big Picture a full-screen view for the TV ([docs/controller.md](docs/controller.md)) |
 | **NFC** | Keeps the NFC tag dumps of figures you own, which the game's NFC tab lists: add one, many or a folder of them, scan one with a Switch 2 Pro Controller (Windows), delete them ([docs/nfc.md](docs/nfc.md)) |
 
 ## Download
@@ -175,6 +176,13 @@ game's own language is apart from it: a build setting (step 2), as before.
   <img src="docs/images/settings.png" alt="The launcher's settings: the channel for new builds, the launcher's own channel, where builds go" width="720">
 </p>
 
+### With a controller, on a TV
+
+The d-pad or left stick moves between the buttons, **A** presses one, **B** goes back (Back, Cancel, Keep or Done), the
+bumpers step through every control in turn and the right stick scrolls. Started from Steam's **Gaming Mode** (a Steam
+Deck, a ROG Ally on Bazzite) or **Big Picture**, the launcher fills the screen for the TV; **F11** does it anywhere. All
+of it: [docs/controller.md](docs/controller.md).
+
 ## Saves
 
 Every build shares one save folder (`%APPDATA%\Longshot` on Windows, `~/.local/share/longshot` on Linux). On Windows the
@@ -256,14 +264,14 @@ dotnet run --project App
 
 | | |
 |---|---|
-| `Core/` | `LongshotLauncher.Core`: the logic, no UI and no package. Versions and channels (`Versions`), the signed releases of Longshot and of the launcher (`Releases`, `ReleaseTrust`, `ReleaseManifest`), its own update (`SelfUpdate`), each version's builder and its tools.lock (`Toolchains`, `ToolsSource`, `ToolsLock`), game folders, `builds.json` (`BuildRegistry`), remembered settings, make_game.py's command line, `@@` lines, run and check (`MakeGameCommand`, `MakeGameProtocol`, `MakeGameRun`), the game files found on this PC (`GameFiles`), update offers (`UpdatePolicy`), saves (`Saves`, a port of Longshot's `scripts/longshot_saves.py`; `SaveText`) and Hookshot's (`HookshotSaves`), the NFC tag dumps the game reads (`NfcTags`) and scanning one with a Switch 2 Pro Controller (`NfcReader`), the save editor Progress runs from a build's tools (`SaveEditing`, `SaveEditorReport`), the game settings brought to a new build (`SettingsCarry`), disk space (`Disk`), this PC (`SystemInfo`), shortcuts (`Shortcuts`), installed or portable (`LauncherLayout`, `Installer`), one launcher per home (`InstanceLock`), the launcher's home and command line |
+| `Core/` | `LongshotLauncher.Core`: the logic, no UI and no package. Versions and channels (`Versions`), the signed releases of Longshot and of the launcher (`Releases`, `ReleaseTrust`, `ReleaseManifest`), its own update (`SelfUpdate`), each version's builder and its tools.lock (`Toolchains`, `ToolsSource`, `ToolsLock`), game folders, `builds.json` (`BuildRegistry`), remembered settings, make_game.py's command line, `@@` lines, run and check (`MakeGameCommand`, `MakeGameProtocol`, `MakeGameRun`), the game files found on this PC (`GameFiles`), update offers (`UpdatePolicy`), saves (`Saves`, a port of Longshot's `scripts/longshot_saves.py`; `SaveText`) and Hookshot's (`HookshotSaves`), the NFC tag dumps the game reads (`NfcTags`) and scanning one with a Switch 2 Pro Controller (`NfcReader`), the save editor Progress runs from a build's tools (`SaveEditing`, `SaveEditorReport`), the game settings brought to a new build (`SettingsCarry`), disk space (`Disk`), this PC (`SystemInfo`), shortcuts (`Shortcuts`), installed or portable (`LauncherLayout`, `Installer`), one launcher per home (`InstanceLock`), a controller's presses and the TV view (`Gamepad`, `GamepadReaders`), the launcher's home and command line |
 | `Core/Lang/` | The launcher's translations, one catalog per language (`Tr`, [Translations](#translations)) |
-| `App/` | `LongshotLauncher`: the Avalonia window. `ViewModels/` (one per page and dialog), `Views/` (one .axaml each, compiled bindings), `Controls/` (icons, bars and spinner), `App.axaml` (the palette and the styles), `Assets/` (the Longshot logo and icon, the Inter font with its licence) |
+| `App/` | `LongshotLauncher`: the Avalonia window. `ViewModels/` (one per page and dialog), `Views/` (one .axaml each, compiled bindings), `Controls/` (icons, bars and spinner), `PadInput.cs` (a controller), `App.axaml` (the palette and the styles), `Assets/` (the Longshot logo and icon, the Inter font with its licence) |
 | `tools/screenshots/` | The screens drawn without a display into PNGs ([Screenshots](#screenshots)) |
 | `tests/` | `test_launcher_core.py` (builds `launcher_core/`, which compiles `Core/` and checks it), `test_release.py` (`scripts/release.py`), `fixtures/` (signed test releases, fake Hookshot saves, what Longshot's save editor answers as JSON), `save_editor_fixtures.py` (checks that text against a Longshot checkout) |
 | `scripts/` | `package.sh` (both release programs, from Linux), `make_icon.py` (`App/Assets/longshot.ico` from the logo), `release.py` (the signed release files, the keys, the uploads; the same file as Longshot's), `translations.py` (the window's texts against each catalog) |
 | `.forgejo/workflows/` | `ci.yml` (compile and test, every pull request), `release.yml` (the nightly from `main`, a release from a `v*` tag) |
-| `docs/` | [releases.md](docs/releases.md), [saves.md](docs/saves.md), [nfc.md](docs/nfc.md), and the screenshots in this README |
+| `docs/` | [releases.md](docs/releases.md), [saves.md](docs/saves.md), [nfc.md](docs/nfc.md), [controller.md](docs/controller.md), and the screenshots in this README |
 
 ### Screenshots
 
@@ -292,6 +300,7 @@ screen adds or updates the scene that shows it.
 | `LONGSHOT_LAUNCHER_NO_CDN=1` | Every release list, release file and build tool from git.magicbean.dev itself, not through `git-cdn.magicbean.dev` (Cloudflare's cache of the same files and lists, tried first otherwise; a list there may be a minute old, and is still answered while git.magicbean.dev is down; the rest of the API is always git.magicbean.dev's). A file asked of git.magicbean.dev, here or after the CDN failed, has `cdn=0` in its link, without which the server redirects it to `git-cdn.magicbean.dev` |
 | `LONGSHOT_LAUNCHER_NO_PREFETCH=1` | The build tools download only in a build's first step. Otherwise, with no builds yet, the newest version's tools on your channel start downloading as soon as the update check answers; an update's too, only when Settings' "Download the build tools of an update as soon as it is out" is on (off at first) |
 | `LONGSHOT_LAUNCHER_OFFLINE=1` | No update check |
+| `LONGSHOT_LAUNCHER_TV=1` | The TV view (full screen, scaled up, square corners) anywhere; `=0` never, even in Steam's Gaming Mode or Big Picture ([docs/controller.md](docs/controller.md)) |
 | `LONGSHOT_LAUNCHER_TRUST=<public key .pem>` | Trust one more release key, for a release signed with a test key |
 | `--launch <folder>` | Opens on that build |
 | `--play [<folder>]` | Starts the game with no window (the shortcuts use it) |

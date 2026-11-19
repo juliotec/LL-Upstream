@@ -17,7 +17,7 @@
         <TextBlock Classes="faint" Classes.ok="{Binding CanNext}" Text="{Binding Hint}" VerticalAlignment="Center"/>
       </StackPanel>
       <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
-        <Button Content="{c:T 'Back'}" Command="{Binding BackCommand}"/>
+        <Button Content="{c:T 'Back'}" Command="{Binding BackCommand}" c:Pad.Back="True"/>
         <Button Classes="primary" Content="{c:T 'Next'}" Command="{Binding NextCommand}"/>
       </StackPanel>
     </Grid>

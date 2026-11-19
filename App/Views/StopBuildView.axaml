@@ -9,7 +9,7 @@
       <TextBlock Classes="modaltitle" Text="{c:T 'Stop the build?'}"/>
       <TextBlock Classes="sub" Text="{Binding Sub}"/>
       <StackPanel Classes="buttons">
-        <Button Content="{c:T 'Keep building'}" Command="{Binding KeepCommand}"/>
+        <Button Content="{c:T 'Keep building'}" Command="{Binding KeepCommand}" c:Pad.Back="True"/>
         <Button Classes="bad" Content="{c:T 'Stop the build'}" Command="{Binding StopCommand}"/>
       </StackPanel>
     </StackPanel>

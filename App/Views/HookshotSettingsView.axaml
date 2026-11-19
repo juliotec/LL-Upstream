@@ -8,8 +8,8 @@
   <Border Classes="dialog wide" MaxHeight="560">
     <DockPanel>
       <StackPanel DockPanel.Dock="Bottom" Classes="buttons" Margin="0,16,0,0">
-        <Button Content="{c:T 'Back'}" Command="{Binding BackCommand}"/>
-        <Button Content="{c:T 'Close'}" Command="{Binding CloseCommand}"/>
+        <Button Content="{c:T 'Back'}" Command="{Binding BackCommand}" c:Pad.Back="True"/>
+        <Button Content="{c:T 'Close'}" Command="{Binding CloseCommand}" c:Pad.Back="True"/>
         <Button Classes="primary" Content="{c:T 'Import'}" Command="{Binding ImportCommand}"/>
       </StackPanel>
     <ScrollViewer VerticalScrollBarVisibility="Auto">

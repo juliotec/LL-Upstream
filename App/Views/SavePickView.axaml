@@ -54,7 +54,7 @@
           </ItemsControl>
         </StackPanel>
         <StackPanel Classes="buttons" Margin="0,16,0,0">
-          <Button Content="{c:T 'Cancel'}" Command="{Binding CancelCommand}"/>
+          <Button Content="{c:T 'Cancel'}" Command="{Binding CancelCommand}" c:Pad.Back="True"/>
           <Button Classes="primary" Content="{c:T 'Continue'}" Command="{Binding GoCommand}"/>
         </StackPanel>
       </StackPanel>

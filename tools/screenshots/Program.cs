@@ -22,7 +22,7 @@ static class Program
     /// what is opened over the page: a dialog)
     sealed record Scene(string Name, string Shows, Platform Platform, Action<LauncherService>? Setup, Func<MainViewModel, object?> Page,
                         Action<MainViewModel>? Then = null, bool ScrollToEnd = false, int OpenDropdown = -1, double ScrollDown = 0,
-                        bool PressDetails = false);
+                        bool PressDetails = false, bool Tv = false, PadAction[]? Presses = null);
 
     // (a build's first lines, as make_game.py says them, with when: the build page's rows, bar, time and details)
     static readonly (string Line, double At)[] Transcript =
@@ -43,6 +43,16 @@ static class Program
     static readonly Scene[] Scenes =
     [
         new("home", "The home with no build yet", Platform.Linux, null, _ => null),
+        // (the TV view, as in Steam's Gaming Mode on a 1080p TV: full screen, scaled up; a controller's first press focuses the main button)
+        new("tv-home", "The TV view of the home (Steam's Gaming Mode), a controller's first press on the main button", Platform.Linux, null,
+            _ => null, Tv: true, Presses: [PadAction.Down]),
+        new("tv-settings", "The TV view of the launcher's Settings, moved through with a controller", Platform.Linux, null,
+            m => new SettingsViewModel(m), Tv: true, Presses: [PadAction.Down, PadAction.Up, PadAction.Up, PadAction.Right]),
+        // (a dialog keeps a controller's focus: its first press on Decline, and down from there stays on it, never the page behind)
+        new("tv-dialog", "The TV view with a dialog over step 2: a controller's first press on Decline, its focus kept in the dialog", Platform.Linux,
+            s => s.GpuCards = [new Gpu(SystemInfo.Amd)], m => Settings(m),
+            m => m.Modal = new LicenceViewModel(m, LicenceOf.Amd, true, () => { }, () => { }), Tv: true,
+            Presses: [PadAction.Down, PadAction.Left, PadAction.Down, PadAction.Down]),
         new("launcher-settings", "The launcher's Settings: an update's build tools downloaded early, when chosen", Platform.Windows,
             s => { s.Settings.CheckUpdates = true; s.Settings.DownloadUpdatesEarly = true; }, m => new SettingsViewModel(m), ScrollToEnd: true),
         // (the two folders, each with what it holds: the builds folder's instances, and the build files every build reuses)
@@ -675,6 +685,7 @@ static class Program
             return 2;
         }
         Directory.CreateDirectory(outDir);
+        MainWindow.Headless = true;
         AppBuilder.Configure<App>().UseSkia().With(App.Fonts()).UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false }).SetupWithoutStarting();
         Tr.Use(Tr.English);
         foreach (var scene in Scenes.Where(s => wanted.Count == 0 || wanted.Contains(s.Name)))
@@ -715,7 +726,14 @@ static class Program
             service.Checked = true;
             scene.Setup?.Invoke(service);
             var main = new MainViewModel(service, StartRequest.Parse([]));
+            // (the TV view: as Steam's Gaming Mode asks for it, on a 1080p screen)
+            Environment.SetEnvironmentVariable("LONGSHOT_LAUNCHER_TV", scene.Tv ? "1" : "0");
             var window = new MainWindow { DataContext = main };
+            if (scene.Tv)
+            {
+                window.Width = 1920;
+                window.Height = 1080;
+            }
             window.Show();
             if (scene.Page(main) is { } page) main.Navigate(page);
             scene.Then?.Invoke(main);
@@ -752,6 +770,16 @@ static class Program
                 foreach (var scroll in window.GetVisualDescendants().OfType<Avalonia.Controls.ScrollViewer>())
                     if (scene.ScrollToEnd) scroll.ScrollToEnd();
                     else scroll.Offset = new Avalonia.Vector(0, scene.ScrollDown);   // (a scene about the middle of a long page)
+                for (var i = 0; i < 10; i++)
+                {
+                    Dispatcher.UIThread.RunJobs();
+                    AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+                }
+            }
+            // (a controller's presses: PadInput's own, as if made on one)
+            foreach (var press in scene.Presses ?? [])
+            {
+                window.Press(press);
                 for (var i = 0; i < 10; i++)
                 {
                     Dispatcher.UIThread.RunJobs();

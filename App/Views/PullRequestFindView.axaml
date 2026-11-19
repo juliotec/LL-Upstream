@@ -22,7 +22,7 @@
       </StackPanel>
       <TextBlock Classes="bad" Margin="0,10,0,0" TextWrapping="Wrap" Text="{Binding Problem}" IsVisible="{Binding HasProblem}"/>
       <StackPanel Classes="buttons">
-        <Button Content="{c:T 'Cancel'}" Command="{Binding CancelCommand}"/>
+        <Button Content="{c:T 'Cancel'}" Command="{Binding CancelCommand}" c:Pad.Back="True"/>
         <Button Classes="primary" Content="{c:T 'Find'}" Command="{Binding FindCommand}"/>
       </StackPanel>
     </StackPanel>

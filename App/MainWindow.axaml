@@ -85,13 +85,16 @@
     </Style>
   </Window.Styles>
 
-  <Border Name="Frame" CornerRadius="18" BorderBrush="{StaticResource GlassLine}" BorderThickness="1" ClipToBounds="True">
+  <!-- (the corners are the platform's, square when the window fills the screen: MainWindow.Shape; the TV view scales what is in
+       it up to the screen) -->
+  <Border Name="Frame" CornerRadius="8" BorderBrush="{StaticResource GlassLine}" BorderThickness="1" ClipToBounds="True">
     <Border.Background>
       <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
         <GradientStop Offset="0" Color="#1A1D23"/>
         <GradientStop Offset="1" Color="#121418"/>
       </LinearGradientBrush>
     </Border.Background>
+    <LayoutTransformControl Name="Scaler">
     <Panel>
       <Grid RowDefinitions="64,*">
         <!-- the title bar: drag it to move the window -->
@@ -125,10 +128,11 @@
             </ItemsControl>
           </Border>
           <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" Classes.linux="{Binding Linux}">
-            <Button Classes="caption gear" Command="{Binding SettingsCommand}" IsVisible="{Binding IsHome}" ToolTip.Tip="{c:T 'Settings'}">
+            <!-- (Settings is the one the keyboard and a controller reach: up from the page) -->
+            <Button Classes="caption gear" Focusable="True" Command="{Binding SettingsCommand}" IsVisible="{Binding IsHome}" ToolTip.Tip="{c:T 'Settings'}">
               <c:Icon Kind="gear"/>
             </Button>
-            <Button Classes="caption" Command="{Binding MinimizeCommand}" ToolTip.Tip="{c:T 'Minimize'}">
+            <Button Name="MinimizeButton" Classes="caption" Command="{Binding MinimizeCommand}" ToolTip.Tip="{c:T 'Minimize'}">
               <c:Icon Kind="min"/>
             </Button>
             <Button Classes="caption close" Command="{Binding CloseCommand}" ToolTip.Tip="{c:T 'Close'}">
@@ -159,7 +163,7 @@
 
       <!-- a dialog over the window -->
       <Border IsVisible="{Binding HasModal}" Background="#B30A0B0E">
-        <ContentControl Content="{Binding Modal}" HorizontalAlignment="Center" VerticalAlignment="Center">
+        <ContentControl Name="Dialog" Content="{Binding Modal}" HorizontalAlignment="Center" VerticalAlignment="Center">
           <ContentControl.DataTemplates>
             <DataTemplate DataType="vm:ChannelPickerViewModel"><views:ChannelPickerView/></DataTemplate>
             <DataTemplate DataType="vm:DeleteViewModel"><views:DeleteView/></DataTemplate>
@@ -193,5 +197,6 @@
         <TextBlock Text="{Binding Toast}" FontSize="13"/>
       </Border>
     </Panel>
+    </LayoutTransformControl>
   </Border>
 </Window>

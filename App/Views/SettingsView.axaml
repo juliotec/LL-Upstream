@@ -11,7 +11,7 @@
         <Ellipse Width="3" Height="3" Fill="{StaticResource InkFaint}" Margin="12,0" VerticalAlignment="Center"/>
         <Button Classes="link soft" Content="{c:T 'Release notes'}" Command="{Binding ReleaseNotesCommand}"/>
       </StackPanel>
-      <Button Grid.Column="1" Classes="primary" Content="{c:T 'Done'}" Command="{Binding DoneCommand}"/>
+      <Button Grid.Column="1" Classes="primary" Content="{c:T 'Done'}" Command="{Binding DoneCommand}" c:Pad.Back="True"/>
     </Grid>
     <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="-8,0" Padding="8,0,8,4">
       <StackPanel>

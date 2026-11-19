@@ -52,7 +52,7 @@
           <TextBlock Text="{c:T 'Open the backups folder'}"/>
         </StackPanel>
       </Button>
-      <Button Grid.Column="1" Classes="primary" Content="{c:T 'Back to saves'}" Command="{Binding BackCommand}"/>
+      <Button Grid.Column="1" Classes="primary" Content="{c:T 'Back to saves'}" Command="{Binding BackCommand}" c:Pad.Back="True"/>
     </Grid>
   </Grid>
 </UserControl>
