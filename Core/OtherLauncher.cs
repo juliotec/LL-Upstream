@@ -110,10 +110,9 @@ public sealed record OtherLauncher(string Home, bool Installed, IReadOnlyList<Ot
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException) { return []; }
     }
 
-    /// The channel a game folder is named after (stable, rc, nightly: LauncherSettings.FolderFor), else null (its version's)
     /// The channel a game folder's track folder is named after (builds/nightly/&lt;version&gt;, nightly (2) too), or before that layout
-    /// its own name (rc, stable, nightly: launchers v1.0.0-rc.7 to #184), when version is one that channel follows (the rc
-    /// channel follows stable too); else null, its version's
+    /// its own name (stable, nightly: launchers v1.0.0-rc.7 to #184), when version is one that channel follows; else null, its
+    /// version's
     public static string? ChannelNamed(string folder, string? version)
     {
         var self = Path.TrimEndingDirectorySeparator(Path.GetFullPath(folder));
@@ -122,7 +121,7 @@ public sealed record OtherLauncher(string Home, bool Installed, IReadOnlyList<Ot
             var channel = Suffix.Replace(name, "");
             if (!Versions.IsChannel(channel)) continue;
             var track = Versions.TrackOf(version);
-            return version != null && (track == channel || channel == Versions.Candidate && track == Versions.Stable) ? channel : null;
+            return version != null && track == channel ? channel : null;
         }
         return null;
     }

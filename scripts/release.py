@@ -4,15 +4,14 @@ finds out which one it is in. Python's standard library, git, and the openssl co
 
 A release is a Forgejo release of the repository: a tag, a page with the notes, and the product's files, with SHA256SUMS (each
 file's SHA-256) and SHA256SUMS.sig (an ECDSA P-256 signature of SHA256SUMS by the release key, base64 DER). The channels are
-read from the list of published releases: stable is the newest vX.Y.Z, rc the newest vX.Y.Z-rc.N or vX.Y.Z, nightly the
-newest nightly-<count>-<commit>.
+read from the list of published releases: stable is the newest vX.Y.Z, nightly the newest nightly-<count>-<commit>.
 
 Versions and notes:
     python -I scripts/release.py next [--tag <tag>]
         the version the commits since the last stable call for (feat: minor, fix and perf: patch, ! or BREAKING CHANGE:
-        major), the next release candidate's tag, and the notes git-cliff would write (a preview; nothing is changed)
+        major), the next stable's tag, and the notes git-cliff would write (a preview; nothing is changed)
     python -I scripts/release.py check-tag <tag> [--releases <releases.json>]
-        refuses a tag that is not vX.Y.Z or vX.Y.Z-rc.N, not on main, not above every release there is, or lower than the
+        refuses a tag that is not vX.Y.Z, not on main, not above every release there is, or lower than the
         commits since the last stable call for (CI runs it before it builds anything)
     python -I scripts/release.py nightly-name
         nightly-<commits since the product's first commit>-<8 hex of HEAD>: the nightly's version
@@ -23,8 +22,7 @@ Versions and notes:
         the seconds since the newest published nightly came out, or none: the release workflow builds a nightly at
         least once an hour while merges keep coming
     python -I scripts/release.py notes <tag> [--out <file>]
-        the release notes: git-cliff with cliff.toml, over the commits since the tag before (of the product's numbers); an rc
-        after the first also lists what the earlier release candidates since the last stable brought
+        the release notes: git-cliff with cliff.toml, over the commits since the tag before (of the product's numbers)
     python -I scripts/release.py git-cliff <folder>
         the pinned git-cliff (GIT_CLIFF below), downloaded and checked by its SHA-256 into <folder>; prints its path
 
@@ -48,7 +46,7 @@ this is; $FORGEJO_API, $FORGEJO_UPLOAD_API):
     python -I scripts/release.py prune [--keep 5]
         the nightly releases and their tags past the newest <keep>; nothing else is ever deleted
     python -I scripts/release.py released-as <commit> [--not <tag>]
-        the published release CI made of that commit (a nightly, or a release candidate under its stable), its SHA256SUMS
+        the published release CI made of that commit (for a stable, the nightly of its commit), its SHA256SUMS
         signed by a key the launcher trusts and naming its every file; nothing when there is none. A release of the commit
         that fails those checks stops it
     python -I scripts/release.py channels
@@ -85,13 +83,12 @@ PRODUCTS = {
                  "since": "e2a4d45398ffba162f54026bb7e708a7157bbed9"},
     "launcher": {"repo": "MagicBeanDev/LongshotLauncher", "first_major": 1, "display": "Longshot Launcher", "since": None},
 }
-CHANNELS = ("stable", "rc", "nightly")
+CHANNELS = ("stable", "nightly")
 # (git-cliff for the notes, Linux x86-64, pinned: its release page gives the SHA-256)
 GIT_CLIFF = ("2.14.2", "24f397c733add5390fdceee3a2088588ab0d5f944ce00d34cb7029b888cf2db4",
              "https://github.com/orhun/git-cliff/releases/download/v2.14.2/git-cliff-2.14.2-x86_64-unknown-linux-gnu.tar.gz")
 SUMS, SIG = "SHA256SUMS", "SHA256SUMS.sig"
 STABLE = re.compile(r"^v(\d+)\.(\d+)\.(\d+)$")
-VERSION = re.compile(r"^v(\d+)\.(\d+)\.(\d+)(?:-rc\.(\d+))?$")
 NIGHTLY = re.compile(r"^nightly-([0-9]{1,9})-([0-9a-f]{8})$")
 # (names that look like the game's files, a dump's, or NVIDIA's runtime: never uploaded, CONTRIBUTING.md)
 NOT_A_RELEASE_FILE = re.compile(r"(\.(nso|nca|nsp|xci|nsz|xcz|nup|nx|keys|bin)$|romfs|exefs|nvngx|dlss|streamline|^sl\..*\.dll$)",
@@ -112,12 +109,11 @@ def product_of(root=ROOT):
 # ---- versions ----
 
 def version_key(tag):
-    """The order of a product's versions: (major, minor, patch, 1 for a stable / 0 for a release candidate, rc number);
-    None for anything else"""
-    m = VERSION.match(tag or "")
+    """The order of a product's versions: (major, minor, patch); None for anything else (an old vX.Y.Z-rc.N among them)"""
+    m = STABLE.match(tag or "")
     if not m:
         return None
-    return int(m.group(1)), int(m.group(2)), int(m.group(3)), 0 if m.group(4) else 1, int(m.group(4) or 0)
+    return int(m.group(1)), int(m.group(2)), int(m.group(3))
 
 
 def is_version(tag, first_major):
@@ -126,25 +122,25 @@ def is_version(tag, first_major):
 
 
 def channel_of(tag, first_major):
-    """the channel a version is made for: nightly, rc (a release candidate) or stable; None when it is no version of the
+    """the channel a version is made for: nightly or stable; None when it is no version of the
     product (a git describe name, dev, a 2.x number; the build tools are generic packages, not releases: tools.lock)"""
     if NIGHTLY.match(tag or ""):
         return "nightly"
     if not is_version(tag, first_major):
         return None
-    return "stable" if STABLE.match(tag) else "rc"
+    return "stable"
 
 
 def newest(releases, channel, first_major):
     """What a channel offers, from a list of releases ({tag_name, draft, prerelease}) as Forgejo's API gives them: drafts never;
-    stable the newest vX.Y.Z that is not a pre-release; rc the newest vX.Y.Z-rc.N or vX.Y.Z; nightly the newest nightly by
+    stable the newest vX.Y.Z that is not a pre-release; nightly the newest nightly by
     its count. The launcher's Core/Releases.cs reads the list by the same rules"""
     tags = [r["tag_name"] for r in releases if not r.get("draft")]
     if channel == "nightly":
         nightlies = [t for t in tags if NIGHTLY.match(t)]
         return max(nightlies, key=lambda t: int(NIGHTLY.match(t).group(1)), default=None)
     pre = {r["tag_name"] for r in releases if r.get("prerelease")}
-    ok = [t for t in tags if is_version(t, first_major) and (channel == "rc" or (STABLE.match(t) and t not in pre))]
+    ok = [t for t in tags if is_version(t, first_major) and t not in pre]
     return max(ok, key=version_key, default=None)
 
 
@@ -212,7 +208,7 @@ def check_tag(tag, existing, first_major, root=ROOT, main="origin/main"):
     """The problems with releasing tag ([] when none): its form, main, every release there is, and the bump"""
     problems = []
     if not is_version(tag, first_major):
-        return ["%s is not vX.Y.Z or vX.Y.Z-rc.N of this product's numbers (from v%d.0.0)" % (tag, first_major)]
+        return ["%s is not vX.Y.Z of this product's numbers (from v%d.0.0)" % (tag, first_major)]
     commit = git("rev-list", "-n", "1", tag, root=root, check=False)
     if not commit:
         return ["no tag %s here (git fetch --tags)" % tag]
@@ -229,13 +225,14 @@ def check_tag(tag, existing, first_major, root=ROOT, main="origin/main"):
 
 
 def next_tag(existing, first_major, root=ROOT):
-    """The next release candidate's tag: the next rc of the current one when it is still high enough, else <required>-rc.1"""
+    """The next stable's tag: the lowest the commits since the last stable call for, or the patch after the highest release
+    there is when that is taken already"""
     low = required(first_major, root)[0]
-    rcs = [t for t in existing if is_version(t, first_major) and not STABLE.match(t) and base_of(t) >= base_of(low)]
-    top = max(rcs, key=version_key, default=None)
-    if top and not any(STABLE.match(t) and base_of(t) == base_of(top) for t in existing):
-        return "%s-rc.%d" % (top.split("-rc.")[0], version_key(top)[4] + 1)
-    return low + "-rc.1"
+    top = max((t for t in existing if is_version(t, first_major)), key=version_key, default=None)
+    if top and version_key(top) >= version_key(low):
+        x, y, z = version_key(top)
+        return "v%d.%d.%d" % (x, y, z + 1)
+    return low
 
 
 def nightly_name(product, root=ROOT):
@@ -260,13 +257,12 @@ def nightly_age(rels, now=None):
 
 def previous_tag(tag, first_major, root=ROOT):
     """The tag the notes of tag start after: the newest version tag before it on its history (for a stable, the stable
-    before it, so its notes cover its release candidates too)"""
+    before it)"""
     ref = tag if git("rev-parse", "-q", "--verify", "refs/tags/" + tag, root=root, check=False) else "HEAD"
     if NIGHTLY.match(tag):
         older = [t for t in tags_merged(root, ref) if is_version(t, first_major)]
     else:
-        older = [t for t in tags_merged(root, ref) if t != tag and is_version(t, first_major) and version_key(t) < version_key(tag)
-                 and (not STABLE.match(tag) or STABLE.match(t))]
+        older = [t for t in tags_merged(root, ref) if t != tag and is_version(t, first_major) and version_key(t) < version_key(tag)]
     return max(older, key=version_key, default=None)
 
 
@@ -290,21 +286,6 @@ def nightly_news(product, root=ROOT):
     return any(line.startswith("- ") for line in git_cliff("--strip", "all", previous + "..HEAD", root=root).splitlines())
 
 
-RC_TAGS = r"^v[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$"   # (git-cliff --ignore-tags: the earlier release candidates in one list)
-
-
-def earlier_rcs(tag, first_major, root=ROOT):
-    """The release candidates before an rc since the last stable, oldest first ([] for a stable, a nightly or a first rc):
-    an rc's page lists what is new since the one before, then what those brought"""
-    if not VERSION.match(tag) or STABLE.match(tag):
-        return []
-    ref = tag if git("rev-parse", "-q", "--verify", "refs/tags/" + tag, root=root, check=False) else "HEAD"
-    stable = last_stable(first_major, root, ref, below=tag)
-    return sorted((t for t in tags_merged(root, ref) if t != tag and VERSION.match(t) and not STABLE.match(t)
-                   and is_version(t, first_major) and version_key(t) < version_key(tag)
-                   and (stable is None or version_key(t) > version_key(stable))), key=version_key)
-
-
 def git_cliff(*args, root=ROOT):
     cliff = os.environ.get("GIT_CLIFF") or shutil.which("git-cliff")
     if not cliff:
@@ -318,8 +299,8 @@ def git_cliff(*args, root=ROOT):
 
 def notes(tag, product, root=ROOT):
     """git-cliff's notes for tag (cliff.toml), the commits since the previous tag of the product's numbers (the first:
-    since the product's first commit, for Longshot the fork). An rc after the first has two lists: new since the rc before
-    (its heading says so), then "Earlier release candidates", everything those brought since the last stable in one list"""
+    since the product's first commit, for Longshot the fork). A nightly has two lists: new since the nightly before (its
+    heading says so), then "Earlier changes", everything since the last version"""
     first = PRODUCTS[product]["first_major"]
     since = previous_tag(tag, first, root) or PRODUCTS[product]["since"]
     ref = "HEAD" if NIGHTLY.match(tag) or git("rev-parse", "-q", "--verify", "refs/tags/" + tag, root=root, check=False) is None else tag
@@ -327,7 +308,7 @@ def notes(tag, product, root=ROOT):
     # range then: git-cliff takes a lone ref for a range and stops, SetCommitRangeError("HEAD", unable to parse OID))
     prev_nightly = previous_nightly(tag, root) if NIGHTLY.match(tag) else None
     text = git_cliff("--tag", tag, "--strip", "all", *([(prev_nightly or since) + ".." + ref] if prev_nightly or since else []), root=root)
-    if prev_nightly:   # (a nightly: new since the nightly before, then everything since the last version, like an rc's page)
+    if prev_nightly:   # (a nightly: new since the nightly before, then everything since the last version)
         head, _, rest = text.partition("\n")
         if head.startswith("## "):
             text = "%s, new since %s\n%s" % (head, prev_nightly, rest)
@@ -337,26 +318,7 @@ def notes(tag, product, root=ROOT):
         if not older.strip():
             return text + "\n"
         return "%s\n\n## Earlier changes%s\n%s\n" % (text, " (since %s)" % since if since else "", older.rstrip())
-    earlier = earlier_rcs(tag, first, root)
-    if not earlier:
-        return text + "\n"
-    last = earlier[-1]
-    short = lambda t: t.split("-", 1)[1] if base_of(t) == base_of(tag) else t   # (rc.2; another number's in full)
-    head, _, rest = text.partition("\n")
-    if head.startswith("## "):
-        text = "%s, new since %s\n%s" % (head, short(last), rest)
-    stable = last_stable(first, root, last)
-    base = stable or PRODUCTS[product]["since"]
-    if base:
-        span = [base + ".." + last]
-    else:   # (the start of the history: no range, and the commits after the last earlier rc skipped)
-        span = [a for c in (git("rev-list", last + "..HEAD", root=root) or "").split() for a in ("--skip-commit", c)]
-    older = git_cliff("--tag", last, "--ignore-tags", RC_TAGS, "--strip", "all", *span, root=root)
-    head, _, rest = older.partition("\n")
-    older = rest if head.startswith("## ") else older   # (git-cliff's heading names the last of them only)
-    heading = "## Earlier release candidates: %s%s" % (", ".join(short(t) for t in earlier),
-                                                       " (since %s)" % stable if stable else "")
-    return "%s\n\n%s\n%s\n" % (text, heading, older.rstrip())
+    return text + "\n"
 
 
 # ---- the release page ----
@@ -368,14 +330,13 @@ SITE = "https://longshot.magicbean.dev"
 CDN = "https://git-cdn.magicbean.dev"
 LAUNCHER_FILES = {"setup": "-windows-x64-setup.exe", "portable": "-windows-x64-portable.zip", "appimage": "-x86_64.AppImage"}
 CHANNEL_SAYS = {"stable": "This is a stable release: it builds Longshot's stable versions by default.",
-                "rc": "This is a release candidate: it builds Longshot's rc versions by default.",
                 "nightly": "This is a nightly, untested: it builds Longshot's nightlies by default."}
 
 
 def page_header(tag, product, names, repo=None):
     """The top of a release's page, above git-cliff's notes: big heading links that look like buttons, no tables. The
     launcher's: this release's own files. Longshot's: "to play, get the Longshot Launcher", with longshot.magicbean.dev's links to
-    the newest launcher of the same channel (rc to rc, nightly to nightly, stable to stable), and "don't download the files
+    the newest launcher of the same channel (nightly to nightly, stable to stable), and "don't download the files
     below" (above the builder files)"""
     channel = channel_of(tag, PRODUCTS[product]["first_major"]) or "nightly"
     if product == "launcher":
@@ -674,7 +635,7 @@ def publish(tag, target, notes_file, files, product):
 
 def prune(keep, product):
     """The published nightlies past the newest keep, and the drafts of nightlies older than the newest published one (left
-    by failed runs), with their tags; never a stable or a release candidate (the build tools are packages, not releases)"""
+    by failed runs), with their tags; never a stable (the build tools are packages, not releases)"""
     repo = repo_of(product)
     count = lambda r: int(NIGHTLY.match(r["tag_name"]).group(1))
     nightlies = sorted((r for r in releases(repo) if NIGHTLY.match(r["tag_name"])), key=count, reverse=True)
@@ -757,7 +718,7 @@ def artifacts(run_id, names, out, product, limit=4 << 30):
 
 
 def released_as(commit, product, root=ROOT, but=None):
-    """The tag of the published release CI made of commit (a nightly, or for a stable its release candidate), or None.
+    """The tag of the published release CI made of commit (for a stable, the nightly of its commit), or None.
     Forgejo's list says a release's tag, git (the tags fetched) which commit it is. CI publishes a release only when every
     job of its run passed, and signs its SHA256SUMS: a release of commit is taken only with SHA256SUMS signed by a key the
     launcher trusts and naming exactly its files. One that is not stops this (fail): a bad release of the commit is never
@@ -854,7 +815,7 @@ def main(argv=None):
         low, last, level = required(first)
         tag = a.tag or next_tag(existing + tags_merged(), first)
         print("since %s: %s, so at least %s" % (last or "the start", level or "nothing a player sees", low))
-        print("next release candidate: %s (then %s on the release candidate that was good)\n" % (tag, tag.split("-rc.")[0]))
+        print("next stable: %s\n" % tag)
         print(notes(tag, product))
     elif a.cmd == "check-tag":
         if a.releases:

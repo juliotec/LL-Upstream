@@ -84,8 +84,8 @@ public sealed class LauncherSettings
     /// start with the check doesn't bring up a crash from weeks ago
     public long? CrashChecksSince { get; set; }
 
-    /// The channel new builds start on: the one the player picked, else the launcher's own (a nightly launcher builds nightlies, an rc
-    /// launcher release candidates; LauncherChannel when set, else its own version's track)
+    /// The channel new builds start on: the one the player picked, else the launcher's own (a nightly launcher builds nightlies;
+    /// LauncherChannel when set, else its own version's track)
     public string BuildChannel(string ownTag) => DefaultChannel ?? SelfUpdate.ChannelOf(ownTag, LauncherChannel);
 
     /// The folder builds go in when none was chosen: make_game.py's own default game folder's parent, ~/Games/Longshot
@@ -96,7 +96,7 @@ public sealed class LauncherSettings
     public string BuildsFolderOrDefault(Func<string, string?>? getenv = null) =>
         string.IsNullOrWhiteSpace(BuildsFolder) ? DefaultBuildsFolder(getenv) : BuildsFolder;
 
-    /// A new instance's folder: builds/&lt;track&gt;/&lt;version&gt;, its track's folder in the builds folder (stable, rc, nightly; Longshot for
+    /// A new instance's folder: builds/&lt;track&gt;/&lt;version&gt;, its track's folder in the builds folder (stable, nightly; Longshot for
     /// anything else) and in it the version's own name (nightly-2029-c544828f, v3.0.1: Versions.IsTagName's characters, safe for
     /// a folder on Windows and Linux; Longshot when there is none), so the folder says what is in it. " (2)" and on only when
     /// that version's name is taken in its track's folder (taken: a second instance of the same version). An update or a
@@ -116,7 +116,7 @@ public sealed class LauncherSettings
         return path;
     }
 
-    /// A track's folder's name in the builds folder: the channel's (stable, rc, nightly) or the pull requests' (pr), Longshot for
+    /// A track's folder's name in the builds folder: the channel's (stable, nightly) or the pull requests' (pr), Longshot for
     /// any other
     public static string TrackFolder(string? channel) => Versions.IsTrack(channel) ? channel! : "Longshot";
 

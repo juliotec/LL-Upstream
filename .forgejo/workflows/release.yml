@@ -4,8 +4,7 @@
 #   a push to main       the nightly: nightly-<commits on main>-<commit>, a pre-release, 5 minutes after the last of a few
 #                        merges in a row (and at least once an hour while they keep coming)
 #                        and none when the commits since the nightly before put nothing on its page (ci:, chore:)
-#   a tag vX.Y.Z-rc.N    a release candidate, a pre-release (the rc channel)
-#   a tag vX.Y.Z         a stable (the stable channel, and rc too). The launcher's first is v1.0.0
+#   a tag vX.Y.Z         a stable (the stable channel). The launcher's first is v1.0.0
 #
 # 1. version: the version's name; a tag is checked first (scripts/release.py check-tag: its form, on main, above every
 #    release, and as high as the commits since the last stable call for). A refused tag builds nothing.

@@ -499,7 +499,7 @@ static partial class Program
         Require(t.BuildsFolder == "/mnt/fast/longshot" && !t.CheckUpdates && t.BuildsFolderOrDefault(env) == "/mnt/fast/longshot", "Saved and read back.");
         var taken = new HashSet<string> { Path.Combine("/b", "stable", "v3.0.0"), Path.Combine("/b", "stable", "v3.0.0 (2)") };
         Require(LauncherSettings.FolderFor("/b", "nightly", "nightly-10-aaaaaaaa", taken.Contains) == Path.Combine("/b", "nightly", "nightly-10-aaaaaaaa")
-                && LauncherSettings.FolderFor("/b", "rc", "v3.1.0-rc.1", taken.Contains) == Path.Combine("/b", "rc", "v3.1.0-rc.1")
+                && LauncherSettings.FolderFor("/b", "rc", "v3.1.0-rc.1", taken.Contains) == Path.Combine("/b", "Longshot", "v3.1.0-rc.1")
                 && LauncherSettings.FolderFor("/b", "stable", "v3.0.0", taken.Contains) == Path.Combine("/b", "stable", "v3.0.0 (3)")
                 && LauncherSettings.FolderFor("/b", "../x", "v3.0.0", _ => false) == Path.Combine("/b", "Longshot", "v3.0.0")
                 && LauncherSettings.FolderFor("/b", "stable", null, _ => false) == Path.Combine("/b", "stable", "Longshot")
@@ -547,12 +547,13 @@ static partial class Program
 
         // (on the disk: nothing is built into a folder that holds other things; a game folder no build lists is built in again)
         Touch(Path.Combine(builds, "stable", "v3.0.0", "notes.txt"), "the player's own\n");
-        Touch(Path.Combine(builds, "rc", "v3.1.0-rc.1", GameFolder.StampName), "version=v3.1.0-rc.1\n");
+        Touch(Path.Combine(builds, "nightly", "nightly-70-0000aaaa", GameFolder.StampName), "version=nightly-70-0000aaaa\n");
         Directory.CreateDirectory(Path.Combine(builds, "empty", "nightly", v72));
         Touch(Path.Combine(builds, "file", "nightly", v72));
         Require(r.NewFolder(builds, "stable", "v3.0.0", p) == Path.Combine(builds, "stable", "v3.0.0 (2)"),
                 "A new build was put in a folder that holds other things.");
-        Require(r.NewFolder(builds, "rc", "v3.1.0-rc.1", p) == Path.Combine(builds, "rc", "v3.1.0-rc.1"), "A game folder no build lists is built in again.");
+        Require(r.NewFolder(builds, "nightly", "nightly-70-0000aaaa", p) == Path.Combine(builds, "nightly", "nightly-70-0000aaaa"),
+                "A game folder no build lists is built in again.");
         Touch(Path.Combine(builds, "stopped", "nightly", v72, ".longshot_romfs"), "unpacked by this builder: oot.nup 1\n");
         Directory.CreateDirectory(Path.Combine(builds, "stopped", "nightly", v72, ".longshot_exefs"));
         Directory.CreateDirectory(Path.Combine(builds, "stopped", "nightly", v72, "romfs"));
@@ -574,7 +575,7 @@ static partial class Program
         var path = Path.Combine(root, "builds.json");
         var r = BuildRegistry.Load(path);
         var a = r.Add(Path.Combine(root, "v3.0.0"), "v3.0.0", "stable");
-        var b = r.Add(Path.Combine(root, "v3.1.0-rc.2"), "v3.1.0-rc.2", "rc");
+        var b = r.Add(Path.Combine(root, "v3.1.0"), "v3.1.0", "stable");
         a.Nup = "/d/oot.nup";
         a.Dlss = true;
         a.Bytes = 123;
@@ -584,12 +585,12 @@ static partial class Program
                 && u.Name == "v3.0.1" && u.Bytes == null && u.Counted == null && u.Frees == null && u.Nup == "/d/oot.nup",
                 "An update takes its build's row, its place and the default.");
         r.SetDefault(b.Id);
-        r.Replace(b.Id, Path.Combine(root, "v3.0.1"), "v3.1.0-rc.3", "rc");
+        r.Replace(b.Id, Path.Combine(root, "v3.0.1"), "v3.1.1", "stable");
         Require(r.Builds.Count == 1 && r.Builds[0].Id == b.Id && r.Builds[0].Default, "A row already on that folder goes (one entry per folder).");
         Throws<KeyNotFoundException>(() => r.Replace("nope", "/x", "v1", "stable"), "No such build.");
         r.Save();
         var again = BuildRegistry.Load(path);
-        Require(again.Builds[0].Nup == null && again.Builds[0].Version == "v3.1.0-rc.3", "Saved.");
+        Require(again.Builds[0].Nup == null && again.Builds[0].Version == "v3.1.1", "Saved.");
         again.Builds[0].Dlss = true;
         again.Builds[0].Romfs = "/d/ゲーム/romfs";
         again.Builds[0].Bytes = 41231686042;

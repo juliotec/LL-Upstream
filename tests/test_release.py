@@ -116,9 +116,10 @@ class Keys(unittest.TestCase):
 
 class Channels(unittest.TestCase):
     def test_the_version_order(self):
-        order = ["v3.0.0-rc.1", "v3.0.0-rc.2", "v3.0.0-rc.10", "v3.0.0", "v3.0.1-rc.1", "v3.0.1", "v3.1.0", "v10.0.0"]
+        order = ["v3.0.0", "v3.0.1", "v3.0.10", "v3.1.0", "v10.0.0"]
         self.assertEqual(sorted(order, key=release.version_key), order)
-        for tag, channel in (("v3.0.0", "stable"), ("v3.1.0-rc.2", "rc"), ("nightly-412-1a2b3c4d", "nightly"), ("v2.9.0", None),
+        self.assertIsNone(release.version_key("v3.1.0-rc.2"))   # (the release candidates are gone: no version)
+        for tag, channel in (("v3.0.0", "stable"), ("v3.1.0-rc.2", None), ("nightly-412-1a2b3c4d", "nightly"), ("v2.9.0", None),
                              ("v3.0.0-3-g1a2b3c4", None), ("dev", None), ("tools", None)):
             self.assertEqual(release.channel_of(tag, 3), channel, tag)
         self.assertEqual(release.channel_of("v1.0.0", 1), "stable")
@@ -129,10 +130,9 @@ class Channels(unittest.TestCase):
             ("nightly-9-aaaaaaaa", False, True), ("nightly-12-bbbbbbbb", False, True), ("nightly-100-cccccccc", True, True),
             ("tools", False, True), ("v2.9.0", False, False))]
         self.assertEqual(release.newest(rels, "stable", 3), "v3.0.0")        # (drafts are not there yet)
-        self.assertEqual(release.newest(rels, "rc", 3), "v3.1.0-rc.1")
         self.assertEqual(release.newest(rels, "nightly", 3), "nightly-12-bbbbbbbb")   # (by count, not by text)
         rels.append({"tag_name": "v3.1.0", "draft": False, "prerelease": False})
-        self.assertEqual(release.newest(rels, "rc", 3), "v3.1.0")          # (rc offers the stable once it is out)
+        self.assertEqual(release.newest(rels, "stable", 3), "v3.1.0")      # (an old v3.1.0-rc.N is on no channel)
         # (pulling a bad version: deleted, or back to a draft, the channel falls back to the one before)
         rels[-1]["draft"] = True
         self.assertEqual(release.newest(rels, "stable", 3), "v3.0.0")
@@ -168,9 +168,11 @@ class Bump(unittest.TestCase):
         self.commit("feat: something")
         self.git("tag", "v2.9.0")
         self.git("tag", "v3.0.0-rc.1")
-        self.assertEqual(self.check("v3.0.0-rc.1"), [])
+        self.assertEqual(release.next_tag(["v3.0.0-rc.1"], 3, root=str(self.dir)), "v3.0.0")
+        self.git("tag", "v3.0.0")
+        self.assertEqual(self.check("v3.0.0", ["v3.0.0-rc.1"]), [])   # (an old release candidate is no release)
+        self.assertIn("is not vX.Y.Z", self.check("v3.0.0-rc.1")[0])
         self.assertIn("is not vX.Y.Z", self.check("v2.9.0")[0])   # (Hookshot's numbers are not Longshot's)
-        self.assertEqual(release.next_tag([], 3, root=str(self.dir)), "v3.0.0-rc.1")
 
     def test_the_bump(self):
         self.git("tag", "v3.0.0")
@@ -178,27 +180,27 @@ class Bump(unittest.TestCase):
         self.assertEqual(release.required(3, str(self.dir))[:3:2], ("v3.0.1", "patch"))
         self.commit("feat(menu): a row")
         self.assertEqual(release.required(3, str(self.dir))[0], "v3.1.0")
-        self.git("tag", "v3.0.1-rc.1")
-        self.assertIn("at least v3.1.0", self.check("v3.0.1-rc.1", ["v3.0.0"])[0])
-        self.git("tag", "v3.1.0-rc.1")
-        self.assertEqual(self.check("v3.1.0-rc.1", ["v3.0.0"]), [])
-        self.git("tag", "v4.0.0-rc.1")
-        self.assertEqual(self.check("v4.0.0-rc.1", ["v3.0.0"]), [])            # (higher than needed is fine)
+        self.git("tag", "v3.0.1")
+        self.assertIn("at least v3.1.0", self.check("v3.0.1", ["v3.0.0"])[0])
+        self.git("tag", "v3.1.0")
+        self.assertEqual(self.check("v3.1.0", ["v3.0.0"]), [])
+        self.git("tag", "v4.0.0")
+        self.assertEqual(self.check("v4.0.0", ["v3.0.0"]), [])            # (higher than needed is fine)
         self.commit("refactor(vk)!: a new interface")
         self.assertEqual(release.required(3, str(self.dir))[0], "v4.0.0")
         self.commit("fix: x", "BREAKING CHANGE: the options file")
         self.assertEqual(release.bump_of([("fix: x", "BREAKING CHANGE: the options file")]), "major")
         self.assertEqual(release.bump_of([("docs: x", ""), ("Merge branch", "")]), None)
 
-    def test_a_stable_on_its_release_candidate(self):
+    def test_the_next_stable(self):
         self.git("tag", "v3.0.0")
         self.commit("feat: a")
-        self.git("tag", "v3.1.0-rc.1")
-        self.assertEqual(release.next_tag(["v3.0.0", "v3.1.0-rc.1"], 3, root=str(self.dir)), "v3.1.0-rc.2")
-        self.git("tag", "v3.1.0")                         # (the same commit: the normal path)
-        self.assertEqual(self.check("v3.1.0", ["v3.0.0", "v3.1.0-rc.1"]), [])
-        self.assertIn("not above every release", self.check("v3.1.0-rc.1", ["v3.0.0", "v3.1.0-rc.1", "v3.1.0"])[0])
-        self.assertEqual(release.next_tag(["v3.0.0", "v3.1.0-rc.1", "v3.1.0"], 3, root=str(self.dir)), "v3.1.1-rc.1")
+        self.assertEqual(release.next_tag(["v3.0.0"], 3, root=str(self.dir)), "v3.1.0")
+        self.git("tag", "v3.1.0")
+        self.assertEqual(self.check("v3.1.0", ["v3.0.0"]), [])
+        self.assertIn("not above every release", self.check("v3.0.1", ["v3.0.0", "v3.1.0"])[0])
+        # (a v3.1.0 published from a commit this checkout lacks: the patch after it, never a number taken)
+        self.assertEqual(release.next_tag(["v3.0.0", "v3.1.0", "v3.1.2"], 3, root=str(self.dir)), "v3.1.3")
 
     def test_only_from_main(self):
         self.git("tag", "v3.0.0")
@@ -238,10 +240,9 @@ class Bump(unittest.TestCase):
         self.commit("feat: a")
         self.git("tag", "v3.1.0-rc.1")
         self.commit("fix: b")
-        self.git("tag", "v3.1.0-rc.2")
         self.git("tag", "v3.1.0")
-        self.assertEqual(release.previous_tag("v3.1.0-rc.2", 3, str(self.dir)), "v3.1.0-rc.1")
-        self.assertEqual(release.previous_tag("v3.1.0", 3, str(self.dir)), "v3.0.0")   # (a stable: since the stable before)
+        self.assertEqual(release.previous_tag("v3.1.0", 3, str(self.dir)), "v3.0.0")   # (since the stable before, no rc)
+        self.assertEqual(release.previous_tag("nightly-9-aaaaaaaa", 3, str(self.dir)), "v3.1.0")
 
 
     def cliff_stub(self, folder):
@@ -276,30 +277,22 @@ class Bump(unittest.TestCase):
             args = release.notes("nightly-3-0123abcd", "launcher", root=str(self.dir)).split()
         self.assertEqual(args[-1], "v1.0.0..HEAD")
 
-    def test_an_rc_after_the_first_has_two_lists(self):
-        # (new since the rc before, then the earlier release candidates since the last stable in one list; a first rc and a
-        # stable keep one list)
+    def test_a_stable_has_one_list_since_the_stable_before(self):
+        # (an old release candidate between them is passed over)
         self.git("tag", "v3.0.0")
-        for n in (1, 2, 3):
-            self.commit("fix: %d" % n)
-            self.git("tag", "v3.0.1-rc.%d" % n)
-        stub = self.cliff_stub(self.dir)
-        with mock.patch.dict(os.environ, stub):
-            page = release.notes("v3.0.1-rc.3", "longshot", root=str(self.dir))
-            first = release.notes("v3.0.1-rc.1", "longshot", root=str(self.dir))
-        self.assertEqual(release.earlier_rcs("v3.0.1-rc.3", 3, str(self.dir)), ["v3.0.1-rc.1", "v3.0.1-rc.2"])
-        new, older = page.split("\n## Earlier release candidates: rc.1, rc.2 (since v3.0.0)\n")
-        self.assertIn("v3.0.1-rc.2..v3.0.1-rc.3", new.split())
-        self.assertIn("--ignore-tags", older.split())
-        self.assertIn("v3.0.0..v3.0.1-rc.2", older.split())
-        self.assertNotIn("Earlier", first)
+        self.commit("fix: 1")
+        self.git("tag", "v3.0.1-rc.1")
+        self.commit("fix: 2")
         self.git("tag", "v3.0.1")
-        self.assertEqual(release.earlier_rcs("v3.0.1", 3, str(self.dir)), [])
+        with mock.patch.dict(os.environ, self.cliff_stub(self.dir)):
+            page = release.notes("v3.0.1", "longshot", root=str(self.dir))
+        self.assertIn("v3.0.0..v3.0.1", page.split())
+        self.assertNotIn("Earlier", page)
 
     def test_a_nightly_after_the_first_has_two_lists(self):
-        # (new since the nightly before, then everything since the last version in one list, as an rc's page does; the first
-        # nightly, and a nightly whose predecessor is the last version's commit, keep one list)
-        self.git("tag", "v3.0.0-rc.1")
+        # (new since the nightly before, then everything since the last version in one list; the first nightly, and a
+        # nightly whose predecessor is the last version's commit, keep one list)
+        self.git("tag", "v3.0.0")
         stub = self.cliff_stub(self.dir)
         with mock.patch.dict(os.environ, stub):
             first = release.notes("nightly-5-aaaaaaaa", "longshot", root=str(self.dir))
@@ -312,23 +305,9 @@ class Bump(unittest.TestCase):
         self.assertEqual(release.previous_nightly("nightly-8-dddddddd", str(self.dir)), "nightly-7-cccccccc")
         with mock.patch.dict(os.environ, stub):
             page = release.notes("nightly-8-dddddddd", "longshot", root=str(self.dir))
-        new, older = page.split("\n## Earlier changes (since v3.0.0-rc.1)\n")
+        new, older = page.split("\n## Earlier changes (since v3.0.0)\n")
         self.assertIn("nightly-7-cccccccc..HEAD", new.split())
-        self.assertIn("v3.0.0-rc.1..nightly-7-cccccccc", older.split())
-
-    def test_the_earlier_rcs_with_no_stable_skip_the_newer_commits(self):
-        # (the launcher before v1.0.0: no stable and no first commit, so no range; what came after the last earlier rc is
-        # skipped instead)
-        self.commit("fix: a")
-        self.git("tag", "v1.0.0-rc.1")
-        self.commit("fix: b")
-        self.git("tag", "v1.0.0-rc.2")
-        newer = self.git("rev-parse", "HEAD")
-        with mock.patch.dict(os.environ, self.cliff_stub(self.dir)), mock.patch.dict(release.PRODUCTS["launcher"], since=None):
-            page = release.notes("v1.0.0-rc.2", "launcher", root=str(self.dir))
-        older = page.split("\n## Earlier release candidates: rc.1\n")[1].split()
-        self.assertEqual(older[older.index("--skip-commit") + 1], newer)
-        self.assertNotIn("..", " ".join(older))
+        self.assertIn("v3.0.0..nightly-7-cccccccc", older.split())
 
     def test_the_git_cliff_stand_in_runs_from_a_unicode_path(self):
         # (a temporary folder under a user name such as "Zoë": the stand-in still gets its arguments through)
@@ -353,7 +332,7 @@ class ReleasePage(unittest.TestCase):
         return release.release_page(tag, product, "## %s\n\n### Fixes\n\n- a fix\n" % tag, names, "MagicBeanDev/LongshotLauncher")
 
     def test_the_launcher_page_links_its_own_files(self):
-        for tag, channel in (("v1.0.0", "stable"), ("v1.1.0-rc.2", "rc"), ("nightly-10-968b7963", "nightly")):
+        for tag, channel in (("v1.0.0", "stable"), ("nightly-10-968b7963", "nightly")):
             with self.subTest(tag):
                 page = self.page(tag, "launcher", self.LAUNCHER)
                 head, notes = page.split("\n---\n", 1)
@@ -374,7 +353,7 @@ class ReleasePage(unittest.TestCase):
         self.assertNotIn("portable zip", page)
 
     def test_the_longshot_page_sends_players_to_the_launcher_of_its_channel(self):
-        for tag, channel in (("v3.0.0", "stable"), ("v3.0.0-rc.1", "rc"), ("nightly-34-545618fc", "nightly")):
+        for tag, channel in (("v3.0.0", "stable"), ("nightly-34-545618fc", "nightly")):
             with self.subTest(tag):
                 page = self.page(tag, "longshot", self.LONGSHOT)
                 head, notes = page.split("\n---\n", 1)
@@ -386,7 +365,7 @@ class ReleasePage(unittest.TestCase):
                     "Windows without installing: [portable zip](%s/windows-portable) · [the launcher's newest %s release](%s)"
                     % (link, channel, link),
                     "**Don't download the files below:** they're the builder the launcher installs for you."])
-                for other in {"stable", "rc", "nightly"} - {channel}:
+                for other in {"stable", "rc", "nightly"} - {channel}:   # (rc: the channel there was)
                     self.assertNotIn("/download/launcher/" + other, page)
                 self.assertNotIn("releases/download", page)   # (no link to a builder file)
                 self.assertTrue(notes.strip().startswith("## " + tag))
@@ -514,20 +493,21 @@ class Publish(unittest.TestCase):
 
     def test_a_draft_then_the_files_then_published(self):
         notes = self.dir / "notes.md"
-        notes.write_text("## v3.0.0-rc.1\n")
-        a, b = self.dir / "Longshot-v3.0.0-rc.1-x86_64.AppImage", self.dir / "SHA256SUMS"
+        notes.write_text("## nightly-34-545618fc\n")
+        a, b = self.dir / "Longshot-nightly-34-545618fc-x86_64.AppImage", self.dir / "SHA256SUMS"
         a.write_bytes(b"\x7fELF builder")
         b.write_bytes(b"sums\n")
-        run("--product", "longshot", "publish", "v3.0.0-rc.1", "--target", "abc", "--notes", notes, a, b)
+        run("--product", "longshot", "publish", "nightly-34-545618fc", "--target", "abc", "--notes", notes, a, b)
         rel = FakeForgejo.releases[0]
-        self.assertEqual((rel["tag_name"], rel["draft"], rel["prerelease"], rel["name"]), ("v3.0.0-rc.1", False, True, "Longshot v3.0.0-rc.1"))
+        self.assertEqual((rel["tag_name"], rel["draft"], rel["prerelease"], rel["name"]),
+                         ("nightly-34-545618fc", False, True, "Longshot nightly-34-545618fc"))
         self.assertEqual([(n, p) for _, n, p in FakeForgejo.uploads], [(a.name, b"\x7fELF builder"), ("SHA256SUMS", b"sums\n")])
         with self.assertRaises(SystemExit):   # (a published version's files never change)
-            run("--product", "longshot", "publish", "v3.0.0-rc.1", "--target", "abc", "--notes", notes, a)
+            run("--product", "longshot", "publish", "nightly-34-545618fc", "--target", "abc", "--notes", notes, a)
         bad = self.dir / "image.bin"
         bad.write_bytes(b"x")
         with self.assertRaises(SystemExit):
-            run("--product", "longshot", "publish", "v3.0.1-rc.1", "--target", "abc", "--notes", notes, bad)
+            run("--product", "longshot", "publish", "nightly-35-545618fd", "--target", "abc", "--notes", notes, bad)
 
     def test_the_page_on_the_release(self):
         # (publish puts the notes under the page's header: Longshot's says to download the launcher of its channel)
@@ -542,14 +522,14 @@ class Publish(unittest.TestCase):
         self.assertIn("### Fixes\n\n- a fix\n", body)
         # (the launcher's: its own files, on its repository)
         FakeForgejo.releases, FakeForgejo.uploads = [], []
-        f = self.dir / "LongshotLauncher-v1.0.0-rc.1-windows-x64-setup.exe"
+        f = self.dir / "LongshotLauncher-v1.0.0-windows-x64-setup.exe"
         f.write_bytes(b"MZ setup")
-        run("--product", "launcher", "publish", "v1.0.0-rc.1", "--target", "abc", "--notes", notes, f)
+        run("--product", "launcher", "publish", "v1.0.0", "--target", "abc", "--notes", notes, f)
         body = FakeForgejo.releases[0]["body"]
         self.assertTrue(body.startswith("# ⬇️ Download Longshot Launcher\n"))
         self.assertIn("### [🪟 &nbsp;Download for Windows](https://git-cdn.magicbean.dev/MagicBeanDev/Test/releases/download/"
-                      "v1.0.0-rc.1/LongshotLauncher-v1.0.0-rc.1-windows-x64-setup.exe)", body)
-        self.assertIn(release.CHANNEL_SAYS["rc"], body)
+                      "v1.0.0/LongshotLauncher-v1.0.0-windows-x64-setup.exe)", body)
+        self.assertIn(release.CHANNEL_SAYS["stable"], body)
 
     def test_an_upload_the_server_fails_is_made_again(self):
         # (HTTP 500 on the upload, as git.magicbean.dev answered a nightly's AppImage, then a dropped connection: the file
@@ -657,16 +637,16 @@ class Publish(unittest.TestCase):
                                        *a], cwd=repo, check=True, capture_output=True)
         g("init", "-q", "-b", "main")
         g("commit", "-q", "--allow-empty", "-m", "feat: a")
-        g("tag", "v3.0.0-rc.1")
-        self.releases_of(("v3.0.0", False, False), ("v3.1.0-rc.1", True, True), ("tools", False, True))
+        g("tag", "v3.0.0")
+        self.releases_of(("v3.0.0", False, False), ("v3.1.0", True, False), ("tools", False, True))
         with mock.patch.object(release, "ROOT", str(repo)), mock.patch.object(release, "git",
                 lambda *a, root=None, check=True, _g=release.git: _g(*a, root=str(repo), check=check)):
             err = io.StringIO()
             with contextlib.redirect_stderr(err):
-                self.assertEqual(run("--product", "longshot", "check-tag", "v3.0.0-rc.1", "--main", "main")[0], 1)
+                self.assertEqual(run("--product", "longshot", "check-tag", "v3.0.0", "--main", "main")[0], 1)
             self.assertIn("not above every release there is: v3.0.0", err.getvalue())
             FakeForgejo.releases[0]["draft"] = True   # (back to a draft: no longer in the way)
-            self.assertEqual(run("--product", "longshot", "check-tag", "v3.0.0-rc.1", "--main", "main")[0], 0)
+            self.assertEqual(run("--product", "longshot", "check-tag", "v3.0.0", "--main", "main")[0], 0)
 
     def test_publish_refuses_a_published_tag_on_a_later_page(self):
         self.releases_of(("v3.0.0", False, False), *[("nightly-%d-%08x" % (n, n), False, True) for n in range(1, 80)])
@@ -681,7 +661,7 @@ class Publish(unittest.TestCase):
 
 
 class ReleasedAs(unittest.TestCase):
-    """released-as: a tag's commit that CI released already (its nightly; for a stable, its release candidate). Found by the
+    """released-as: a tag's commit that CI released already (for a stable, the nightly of its commit). Found by the
     commit its tag is, and taken only when its SHA256SUMS is signed by a trusted key and names exactly its files; a
     release of the commit that is not stops the run"""
 
@@ -752,12 +732,13 @@ class ReleasedAs(unittest.TestCase):
         self.git("tag", self.nightly(1, self.a), self.b)
         self.assertIsNone(self.released_as(self.a))
 
-    def test_a_stable_finds_its_release_candidate(self):
-        self.release("v3.0.0-rc.1", self.b)
-        self.assertEqual(self.released_as(self.b, but="v3.0.0"), "v3.0.0-rc.1")
-        self.assertIsNone(self.released_as(self.b, but="v3.0.0-rc.1"))   # (never the tag itself)
-        self.release("v2.9.0", self.b)   # (no version of this product: never taken)
-        self.assertEqual(self.released_as(self.b, but="v3.0.0"), "v3.0.0-rc.1")
+    def test_a_stable_finds_the_nightly_of_its_commit(self):
+        self.release("v3.0.0-rc.1", self.b)   # (an old release candidate: no version, never taken)
+        self.release("v2.9.0", self.b)        # (no version of this product: never taken)
+        self.assertIsNone(self.released_as(self.b, but="v3.0.0"))
+        self.release(self.nightly(1, self.b), self.b)
+        self.assertEqual(self.released_as(self.b, but="v3.0.0"), self.nightly(1, self.b))
+        self.assertIsNone(self.released_as(self.b, but=self.nightly(1, self.b)))   # (never the tag itself)
 
     def test_a_release_not_signed_or_not_whole_stops_the_run(self):
         cases = {
@@ -802,7 +783,7 @@ class ReleasedAs(unittest.TestCase):
         with mock.patch.object(release, "ROOT", str(self.repo)), mock.patch.object(release, "git",
                 lambda *a, root=None, check=True, _g=release.git: _g(*a, root=str(self.repo), check=check)), \
                 mock.patch.object(release, "trusted_keys", lambda root=None, _t=release.trusted_keys: _t(str(self.repo))):
-            self.assertEqual(run("--product", "longshot", "released-as", self.b, "--not", "v3.0.0-rc.1"), (0, self.nightly(1, self.b) + "\n"))
+            self.assertEqual(run("--product", "longshot", "released-as", self.b, "--not", "v3.0.0"), (0, self.nightly(1, self.b) + "\n"))
             self.assertEqual(run("--product", "longshot", "released-as", self.a), (0, "\n"))
             with self.assertRaises(SystemExit):
                 run("--product", "longshot", "released-as", self.b[:8])

@@ -42,7 +42,7 @@ trap cleanup EXIT
 
 # (a release's MSBuild version is its tag without the v; a nightly keeps the projects' own, its tag says which it is)
 version=()
-if [[ $TAG =~ ^v([0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?)$ ]]; then version=(-p:Version="${BASH_REMATCH[1]}"); fi
+if [[ $TAG =~ ^v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then version=(-p:Version="${BASH_REMATCH[1]}"); fi
 
 publish() {
     local rid=$1 dir=$2

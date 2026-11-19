@@ -231,12 +231,12 @@ static class Program
             s =>
             {
                 NightliesListed(s);
-                s.SetNewest(Versions.Candidate, "v3.1.0-rc.1");
-                s.Releases.Listed = [.. s.Releases.Listed!, new("v3.1.0-rc.1", false, true,
+                s.SetNewest(Versions.Stable, "v3.1.0");
+                s.Releases.Listed = [.. s.Releases.Listed!, new("v3.1.0", false, false,
                     DateTimeOffset.Parse("2026-11-12T12:00:00Z", System.Globalization.CultureInfo.InvariantCulture),
-                    ReleaseNotes.PageOf(Product.Longshot, "v3.1.0-rc.1"), "", [])];
+                    ReleaseNotes.PageOf(Product.Longshot, "v3.1.0"), "", [])];
             },
-            _ => null, m => m.Home.PickTrack = m.Home.Tracks.First(t => t.Id == Versions.Candidate)),
+            _ => null, m => m.Home.PickTrack = m.Home.Tracks.First(t => t.Id == Versions.Stable)),
         new("settings-go-back", "Step 2 going back to an older nightly: its folder takes that version's name when the build starts", Platform.Windows, NightliesListed,
             m => new SettingsStepViewModel(new BuildJob(m, JobKind.Update, Versions.Nightly, "nightly-187-9e6f231d", m.Service.Registry.Builds[0]))
                  { Free = 412L << 30 }),

@@ -100,8 +100,6 @@
   "It follows the launcher until you pick one in Settings.": "在你於「設定」中選擇之前，它會跟隨啟動器。",
   "Stable": "穩定版",
   "The tested version. Best for playing.": "經過測試的版本，最適合遊玩。",
-  "Release candidate": "候選版",
-  "The next version, to try before it is released.": "下一個版本，可在正式推出前試用。",
   "Nightly": "Nightly",
   "The newest development build, with every change of the day.": "最新的開發建置，包含當天的所有變更。",
   "Continue": "繼續",

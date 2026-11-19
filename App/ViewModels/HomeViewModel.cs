@@ -35,7 +35,6 @@ public sealed class BuildItemViewModel : ViewModelBase
     public string Version => Entry.Version is { } v ? Versions.Shown(v) : Entry.Name;
     public string Channel => UpdatePolicy.ChannelOf(Entry.Channel, Entry.Version);
     public bool IsRelease => Channel == Versions.Stable;
-    public bool IsCandidate => Channel == Versions.Candidate;
     public bool IsNightly => Channel == Versions.Nightly;
     /// A pull request's build (pr-&lt;number&gt;-&lt;commit&gt;): its update is a newer push of the same pull request
     public bool IsPullRequest => Channel == Versions.PullRequest;
@@ -89,8 +88,8 @@ public sealed class BuildItemViewModel : ViewModelBase
     public Command FolderCommand { get; }
 }
 
-/// One track in the hero's Track dropdown: stable, rc or nightly, by its name only (what it holds is the Version field's). The
-/// three are made once and kept: a dropdown given new items drops its selection after the pick was shown again
+/// One track in the hero's Track dropdown: stable, nightly or a pull request, by its name only (what it holds is the Version
+/// field's). They are made once and kept: a dropdown given new items drops its selection after the pick was shown again
 public sealed class TrackChoice(string id, string name) : ViewModelBase
 {
     public string Id => id;
@@ -238,7 +237,6 @@ public sealed class HomeViewModel : ViewModelBase
     public string NewestDefaultText => NewestDefault is { } v ? Versions.Shown(v) : "";
     public string DefaultChannel => Service.DefaultChannel;
     public bool DefaultIsRelease => DefaultChannel == Versions.Stable;
-    public bool DefaultIsCandidate => DefaultChannel == Versions.Candidate;
     public bool DefaultIsNightly => DefaultChannel == Versions.Nightly;
     public bool KnowsNewest => NewestDefault != null;
     public bool CheckFailed => NewestDefault == null && Service.Checked;
@@ -1034,7 +1032,7 @@ public sealed class HomeViewModel : ViewModelBase
             Builds.Add(item);
         }
         ShowPick();
-        RaiseAll(nameof(HasBuilds), nameof(NoBuilds), nameof(Default), nameof(ShowLeftPanel), nameof(HeroSaves), nameof(Footer), nameof(NewestDefault), nameof(NewestDefaultText), nameof(DefaultChannel), nameof(DefaultIsRelease), nameof(DefaultIsCandidate),
+        RaiseAll(nameof(HasBuilds), nameof(NoBuilds), nameof(Default), nameof(ShowLeftPanel), nameof(HeroSaves), nameof(Footer), nameof(NewestDefault), nameof(NewestDefaultText), nameof(DefaultChannel), nameof(DefaultIsRelease),
                  nameof(DefaultIsNightly), nameof(KnowsNewest), nameof(CheckFailed), nameof(CheckWhy), nameof(HasCheckWhy), nameof(ShowCheckReport), nameof(ChannelEmpty), nameof(CheckFailedText), nameof(Checking), nameof(ShowCheckLine), nameof(HasLauncherUpdate),
                  nameof(LauncherUpdateText), nameof(LauncherUpdateHeading), nameof(LauncherUpdateButton));
         BuildCommand.Changed();
@@ -1200,7 +1198,7 @@ public sealed class HomeViewModel : ViewModelBase
     }
 }
 
-/// Choosing what to build: release, rc or nightly, each with its newest version and whether you have it
+/// Choosing what to build: release or nightly, each with its newest version and whether you have it
 public sealed class ChannelPickerViewModel : ViewModelBase
 {
     string pick;
@@ -1214,7 +1212,6 @@ public sealed class ChannelPickerViewModel : ViewModelBase
         public bool Known => version != null;
         public bool Have => have;
         public bool IsRelease => id == Versions.Stable;
-        public bool IsCandidate => id == Versions.Candidate;
         public bool IsNightly => id == Versions.Nightly;
         public string Tag => id;
 
@@ -1239,7 +1236,6 @@ public sealed class ChannelPickerViewModel : ViewModelBase
     public static readonly (string Id, string Name, string About)[] All =
     {
         (Versions.Stable, Tr.N("Stable"), Tr.N("The tested version. Best for playing.")),
-        (Versions.Candidate, Tr.N("Release candidate"), Tr.N("The next version, to try before it is released.")),
         (Versions.Nightly, Tr.N("Nightly"), Tr.N("The newest development build, with every change of the day.")),
     };
 

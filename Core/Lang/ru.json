@@ -109,8 +109,6 @@
   "It follows the launcher until you pick one in Settings.": "Совпадает с каналом лаунчера, пока вы не выберете другой в настройках.",
   "Stable": "Стабильный",
   "The tested version. Best for playing.": "Проверенная версия. Лучше всего для игры.",
-  "Release candidate": "Релиз-кандидат",
-  "The next version, to try before it is released.": "Следующая версия, чтобы попробовать её до выхода.",
   "Nightly": "Nightly",
   "The newest development build, with every change of the day.": "Самая свежая сборка для разработки со всеми изменениями за день.",
   "Continue": "Продолжить",

@@ -30,17 +30,17 @@ public static class SelfUpdate
 
     /// The launcher's channel: the one the player chose, else its own version's track (a build from a checkout follows stable)
     public static string ChannelOf(string own, string? chosen) =>
-        Versions.IsChannel(chosen) ? chosen! : Versions.TrackOf(own, Versions.LauncherFirstMajor);
+        Versions.IsChannel(chosen) ? chosen! : Versions.TrackOf(own);
 
     /// The version to update the launcher to from its channel's newest: a newer one on its own track, or, after the player chose
     /// another channel, that channel's newest; never for a build from a checkout ("dev"), never one with no launcher for this system
     public static string? UpdateTo(string own, ReleaseInfo? newest, Platform platform, string? channel = null, string? key = null)
     {
         if (newest == null || newest.Version == own || !newest.Launcher.ContainsKey(key ?? ReleaseManifest.PlatformKey(platform))) return null;
-        var track = Versions.TrackOf(own, Versions.LauncherFirstMajor);
+        var track = Versions.TrackOf(own);
         var isVersion = Versions.IsRelease(own, Versions.LauncherFirstMajor) || track == Versions.Nightly;
         if (!isVersion) return null;
-        if (channel != null && channel != track && !(channel == Versions.Candidate && track == Versions.Stable)) return newest.Version;
+        if (channel != null && channel != track) return newest.Version;
         return Versions.Newer(newest.Version, own, Versions.LauncherFirstMajor) ? newest.Version : null;
     }
 

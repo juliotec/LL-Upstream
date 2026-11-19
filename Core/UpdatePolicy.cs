@@ -1,8 +1,8 @@
 namespace LongshotLauncher.Core;
 
 /// Whether a build has an update: the newest version of the build's channel, when it is newer than the build's version
-/// (Versions.Newer: releases and release candidates in semver order, nightlies by their count). Never a downgrade: a build
-/// newer than its channel's newest (a release candidate after its channel moved on, a test build) is left alone, and nothing
+/// (Versions.Newer: releases in version order, nightlies by their count). Never a downgrade: a build
+/// newer than its channel's newest (a release pulled back, a test build) is left alone, and nothing
 /// is offered across a nightly and a release, which are not ordered (docs/versioning.md, "Update tracks"): a release build
 /// put on the nightly channel, or a nightly on a release's, is offered nothing until it is built again from that channel. A
 /// version that names neither a release nor a nightly (a hash, "dev") is on no track, and is offered its channel's newest. A pull

@@ -7,19 +7,18 @@ channels, signing, `tools.lock`, how the launcher reads it) is in [docs/releases
 | | Longshot | The launcher |
 |---|---|---|
 | Repository | [MagicBeanDev/Longshot](https://git.magicbean.dev/MagicBeanDev/Longshot) | [MagicBeanDev/LongshotLauncher](https://git.magicbean.dev/MagicBeanDev/LongshotLauncher) |
-| First version | `v3.0.0` (rc first: `v3.0.0-rc.1`) | `v1.0.0` (rc first: `v1.0.0-rc.1`) |
+| First version | `v3.0.0` | `v1.0.0` |
 | What a release ships | the Windows and Linux builders, `tools.lock` | the launcher: `LongshotLauncher-<v>-windows-x64-setup.exe` (installs itself or runs portable: docs/releases.md, *Installing the launcher*), `LongshotLauncher-<v>-windows-x64-portable.zip`, `LongshotLauncher-<v>-x86_64.AppImage` |
 | Nightly count | commits since the fork, e2a4d45 | commits since the first commit |
 
-Both have the same three channels: **stable**, **rc** and **nightly**. In the launcher, players pick a channel for their
+Both have the same two channels: **stable** and **nightly**. In the launcher, players pick a channel for their
 builds and, apart from it, a channel for the launcher itself (*Settings > Launcher updates*).
 
 Contents:
 
 - [The commands](#the-commands)
 - [A nightly](#a-nightly)
-- [A release candidate](#a-release-candidate)
-- [A stable from a tested release candidate](#a-stable-from-a-tested-release-candidate)
+- [A stable](#a-stable)
 - [A hotfix](#a-hotfix)
 - [Pulling a bad release](#pulling-a-bad-release)
 - [When CI refuses a tag](#when-ci-refuses-a-tag)
@@ -36,8 +35,8 @@ Everything is `scripts/release.py` (the same file in both repositories), and for
 
 ```sh
 export GIT_CLIFF=$(python -I scripts/release.py git-cliff ~/.cache/longshot-cliff)   # the pinned git-cliff, checked
-python -I scripts/release.py next          # the number the commits call for, the next rc's tag, and its notes
-python -I scripts/release.py channels      # what stable, rc and nightly offer now, as the launcher reads them
+python -I scripts/release.py next          # the number the commits call for, the next stable's tag, and its notes
+python -I scripts/release.py channels      # what stable and nightly offer now, as the launcher reads them
 ```
 
 The remote is called `forge` here (`forge.py login`, MagicBeanDev/Tooling's, sets it up; in the launcher's checkout, add
@@ -58,70 +57,52 @@ Nothing to do: every push to `main` (every merged pull request) runs `release.ym
 
 Players on the nightly channel keep the last good nightly until then.
 
-## A release candidate
+## A stable
+
+A stable is a tag on a commit of `main` that has been tested: normally a nightly's commit that testers played (the
+nightly channel is where the next version is tried). There is no release candidate.
 
 1. **Preview.** Run `python -I scripts/release.py next` on an up-to-date `main` (`jj git fetch --remote forge` and
    `jj new main@forge`, or `git fetch forge` and `git switch --detach forge/main`). It prints:
    - the number the commits since the last stable call for (feat: minor, fix and perf: patch, `!` or `BREAKING CHANGE:`:
      major; the first release: `v3.0.0` for Longshot, `v1.0.0` for the launcher);
-   - the next tag, e.g. `v3.1.0-rc.1` (or `-rc.2` when `-rc.1` is out);
+   - the next tag, e.g. `v3.1.0`;
    - the notes git-cliff will write.
 
    Read the notes: a wrong title is a wrong line. Fix it before tagging. A title can be edited on the merged pull request
    only for the page; the commit on `main` keeps what was merged.
-2. **Tag the commit on main.**
+2. **Before the tag (Longshot).** A tester on Windows plays the commit's nightly
+   ([Needs a Windows tester](#needs-a-windows-tester-longshot)), for what CI can't check.
+3. **Tag the commit.** The tested nightly's commit (`nightly-<count>-<commit>` names it), or `main` when that is it:
 
    ```sh
    # git
-   git tag -a v3.1.0-rc.1 -m "Longshot v3.1.0-rc.1" forge/main
-   git push forge v3.1.0-rc.1
+   git tag -a v3.1.0 -m "Longshot v3.1.0" nightly-412-1a2b3c4d^{}
+   git push forge v3.1.0
    # jj: jj does not push tags, so the tag is made and pushed with git (a jj clone is colocated with git)
    jj git fetch --remote forge
-   git tag -a v3.1.0-rc.1 -m "Longshot v3.1.0-rc.1" "$(jj log -r main@forge --no-graph -T commit_id)"
-   git push forge v3.1.0-rc.1
+   git tag -a v3.1.0 -m "Longshot v3.1.0" "$(jj log -r 'nightly-412-1a2b3c4d' --no-graph -T commit_id)"
+   git push forge v3.1.0
    ```
 
-   Or in the web UI: *Releases* > *New release*. Type the tag (`v3.1.0-rc.1`), choose the target `main`, and press
+   Or in the web UI: *Releases* > *New release*. Type the tag (`v3.1.0`), choose the target commit, and press
    **Create tag** (the tag only). Do not *Publish release* or *Save draft*: CI makes the release itself, and a release
    made by hand would have none of the files.
-3. **What CI does** (`release.yml`): it checks the tag (`check-tag`: its form, on `main`, above every release, as high as the
+4. **What CI does** (`release.yml`): it checks the tag (`check-tag`: its form, on `main`, above every release, as high as the
    commits call for). It builds both systems' files, writes and signs `SHA256SUMS`, checks the signature with the key the
-   launcher trusts, writes the notes with git-cliff, uploads everything to a draft, and publishes it as a pre-release.
-   The page has a header above the notes: the launcher's links its own files; Longshot's sends players to the launcher
-   of the same channel ([docs/releases.md](docs/releases.md#release-notes)).
+   launcher trusts, writes the notes with git-cliff (every change since the previous stable), uploads everything to a
+   draft, and publishes it. The page has a header above the notes: the launcher's links its own files; Longshot's sends
+   players to the launcher of the same channel ([docs/releases.md](docs/releases.md#release-notes)).
    For Longshot, when the commit's nightly is still published (CI keeps the newest 5), `release.py released-as` finds it
    and checks its signed `SHA256SUMS`: the build checks that ship no file (the Windows Vulkan back end, AMD FSR 4) passed
    in its run and are not run again. The files are built again: each carries its version.
-4. **Check it.**
+5. **Check it.**
    - The run is green, and the release page shows every file, `SHA256SUMS` and `SHA256SUMS.sig`.
-   - `python -I scripts/release.py channels` shows the tag on `rc`.
+   - `python -I scripts/release.py channels` shows the tag on `stable`.
    - Download `SHA256SUMS`, `SHA256SUMS.sig` and the files, and run
      `python -I scripts/release.py verify SHA256SUMS --files <folder>`.
-   - In a launcher set to the rc channel (Settings), Retry offers it.
-   - For the launcher: within a minute, `https://longshot.magicbean.dev/download/launcher/rc` goes to it (and, for a stable,
-     `/download/launcher/stable`).
-5. Ask testers on the rc channel to try it, and for Longshot one on Windows for what CI can't check
-   ([Needs a Windows tester](#needs-a-windows-tester-longshot)). Fixes go in as pull requests; each round is a new rc tag
-   (`-rc.2`).
-
-## A stable from a tested release candidate
-
-When an rc has been tested and nothing blocks it, tag **the same commit** as stable:
-
-```sh
-git tag -a v3.1.0 -m "Longshot v3.1.0" v3.1.0-rc.2^{}
-git push forge v3.1.0
-# jj: the commit of the rc tag
-git tag -a v3.1.0 -m "Longshot v3.1.0" "$(jj log -r 'v3.1.0-rc.2' --no-graph -T commit_id)"
-git push forge v3.1.0
-```
-
-Web UI: *New release*, tag `v3.1.0`, target: the rc's commit, **Create tag**.
-
-CI builds it again from that commit (its files carry the version; for Longshot, the build checks the rc's run passed are
-not run again: `release.py released-as`), signs and publishes it: it appears on **stable** and on **rc**. Its notes cover every
-change since the previous stable, the release candidates included. A later commit of `main` can be tagged instead, but
-then it was not what testers tried.
+   - In a launcher on the stable channel, Retry offers it.
+   - For the launcher: within a minute, `https://longshot.magicbean.dev/download/launcher/stable` goes to it.
 
 ## A hotfix
 
@@ -129,7 +110,8 @@ A bad bug in the current stable `v3.1.0`:
 
 1. Fix it on `main` in a pull request titled `fix: ...` (nothing else merged since? then this is the whole release).
 2. `python -I scripts/release.py next` says `v3.1.1` (the patch), or the minor when a `feat` is on `main` since `v3.1.0`.
-3. Tag `v3.1.1-rc.1`, check it quickly, then `v3.1.1` on the same commit. For an emergency, `v3.1.1` can be tagged directly.
+3. Let its nightly be played quickly (for Longshot, on Windows too), then tag `v3.1.1` on its commit. For an emergency,
+   `v3.1.1` can be tagged without waiting.
 
 Releases are only made from `main` (CI refuses a tag elsewhere). If `main` has changes not ready to ship, revert them in a
 pull request first, or ship them: there is no release branch.
@@ -152,10 +134,10 @@ The *version* step of `release.yml` says why. Nothing was built. Delete the tag 
 
 | The error says | Do |
 |---|---|
-| `is not vX.Y.Z or vX.Y.Z-rc.N` | A typo, or Longshot below v3 / the launcher below v1: tag the right name |
+| `is not vX.Y.Z` | A typo, or Longshot below v3 / the launcher below v1: tag the right name |
 | `is not on main` | Tag a commit of `main` (`forge/main`), not of a branch |
 | `is not above every release there is` | The number is taken or lower: `release.py next` gives the next one |
-| `is lower than the commits since vX call for: at least vY` | A `feat` or a breaking change came in: tag `vY` (or `vY-rc.1`) |
+| `is lower than the commits since vX call for: at least vY` | A `feat` or a breaking change came in: tag `vY` |
 | `no tag ... here` | The tag was pushed without its commit: push `main` first |
 
 To check before pushing: `python -I scripts/release.py check-tag <tag>` (it reads the release list; tag it locally first).
@@ -165,8 +147,8 @@ To check before pushing: `python -I scripts/release.py check-tag <tag>` (it read
 There is no Windows runner: every job runs on Linux, and Longshot's Windows files are cross-built there (the setup and the
 Vulkan back end with llvm-mingw's Linux build of `tools.lock`'s release, the WPF builder with `dotnet publish -r win-x64
 -p:EnableWindowsTargeting=true`). CI checks them as Windows files (PE headers, imports, resources, the .NET runtime:
-`scripts/check_windows_files.py`) and starts the setup and the builder under Wine, which only shows that they load. For each
-release candidate, before its stable, a tester on Windows 10 or 11:
+`scripts/check_windows_files.py`) and starts the setup and the builder under Wine, which only shows that they load. Before each
+stable, on the nightly to be tagged, a tester on Windows 10 or 11:
 
 - **Builds and plays.** Unzip `LongshotBuilder-<v>-windows-x64.zip` and run `LongshotBuilder.exe`: the setup installs the
   builder and downloads the tools; build the game from your own copy and play to the title screen. The setup shows its
@@ -237,7 +219,7 @@ When the key may have leaked, or on a schedule:
 
 1. `python -I scripts/release.py keygen <safe folder>` makes `release.pem` and `release.pub.pem` and prints the lines.
 2. **The launcher first.** Add the new `ReleaseKey.FromSpki("...")` line to `Core/ReleaseTrust.cs`, beside the old one, and
-   the same base64 to Longshot's `scripts/release_keys.json`. Release the launcher (rc, then stable) **signed with the old
+   the same base64 to Longshot's `scripts/release_keys.json`. Release the launcher **signed with the old
    key**. Launchers update to it and then trust both keys.
 3. **Then switch.** Wait until most players have that launcher (the stable for a few weeks). Replace the secret
    `RELEASE_SIGNING_KEY` with the new `release.pem`. Remove the old key from both files in a pull request, and release the
@@ -278,7 +260,7 @@ None of this is done yet. In order (the org secret is shared by both repositorie
    job, before any build, until it does.
 7. **Try it** on a fork, or with a throwaway key first: `LONGSHOT_LAUNCHER_TRUST=<test .pub.pem>` makes a launcher accept a
    release signed with it.
-8. **The first releases.** The launcher `v1.0.0-rc.1` and Longshot `v3.0.0-rc.1`, then their stables.
+8. **The first releases.** The launcher `v1.0.0` and Longshot `v3.0.0`.
 
 ## Troubleshooting
 

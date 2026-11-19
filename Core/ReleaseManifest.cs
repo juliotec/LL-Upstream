@@ -34,7 +34,6 @@ public sealed record ListedRelease(string Tag, bool Draft, bool Prerelease, Date
 
 /// Reading Forgejo's release list, and the channels from it (scripts/release.py newest has the same rules):
 ///   stable   the newest vX.Y.Z that is not a draft nor a pre-release
-///   rc       the newest vX.Y.Z-rc.N or vX.Y.Z that is not a draft
 ///   nightly  the newest nightly-&lt;count&gt;-&lt;commit&gt; that is not a draft, by its count
 /// A draft is a release CI is still making; a version pulled back to a draft, or deleted, is gone from its channel, which then
 /// offers the one before. Anything else in the list (a 2.x tag) is on no channel. (The build tools are generic packages, not
@@ -121,10 +120,8 @@ public static class ReleaseManifest
         var published = list.Where(r => !r.Draft && Versions.IsTagName(r.Tag));
         var on = channel switch
         {
-            Versions.Nightly => published.Where(r => Versions.TrackOf(r.Tag, product.FirstMajor) == Versions.Nightly),
-            Versions.Candidate => published.Where(r => Versions.IsRelease(r.Tag, product.FirstMajor)),
-            Versions.Stable => published.Where(r => !r.Prerelease && Versions.IsRelease(r.Tag, product.FirstMajor)
-                                                    && Versions.TrackOf(r.Tag, product.FirstMajor) == Versions.Stable),
+            Versions.Nightly => published.Where(r => Versions.TrackOf(r.Tag) == Versions.Nightly),
+            Versions.Stable => published.Where(r => !r.Prerelease && Versions.IsRelease(r.Tag, product.FirstMajor)),
             _ => throw new ArgumentException("Not a channel: " + channel, nameof(channel)),
         };
         // (a tag listed twice counts once; OrderBy is stable: ties keep the list's order, the server's newest first)

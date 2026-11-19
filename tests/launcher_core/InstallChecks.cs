@@ -246,30 +246,30 @@ static partial class Program
         var at = InstallPlaces.Of(env);
         var registry = new FakeRegistry();
         var links = new FakeShortcuts();
-        var setup = Path.Combine(root, "Downloads", "LongshotLauncher-v1.0.0-rc.3-windows-x64-setup.exe");
+        var setup = Path.Combine(root, "Downloads", "LongshotLauncher-v1.0.1-windows-x64-setup.exe");
         Directory.CreateDirectory(Path.GetDirectoryName(setup)!);
-        File.WriteAllText(setup, "MZ launcher v1.0.0-rc.3");
-        Installer.Install(setup, "v1.0.0-rc.3", at, registry, links);
-        // (the installed launcher updated itself to rc.9 (SelfUpdate.Swap), and its first start wrote its entry again: Refresh)
-        File.WriteAllText(at.Program, "MZ launcher v1.0.0-rc.9");
-        Installer.Refresh(at, "v1.0.0-rc.9", registry, links);
-        // (the rc.3 download, started again from Downloads, and its Install pressed: #129)
-        Require(Installer.Install(setup, "v1.0.0-rc.3", at, registry, links) == at.Program && File.ReadAllText(at.Program) == "MZ launcher v1.0.0-rc.9"
-                && (string)registry.Read(Installer.UninstallKey)!["DisplayVersion"] == "1.0.0-rc.9",
+        File.WriteAllText(setup, "MZ launcher v1.0.1");
+        Installer.Install(setup, "v1.0.1", at, registry, links);
+        // (the installed launcher updated itself to v1.0.3 (SelfUpdate.Swap), and its first start wrote its entry again: Refresh)
+        File.WriteAllText(at.Program, "MZ launcher v1.0.3");
+        Installer.Refresh(at, "v1.0.3", registry, links);
+        // (the v1.0.1 download, started again from Downloads, and its Install pressed: #129)
+        Require(Installer.Install(setup, "v1.0.1", at, registry, links) == at.Program && File.ReadAllText(at.Program) == "MZ launcher v1.0.3"
+                && (string)registry.Read(Installer.UninstallKey)!["DisplayVersion"] == "1.0.3",
                 "An older download's Install put its launcher back over the newer one installed (#129).");
-        Require(Installer.InstalledVersion(at, registry) == "v1.0.0-rc.9" && Installer.InstalledIsNewer("v1.0.0-rc.3", at, registry)
-                && !Installer.InstalledIsNewer("v1.0.0-rc.9", at, registry) && !Installer.InstalledIsNewer("v1.0.0", at, registry)
+        Require(Installer.InstalledVersion(at, registry) == "v1.0.3" && Installer.InstalledIsNewer("v1.0.1", at, registry)
+                && !Installer.InstalledIsNewer("v1.0.3", at, registry) && !Installer.InstalledIsNewer("v1.0.4", at, registry)
                 && !Installer.InstalledIsNewer("nightly-100-5f30eea3", at, registry) && !Installer.InstalledIsNewer("dev", at, registry),
-                "The installed version read back from its entry: newer than rc.3; not than itself, a newer release, a nightly or a checkout's build.");
+                "The installed version read back from its entry: newer than v1.0.1; not than itself, a newer release, a nightly or a checkout's build.");
         // (the same version: installed again, a repair; a newer download: installed over it)
-        File.WriteAllText(setup, "MZ launcher v1.0.0-rc.9 again");
+        File.WriteAllText(setup, "MZ launcher v1.0.3 again");
         links.Remove(at.StartMenuLink);
-        Installer.Install(setup, "v1.0.0-rc.9", at, registry, links);
-        Require(File.ReadAllText(at.Program) == "MZ launcher v1.0.0-rc.9 again" && links.Links[at.StartMenuLink] == at.Program,
+        Installer.Install(setup, "v1.0.3", at, registry, links);
+        Require(File.ReadAllText(at.Program) == "MZ launcher v1.0.3 again" && links.Links[at.StartMenuLink] == at.Program,
                 "The same version's Install: the program, its shortcut and its entry put back.");
-        File.WriteAllText(setup, "MZ launcher v1.0.0");
-        Installer.Install(setup, "v1.0.0", at, registry, links);
-        Require(File.ReadAllText(at.Program) == "MZ launcher v1.0.0" && Installer.InstalledVersion(at, registry) == "v1.0.0", "A newer download's Install.");
+        File.WriteAllText(setup, "MZ launcher v1.0.4");
+        Installer.Install(setup, "v1.0.4", at, registry, links);
+        Require(File.ReadAllText(at.Program) == "MZ launcher v1.0.4" && Installer.InstalledVersion(at, registry) == "v1.0.4", "A newer download's Install.");
         // (a nightly installed: its entry says "Nightly 100 · 5f30eea3", read back as its version)
         Installer.Register(at, "nightly-100-5f30eea3", registry);
         Require(Installer.InstalledVersion(at, registry) == "nightly-100-5f30eea3" && Installer.InstalledIsNewer("nightly-99-0a1b2c3d", at, registry)
@@ -279,7 +279,7 @@ static partial class Program
         Require(Installer.InstalledVersion(at, registry) == null, "An entry that names no version.");
         Installer.Register(at, "v1.1.0", registry);
         File.Delete(at.Program);
-        Require(Installer.InstalledVersion(at, registry) == null && !Installer.InstalledIsNewer("v1.0.0-rc.3", at, registry),
+        Require(Installer.InstalledVersion(at, registry) == null && !Installer.InstalledIsNewer("v1.0.1", at, registry),
                 "An entry left with no program: nothing installed to keep.");
         registry.Delete(Installer.UninstallKey);
         Require(Installer.InstalledVersion(at, registry) == null, "No entry: no version.");

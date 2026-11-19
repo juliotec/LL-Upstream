@@ -6,13 +6,16 @@ static partial class Program
 {
     static void VersionPickChecks()
     {
-        // (the server's order is newest published first, but not always the version order: an rc made after a stable's fix)
+        // (the server's order is newest published first, but not always the version order: a fix of an older stable after a newer
+        // one; the old release candidates the server still has are on no channel)
         var list = ReleaseManifest.ParseList(Json(
             ("nightly-189-aa95d35f", false, true, ""),
             ("nightly-188-a00c485c", false, true, ""),
             ("nightly-190-cccccccc", true, true, "a draft CI is still making"),
             ("v3.1.0-rc.2", false, true, ""),
             ("nightly-182-5274fb72", false, true, ""),
+            ("v3.0.2", false, false, "a fix of v3.0, after v3.1.0"),
+            ("v3.1.0", false, false, ""),
             ("v3.0.1", false, false, ""),
             ("v3.1.0-rc.1", false, true, ""),
             ("v3.0.0", false, false, ""),
@@ -24,9 +27,9 @@ static partial class Program
 
         Require(Tags(ReleaseManifest.OnChannel(list, "nightly", p)) == "nightly-189-aa95d35f nightly-188-a00c485c nightly-182-5274fb72",
                 "A channel's releases, newest first: the nightlies, no draft, a tag listed twice once.");
-        Require(Tags(ReleaseManifest.OnChannel(list, "rc", p)) == "v3.1.0-rc.2 v3.1.0-rc.1 v3.0.1 v3.0.0 v3.0.0-rc.4",
-                "The rc channel: its candidates and the stables, in version order, not the server's.");
-        Require(Tags(ReleaseManifest.OnChannel(list, "stable", p)) == "v3.0.1 v3.0.0", "The stable channel: the stables only.");
+        Require(Tags(ReleaseManifest.OnChannel(list, "stable", p)) == "v3.1.0 v3.0.2 v3.0.1 v3.0.0",
+                "The stable channel: the stables only, in version order, not the server's; never an old release candidate.");
+        Throws<ArgumentException>(() => ReleaseManifest.OnChannel(list, "rc", p), "rc was taken for a channel.");
         foreach (var c in Versions.Channels)
             Require(ReleaseManifest.Newest(list, c, p) == ReleaseManifest.OnChannel(list, c, p)[0].Tag, $"{c}'s newest is the first of its releases.");
         Require(ReleaseManifest.OnChannel(Array.Empty<ListedRelease>(), "nightly", p).Count == 0
@@ -45,12 +48,10 @@ static partial class Program
         // ---- the versions of a track ----
         Require(Marks(VersionPick.Of("nightly", builds, list, p)) == "nightly-189-aa95d35f* nightly-188-a00c485c+ nightly-182-5274fb72",
                 "A track's versions: the server's, newest first and marked, the installed one marked.");
-        Require(Marks(VersionPick.Of("stable", builds, list, p)) == "v3.0.1* v3.0.0+", "The stable track: the stables, v3.0.0 installed.");
-        Require(Marks(VersionPick.Of("rc", builds, list, p)) == "v3.1.0-rc.2* v3.1.0-rc.1 v3.0.1 v3.0.0 v3.0.0-rc.4",
-                "The rc track lists the stables too, but a stable-channel build is not installed on it.");
+        Require(Marks(VersionPick.Of("stable", builds, list, p)) == "v3.1.0* v3.0.2 v3.0.1 v3.0.0+", "The stable track: the stables, v3.0.0 installed.");
         Require(Marks(VersionPick.Of("nightly", builds, null, p)) == "nightly-188-a00c485c+",
                 "No answer from the server yet: the installed versions only, none called the newest.");
-        Require(Marks(VersionPick.Of("rc", builds, null, p)) == "", "No answer and nothing installed on the track: no versions.");
+        Require(Marks(VersionPick.Of("stable", new[] { nightly }, null, p)) == "", "No answer and nothing installed on the track: no versions.");
         var gone = Build("old", "nightly-150-0caf0618", "nightly", day: 2);
         Require(Marks(VersionPick.Of("nightly", new[] { nightly, gone }, list, p))
                 == "nightly-189-aa95d35f* nightly-188-a00c485c+ nightly-182-5274fb72 nightly-150-0caf0618+",
@@ -58,8 +59,10 @@ static partial class Program
         var dev = Build("d", "dev", "nightly");
         Require(Marks(VersionPick.Of("nightly", new[] { dev }, list, p)) == "nightly-189-aa95d35f* nightly-188-a00c485c nightly-182-5274fb72 dev+",
                 "A version on no order (dev) comes after the ones the order ranks.");
-        Require(VersionPick.Of("rc", new[] { Build("r", "v3.1.0-rc.1", "") }, list, p).Single(v => v.Installed).Tag == "v3.1.0-rc.1",
-                "A build with no channel of its own is on its version's track (rc).");
+        Require(VersionPick.Of("stable", new[] { Build("r", "v3.0.1", "") }, list, p).Single(v => v.Installed).Tag == "v3.0.1",
+                "A build with no channel of its own is on its version's track (stable).");
+        Require(VersionPick.Of("stable", new[] { Build("r", "v3.1.0-rc.1", "rc") }, list, p).Single(v => v.Installed).Tag == "v3.1.0-rc.1",
+                "A build of an old release candidate, on rc, is on the stable track (rc is no channel now).");
         var twice = new[] { nightly, Build("n2", "nightly-188-a00c485c", "nightly", day: 5) };
         Require(VersionPick.Of("nightly", twice, list, p).Count(v => v.Tag == "nightly-188-a00c485c") == 1
                 && VersionPick.Of("nightly", twice, list, p).Single(v => v.Installed).Build!.Id == "n",
@@ -72,7 +75,7 @@ static partial class Program
         Require(newer is { Action: PickAction.Replace, Build.Id: "n", Older: false }, "A newer version of a track with a build: an update in its place.");
         var back = VersionPick.Plan("nightly", "nightly-182-5274fb72", builds);
         Require(back is { Action: PickAction.Replace, Build.Id: "n", Older: true }, "An older version of a track with a build: going back, in its place.");
-        Require(VersionPick.Plan("rc", "v3.1.0-rc.2", builds) is { Action: PickAction.Build, Build: null },
+        Require(VersionPick.Plan("stable", "v3.1.0", new[] { nightly }) is { Action: PickAction.Build, Build: null },
                 "A track with no build: a new build of the version picked.");
         Require(VersionPick.Plan("stable", "v3.0.1", builds) is { Action: PickAction.Replace, Build.Id: "s", Older: false },
                 "Each track replaces its own build, never another track's.");

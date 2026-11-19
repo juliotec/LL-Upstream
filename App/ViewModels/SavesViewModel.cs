@@ -14,7 +14,6 @@ public sealed class SaveRowViewModel
     public string Summary { get; init; } = "";
     public string? Channel { get; init; }
     public bool IsRelease => Channel == Versions.Stable;
-    public bool IsCandidate => Channel == Versions.Candidate;
     public bool IsNightly => Channel == Versions.Nightly;
     public bool HasChannel => Channel != null;
     public bool IsThis { get; init; }
@@ -230,7 +229,6 @@ public sealed class SavePickViewModel : ViewModelBase
         public string? Channel => channel;
         public bool HasChannel => channel != null;
         public bool IsRelease => channel == Versions.Stable;
-        public bool IsCandidate => channel == Versions.Candidate;
         public bool IsNightly => channel == Versions.Nightly;
         public bool Waiting => waiting;
 

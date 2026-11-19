@@ -20,7 +20,7 @@ static partial class Program
         // (the list the update check read, with each page's text: ListedRelease.Body)
         var list = ReleaseManifest.ParseList(Json(
             ("v3.0.0", false, false, "Downloads\n\n---\n\n## v3.0.0\n\n- the first"),
-            ("v3.1.0-rc.1", false, true, "Downloads\n\n---\n\n## v3.1.0-rc.1\n\n- rc one"),
+            ("v3.1.0-rc.1", false, true, "Downloads\n\n---\n\n## v3.1.0-rc.1\n\n- rc one"),   // (the old release candidates: no versions)
             ("v3.1.0-rc.2", false, true, "Downloads\n\n---\n\n## v3.1.0-rc.2, new since rc.1\n\n- rc two"),
             ("v3.1.0", false, false, "Downloads\n\n---\n\n## v3.1.0\n\n- the second"),
             ("v3.2.0", false, false, "Downloads\n\n---\n\n## v3.2.0\n\n- the third"),
@@ -38,14 +38,10 @@ static partial class Program
         Require(Tags(ReleaseNotes.Between(list, "v3.1.0", "v3.2.0", p)) == "v3.2.0", "One stable to the next: its notes.");
         Require(Tags(ReleaseNotes.Between(list, "v3.0.0", "v3.2.0", p)) == "v3.2.0 v3.1.0",
                 "Two stables behind: each stable since, newest first (each one's notes start at the stable before it).");
-        Require(Tags(ReleaseNotes.Between(list, "v3.1.0-rc.1", "v3.1.0-rc.2", p)) == "v3.1.0-rc.2",
-                "An rc after the first covers every rc since the last stable: its notes alone.");
-        Require(Tags(ReleaseNotes.Between(list, "v3.0.0", "v3.1.0-rc.2", p)) == "v3.1.0-rc.2", "From the last stable to an rc: the rc's notes.");
-        Require(Tags(ReleaseNotes.Between(list, "v3.1.0-rc.1", "v3.3.0", p)) == "v3.3.0 v3.2.0 v3.1.0",
-                "From an rc to a stable two later: each stable since, the one that came out of the player's rc too.");
-        Require(Tags(ReleaseNotes.Between(list, "v3.2.0", "v3.3.0-rc.1", p)) == "v3.3.0-rc.1", "A first rc: since the version before it.");
-        Require(Tags(ReleaseNotes.Between(list, "v3.1.0-rc.2", "v3.3.0-rc.1", p)) == "v3.3.0-rc.1 v3.2.0 v3.1.0",
-                "A first rc follows the version before it, then the stables.");
+        Require(Tags(ReleaseNotes.Between(list, "v3.2.0", "v3.3.0", p)) == "v3.3.0" && Tags(ReleaseNotes.Between(list, "v3.0.0", "v3.3.0", p))
+                == "v3.3.0 v3.2.0 v3.1.0", "The old release candidates between the stables are passed over.");
+        Require(Tags(ReleaseNotes.Between(list, "v3.1.0-rc.1", "v3.3.0", p)) == "v3.3.0",
+                "From an old release candidate, no version now: the offered one's notes alone.");
         Require(Tags(ReleaseNotes.Between(list, "nightly-12-cccccccc", "nightly-41-bbbbbbbb", p)) == "nightly-41-bbbbbbbb",
                 "A nightly: the newest alone (each nightly's notes hold the ones before it).");
         Require(Tags(ReleaseNotes.Between(list, "dev", "v3.2.0", p)) == "v3.2.0" && Tags(ReleaseNotes.Between(list, null, "v3.2.0", p)) == "v3.2.0"
@@ -55,9 +51,10 @@ static partial class Program
                 && ReleaseNotes.Between(list, "v3.2.0", "v3.9.0", p).Count == 0,
                 "No notes for a draft, a version not listed, or no list (the window opens the release page).");
         Require(ReleaseNotes.Since(list.Select(r => r.Tag), "v3.1.0", p) == "v3.0.0" && ReleaseNotes.Since(list.Select(r => r.Tag), "v3.0.0", p) == null
+                && ReleaseNotes.Since(list.Select(r => r.Tag), "v3.3.0", p) == "v3.2.0" && ReleaseNotes.Since(list.Select(r => r.Tag), "v3.3.0-rc.1", p) == null
                 && ReleaseNotes.Since(list.Select(r => r.Tag), "v3.1.0", Product.Launcher) == "v3.0.0"
                 && ReleaseNotes.Since(list.Select(r => r.Tag), "v2.9.0", p) == null,
-                "Where a page's notes start: never a 2.x number.");
+                "Where a page's notes start: the release before it, never a 2.x number nor an old release candidate.");
         var many = Enumerable.Range(0, 20).Select(i => ($"v3.{i}.0", false, false, "x")).ToArray();
         Require(ReleaseNotes.Between(ReleaseManifest.ParseList(Json(many)), "v3.0.0", "v3.19.0", p).Count == ReleaseNotes.Most,
                 "A player many versions behind reads the newest few.");
@@ -65,8 +62,8 @@ static partial class Program
         var empty = ReleaseNotes.Between(list, "v3.2.0", "v3.3.0", p).Single();
         Require(empty.Blocks.Count == 0 && empty.Page == "https://git.magicbean.dev/MagicBeanDev/Longshot/releases/tag/v3.3.0",
                 "A page with no notes: no blocks, and its page.");
-        var rc2 = ReleaseNotes.Between(list, "v3.1.0-rc.1", "v3.1.0-rc.2", p).Single();
-        Require(rc2.Blocks.Select(b => b.Kind).SequenceEqual([MdKind.Heading, MdKind.Item]) && rc2.Blocks[1].Text == "rc two",
+        var second = ReleaseNotes.Between(list, "v3.0.0", "v3.1.0", p).Single();
+        Require(second.Blocks.Select(b => b.Kind).SequenceEqual([MdKind.Heading, MdKind.Item]) && second.Blocks[1].Text == "the second",
                 "A page's notes as blocks, without its downloads.");
         Require(ReleaseNotes.PageOf(Product.Launcher, "v1.0.0") == "https://git.magicbean.dev/MagicBeanDev/LongshotLauncher/releases/tag/v1.0.0",
                 "The launcher's release page.");

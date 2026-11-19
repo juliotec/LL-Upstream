@@ -140,6 +140,9 @@ static partial class Program
                 && Versions.Shown("nightly-2029-c544828f-dirty") == "Nightly 2029 \u00b7 c544828f-dirty"
                 && Versions.Shown("v3.1.0-rc.3") == "v3.1.0-rc.3" && Versions.Shown("nightly-2029-c544828") == "nightly-2029-c544828"
                 && Versions.Shown(null) == "", "A nightly as players see it: its number and its commit.");
+        Require(!Versions.IsRelease("v3.0.0-rc.5") && !Versions.IsVersion("v3.0.0-rc.5") && !Versions.IsChannel("rc")
+                && Versions.Channels.SequenceEqual(new[] { Versions.Stable, Versions.Nightly }),
+                "An old release candidate is no version, and rc no channel: stable and nightly are the two.");
         Require(!Versions.Newer("v3.1.0", "dev") && !Versions.Newer("dev", "v3.1.0") && !Versions.Newer("v99999999999999999999.0.0", "v1.0.0"),
                 "A name that is no version is never newer, nor older.");
         Require(Versions.IsTagName("v3.1.0-rc.1-3-g1a2b3c4") && Versions.IsTagName("nightly-2029-c544828f-dirty") && !Versions.IsTagName("..") && !Versions.IsTagName("a/b")
@@ -276,27 +279,29 @@ static partial class Program
             ["tools.lock"] = Encoding.UTF8.GetBytes("# no tools\n"),
         };
         forge.Add("v3.0.0", key, files: Builder("v3.0.0"));
-        forge.Add("v3.1.0-rc.1", key, files: Builder("v3.1.0-rc.1"));
-        forge.Add("v3.1.0-rc.2", key, draft: true, files: Builder("v3.1.0-rc.2"));
+        forge.Add("v3.0.1", key, prerelease: false, files: Builder("v3.0.1"));
+        forge.Add("v3.1.0-rc.1", key, files: Builder("v3.1.0-rc.1"));   // (an old release candidate: on no channel)
+        forge.Add("v3.2.0", key, prerelease: false, draft: true, files: Builder("v3.2.0"));
         forge.Add("nightly-9-aaaaaaaa", key, files: Builder("nightly-9-aaaaaaaa"));
         forge.Add("nightly-12-bbbbbbbb", key, files: Builder("nightly-12-bbbbbbbb"));
         forge.Add("tools", null);
         forge.Add("v2.9.0", key, prerelease: false, files: Builder("v2.9.0"));
-        Require(await longshot.NewestAsync("stable") == "v3.0.0" && await longshot.NewestAsync("rc") == "v3.1.0-rc.1"
-                && await longshot.NewestAsync("nightly") == "nightly-12-bbbbbbbb",
-                "Each channel's newest: stable, the newest release candidate (not a draft), the nightly by its count; never 2.x or tools.");
+        Require(await longshot.NewestAsync("stable") == "v3.0.1" && await longshot.NewestAsync("nightly") == "nightly-12-bbbbbbbb",
+                "Each channel's newest: the stable (not a draft, not an old release candidate), the nightly by its count; never 2.x or tools.");
+        await ThrowsAsync<ArgumentException>(() => longshot.NewestAsync("rc"), "rc was taken for a channel.");
         Require(longshot.Listed is { } listed && listed.Any(r => r.Tag == "v3.0.0") && !listed.Any(r => r.Draft),
                 "The list the check read is kept, without its drafts, for What's new.");
-        var rc = (await longshot.ChannelAsync("rc"))!;
-        Require(rc.Builder["linux-x64"].Size == image.Length && rc.Builder["linux-x64"].Sha256 == ShaOf(image) && rc.Tools.ContainsKey("windows-x64")
-                && rc.Commit == Commit && rc.Notes == "https://git.magicbean.dev/MagicBeanDev/Longshot/releases/tag/v3.1.0-rc.1",
+        var st = (await longshot.ChannelAsync("stable"))!;
+        Require(st.Builder["linux-x64"].Size == image.Length && st.Builder["linux-x64"].Sha256 == ShaOf(image) && st.Tools.ContainsKey("windows-x64")
+                && st.Commit == Commit && st.Notes == "https://git.magicbean.dev/MagicBeanDev/Longshot/releases/tag/v3.0.1",
                 "A release's files, with the SHA-256 its signed SHA256SUMS gives.");
-        Require((await longshot.BuilderAsync("v3.1.0-rc.1")).Url.EndsWith("/Longshot-v3.1.0-rc.1-x86_64.AppImage", StringComparison.Ordinal),
+        Require((await longshot.BuilderAsync("v3.0.1")).Url.EndsWith("/Longshot-v3.0.1-x86_64.AppImage", StringComparison.Ordinal),
                 "The Linux builder of a version.");
-        forge.Add("v3.1.0", key, files: Builder("v3.1.0"));
-        Require(await longshot.NewestAsync("rc") == "v3.1.0" && await longshot.NewestAsync("stable") == "v3.1.0", "rc offers a stable once it is out.");
+        forge.Add("v3.1.0", key, prerelease: false, files: Builder("v3.1.0"));
+        Require(await longshot.NewestAsync("stable") == "v3.1.0", "A new stable is its channel's newest.");
         // (pulling a bad version: deleted, or back to a draft, its channel falls back by itself)
         forge.Remove("v3.1.0");
+        forge.Remove("v3.0.1");
         Require(await longshot.NewestAsync("stable") == "v3.0.0", "A deleted stable is gone from its channel.");
         forge.Add("v3.0.0", key, draft: true, files: Builder("v3.0.0"));
         Require(await longshot.NewestAsync("stable") == null, "A stable set back to a draft is gone from its channel.");
@@ -313,7 +318,7 @@ static partial class Program
         await Refused("v3.2.0", null, "A release with no SHA256SUMS was taken.");
         await Refused("v3.2.0", stranger, "A release signed by a key this launcher does not trust was taken.");
         await Refused("v3.2.0", key, "A SHA256SUMS changed after it was signed was taken.", s => s.Replace("v3.2.0", "v3.9.9"));
-        await ThrowsAsync<InvalidDataException>(() => new Releases(forge.Server, Platform.Linux, Array.Empty<ReleaseKey>(), NoWait).VersionAsync("v3.1.0-rc.1"),
+        await ThrowsAsync<InvalidDataException>(() => new Releases(forge.Server, Platform.Linux, Array.Empty<ReleaseKey>(), NoWait).VersionAsync("v3.0.0"),
                                                 "A launcher with no key took a release.");
         await ThrowsAsync<FetchException>(() => longshot.VersionAsync("v3.5.0"), "A version with no release.");
         forge.Add("v3.3.0", stranger, files: Builder("v3.3.0"));
@@ -322,9 +327,9 @@ static partial class Program
                 "The newest stable, refused, offers nothing, and says why.");
         forge.Remove("v3.3.0");
         // (a file of the release that SHA256SUMS does not name is not taken, nor one that is not this system's)
-        forge.Add("v3.4.0-rc.1", key, files: Builder("v3.4.0-rc.1"), sums: s => string.Join("", s.Split('\n', StringSplitOptions.RemoveEmptyEntries)
+        forge.Add("v3.4.0", key, files: Builder("v3.4.0"), sums: s => string.Join("", s.Split('\n', StringSplitOptions.RemoveEmptyEntries)
             .Where(l => !l.EndsWith("x86_64.AppImage", StringComparison.Ordinal)).Select(l => l + "\n")));
-        await ThrowsAsync<InvalidDataException>(() => new Releases(forge.Server, Platform.Linux, keys, NoWait).BuilderAsync("v3.4.0-rc.1"),
+        await ThrowsAsync<InvalidDataException>(() => new Releases(forge.Server, Platform.Linux, keys, NoWait).BuilderAsync("v3.4.0"),
                                                 "A file the signed SHA256SUMS does not name was taken.");
         // (the server: tried twice, then nothing; the window says the check failed, quietly)
         var tries = 0;
@@ -348,19 +353,19 @@ static partial class Program
         var own = new FakeForgejo(Product.Launcher);
         var launcher = new Releases(own.Server, Platform.Linux, keys, NoWait, Product.Launcher);
         own.Add("v1.0.0", key, files: LauncherFiles("v1.0.0"));
-        own.Add("v1.1.0-rc.1", key, files: LauncherFiles("v1.1.0-rc.1"));
+        own.Add("v1.1.0-rc.1", key, files: LauncherFiles("v1.1.0-rc.1"));   // (an old release candidate: on no channel)
         own.Add("nightly-30-cccccccc", key, files: LauncherFiles("nightly-30-cccccccc"));
         var stable = (await launcher.ChannelAsync("stable"))!;
         Require(stable.Version == "v1.0.0" && stable.Launcher["linux-x64"].Url.EndsWith("/LongshotLauncher-v1.0.0-x86_64.AppImage", StringComparison.Ordinal)
                 && stable.Launcher["windows-x64"].Url.EndsWith("/LongshotLauncher-v1.0.0-windows-x64-setup.exe", StringComparison.Ordinal)
                 && stable.Launcher[ReleaseManifest.WindowsPortable].Url.EndsWith("/LongshotLauncher-v1.0.0-windows-x64-portable.zip", StringComparison.Ordinal)
-                && stable.Builder.Count == 0 && await launcher.NewestAsync("rc") == "v1.1.0-rc.1"
-                && await launcher.NewestAsync("nightly") == "nightly-30-cccccccc", "The launcher's own three channels, and its three files.");
+                && stable.Builder.Count == 0 && await launcher.NewestAsync("nightly") == "nightly-30-cccccccc",
+                "The launcher's own two channels, and its three files.");
         // (an update check reads each product's release list once, whatever the number of channels)
         own.Server.Asked.Clear();
-        var three = await new Releases(own.Server, Platform.Linux, keys, NoWait, Product.Launcher).ChannelsAsync(Versions.Channels);
-        Require(three["stable"]?.Version == "v1.0.0" && three["rc"]?.Version == "v1.1.0-rc.1" && three["nightly"]?.Version == "nightly-30-cccccccc"
-                && own.Server.Asked.Count(u => u.Contains("/releases?", StringComparison.Ordinal)) == 1, "Three channels from one fetch of the list.");
+        var two = await new Releases(own.Server, Platform.Linux, keys, NoWait, Product.Launcher).ChannelsAsync(Versions.Channels);
+        Require(two["stable"]?.Version == "v1.0.0" && two["nightly"]?.Version == "nightly-30-cccccccc"
+                && own.Server.Asked.Count(u => u.Contains("/releases?", StringComparison.Ordinal)) == 1, "Both channels from one fetch of the list.");
         Require(launcher.ListUrl(1).StartsWith("https://git.magicbean.dev/api/v1/repos/MagicBeanDev/LongshotLauncher/", StringComparison.Ordinal),
                 "The launcher's releases are its own repository's.");
 
@@ -405,19 +410,20 @@ static partial class Program
         ReleaseInfo R(string v, IReadOnlyDictionary<string, FileRef>? l = null) => new("launcher", v, Commit, null, null, l ?? both, none, none);
         Require(SelfUpdate.UpdateTo("v1.0.0", R("v1.0.1"), Platform.Linux) == "v1.0.1"
                 && SelfUpdate.UpdateTo("nightly-2041-aaaaaaaa", R("nightly-2042-bbbbbbbb"), Platform.Windows) == "nightly-2042-bbbbbbbb"
-                && SelfUpdate.UpdateTo("v1.0.0", R("v1.1.0-rc.1"), Platform.Linux, "rc") == "v1.1.0-rc.1",
+                && SelfUpdate.UpdateTo("v1.0.0", R("v1.1.0"), Platform.Linux, "stable") == "v1.1.0",
                 "A newer launcher on its channel.");
         Require(SelfUpdate.UpdateTo("v1.0.1", R("v1.0.0"), Platform.Linux) == null && SelfUpdate.UpdateTo("v1.0.0", R("v1.0.0"), Platform.Linux) == null
                 && SelfUpdate.UpdateTo("dev", R("v1.0.1"), Platform.Linux, "stable") == null
                 && SelfUpdate.UpdateTo("nightly-2041-aaaaaaaa", R("v1.0.1"), Platform.Linux) == null
                 && SelfUpdate.UpdateTo("v1.0.0", R("v1.0.1", new Dictionary<string, FileRef> { ["windows-x64"] = both["windows-x64"] }), Platform.Linux) == null
-                && SelfUpdate.UpdateTo("v1.0.0", null, Platform.Linux) == null && SelfUpdate.UpdateTo("v1.1.0-rc.2", R("v1.1.0-rc.1"), Platform.Linux, "rc") == null,
+                && SelfUpdate.UpdateTo("v1.0.0", null, Platform.Linux) == null && SelfUpdate.UpdateTo("v1.1.0-rc.2", R("v1.1.0"), Platform.Linux) == null,
                 "Never an older or the same launcher on its channel, never a build from a checkout, never one for the other system.");
         Require(SelfUpdate.UpdateTo("v1.0.0", R("nightly-2042-bbbbbbbb"), Platform.Linux, "nightly") == "nightly-2042-bbbbbbbb"
                 && SelfUpdate.UpdateTo("nightly-2041-aaaaaaaa", R("v1.0.0"), Platform.Linux, "stable") == "v1.0.0",
                 "The channel the player chose: its newest, across the nightly and the stables.");
-        Require(SelfUpdate.ChannelOf("v1.2.0-rc.1", null) == "rc" && SelfUpdate.ChannelOf("dev", null) == "stable"
-                && SelfUpdate.ChannelOf("v1.0.0", "nightly") == "nightly" && SelfUpdate.ChannelOf("v1.0.0", "bogus") == "stable",
+        Require(SelfUpdate.ChannelOf("v1.2.0-rc.1", null) == "stable" && SelfUpdate.ChannelOf("dev", null) == "stable"
+                && SelfUpdate.ChannelOf("v1.0.0", "nightly") == "nightly" && SelfUpdate.ChannelOf("v1.0.0", "bogus") == "stable"
+                && SelfUpdate.ChannelOf("v1.0.0", "rc") == "stable",
                 "The launcher's channel: the one chosen, else its own track.");
         Require(SelfUpdate.OwnTag(typeof(Program).Assembly) == "dev", "A build with no LongshotTag is dev.");
         Require(SelfUpdate.CurrentFile(Platform.Linux, k => k == "APPIMAGE" ? "/apps/Longshot.AppImage" : null, "/tmp/.mount/LongshotLauncher") == "/apps/Longshot.AppImage"
@@ -437,7 +443,7 @@ static partial class Program
         foreach (var path in new[] { "Longshot.AppImage", "./Longshot.AppImage", @"C:\Apps\Longshot.AppImage", @"\Apps\Longshot.AppImage", "" })
             Require(SelfUpdate.CurrentFile(Platform.Linux, k => k == "APPIMAGE" ? path : null, "/tmp/LongshotLauncher") == null,
                     "Linux AppImage validation uses Linux absolute paths on either test host: " + path);
-        Require(SelfUpdate.Compare("v1.1.0", "v1.0.0") == 1 && SelfUpdate.Compare("v1.0.0", "v1.1.0-rc.1") == -1
+        Require(SelfUpdate.Compare("v1.1.0", "v1.0.0") == 1 && SelfUpdate.Compare("v1.0.0", "v1.1.0") == -1
                 && SelfUpdate.Compare("nightly-3-aaaaaaaa", "v1.0.0") == 0, "Newer, older, or no order (the banner's words).");
         var kinds = new Dictionary<string, FileRef> { ["windows-x64"] = both["windows-x64"], [ReleaseManifest.WindowsPortable] = both["windows-x64"] };
         Require(SelfUpdate.UpdateTo("v1.0.0", R("v1.0.1", kinds), Platform.Windows, null, ReleaseManifest.WindowsPortable) == "v1.0.1"
@@ -724,11 +730,11 @@ static partial class Program
         var r = BuildRegistry.Load(path, () => clock);
         Require(!r.Existed && r.Builds.Count == 0 && r.Default == null, "No builds.json: an empty list, and a first start.");
         var a = r.Add(Path.Combine(home, "a"), "v3.3.0", null);
-        var b = r.Add(Path.Combine(home, "b"), "v3.3.1-rc.1", "rc");
+        var b = r.Add(Path.Combine(home, "b"), "v3.3.1-rc.1", "rc");   // (an old rc row: rc is no channel now)
         var c = r.Add(Path.Combine(home, "c"), "nightly-2031-abcdef01", null, name: "Nightly");
         Require(r.Default == a && r.Builds.Count(x => x.Default) == 1, "The first build is the default.");
-        Require(a.Channel == "stable" && b.Channel == "rc" && c.Channel == "nightly" && c.Name == "Nightly" && a.Name == "a",
-                "A channel defaults to the version's track.");
+        Require(a.Channel == "stable" && b.Channel == "stable" && c.Channel == "nightly" && c.Name == "Nightly" && a.Name == "a",
+                "A channel defaults to the version's track, as one that is no channel does.");
         Require(r.Add(Path.Combine(home, "a") + Path.DirectorySeparatorChar, "v3.3.2", null) == a && r.Builds.Count == 3 && a.Version == "v3.3.2",
                 "One entry per folder.");
         // (the game files a new build of a .nup can link from: a build of that .nup whose folder has what make_game's
@@ -936,16 +942,16 @@ static partial class Program
 
         // (the channel new builds start on: the launcher's own until the player picks one)
         var none = new LauncherSettings();
-        foreach (var (own, track) in new[] { ("v1.2.0", "stable"), ("v1.3.0-rc.1", "rc"), ("nightly-8-3b243d73", "nightly"), ("dev", "stable") })
+        foreach (var (own, track) in new[] { ("v1.2.0", "stable"), ("v1.3.0-rc.1", "stable"), ("nightly-8-3b243d73", "nightly"), ("dev", "stable") })
             Require(none.BuildChannel(own) == track, $"A launcher {own} does not start new builds on {track}.");
-        Require(new LauncherSettings { LauncherChannel = "rc" }.BuildChannel("nightly-8-3b243d73") == "rc",
+        Require(new LauncherSettings { LauncherChannel = "nightly" }.BuildChannel("v1.2.0") == "nightly",
                 "New builds do not follow the launcher's chosen channel.");
         new LauncherSettings { DefaultChannel = "stable" }.Save(path);
         var picked = LauncherSettings.Load(path);
         Require(picked.DefaultChannel == "stable" && picked.BuildChannel("nightly-8-3b243d73") == "stable"
                 && picked.Format == LauncherSettings.CurrentFormat, "A channel the player picked does not stick.");
         new LauncherSettings().Save(path);
-        Require(File.ReadAllText(path).Contains("\"defaultChannel\": null") && LauncherSettings.Load(path).BuildChannel("v1.3.0-rc.1") == "rc",
+        Require(File.ReadAllText(path).Contains("\"defaultChannel\": null") && LauncherSettings.Load(path).BuildChannel("nightly-8-3b243d73") == "nightly",
                 "No pick is saved as none.");
         // (format 1 wrote its own default, stable, for everyone: read once as no pick; a pick of another channel stays)
         File.WriteAllText(path, """{"format":1,"defaultChannel":"stable","launcherChannel":null,"checkUpdates":true}""");
@@ -954,8 +960,10 @@ static partial class Program
                 "An old settings.json's stable is not read as no pick.");
         old.Save(path);
         Require(LauncherSettings.Load(path).BuildChannel("nightly-8-3b243d73") == "nightly", "The migrated settings.json changes on its next load.");
-        File.WriteAllText(path, """{"format":1,"defaultChannel":"rc"}""");
-        Require(LauncherSettings.Load(path).DefaultChannel == "rc", "An old settings.json's pick of rc is lost.");
+        File.WriteAllText(path, """{"format":1,"defaultChannel":"rc","launcherChannel":"rc"}""");
+        var rcPick = LauncherSettings.Load(path);
+        Require(rcPick.DefaultChannel == null && rcPick.LauncherChannel == null && rcPick.BuildChannel("v1.2.0") == "stable",
+                "An old settings.json's pick of rc, a channel no more, is read as no pick.");
     }
 
     // ---- make_game.py's lines and the overall bar ----
@@ -1232,11 +1240,9 @@ static partial class Program
     {
         Require(UpdatePolicy.UpdateTo("v3.3.0", "stable", "v3.3.1") == "v3.3.1", "release: the newer release.");
         Require(UpdatePolicy.UpdateTo("v3.3.1", "stable", "v3.3.1") == null, "release: up to date.");
-        Require(UpdatePolicy.UpdateTo("v3.4.0-rc.1", "stable", "v3.3.1") == null, "release: an RC newer than the release is not taken back.");
-        Require(UpdatePolicy.UpdateTo("v3.4.0-rc.1", "rc", "v3.4.0-rc.2") == "v3.4.0-rc.2", "rc: the next RC.");
-        Require(UpdatePolicy.UpdateTo("v3.4.0-rc.2", "rc", "v3.4.0") == "v3.4.0", "rc: its release.");
-        Require(UpdatePolicy.UpdateTo("v3.4.0-rc.2", "rc", "v3.3.9") == null, "rc: never back to an older release.");
-        Require(UpdatePolicy.UpdateTo("v3.3.0", "rc", "v3.4.0-rc.1") == "v3.4.0-rc.1", "A release on the rc channel: the next RC.");
+        Require(UpdatePolicy.UpdateTo("v3.4.0", "stable", "v3.3.1") == null, "release: a release newer than the channel's is not taken back.");
+        Require(UpdatePolicy.UpdateTo("v3.4.0-rc.1", "stable", "v3.3.1") == "v3.3.1",
+                "An old release candidate is on no track: its channel's newest, as dev is.");
         Require(UpdatePolicy.UpdateTo("nightly-2029-aaaaaaaa", "nightly", "nightly-2031-bbbbbbbb") == "nightly-2031-bbbbbbbb", "nightly: a later one.");
         Require(UpdatePolicy.UpdateTo("nightly-2031-bbbbbbbb", "nightly", "nightly-2029-aaaaaaaa") == null, "nightly: not an older one.");
         Require(UpdatePolicy.UpdateTo("nightly-2029-aaaaaaaa-dirty", "nightly", "nightly-2029-aaaaaaaa") == null,
@@ -1250,10 +1256,14 @@ static partial class Program
                 "No version on either side: no offer.");
         Require(UpdatePolicy.UpdateTo("dev", "stable", "v3.3.1") == "v3.3.1" && UpdatePolicy.UpdateTo("1a2b3c4d", "nightly", "nightly-2029-aaaaaaaa")
                 == "nightly-2029-aaaaaaaa", "A version on no track (a hash, dev): its channel's newest (docs/versioning.md).");
-        Require(UpdatePolicy.ChannelOf(null, "v3.4.0-rc.1") == "rc" && UpdatePolicy.ChannelOf("nightly", "v3.4.0") == "nightly", "A build's channel.");
-        var b = new BuildEntry { Version = "v3.4.0-rc.1", Channel = "rc" };
-        Require(UpdatePolicy.UpdateTo(b, new Dictionary<string, string?> { ["stable"] = "v3.5.0", ["rc"] = "v3.4.0-rc.3" }) == "v3.4.0-rc.3"
+        Require(UpdatePolicy.ChannelOf(null, "v3.4.0-rc.1") == "stable" && UpdatePolicy.ChannelOf("rc", "v3.4.0") == "stable"
+                && UpdatePolicy.ChannelOf("nightly", "v3.4.0") == "nightly", "A build's channel (rc is none now: its version's track).");
+        var b = new BuildEntry { Version = "v3.4.0", Channel = "nightly" };
+        Require(UpdatePolicy.UpdateTo(b, new Dictionary<string, string?> { ["stable"] = "v3.5.0", ["nightly"] = "nightly-2031-bbbbbbbb" }) == null
                 && UpdatePolicy.UpdateTo(b, new Dictionary<string, string?> { ["stable"] = "v3.5.0" }) == null, "Each build asks its own channel.");
+        var oldRc = new BuildEntry { Version = "v3.4.0-rc.1", Channel = "rc" };
+        Require(UpdatePolicy.UpdateTo(oldRc, new Dictionary<string, string?> { ["stable"] = "v3.5.0", ["nightly"] = "nightly-2031-bbbbbbbb" }) == "v3.5.0",
+                "A build left on the old rc channel is offered the stable.");
     }
 
     /// Why git.magicbean.dev was not reached, in words a player can act on, and .NET's own in brackets

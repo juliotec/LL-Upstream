@@ -100,8 +100,6 @@
   "It follows the launcher until you pick one in Settings.": "設定で選ぶまでは、ランチャーと同じチャンネルになります。",
   "Stable": "安定版",
   "The tested version. Best for playing.": "テスト済みのバージョンです。プレイにおすすめです。",
-  "Release candidate": "リリース候補",
-  "The next version, to try before it is released.": "リリース前に試せる、次のバージョンです。",
   "Nightly": "Nightly",
   "The newest development build, with every change of the day.": "その日の変更がすべて入った、最新の開発ビルドです。",
   "Continue": "続ける",

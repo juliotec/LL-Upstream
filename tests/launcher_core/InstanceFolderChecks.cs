@@ -247,18 +247,18 @@ static partial class Program
         var night = old.Add(Game(Path.Combine(builds, "nightly"), "nightly-180-eeeeeeee"), "nightly-180-eeeeeeee", Versions.Nightly);
         Things(night.Folder);
         var night2 = old.Add(Game(Path.Combine(builds, "nightly (2)"), "nightly-181-ffffffff"), "nightly-181-ffffffff", Versions.Nightly);
-        Game(Path.Combine(builds, "rc", "v3.1.0-rc.1"), "v3.1.0-rc.1");                   // (an unlisted game folder: its name is taken)
-        var rc1 = old.Add(Game(Path.Combine(builds, "v3.1.0-rc.1-old"), "v3.1.0-rc.1"), "v3.1.0-rc.1", Versions.Candidate);
-        var kept = old.Add(Game(Path.Combine(builds, "v3.0.0-rc.2"), "v3.0.0-rc.2"), "v3.0.0-rc.2", Versions.Candidate);
+        Game(Path.Combine(builds, "stable", "v3.1.0"), "v3.1.0");                         // (an unlisted game folder: its name is taken)
+        var rc1 = old.Add(Game(Path.Combine(builds, "v3.1.0-old"), "v3.1.0"), "v3.1.0", Versions.Stable);
+        var kept = old.Add(Game(Path.Combine(builds, "v3.0.2"), "v3.0.2"), "v3.0.2", Versions.Stable);
         var elsewhere = old.Add(Game(Path.Combine(root, "Elsewhere", "v3.0.0"), "v3.0.0"), "v3.0.0", Versions.Stable);
-        var gone = old.Add(Path.Combine(builds, "v3.0.0-rc.1"), "v3.0.0-rc.1", Versions.Candidate);
+        var gone = old.Add(Path.Combine(builds, "v3.0.1"), "v3.0.1", Versions.Stable);
         old.Save();
 
         var plan = InstanceFolders.Plan(old, builds, p, kept: new[] { kept.Folder });
         string Shown(IEnumerable<InstanceFolders.Move> moves) => string.Join(", ", moves.Select(m => m.FromName + " -> " + m.ToName));
         var s = Path.DirectorySeparatorChar;
         Require(Shown(plan) == $"nightly -> nightly{s}nightly-180-eeeeeeee, nightly (2) -> nightly{s}nightly-181-ffffffff, "
-                + $"v3.0.0-rc.5 -> stable{s}v3.0.0, v3.1.0-rc.1-old -> rc{s}v3.1.0-rc.1 (2)",
+                + $"v3.0.0-rc.5 -> stable{s}v3.0.0, v3.1.0-old -> stable{s}v3.1.0 (2)",
                 "Offered: both old shapes, the track-named first, each to builds/<track>/<version> past every taken name (got: " + Shown(plan) + ").");
         Require(plan.All(m => m.Build != kept && m.Build != elsewhere && m.Build != gone),
                 "Not offered: one the player kept, one in a folder of their own choosing, one whose folder is gone.");
@@ -281,7 +281,7 @@ static partial class Program
                 && !GameFolder.IsGameFolder(Path.Combine(builds, "nightly"), p) && night.Folder == Path.Combine(builds, "nightly", "nightly-180-eeeeeeee"),
                 "builds/nightly became the nightly's folder: the instance that was it is in it, everything kept.");
         Require(!Directory.Exists(Path.Combine(builds, "nightly (2)")) && night2.Folder == Path.Combine(builds, "nightly", "nightly-181-ffffffff")
-                && rc5.Folder == Path.Combine(builds, "stable", "v3.0.0") && HasThings(rc5.Folder) && rc1.Folder == Path.Combine(builds, "rc", "v3.1.0-rc.1 (2)"),
+                && rc5.Folder == Path.Combine(builds, "stable", "v3.0.0") && HasThings(rc5.Folder) && rc1.Folder == Path.Combine(builds, "stable", "v3.1.0 (2)"),
                 "Each in its track's folder, named after its version.");
         var reloaded = BuildRegistry.Load(oldList).Find(rc5.Id);
         Require(reloaded is { Default: true, Version: "v3.0.0", Name: "v3.0.0" } && reloaded.Folder == rc5.Folder,

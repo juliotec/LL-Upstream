@@ -123,7 +123,7 @@ public sealed class Releases
         if (known.TryGetValue(tag, out var have)) return have;
         if (listed.Tag != tag) throw new InvalidDataException($"The release of {tag} is {listed.Tag}'s.");
         if (listed.Draft) throw new InvalidDataException($"{tag} is not published.");
-        if (Versions.TrackOf(tag, Product.FirstMajor) != Versions.Nightly && !Versions.IsRelease(tag, Product.FirstMajor))
+        if (Versions.TrackOf(tag) != Versions.Nightly && !Versions.IsRelease(tag, Product.FirstMajor))
             throw new InvalidDataException($"{tag} is not a version of {Product.Display}.");
         var sums = listed.Assets.FirstOrDefault(a => a.Name == ReleaseManifest.Sums);
         var sig = listed.Assets.FirstOrDefault(a => a.Name == ReleaseManifest.Sig);

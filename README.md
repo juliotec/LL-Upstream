@@ -49,7 +49,7 @@ Discord: https://discord.gg/magicbean
 |---|---|
 | **Builds the game** | A three-step wizard: it finds your game files while that version's builder downloads, then the settings (DLSS, FSR 4, Intel XeSS, language, the builds folder), then the build with one progress bar |
 | **Several versions side by side** | Keep a stable build and a nightly; Play starts the default one; Set as default, Saves, Open folder and Delete for each |
-| **Three channels** | `stable`, `rc` (release candidates) and `nightly`, chosen per build and, apart from that, for the launcher itself |
+| **Two channels** | `stable` and `nightly`, chosen per build and, apart from that, for the launcher itself |
 | **Installs Longshot's builder** | For each version, from Longshot's signed release: every file checked against its SHA-256 before it is used |
 | **Updates the game** | Offers each build its channel's newest version and builds it from the game files the build kept |
 | **Updates itself** | From its own signed releases, checked and tested before it replaces itself; `--rollback` puts the previous one back |
@@ -68,11 +68,9 @@ Discord: https://discord.gg/magicbean
 
 Windows without installing: [portable zip](https://longshot.magicbean.dev/download/launcher/windows-portable) · Not sure? [longshot.magicbean.dev/download](https://longshot.magicbean.dev/download) picks for your computer.
 
-These links always give the newest launcher: the stable one, or until there is one, the release candidate, then the
-nightly. To pick a channel:
+These links always give the newest launcher: the stable one, or until there is one, the nightly. To pick a channel:
 
 - **Stable** (for playing): [Windows](https://longshot.magicbean.dev/download/launcher/stable/windows) · [portable zip](https://longshot.magicbean.dev/download/launcher/stable/windows-portable) · [Linux](https://longshot.magicbean.dev/download/launcher/stable/linux) · [release page](https://longshot.magicbean.dev/download/launcher/stable)
-- **Release candidate** (the next version, before it is stable): [Windows](https://longshot.magicbean.dev/download/launcher/rc/windows) · [portable zip](https://longshot.magicbean.dev/download/launcher/rc/windows-portable) · [Linux](https://longshot.magicbean.dev/download/launcher/rc/linux) · [release page](https://longshot.magicbean.dev/download/launcher/rc)
 - **Nightly** (every change, untested): [Windows](https://longshot.magicbean.dev/download/launcher/nightly/windows) · [portable zip](https://longshot.magicbean.dev/download/launcher/nightly/windows-portable) · [Linux](https://longshot.magicbean.dev/download/launcher/nightly/linux) · [release page](https://longshot.magicbean.dev/download/launcher/nightly)
 
 Every release is on [the releases page](https://git.magicbean.dev/MagicBeanDev/LongshotLauncher/releases). The files:
@@ -144,7 +142,7 @@ next time it starts. If `LongshotLauncher.exe` itself is missing, rename `Longsh
 ## Using it
 
 1. **Build another version** (or, the first time, **Build the game**) opens the wizard. Pick the channel: *Stable* for
-   playing, *Release candidate* to try the next version, *Nightly* for the newest changes.
+   playing, *Nightly* for the newest changes.
 2. **Game files**: the launcher looks for your dump on this PC; point it at the folder if it doesn't find it.
 3. **Settings**: the builds folder (Settings' own: Change sets it for every build; this build goes in
    `<builds>/<track>/<version>`, shown under it), the language, and DLSS, FSR 4 or, on Windows, Intel XeSS (their licences are shown
@@ -234,11 +232,10 @@ Longshot and the launcher are released apart, from their own repositories, each 
 | Channel | Made from | For |
 |---|---|---|
 | `stable` | a tag `vX.Y.Z` | playing |
-| `rc` | a tag `vX.Y.Z-rc.N` (and every stable) | trying the next version before it is released |
 | `nightly` | every change to `main` | the newest changes, untested |
 
 **Two choices in Settings.** *Channel for new builds* is the channel of Longshot a new build follows (each build keeps
-its own). Until you pick one, it follows the launcher's channel: a nightly launcher builds nightlies. *Launcher updates* is the channel the launcher updates **itself** from: LongshotLauncher's own stable, rc or
+its own). Until you pick one, it follows the launcher's channel: a nightly launcher builds nightlies. *Launcher updates* is the channel the launcher updates **itself** from: LongshotLauncher's own stable or
 nightly, apart from any build's. It starts on the channel of the launcher you installed.
 
 Every release's `SHA256SUMS` is signed with the release key, which the launcher has built in. The launcher installs nothing
@@ -392,7 +389,7 @@ Calls made here, most of them the design mockup's; each can be changed:
   stopped build still holds), so the row's folder names the version the row still has. An instance in a folder the player
   chose before (outside the builds folder's layout) is never renamed. So an update replaces the version before it, and
   the way back is to build that version again: pick it in the home's **Version** dropdown (below), which lists its
-  track's releases the server still has (every release and release candidate, the newest 5 nightlies: `VersionPick`),
+  track's releases the server still has (every release, the newest 5 nightlies: `VersionPick`),
   and the button builds it the same way, as "Go back to". Update then offers the newest again. Your saves stay: every
   build shares them. make_game.py puts the new files in only once they are complete, so a build that stops leaves the old
   game playable. It does not start while Longshot runs: Save and close it first. On Windows, Longshot started during the
@@ -434,7 +431,7 @@ Calls made here, most of them the design mockup's; each can be changed:
   then prepares from none, as before. What the game adds to the stamp itself (the GPU, its switches) the launcher cannot
   see: if that differs too, the game drops them and prepares again.
 - **The Track and Version dropdowns** on the left of the home pick what to play or build (`VersionPick`). Track is stable,
-  rc or nightly, each saying what is installed on it; Version lists that track's versions the server has (and installed
+  nightly or a pull request, each saying what is installed on it; Version lists that track's versions the server has (and installed
   ones it no longer lists), a check beside each installed one, the default and the newest marked. Before the update check
   answers, only the installed versions are there. The button below follows the pick: **Play** when that version is
   installed (Update beside it when its track has a newer one, and Remove: the row's Delete); **Update to** or **Go back

@@ -4,47 +4,46 @@ using System.Text.RegularExpressions;
 namespace LongshotLauncher.Core;
 
 /// The channels and the version order (docs/releases.md), the same for Longshot's releases and the launcher's own: a stable is
-/// vX.Y.Z, a release candidate vX.Y.Z-rc.N, a nightly nightly-&lt;commit count&gt;-&lt;commit&gt;. Longshot's numbers start at v3.0.0, the
+/// vX.Y.Z, a nightly nightly-&lt;commit count&gt;-&lt;commit&gt;. Longshot's numbers start at v3.0.0, the
 /// launcher's at v1.0.0 (FirstMajor). A pull request's build, pr-&lt;number&gt;-&lt;commit&gt;, is on its own track (PullRequest): not a
 /// channel, never ordered against anything, updated only by a newer push of the same pull request (UpdatePolicy). Nothing else
 /// is a version: it is on no track and never ordered.
 /// tests/test_launcher_core.py holds the vectors it is checked against.
 public static class Versions
 {
-    /// The three channels: stable (vX.Y.Z), rc (vX.Y.Z-rc.N, and the stables: the newest of both) and nightly (from main)
-    public const string Stable = "stable", Candidate = "rc", Nightly = "nightly";
-    public static readonly IReadOnlyList<string> Channels = new[] { Stable, Candidate, Nightly };
+    /// The two channels: stable (vX.Y.Z) and nightly (from main)
+    public const string Stable = "stable", Nightly = "nightly";
+    public static readonly IReadOnlyList<string> Channels = new[] { Stable, Nightly };
     /// A pull request's builds' track (docs/pull-requests.md): not a channel (IsChannel is false), so nothing
     /// is offered to it or from it but a newer push of its own pull request
     public const string PullRequest = "pr";
 
     static readonly Regex NightlyName = new(@"^nightly-([0-9]{1,9})-([0-9a-f]{8})(-dirty)?$", RegexOptions.CultureInvariant);
     static readonly Regex PullRequestName = new(@"^pr-([1-9][0-9]{0,8})-([0-9a-f]{8})$", RegexOptions.CultureInvariant);
-    static readonly Regex ReleaseName = new(@"^v(\d+)\.(\d+)\.(\d+)(?:-rc\.(\d+))?$", RegexOptions.CultureInvariant);
+    static readonly Regex ReleaseName = new(@"^v(\d+)\.(\d+)\.(\d+)$", RegexOptions.CultureInvariant);
     static readonly Regex TagName = new(@"^[0-9A-Za-z._+-]{1,128}$", RegexOptions.CultureInvariant);
 
     /// The first major version of each product: Longshot (the game and its builder) starts at v3.0.0, the launcher at v1.0.0.
     /// A number below it is no version of that product (not the 2.x numbers Longshot was forked from)
     public const int FirstMajor = 3, LauncherFirstMajor = 1;
 
-    public static bool IsChannel(string? channel) => channel is Stable or Candidate or Nightly;
+    public static bool IsChannel(string? channel) => channel is Stable or Nightly;
 
     /// A track a build can be on: a channel, or the pull requests' (its folder builds/pr/, the home's Track dropdown)
     public static bool IsTrack(string? track) => IsChannel(track) || track == PullRequest;
 
-    /// A build's track from its version: nightly-2029-c544828f (nightly-&lt;commit count&gt;-&lt;commit&gt;) is the nightly; v3.1.0-rc.1 a
-    /// release candidate; pr-222-1a2b3c4d a pull request's build; anything else (and no version) a release
-    public static string TrackOf(string? version, int firstMajor = FirstMajor) =>
+    /// A build's track from its version: nightly-2029-c544828f (nightly-&lt;commit count&gt;-&lt;commit&gt;) is the nightly;
+    /// pr-222-1a2b3c4d a pull request's build; anything else (and no version) a release
+    public static string TrackOf(string? version) =>
         version == null ? Stable
         : NightlyKey(version) != null ? Nightly
         : PullRequestOf(version) != null ? PullRequest
-        : IsRelease(version, firstMajor) && version.Contains('-') ? Candidate
         : Stable;
 
-    /// A release tag, vX.Y.Z or vX.Y.Z-rc.N from v3.0.0 on (not a nightly's name)
+    /// A release tag, vX.Y.Z from v3.0.0 on (not a nightly's name)
     public static bool IsRelease(string? tag, int firstMajor = FirstMajor) => ReleaseKey(tag, firstMajor) != null;
 
-    /// A version's own name: a nightly's (nightly-2029-c544828f, -dirty kept) or a release's (vX.Y.Z, vX.Y.Z-rc.N), any major
+    /// A version's own name: a nightly's (nightly-2029-c544828f, -dirty kept) or a release's (vX.Y.Z), any major
     public static bool IsVersion(string? name) => name != null && (NightlyName.IsMatch(name) || ReleaseName.IsMatch(name));
 
     /// A name a version folder may have (the setup lists' rule): [0-9A-Za-z._+-]{1,128}, not "." or ".."
@@ -89,15 +88,13 @@ public static class Versions
         if (v == null) return null;
         var m = ReleaseName.Match(v);
         if (!m.Success) return null;
-        var key = new long[4];
+        var key = new long[3];
         for (var i = 0; i < 3; i++)
             if (!long.TryParse(m.Groups[i + 1].Value, NumberStyles.None, CultureInfo.InvariantCulture, out key[i])) return null;
-        key[3] = long.MaxValue;
-        if (m.Groups[4].Success && !long.TryParse(m.Groups[4].Value, NumberStyles.None, CultureInfo.InvariantCulture, out key[3])) return null;
         return key[0] >= firstMajor ? key : null;
     }
 
-    /// a newer than b: both vX.Y.Z[-rc.N] in semver order (v3.1.0-rc.1 &lt; v3.1.0-rc.2 &lt; v3.1.0), or both nightlies in the
+    /// a newer than b: both vX.Y.Z in version order (v3.1.0 &lt; v3.1.1 &lt; v3.2.0), or both nightlies in the
     /// nightly order (NightlyKey). A nightly and a release are not ordered (a nightly's name has no version in it): false both
     /// ways, as when either is not a version
     public static bool Newer(string? a, string? b, int firstMajor = FirstMajor)

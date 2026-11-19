@@ -33,7 +33,8 @@ RUN_ALL_ARGS = ["--dotnet", "{dotnet}"]
 # start at v3.0.0: what came before is no version, on no track
 TRACKS = [
     ("v3.0.0", "stable"), ("v3.1.0", "stable"), ("v10.0.0", "stable"),
-    ("v3.1.0-rc.1", "rc"), ("v3.1.0-rc.12", "rc"),
+    # (the release candidates there were: no version now, on the stable track like any other name)
+    ("v3.1.0-rc.1", "stable"), ("v3.1.0-rc.12", "stable"),
     ("nightly-2029-c544828f", "nightly"), ("nightly-2029-c544828f-dirty", "nightly"), ("nightly-1-00000000", "nightly"),
     # (not a nightly's name: the count, then 8 lowercase hex; nor git describe's, nor a version before 3.0.0)
     ("nightly-2029", "stable"), ("nightly-2029-c544828", "stable"), ("nightly-2029-C544828F", "stable"),
@@ -43,17 +44,16 @@ TRACKS = [
     ("pr-222-1a2b3c4d", "pr"), ("pr-1-00000000", "pr"),
     ("pr-0-1a2b3c4d", "stable"), ("pr-222-1A2B3C4D", "stable"), ("pr-222-1a2b3c4", "stable"), ("pr-222", "stable"),
 ]
-# newer, older (semver: a release candidate before its release, rc.N by number; nightlies by their count, a changed
-# checkout after the build of its commit)
+# newer, older (by number; nightlies by their count, a changed checkout after the build of its commit)
 ORDER = [
-    ("v3.1.0-rc.2", "v3.1.0-rc.1"), ("v3.1.0-rc.10", "v3.1.0-rc.9"), ("v3.1.0", "v3.1.0-rc.2"), ("v3.1.0-rc.1", "v3.0.14"),
-    ("v3.0.10", "v3.0.9"), ("v4.0.0-rc.1", "v3.9.9"), ("v10.0.0", "v9.0.0"),
+    ("v3.1.0", "v3.0.14"), ("v3.0.10", "v3.0.9"), ("v4.0.0", "v3.9.9"), ("v10.0.0", "v9.0.0"),
     ("nightly-2030-0a1b2c3d", "nightly-2029-c544828f"), ("nightly-10000-aaaaaaaa", "nightly-9999-bbbbbbbb"),
     ("nightly-2029-c544828f-dirty", "nightly-2029-c544828f"),
 ]
-# neither newer than the other: a nightly and a release or release candidate (a nightly's name has no version in it), the
-# numbers before 3.0.0 and git describe's names, and a name that is no version
+# neither newer than the other: a nightly and a release (a nightly's name has no version in it), the numbers before 3.0.0
+# and git describe's names, an old release candidate, and a name that is no version
 UNORDERED = [
+    ("v3.1.0", "v3.1.0-rc.2"), ("v3.1.0-rc.2", "v3.1.0-rc.1"), ("v3.1.0-rc.1", "v3.0.14"),
     ("nightly-2029-c544828f", "v3.1.0"), ("nightly-2029-c544828f", "v3.1.0-rc.3"), ("nightly-1-aaaaaaaa", "v3.0.1"),
     ("v3.1.0", "v2.9.0"), ("v3.0.0", "v2.2.0-rc.1"), ("v3.1.0-rc.3-248-gc544828f", "v3.1.0"),
     ("nightly-2029-c544828f", "dev"), ("v3.1.0", "dev"), ("nightly-2029-c544828f", "nightly"),

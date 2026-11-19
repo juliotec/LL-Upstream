@@ -8,9 +8,7 @@ public sealed record ReleaseNote(string Tag, DateTimeOffset? Published, string P
 /// pages' text: ListedRelease.Body), newest first. Each page's notes start after the version before it (scripts/release.py
 /// notes, docs/releases.md "Release notes"), so the pages that cover the way from one to the other are a chain, each from the
 /// one its notes start after (Since), until the player's own:
-///   a stable    since the stable before it (its notes cover its release candidates)
-///   a first rc  since the version before it (an rc or a stable)
-///   a later rc  since the last stable (what is new since the rc before, then what the earlier ones brought)
+///   a stable    since the stable before it
 ///   a nightly   since the last version: only the newest is shown, as each nightly's notes hold the ones before it
 /// A version the player has that is no version (a checkout's build), or newer than the one offered (a channel switch), gets the
 /// offered one's notes alone.
@@ -39,13 +37,10 @@ public static class ReleaseNotes
     public static string? Since(IEnumerable<string> tags, string tag, Product product)
     {
         if (!Versions.IsRelease(tag, product.FirstMajor)) return null;
-        var stable = Versions.TrackOf(tag, product.FirstMajor) == Versions.Stable;
-        var firstRc = !stable && tag.EndsWith("-rc.1", StringComparison.Ordinal);
         string? best = null;
         foreach (var t in tags)
         {
             if (!Versions.IsRelease(t, product.FirstMajor) || !Versions.Newer(tag, t, product.FirstMajor)) continue;
-            if (!firstRc && Versions.TrackOf(t, product.FirstMajor) != Versions.Stable) continue;
             if (best == null || Versions.Newer(t, best, product.FirstMajor)) best = t;
         }
         return best;

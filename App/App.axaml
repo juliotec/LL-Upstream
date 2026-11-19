@@ -207,7 +207,7 @@
       <Setter Property="TextElement.Foreground" Value="{StaticResource BrandInk}"/>
     </Style>
 
-    <!-- a build's channel: release (green), rc (amber), nightly (blue) -->
+    <!-- a build's channel: release (green), nightly (blue) -->
     <Style Selector="Border.tag">
       <Setter Property="Height" Value="20"/>
       <Setter Property="CornerRadius" Value="10"/>
@@ -220,10 +220,6 @@
     </Style>
     <Style Selector="Border.tag TextBlock">
       <Setter Property="VerticalAlignment" Value="Center"/>
-    </Style>
-    <Style Selector="Border.tag.rc">
-      <Setter Property="Background" Value="{StaticResource WarnSoft}"/>
-      <Setter Property="TextElement.Foreground" Value="{StaticResource Warn}"/>
     </Style>
     <Style Selector="Border.tag.nightly">
       <Setter Property="Background" Value="{StaticResource BrandSoft}"/>

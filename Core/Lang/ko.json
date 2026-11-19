@@ -100,8 +100,6 @@
   "It follows the launcher until you pick one in Settings.": "설정에서 고르기 전까지는 런처의 채널을 따릅니다.",
   "Stable": "안정판",
   "The tested version. Best for playing.": "테스트를 거친 버전입니다. 플레이에 가장 좋습니다.",
-  "Release candidate": "릴리스 후보",
-  "The next version, to try before it is released.": "출시 전에 미리 써 볼 수 있는 다음 버전입니다.",
   "Nightly": "Nightly",
   "The newest development build, with every change of the day.": "그날의 모든 변경이 들어간 최신 개발 빌드입니다.",
   "Continue": "계속",

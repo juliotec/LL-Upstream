@@ -14,7 +14,7 @@ GitHub, and nothing is compatible with Hookshot's 2.x updates (NotRexed/Hookshot
 |---|---|
 | **A release** | A Forgejo release of the repository: a tag, a page with the notes, and the product's files with `SHA256SUMS` and `SHA256SUMS.sig`. Nothing else: no package registry, no pointer files |
 | **Two products** | Longshot releases its **builders** (Windows and Linux). The launcher releases **itself**. Each from its own repository, with its own versions |
-| **Three channels each** | `stable` (tag `vX.Y.Z`), `rc` (tag `vX.Y.Z-rc.N`, and every stable), `nightly` (every push to `main`). Read from the release list |
+| **Two channels each** | `stable` (tag `vX.Y.Z`) and `nightly` (every push to `main`). Read from the release list |
 | **One key** | CI signs `SHA256SUMS` with the release key (ECDSA P-256). The launcher has the public key built in |
 | **tools.lock** | The builders' build tools, Windows' and Linux's, are not in Longshot's releases: `tools.lock` names each one (URLs, SHA-256, size) |
 | **Tags, not release PRs** | A maintainer releases by pushing a tag. CI checks the number against the commits, builds, signs and publishes. Notes by git-cliff |
@@ -26,13 +26,20 @@ Each version is one Forgejo release, made by `.forgejo/workflows/release.yml`:
 
 | Longshot (MagicBeanDev/Longshot) | The launcher (MagicBeanDev/LongshotLauncher) |
 |---|---|
-| `LongshotBuilder-<v>-windows-x64.zip`: the Windows builder (its setup as `LongshotBuilder.exe`, the builder and Longshot's sources in `LongshotBuilder\`, `tools.lock`, `VERSION`, and `recomplauncher.json` at the top) | `LongshotLauncher-<v>-windows-x64-setup.exe`: one self-contained program that installs itself (below); `LongshotLauncher-<v>-windows-x64-portable.zip`: the same program as `LongshotLauncher.exe` with its `portable` file |
-| `Longshot-<v>-x86_64.AppImage`: the Linux builder (the builder, its Python, Longshot's sources, the Vulkan back end, its `tools.lock` and `recomplauncher.json`); its build tools are not inside | `LongshotLauncher-<v>-x86_64.AppImage` |
+| `LongshotBuilder-<v>-windows-x64.zip`: the Windows builder (its setup as `LongshotBuilder.exe`, the builder and Longshot's sources in `LongshotBuilder\`, the third-party code's objects in `LongshotBuilder\tools\third_party_objects`, `tools.lock`, `VERSION`, and `recomplauncher.json` at the top) | `LongshotLauncher-<v>-windows-x64-setup.exe`: one self-contained program that installs itself (below); `LongshotLauncher-<v>-windows-x64-portable.zip`: the same program as `LongshotLauncher.exe` with its `portable` file |
+| `Longshot-<v>-x86_64.AppImage`: the Linux builder (the builder, its Python, Longshot's sources, the third-party code's objects in `usr/share/longshot/third_party_objects`, its `tools.lock` and `recomplauncher.json`; the player's build compiles the Vulkan back end); its build tools are not inside | `LongshotLauncher-<v>-x86_64.AppImage` |
 | `tools.lock`: the tools the builders download | |
 | `SHA256SUMS`, `SHA256SUMS.sig` | `SHA256SUMS`, `SHA256SUMS.sig` |
 
 `SHA256SUMS` is `sha256sum`'s format, one `<64 hex>  <name>` line per file. `SHA256SUMS.sig` is the base64 of the DER ECDSA
 P-256 signature of `SHA256SUMS`'s exact bytes, by the release key. A release's files never change: a fix is the next version.
+
+The third-party code's objects (`nx2/third_party_objects.py`: Eden's shader recompiler, sirit, Dear ImGui, zstd, libopus;
+on Windows suyu's code under the WebGPU renderer too) are compiled by the release with the tools a player's build uses
+(`tools.lock`'s compiler, sysroot and CPM headers; on Windows the same llvm-mingw release's Linux build), so a player's
+first build links them instead of compiling them. Only the sources beside them go into them: nothing of the game's, and
+none of the renderer's own files (DLSS, FSR 4 and the play profile are the player's). A build takes one only by its object
+key, which names the compiler and what the headers preprocess to: one that does not fit is compiled as before.
 
 Release files are Forgejo attachments: `[attachment] MAX_SIZE` (2048 MB on git.magicbean.dev now) caps each file, and
 `[repository.release] ALLOWED_TYPES` must stay empty (every type) for `.AppImage`, `.exe`, `.lock` and `SHA256SUMS`. The
@@ -55,7 +62,6 @@ launcher (`Core/ReleaseManifest.cs`, `Newest`) and in `scripts/release.py` (`new
 | Channel | Offers | For |
 |---|---|---|
 | `stable` | the newest `vX.Y.Z` that is published and not a pre-release | playing |
-| `rc` | the newest `vX.Y.Z-rc.N` or `vX.Y.Z` that is published | trying the next version before it is stable |
 | `nightly` | the newest `nightly-<count>-<8 hex>` that is published, by its count | every change, untested |
 
 - A **draft** is on no channel. CI creates each release as a draft, uploads every file, and publishes it last, so a run
@@ -65,14 +71,15 @@ launcher (`Core/ReleaseManifest.cs`, `Newest`) and in `scripts/release.py` (`new
 - The **nightlies** past the newest 5 are deleted, with their tags, by the run that makes a new one. Nothing else is pruned.
 - A push to `main` whose commits since the newest nightly put nothing in its notes (only `ci:` or `chore:`, which
   cliff.toml skips) makes **no nightly**: `release.py nightly-news` says no. The next one comes with what follows.
-- Anything else in the list is on no channel: a 2.x tag, a git describe name. (The builders' tools are not releases:
+- Anything else in the list is on no channel: a 2.x tag, a git describe name, an old release candidate (`vX.Y.Z-rc.N`:
+  there were some before the channel was dropped). (The builders' tools are not releases:
   they are packages, below.)
 - A nightly's count is the number of commits: for Longshot since the fork (e2a4d45, "Rename the project to Longshot"), for
   the launcher since its first commit.
 
 **Each build has its channel, and the launcher has its own.** In the launcher, *Settings > Channel for new builds* picks
 the channel a new build follows (each build keeps its own). *Settings > Launcher updates* picks the channel the launcher
-updates **itself** from: LongshotLauncher's stable, rc or nightly, independent of any build's. It defaults to the channel
+updates **itself** from: LongshotLauncher's stable or nightly, independent of any build's. It defaults to the channel
 of the launcher the player installed (a stable launcher follows stable).
 
 **No downgrades, no replays.** There is no pointer file to replay: the list is what it is. The launcher never updates a
@@ -104,10 +111,11 @@ Rotating the key: RELEASING.md, "Rotate the key".
 ## tools.lock (Longshot)
 
 The builders need build tools that are not Longshot's own code. Windows (`windows-x64` lines): llvm-mingw, Python with the
-prompt packages, emsdk, the CPM cache (FFmpeg, Vulkan and SPIR-V headers, VMA, dav1d), wgpu-native, the prebuilt files of
-`third_party` (a64emit.dll, lld-link.exe, SDL2/SDL3, zbic.dll), and the play profile when there is one (optional: without
-it the game is built all the same, a little slower in play). Linux (`linux-x64` lines): LLVM's clang
+prompt packages, the CPM cache (FFmpeg, Vulkan and SPIR-V headers, VMA, dav1d), the prebuilt files of
+`third_party` (a64emit.dll, lld-link.exe, SDL2/SDL3, zbic.dll). No play profile is among them: play profiles are
+committed in `assets/profiles/`. Linux (`linux-x64` lines): LLVM's clang
 and lld (`emsdk`), the glibc 2.35 `sysroot`, `ffmpeg` with dav1d, `sdl2` and the Vulkan, SPIR-V and VMA headers (`cpm`).
+Windows has no `emsdk`: its build takes clang, lld and the LLVM tools from `llvm-mingw` (`tests/test_windows_toolchain.py`).
 They are not in the release: `tools.lock` names them.
 
 ```
@@ -124,8 +132,8 @@ tool llvm-mingw 20261104 windows-x64 5521…40f 191037046 LongshotBuilder/tools/
   same SHA-256 and unpacked the same way, is taken from it and not downloaded again (the Windows setup excepts a merged
   tool: it comes from its archive each time). `scripts/tools.py install` does the same, for CI and developers.
 - **Where the archives are: Packages.** Every tool is downloaded first from Longshot's copy, a file of a **generic
-  package** of the MagicBeanDev organization (its *Packages* tab): the package `<name>-<system>` (`emsdk-windows-x64`,
-  `emsdk-linux-x64`: a tool's Windows and Linux builds have versions of their own), its version the tool's, the file
+  package** of the MagicBeanDev organization (its *Packages* tab): the package `<name>-<system>` (`cpm-windows-x64`,
+  `cpm-linux-x64`: a tool's Windows and Linux builds have versions of their own), its version the tool's, the file
   `<sha256>-<name>.zip`, at `https://git.magicbean.dev/api/packages/MagicBeanDev/generic/<name>-<system>/<version>/<file>`.
   Forgejo keeps packages in Cloudflare R2, and `git-cdn.magicbean.dev` serves the same paths from Cloudflare's edge
   (cached), so a tool's first URL is its `git-cdn.magicbean.dev` link and its second the same file on git.magicbean.dev
@@ -133,20 +141,20 @@ tool llvm-mingw 20261104 windows-x64 5521…40f 191037046 LongshotBuilder/tools/
   name), and nothing prunes them, so an older version's tools stay downloadable. Where an archive came from (upstream for
   llvm-mingw, NotRexed/Hookshot's `builder-parts` release for those taken from Hookshot) is its fallback URL, so no install
   depends on a repository we do not control alone. An archive Longshot makes itself (the CPM cache with dav1d, the
-  prebuilt `third_party` files, the Linux tools, a play profile) is only in Packages, put there by `scripts/tools.py`.
+  prebuilt `third_party` files, the Linux tools) is only in Packages, put there by `scripts/tools.py`.
 - **Bumping a tool** is a pull request that edits `tools.lock`, with the archive uploaded by `scripts/tools.py mirror`,
   `add` or `assemble`: a new package version, then the line (RELEASING.md, "Bump a tool"). The release workflow refuses a
   `tools.lock` whose package files are not there with their size and SHA-256, or that lacks a tool the
   builder needs (`tools.py check --require`), in its first job, before anything is built.
-- **Today's lock.** Windows: Python, emsdk and wgpu-native are taken as they are from Hookshot v2.1.0's Windows builder
-  (NotRexed/Hookshot's `builder-parts` release), with their SHA-256; llvm-mingw is upstream's; the CPM cache is Hookshot
+- **Today's lock.** Windows: Python is taken as it is from Hookshot v2.1.0's Windows builder
+  (NotRexed/Hookshot's `builder-parts` release), with its SHA-256; llvm-mingw is upstream's; the CPM cache is Hookshot
   v2.1.0's with dav1d added (`scripts/windows/dav1d.sh`), and `third-party` the prebuilt files of Hookshot v2.1.0's
-  `third_party` part (`assemble third-party`). Linux: `scripts/linux/deps.sh tools`'s. There is no play profile yet: the
-  lock has no `profile` line, and `check --require` does not ask for one.
+  `third_party` part (`assemble third-party`). Linux: `scripts/linux/deps.sh tools`'s. The lock has no play profile:
+  play profiles are committed in `assets/profiles/`.
 - **Linux.** The AppImage carries only the builder: its Python (the tools' download and `make_game.py` run on it,
-  and its packages follow `requirements.txt`, which changes with the version), Longshot's sources and the prebuilt Vulkan
-  back end. Each `linux-x64` tool's `dest` is where the AppImage had it (`usr/lib/longshot/emsdk`, `usr/share/longshot/cpm`,
-  ...). The launcher unpacks them beside the unpacked AppImage, as on Windows. An AppImage started by itself
+  and its packages follow `requirements.txt`, which changes with the version), and Longshot's sources (the player's build
+  compiles the Vulkan back end from them). Each `linux-x64` tool's `dest` is where the AppImage had it
+  (`usr/lib/longshot/emsdk`, `usr/share/longshot/cpm`, ...). The launcher unpacks them beside the unpacked AppImage, as on Windows. An AppImage started by itself
   (`builder/linux/AppRun`) finds them there, or in the launcher's copy of the same version, or in
   `$XDG_DATA_HOME/longshot/builder/toolchains/<v>/`; what is missing its first `--cli` downloads there, its progress on
   stderr, linking a tool another version there has. Once there, no connection is needed.
@@ -210,8 +218,8 @@ Both repositories have the same workflows in `.forgejo/workflows/`, on Forgejo A
 | `third-party.yml` | the third_party rule (`scripts/check_third_party.py`) | (none) |
 
 Longshot also keeps `build-linux.yml` and `build-windows.yml` (also run on pull requests that change code) and
-`vulkan-dlss.yml` (the upscalers' build checks). A tag on a commit CI has released already (its nightly, or a stable's
-release candidate) is still built again, since every file carries its version (a release never ships a file that names
+`vulkan-dlss.yml` (the upscalers' build checks). A tag on a commit CI has released already (its nightly) is still built
+again, since every file carries its version (a release never ships a file that names
 another), but `release.py released-as` finds that release, checks its signed `SHA256SUMS` (one that does not check stops
 the run), and the build checks that ship no file and passed in its run are not run again. Every job runs on Linux: Longshot's Windows files are cross-built there,
 and what only Windows can check is a tester's (RELEASING.md, *Needs a Windows tester*). The runners are in Longshot's [docs/forgejo-runners.md](https://git.magicbean.dev/MagicBeanDev/Longshot/src/branch/main/docs/forgejo-runners.md).
@@ -221,10 +229,9 @@ and what only Windows can check is a tester's (RELEASING.md, *Needs a Windows te
 Pull requests are squash-merged, and their titles are Conventional Commits, so the commits on `main` say what changed. For
 a tag, `scripts/release.py check-tag` (in `release.yml`, before anything is built) refuses:
 
-- a name that is not `vX.Y.Z` or `vX.Y.Z-rc.N` of the product's numbers;
+- a name that is not `vX.Y.Z` of the product's numbers;
 - a tag that is not on `main`;
-- a tag that is not above every release there is (a stable `vX.Y.Z` is above its own `vX.Y.Z-rc.N`, so a stable tagged on
-  the same commit as a release candidate is the normal way);
+- a tag that is not above every release there is;
 - a number lower than the commits since the last stable call for:
 
 | Since the last stable | At least |
@@ -239,10 +246,9 @@ The first release of each product only needs its first number (Longshot `v3.0.0`
 ## Release notes
 
 git-cliff writes them at release time from the commit titles since the previous tag, with the repository's `cliff.toml`.
-For a stable, that is since the previous stable, so its notes cover its release candidates. A release candidate after the
-first has two lists: its own, headed `## <tag> (<date>), new since rc.N`, the commits since the rc before; then
-`## Earlier release candidates: rc.1, rc.2 (since <stable>)`, what those brought since the last stable in one list
-(`release.py notes`, git-cliff's `--ignore-tags`). The headings are Features,
+For a stable, that is since the previous stable. A nightly after the first has two lists: its own, headed
+`## <tag> (<date>), new since <nightly>`, the commits since the nightly before; then `## Earlier changes (since <stable>)`,
+what came since the last stable in one list (`release.py notes`). The headings are Features,
 Fixes, Performance, Reverted, Documentation, Code, Build and Tests; `ci` and `chore` are left out. The notes go on the
 release page only: nothing is committed back to `main`, and there is no changelog file to keep up (Hookshot's is in
 NotRexed/Hookshot).
@@ -254,7 +260,7 @@ right thing:
   installer), *Download for Linux* (the AppImage), and a small link to the portable zip, all through git-cdn.magicbean.dev
   (the same paths as git.magicbean.dev, from Cloudflare's edge).
 - **Longshot's releases** start with "To play, get the Longshot Launcher": the same big links, to the newest launcher of
-  the **same channel** (an rc to the launcher's rc, a nightly to its nightly, a stable to its stable) through the links
+  the **same channel** (a nightly to the launcher's nightly, a stable to its stable) through the links
   below, then "Don't download the files below": they are the builders the launcher installs.
 
 ## Download links
@@ -265,11 +271,11 @@ the newest launcher of each channel, read from LongshotLauncher's release list b
 | Link | Goes to |
 |---|---|
 | `https://longshot.magicbean.dev/download` | a page: the launcher for the visitor's system, from the best channel there is, and every channel |
-| `https://longshot.magicbean.dev/download/launcher/<os>` | that file of the best channel there is: stable, else rc, else nightly |
+| `https://longshot.magicbean.dev/download/launcher/<os>` | that file of the best channel there is: stable, else nightly |
 | `https://longshot.magicbean.dev/download/launcher/<channel>` | the channel's newest release page |
 | `https://longshot.magicbean.dev/download/launcher/<channel>/<os>` | that file of the channel's newest release |
 
-`<channel>` is `stable`, `rc` or `nightly`; `<os>` is `windows` (the setup), `windows-portable` (the zip) or `linux` (the
+`<channel>` is `stable` or `nightly`; `<os>` is `windows` (the setup), `windows-portable` (the zip) or `linux` (the
 AppImage). A channel with no release yet answers with a page that says so and offers the newest there is. The READMEs'
 download buttons and Longshot's release pages use these links; there are none for Longshot's builder files, which only
 the launcher downloads.

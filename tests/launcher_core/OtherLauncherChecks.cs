@@ -42,10 +42,10 @@ static partial class Program
         var installedHome = Path.Combine(env["LOCALAPPDATA"]!, "LongshotLauncher");
         var games = Path.Combine(root, "home", "Games", "Longshot");
         var stable = Built(Path.Combine(games, "stable"), "v3.0.0");
-        var rc = Built(Path.Combine(games, "rc"), "v3.1.0-rc.2");
+        var night = Built(Path.Combine(games, "nightly"), "nightly-150-aaaaaaaa");
         var installedList = BuildRegistry.Load(Path.Combine(installedHome, "builds.json"));
         installedList.Add(stable, "v3.0.0", Versions.Stable);
-        installedList.Add(rc, "v3.1.0-rc.2", Versions.Candidate, makeDefault: true);
+        installedList.Add(night, "nightly-150-aaaaaaaa", Versions.Nightly, makeDefault: true);
         installedList.Add(Path.Combine(games, "gone"), "v2.9.0", Versions.Stable);
         installedList.Save();
         var installedUser = Path.Combine(env["APPDATA"]!, "Longshot");
@@ -56,14 +56,14 @@ static partial class Program
         var portableHome = Path.Combine(root, "usb", "Longshot", LauncherLayout.PortableData);
         var portableEnv = new SaveEnvironment(p, Getenv) { UserFolder = Path.Combine(portableHome, "user") };
         var other = OtherLauncher.InstalledOne(p, Getenv, portableHome);
-        Require(other is { Installed: true } && BuildRegistry.SameFolder(other.Home, installedHome) && Names(other.Builds.Select(b => b.Folder)) == "rc stable"
+        Require(other is { Installed: true } && BuildRegistry.SameFolder(other.Home, installedHome) && Names(other.Builds.Select(b => b.Folder)) == "nightly stable"
                 && other.Profiles.Count == 1 && other.HasAnything,
                 "A portable launcher finds the installed one's builds whose game is there, and its saves: " + Names(other?.Builds.Select(b => b.Folder) ?? []));
         Require(OtherLauncher.InstalledOne(p, Getenv, installedHome) == null, "The installed launcher is no other launcher to itself.");
 
         var reg = BuildRegistry.Load(Path.Combine(portableHome, "builds.json"));
         var taken = other!.TakeInto(reg, portableEnv, () => []);
-        Require(Names(taken.Added.Select(b => b.Folder)) == "rc stable" && reg.Default?.Folder == rc
+        Require(Names(taken.Added.Select(b => b.Folder)) == "nightly stable" && reg.Default?.Folder == night
                 && reg.Builds.Single(b => b.Folder == stable) is { Version: "v3.0.0", Channel: Versions.Stable },
                 "Its builds are listed where they are, its default this one's default.");
         Require(taken.SavesCopied && Tree(Path.Combine(portableEnv.LongshotUser, "save")) == Tree(Path.Combine(installedUser, "save"))
@@ -97,19 +97,20 @@ static partial class Program
 
         // (the other way: the installed launcher, its list empty, is given the portable one's data folder, or the folder beside it)
         var moved = Built(Path.Combine(portableHome, "builds", "nightly"), "nightly-300-12345678");   // (in its builds folder, in no row)
-        var layout = Built(Path.Combine(portableHome, "builds", "rc", "v3.1.0-rc.3"), "v3.1.0-rc.3");  // (builds/<track>/<version>, #184)
+        var layout = Built(Path.Combine(portableHome, "builds", "stable", "v3.1.0"), "v3.1.0");        // (builds/<track>/<version>, #184)
         foreach (var picked in new[] { portableHome, Path.GetDirectoryName(portableHome)! })
         {
             var at = OtherLauncher.At(picked, p, Getenv);
             Require(at is { Installed: false } && BuildRegistry.SameFolder(at.Home, portableHome) && at.User == Path.Combine(portableHome, "user")
-                    && Names(at.Builds.Select(b => b.Folder)) == "nightly rc stable v3.1.0-rc.3" && at.Builds.Single(b => b.Folder == moved).Channel == Versions.Nightly
-                    && at.Builds.Single(b => b.Folder == layout).Channel == Versions.Candidate,
+                    && Names(at.Builds.Select(b => b.Folder)) == "nightly nightly stable v3.1.0" && at.Builds.Single(b => b.Folder == moved).Channel == Versions.Nightly
+                    && at.Builds.Single(b => b.Folder == layout).Channel == Versions.Stable,
                     "A portable launcher's data folder, picked or the folder beside it: its list's builds, and the games in its builds folder: "
                     + Names(at?.Builds.Select(b => b.Folder) ?? []));
         }
         Require(OtherLauncher.ChannelNamed(Path.Combine(root, "b", "nightly (2)", "nightly-1-aaaaaaaa"), "nightly-1-aaaaaaaa") == Versions.Nightly
-                && OtherLauncher.ChannelNamed(Path.Combine(root, "b", "rc", "v3.0.0"), "v3.0.0") == Versions.Candidate
-                && OtherLauncher.ChannelNamed(Path.Combine(root, "b", "nightly", "v3.1.0-rc.1"), "v3.1.0-rc.1") == null
+                && OtherLauncher.ChannelNamed(Path.Combine(root, "b", "stable", "v3.0.0"), "v3.0.0") == Versions.Stable
+                && OtherLauncher.ChannelNamed(Path.Combine(root, "b", "nightly", "v3.1.0"), "v3.1.0") == null
+                && OtherLauncher.ChannelNamed(Path.Combine(root, "b", "rc", "v3.0.0"), "v3.0.0") == null   // (rc: no channel now)
                 && OtherLauncher.ChannelNamed(Path.Combine(root, "b", "Longshot", "v3.0.0"), "v3.0.0") == null,
                 "A game's channel is its track folder's (or, before that layout, its own folder's name), only for a version on that channel.");
         Require(OtherLauncher.At(installedHome, p, Getenv) is { Installed: true, User: var u } && u == Path.GetFullPath(installedUser),
@@ -117,10 +118,11 @@ static partial class Program
         Require(OtherLauncher.At(games, p, Getenv) == null, "A folder with no builds.json is no launcher's.");
         var hookshot = Built(Path.Combine(games, "hookshot"), "v2.9.0");   // (Hookshot's numbers: no Longshot game, a clean break)
         var dev = Built(Path.Combine(games, "dev"), "dev");
-        Require(Names(OtherLauncher.GamesIn(games, p)) == "rc stable" && OtherLauncher.GamesIn(rc, p).SequenceEqual([rc])
-                && OtherLauncher.GamesIn(hookshot, p).Count == 0 && OtherLauncher.GamesIn(dev, p).Count == 0
+        var oldRc = Built(Path.Combine(games, "old-rc"), "v3.0.0-rc.5");   // (an old release candidate: no version now)
+        Require(Names(OtherLauncher.GamesIn(games, p)) == "nightly stable" && OtherLauncher.GamesIn(night, p).SequenceEqual([night])
+                && OtherLauncher.GamesIn(hookshot, p).Count == 0 && OtherLauncher.GamesIn(dev, p).Count == 0 && OtherLauncher.GamesIn(oldRc, p).Count == 0
                 && OtherLauncher.GamesIn(Path.Combine(root, "nothing"), p).Count == 0,
-                "A game folder is itself; a folder of them, each that plays; never a Hookshot game or one with no version.");
+                "A game folder is itself; a folder of them, each that plays; never a Hookshot game or one with no version (an old rc's too).");
 
         // (a list that cannot be read is no list, and nothing is written beside it, as Load would)
         var brokenHome = Path.Combine(root, "broken", LauncherLayout.PortableData);

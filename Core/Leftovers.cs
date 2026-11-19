@@ -72,9 +72,8 @@ public static class Leftovers
                       .Any(v => v != null && OnChannel(v, Versions.TrackOf(version)) && !Versions.Newer(version, v));
     }
 
-    /// version is one a build on channel follows: its own track, or a stable on the rc channel (which follows the newest of both)
-    static bool OnChannel(string version, string channel) =>
-        Versions.TrackOf(version) == channel || channel == Versions.Candidate && Versions.TrackOf(version) == Versions.Stable;
+    /// version is one a build on channel follows: its own track
+    static bool OnChannel(string version, string channel) => Versions.TrackOf(version) == channel;
 
     /// The game an update built for row that row lost: before an update stayed in its build's folder (#104), it built the new
     /// version in a new folder of the builds folder and moved its row there at the end; when the row did not follow (the launcher
@@ -104,9 +103,9 @@ public static class Leftovers
     /// offered it for deletion (kept), whose version is a release or a nightly, and that is its channel's newest that no listed
     /// build plays nor any row of its channel has (its game there or not), each row on its own channel. Of two on one channel, the
     /// newer: the older stays unlisted, an old version Find offers as before. Its channel: the one its folder's name says
-    /// (InstanceFolders.ChannelNamed: builds/rc/&lt;version&gt;, builds/rc, builds/rc (2)) when its version is one that channel follows,
-    /// else its version's. In the order of Versions.Channels (stable, release candidate, nightly), so that the first, the default
-    /// when the list has none, is a release; the default the list has stays. A row whose folder was deleted outside the launcher
+    /// (InstanceFolders.ChannelNamed: builds/nightly/&lt;version&gt;, builds/nightly, builds/nightly (2)) when its version is one
+    /// that channel follows, else its version's. In the order of Versions.Channels (stable, nightly), so that the first, the
+    /// default when the list has none, is a release; the default the list has stays. A row whose folder was deleted outside the launcher
     /// (BuildRegistry.Gone: ForgetGone drops it at the home's Refresh) counts as gone already, so the result does not depend on
     /// which ran first. The entries added; registry is not saved. Run it when ShouldRelist says so, not at every start
     public static IReadOnlyList<BuildEntry> Relist(BuildRegistry registry, string buildsFolder, Platform platform, IEnumerable<string>? keep = null,
@@ -138,7 +137,7 @@ public static class Leftovers
     static string ChannelOf(string dir, string version, string buildsFolder) =>
         InstanceFolders.ChannelNamed(dir, buildsFolder) is { } named && OnChannel(version, named) ? named : Versions.TrackOf(version);
 
-    /// A channel's place in Versions.Channels (stable, release candidate, nightly)
+    /// A channel's place in Versions.Channels (stable, nightly)
     static int Rank(string channel)
     {
         for (var i = 0; i < Versions.Channels.Count; i++) if (Versions.Channels[i] == channel) return i;

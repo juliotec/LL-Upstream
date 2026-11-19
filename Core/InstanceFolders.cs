@@ -56,7 +56,7 @@ public static class InstanceFolders
         return string.Join(sep, names.Skip(Math.Max(0, names.Count - count)));
     }
 
-    /// A track's folder's name: stable, rc, nightly, pr or Longshot (LauncherSettings.TrackFolder), with " (2)" and on
+    /// A track's folder's name: stable, nightly, pr or Longshot (LauncherSettings.TrackFolder), with " (2)" and on
     public static bool TrackName(string name)
     {
         var b = Base(name);
@@ -71,7 +71,7 @@ public static class InstanceFolders
     }
 
     /// The channel a game folder's name says it was built on: its track's folder's (builds/nightly/&lt;version&gt;), else, for one
-    /// from before the layout right in the builds folder, its own (builds/rc); " (2)" and on left out either way (builds/rc (2),
+    /// from before the layout right in the builds folder, its own (builds/nightly); " (2)" and on left out either way (builds/nightly (2),
     /// builds/nightly (2)/&lt;version&gt;). Null when the name is no channel (Longshot, a name the player gave)
     public static string? ChannelNamed(string folder, string buildsFolder)
     {

@@ -292,7 +292,7 @@
         <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center" Margin="0,16,0,0" IsVisible="{Binding KnowsNewest}">
           <TextBlock Classes="note" Text="{c:T 'Builds'}" VerticalAlignment="Center"/>
           <TextBlock FontSize="13" FontWeight="SemiBold" Text="{Binding NewestDefaultText}" VerticalAlignment="Center"/>
-          <Border Classes="tag" Classes.rc="{Binding DefaultIsCandidate}" Classes.nightly="{Binding DefaultIsNightly}">
+          <Border Classes="tag" Classes.nightly="{Binding DefaultIsNightly}">
             <TextBlock Text="{Binding DefaultChannel}"/>
           </Border>
           <Button Classes="link" Content="{c:T 'Change'}" Command="{Binding ChannelCommand}" Margin="4,0,0,0"/>
@@ -508,7 +508,7 @@
                               <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                                 <Border Classes="chip small update" IsVisible="{Binding ShowUpdateBadge}"><TextBlock Text="{c:T 'Update available'}"/></Border>
                                 <Border Classes="chip quiet" IsVisible="{Binding IsDefault}"><TextBlock Text="{c:T 'Default'}"/></Border>
-                                <Border Classes="tag" Classes.rc="{Binding IsCandidate}" Classes.nightly="{Binding IsNightly}" Classes.pr="{Binding IsPullRequest}">
+                                <Border Classes="tag" Classes.nightly="{Binding IsNightly}" Classes.pr="{Binding IsPullRequest}">
                                   <TextBlock Text="{Binding Channel}"/>
                                 </Border>
                               </StackPanel>

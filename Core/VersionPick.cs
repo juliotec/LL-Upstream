@@ -22,13 +22,13 @@ public enum PickAction
 /// Build: the build Play starts (Play), or the one the version replaces (Replace); null for a new build
 public sealed record PickPlan(PickAction Action, string Version, BuildEntry? Build, bool Older);
 
-/// The home's Track and Version dropdowns: a track (stable, rc, nightly) and one of its versions, and what building or playing
+/// The home's Track and Version dropdowns: a track (stable, nightly) and one of its versions, and what building or playing
 /// it means. One build per track is the rule, as Other versions had it: picking another version of a track that has a build
 /// builds it in that build's place (in its folder, the row then that version), never a second folder. Building beside it is
 /// still Build another version (ChannelPickerViewModel), so a track can hold several builds ("nightly (2)"): each of their
 /// versions is marked installed, and the version a pick replaces is the build the player chose (the row selected) when it is on
 /// the track, else the track's default, else its last built.
-/// The versions are the ones the update check read (ReleaseManifest.OnChannel: every release and release candidate the server
+/// The versions are the ones the update check read (ReleaseManifest.OnChannel: every release the server
 /// keeps, its newest 5 nightlies), and the installed ones the list lacks (no answer yet, or a nightly the server no longer keeps)
 public static class VersionPick
 {
