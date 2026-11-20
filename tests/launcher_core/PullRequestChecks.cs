@@ -217,6 +217,16 @@ static partial class Program
                                                           PullRequestSource.Files(Archive(HeadA, files: other), HeadA), Platform.Linux))
                     && !Directory.Exists(chains.PathOf("pr-222-1a2b3c4d")) && !Directory.Exists(chains.PathOf("pr-222-1a2b3c4d") + ".part"),
                     "A pull request whose tools.lock differs from the nightly's is refused, and leaves nothing.");
+
+            // (the Windows builder's zip has tools.lock at its top, beside LongshotBuilder\, not in its tools folder)
+            Toolchains.DeleteTree(from);
+            const string winLock = "tool sysroot 1 windows-x64 " + "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" + " 10 sysroot - https://x/s.zip\n";
+            Put("tools.lock", winLock);
+            Put("LongshotBuilder/tools/nx2/make_game.py", "n\n");
+            Put("toolchain.json", "{\"format\": 1, \"tag\": \"nightly-2029-c544828f\", \"kind\": \"Setup\", \"run\": \"LongshotBuilder/LongshotBuilder.exe\", \"parts\": []}");
+            var winMade = chains.InstallPullRequest("pr-222-1a2b3c4d", chains.Find("nightly-2029-c544828f")!,
+                PullRequestSource.Files(Archive(HeadA, files: source.ToDictionary(kv => kv.Key, kv => kv.Key == "tools.lock" ? winLock : kv.Value)), HeadA), Platform.Windows);
+            Require(winMade.Tag == "pr-222-1a2b3c4d", "A Windows builder's tools.lock, at the top of its folder, is found to compare the pull request's with.");
         }
         finally
         {

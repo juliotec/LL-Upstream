@@ -311,7 +311,9 @@ public sealed class Toolchains
         var system = ReleaseManifest.PlatformKey(platform);
         var theirs = source.FirstOrDefault(f => f.Path == "tools.lock")
                      ?? throw new InvalidDataException("The pull request's source has no tools.lock.");
-        var ours = new[] { Path.Combine(from.ToolsRoot, "tools.lock"), Path.Combine(Path.GetDirectoryName(from.ToolsRoot)!, "tools.lock") }
+        // (the Linux AppImage's is in usr/share/longshot, with the tools; the Windows builder's zip has it at its top, from.Folder)
+        var ours = new[] { Path.Combine(from.ToolsRoot, "tools.lock"), Path.Combine(Path.GetDirectoryName(from.ToolsRoot)!, "tools.lock"),
+                           Path.Combine(from.Folder, "tools.lock") }
                        .FirstOrDefault(File.Exists)
                    ?? throw new InvalidDataException($"{from.Tag}'s tools have no tools.lock to compare the pull request's with.");
         static string Key(Part p) => $"{p.Sha} {p.Dest} {p.From} {p.To}";
