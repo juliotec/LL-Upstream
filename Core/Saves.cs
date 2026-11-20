@@ -101,6 +101,15 @@ public sealed record SaveEnvironment(Platform Platform, Func<string, string?> Ge
     /// the launcher runs
     public string LongshotUser => Platform != Platform.Windows && Directory.Exists(LinuxUserFiles) ? LinuxUserFiles : LongshotRoot;
 
+    /// The shader store every build shares (Longshot's SPIR-V store, ShaderCaches.StoreNames): LONGSHOT_SHADER_STORE when set,
+    /// else %LOCALAPPDATA%\Longshot\shaders on Windows and ${XDG_CACHE_HOME:-~/.cache}/longshot/shaders on Linux, where the game
+    /// keeps it (gpu/vk/spirv_pack.h's default_dir, read the same way: an XDG_CACHE_HOME that is not a full path is not used).
+    /// Null for none: LONGSHOT_SHADER_STORE=0, or no LOCALAPPDATA on Windows. Not in LongshotUser: a portable launcher's builds
+    /// share the PC's
+    public string? ShaderStore => Getenv("LONGSHOT_SHADER_STORE") is { Length: > 0 } s ? (s == "0" ? null : Path.GetFullPath(s))
+        : Platform == Platform.Windows ? (Getenv("LOCALAPPDATA") is { Length: > 0 } l ? Path.GetFullPath(Path.Combine(l, "Longshot", "shaders")) : null)
+        : Path.GetFullPath(Path.Combine(Getenv("XDG_CACHE_HOME") is { Length: > 0 } c && Path.IsPathFullyQualified(c) ? c : Path.Combine(Home, ".cache"), "longshot", "shaders"));
+
     /// Longshot's save folder, the one every build shares: save\<user id>\ in LongshotUser (Open saves folder, the .zip's top
     /// folder, ImportTarget's parent)
     public string SaveFolder => Path.Combine(LongshotUser, "save");

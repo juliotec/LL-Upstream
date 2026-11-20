@@ -43,7 +43,7 @@ public sealed class BuildItemViewModel : ViewModelBase
     public string? Update { get; }
     public bool HasUpdate => Update != null;
 
-    /// "Built 3 Nov, 38.4 GB" (no saves count: every build shares them)
+    /// "Built 3 Nov, 12.2 GB": what it holds of its own (Disk.Own; no saves count: every build shares them)
     public string Meta
     {
         get
@@ -53,7 +53,8 @@ public sealed class BuildItemViewModel : ViewModelBase
             // (its pull request merged or closed since: Beanstalk lists only the open ones. The build stays until the player deletes it)
             if (Versions.PullRequestOf(Entry.Version) is { } pr && home.Main.Service.Pulls != null && home.Main.Service.PullRequestOf(pr.Number) == null)
                 bits.Add(Tr.T("its pull request is closed"));
-            if (Entry.Bytes is long b) bits.Add(Durations.Size(b));
+            // (what it holds of its own: the game files it shares with another build are in the footer's total, once)
+            if (Disk.Own(Entry) is long b) bits.Add(Durations.Size(b));
             return string.Join(Tr.T(", "), bits);
         }
     }
@@ -524,19 +525,9 @@ public sealed class HomeViewModel : ViewModelBase
         Main.Modal = new PullRequestWarningViewModel(Main, new PullRequestBuild(pr, kind, replaces));
     }
 
-    /// "3 instances use 116.7 GB in D:\Games\Longshot."
-    public string Footer
-    {
-        get
-        {
-            var n = Builds.Count;
-            // (a game file hard-linked into several builds counted once: BuildEntry.Counted)
-            var known = Builds.Where(b => b.Entry.Bytes != null).Sum(b => b.Entry.Counted ?? b.Entry.Bytes!.Value);
-            var folder = ShownPath.Of(Service.BuildsFolder);
-            return known > 0 ? Tr.P(n, "1 instance uses {1} in {2}.", "{0} instances use {1} in {2}.", Durations.Size(known), folder)
-                : Tr.P(n, "1 instance in {1}.", "{0} instances in {1}.", folder);
-        }
-    }
+    /// "2 instances use 48.2 GB in D:\Games\Longshot: 24.4 GB of it is the game's files, which they share." (Disk.InstancesUse:
+    /// a game file hard-linked into several builds counted once, and the shader store they share)
+    public string Footer => Disk.InstancesUse(Builds.Select(b => b.Entry).ToList(), Service.ShaderStoreBytes ?? 0, ShownPath.Of(Service.BuildsFolder));
 
     // ---- notices ----
 
@@ -1041,6 +1032,7 @@ public sealed class HomeViewModel : ViewModelBase
         UpdateLauncherCommand.Changed();
         LauncherNotesCommand.Changed();
         Service.Measure(() => { foreach (var b in Builds) b.RaiseMeta(); Raise(nameof(Footer)); });
+        Service.MeasureShaderStore(() => Raise(nameof(Footer)));
     }
 
     /// The update check, in the background: a failure is one quiet line, never a stop. Asked while one runs (the launcher's channel
@@ -1306,7 +1298,7 @@ public sealed class DeleteViewModel : ViewModelBase
 
     /// What deleting it frees: its files with no hard link outside its folder (game files shared with another build stay with
     /// that one: BuildEntry.Frees); null when not measured
-    static long? Freed(BuildEntry e) => e.Bytes == null ? null : e.Frees ?? e.Bytes;
+    static long? Freed(BuildEntry e) => Disk.Own(e);
 
     BuildEntry? Next => Main.Service.Registry.Builds.FirstOrDefault(b => b.Id != build.Entry.Id);
     public bool DefaultNote => build.IsDefault && Next != null;

@@ -774,6 +774,17 @@ static partial class Program
         Func<string, string> drives = f => BuildRegistry.SameFolder(f, a.Folder) || BuildRegistry.SameFolder(f, fresh) ? "D:" : "C:";
         Require(r.SameGameFiles(nup, fresh, drives) == a && r.SameGameFiles(nup, fresh, _ => "C:") == b,
                 "A build on the new build's drive first, as a hard link does not cross drives; then the newest.");
+        // (romfs_from_build compares the stamp only, the .nup's name and size: the .nup moved, or a build with no record of it, still shares)
+        var movedNup = Path.Combine(home, "moved", "game.nup");
+        Directory.CreateDirectory(Path.GetDirectoryName(movedNup)!);
+        File.Move(nup, movedNup);
+        Require(r.SameGameFiles(movedNup, fresh, drives) == a, "A .nup moved to another folder still shares the game files unpacked from it.");
+        a.Nup = null;
+        Require(r.SameGameFiles(movedNup, fresh, drives) == a, "So does a build with no record of its .nup (listed again): its stamp says it.");
+        File.Move(movedNup, nup);
+        a.Nup = nup;
+        File.WriteAllBytes(movedNup, new byte[36]);
+        Require(r.SameGameFiles(movedNup, fresh) == null, "A .nup of the same name and another size shares nothing.");
         File.Delete(nup);
         Require(r.SameGameFiles(nup, fresh) == null, "No .nup to stamp: none.");
         a.Nup = b.Nup = null;

@@ -205,6 +205,70 @@ public static class ShaderCaches
         return freed;
     }
 
+    // ---- the shader store every build shares ----
+
+    /// The shader store's files (Longshot's SPIR-V store, in SaveEnvironment.ShaderStore), which every build's
+    /// longshot_programs.bin refers to. One for all builds: only Free up space with every build's caches clears it (a build's
+    /// own delete or cold build leaves it), and that is safe: each build's cache sees the store changed and starts over
+    public static readonly IReadOnlyList<string> StoreNames = new[] { "spirv.pack", "spirv.idx", "spirv.lock" };
+
+    /// The store's files in store, with what a write of one left beside it (spirv.pack.&lt;anything&gt;); never a link, nor
+    /// anything else there: LONGSHOT_SHADER_STORE may name a folder that holds other things. None with no store (null)
+    public static IReadOnlyList<FileInfo> StoreFiles(string? store)
+    {
+        if (store == null) return Array.Empty<FileInfo>();
+        var dir = new DirectoryInfo(store);
+        try
+        {
+            if (!dir.Exists || dir.LinkTarget != null) return Array.Empty<FileInfo>();
+            return dir.EnumerateFiles()
+                      .Where(f => f.LinkTarget == null && StoreNames.Any(n => f.Name == n || f.Name.StartsWith(n + ".", StringComparison.Ordinal)))
+                      .OrderBy(f => f.Name, StringComparer.Ordinal).ToList();
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.Security.SecurityException) { return Array.Empty<FileInfo>(); }
+    }
+
+    /// The bytes the store takes (StoreFiles): the home's total counts them once, for every build
+    public static long StoreBytes(string? store) => StoreFiles(store).Sum(f => f.Length);
+
+    /// Free up space's option to clear the shader caches (versions: how many have some, caches: their bytes) and the store they
+    /// share (store: its bytes), which goes with them: its size counted in theirs, and named in its hint (StoreHint). One line, as
+    /// the option's box does not wrap
+    public static string ClearText(int versions, long caches, long store) =>
+        versions <= 0 && store > 0 ? Tr.F("Also clear the shader store your versions share ({0})", Durations.Size(store))
+        : Tr.P(versions, "Also clear the shader caches of your version ({1})", "Also clear the shader caches of your {0} versions ({1})", Durations.Size(caches + store));
+
+    /// What the option's hint says of the store when it goes with the versions' caches; "" when there is none, or the option names
+    /// it alone
+    public static string StoreHint(int versions, long store) =>
+        versions > 0 && store > 0 ? Tr.F("{0} of that is the shader store your versions share, which goes with their caches.", Durations.Size(store)) : "";
+
+    /// The store's files deleted (StoreFiles), then its folder if that leaves it empty. Null, and nothing deleted, while Longshot
+    /// runs (running: the tests' stand-in); else the bytes freed. A file that cannot be deleted is the caller's exception
+    public static long? ClearStore(string store, Func<bool>? running = null)
+    {
+        if ((running ?? LongshotRunning)())
+        {
+            LauncherLog.Add($"shader store {store} not cleared: Longshot is running");
+            return null;
+        }
+        long freed = 0;
+        var count = 0;
+        try
+        {
+            foreach (var f in StoreFiles(store))
+            {
+                var size = f.Length;
+                f.Delete();
+                freed += size;
+                count++;
+            }
+            if (count > 0 && Directory.Exists(store) && !Directory.EnumerateFileSystemEntries(store).Any()) Directory.Delete(store);
+        }
+        finally { LauncherLog.Add($"shader store {store} cleared: {count} files, {freed} bytes"); }
+        return freed;
+    }
+
     /// The caches of the game folder from, taken into the game folder to, when to has none and both versions' tools (fromTools,
     /// toTools; null when a version's tools are not on this PC) translate shaders the same way, with the same compiler (Stamp).
     /// Moved when both folders are on one drive: once the update is done its old folder is no longer listed, so its caches

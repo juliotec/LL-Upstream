@@ -74,6 +74,21 @@
     "many": "{0} d’instances utilisent {1} dans {2}.",
     "other": "{0} instances utilisent {1} dans {2}."
   },
+  "{0} instances use {1} in {2}: {3} of it is the game's files, which they share.": {
+    "one": "{0} instance utilise {1} dans {2}, dont {3} de fichiers du jeu qu’elle partage avec un dossier absent de cette liste.",
+    "many": "{0} d’instances utilisent {1} dans {2}, dont {3} de fichiers du jeu qu’elles partagent.",
+    "other": "{0} instances utilisent {1} dans {2}, dont {3} de fichiers du jeu qu’elles partagent."
+  },
+  "{0} instances use {1} in {2}: {3} of it is the game's files and {4} the shader store, which they share.": {
+    "one": "{0} instance utilise {1} dans {2}, dont {3} de fichiers du jeu qu’elle partage avec un dossier absent de cette liste, et {4} pour le stock de shaders.",
+    "many": "{0} d’instances utilisent {1} dans {2}, dont {3} de fichiers du jeu et {4} pour le stock de shaders, qu’elles partagent.",
+    "other": "{0} instances utilisent {1} dans {2}, dont {3} de fichiers du jeu et {4} pour le stock de shaders, qu’elles partagent."
+  },
+  "{0} instances use {1} in {2}: {3} of it is the shader store, which they share.": {
+    "one": "{0} instance utilise {1} dans {2}, dont {3} pour le stock de shaders.",
+    "many": "{0} d’instances utilisent {1} dans {2}, dont {3} pour le stock de shaders, qu’elles partagent.",
+    "other": "{0} instances utilisent {1} dans {2}, dont {3} pour le stock de shaders, qu’elles partagent."
+  },
   "{0} instances in {1}.": {
     "one": "{0} instance dans {1}.",
     "many": "{0} d’instances dans {1}.",

@@ -555,7 +555,7 @@
           </Border>
           <!-- the footer, and Check for updates: Longshot's channels and the launcher's own, now -->
           <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" Margin="0,16,0,0">
-            <TextBlock Classes="faint" Text="{Binding Footer}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+            <TextBlock Classes="faint" Text="{Binding Footer}" TextWrapping="Wrap" VerticalAlignment="Center"/>
             <Button Grid.Column="1" Classes="link smaller" Command="{Binding CheckForUpdatesCommand}" VerticalAlignment="Center"
                     ToolTip.Tip="{c:T 'Look for a new Longshot on your versions\' channels, and a new launcher'}">
               <StackPanel Orientation="Horizontal" Spacing="6">

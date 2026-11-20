@@ -177,6 +177,36 @@ public static class Disk
         return Enumerable.Range(0, folders.Count).Select(i => new FolderSize(bytes[i], counted[i], frees[i])).ToList();
     }
 
+    /// What a build holds of its own, as its row says it and its Delete frees: its files with no hard link outside its folder
+    /// (BuildEntry.Frees: the game files it shares with another build are not its own), else its folder's bytes; null when it
+    /// is not measured yet
+    public static long? Own(BuildEntry e) => e.Bytes == null ? null : e.Frees ?? e.Bytes;
+
+    /// The home's footer: what the instances take in folder, each file once (BuildEntry.Counted), and the shader store every one
+    /// of them uses (store: its bytes, ShaderCaches.StoreBytes; it is not in folder), then what of it they share: the game files
+    /// hard-linked between them (the total less each one's own, Own) and the store. "2 instances use 48.2 GB in
+    /// D:\Games\Longshot: 24.4 GB of it is the game's files, which they share."
+    public static string InstancesUse(IReadOnlyList<BuildEntry> builds, long store, string folder)
+    {
+        var n = builds.Count;
+        var measured = builds.Where(b => b.Bytes != null).ToList();
+        var total = measured.Sum(b => b.Counted ?? b.Bytes!.Value);
+        var games = Math.Max(0, total - measured.Sum(b => Own(b)!.Value));
+        total += store;
+        if (total <= 0) return Tr.P(n, "1 instance in {1}.", "{0} instances in {1}.", folder);
+        string Size(long b) => Durations.Size(b);
+        return games > 0 && store > 0
+            ? Tr.P(n, "1 instance uses {1} in {2}: {3} of it is the game's files, which it shares with a folder not listed here, and {4} the shader store.",
+                   "{0} instances use {1} in {2}: {3} of it is the game's files and {4} the shader store, which they share.", Size(total), folder, Size(games), Size(store))
+            : games > 0
+            ? Tr.P(n, "1 instance uses {1} in {2}: {3} of it is the game's files, which it shares with a folder not listed here.",
+                   "{0} instances use {1} in {2}: {3} of it is the game's files, which they share.", Size(total), folder, Size(games))
+            : store > 0
+            ? Tr.P(n, "1 instance uses {1} in {2}: {3} of it is the shader store.",
+                   "{0} instances use {1} in {2}: {3} of it is the shader store, which they share.", Size(total), folder, Size(store))
+            : Tr.P(n, "1 instance uses {1} in {2}.", "{0} instances use {1} in {2}.", Size(total), folder);
+    }
+
     /// Each file under folder: its path, its bytes, its identity (null: unknown) and its hard links (0: unknown). Links are not
     /// followed
     static void Walk(string folder, Action<string, long, FileId?, uint> file)

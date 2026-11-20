@@ -74,6 +74,21 @@
     "many": "{0} di istanze usano {1} in {2}.",
     "other": "{0} istanze usano {1} in {2}."
   },
+  "{0} instances use {1} in {2}: {3} of it is the game's files, which they share.": {
+    "one": "{0} istanza usa {1} in {2}, di cui {3} sono i file del gioco, che condivide con una cartella non elencata qui.",
+    "many": "{0} di istanze usano {1} in {2}, di cui {3} sono i file del gioco, che condividono.",
+    "other": "{0} istanze usano {1} in {2}, di cui {3} sono i file del gioco, che condividono."
+  },
+  "{0} instances use {1} in {2}: {3} of it is the game's files and {4} the shader store, which they share.": {
+    "one": "{0} istanza usa {1} in {2}, di cui {3} sono i file del gioco, che condivide con una cartella non elencata qui, e {4} l’archivio degli shader.",
+    "many": "{0} di istanze usano {1} in {2}, di cui {3} sono i file del gioco e {4} l’archivio degli shader, che condividono.",
+    "other": "{0} istanze usano {1} in {2}, di cui {3} sono i file del gioco e {4} l’archivio degli shader, che condividono."
+  },
+  "{0} instances use {1} in {2}: {3} of it is the shader store, which they share.": {
+    "one": "{0} istanza usa {1} in {2}, di cui {3} è l’archivio degli shader.",
+    "many": "{0} di istanze usano {1} in {2}, di cui {3} è l’archivio degli shader, che condividono.",
+    "other": "{0} istanze usano {1} in {2}, di cui {3} è l’archivio degli shader, che condividono."
+  },
   "{0} instances in {1}.": {
     "one": "{0} istanza in {1}.",
     "many": "{0} di istanze in {1}.",

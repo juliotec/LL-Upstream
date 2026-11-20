@@ -72,6 +72,15 @@
   "{0} instances use {1} in {2}.": {
     "other": "{0} 個のインスタンスが {2} で {1} を使用しています。"
   },
+  "{0} instances use {1} in {2}: {3} of it is the game's files, which they share.": {
+    "other": "{0} 個のインスタンスが {2} で {1} を使用しています。そのうち {3} はインスタンス間で共有しているゲームファイルです。"
+  },
+  "{0} instances use {1} in {2}: {3} of it is the game's files and {4} the shader store, which they share.": {
+    "other": "{0} 個のインスタンスが {2} で {1} を使用しています。そのうち {3} はインスタンス間で共有しているゲームファイル、{4} は共有のシェーダーストアです。"
+  },
+  "{0} instances use {1} in {2}: {3} of it is the shader store, which they share.": {
+    "other": "{0} 個のインスタンスが {2} で {1} を使用しています。そのうち {3} は共有のシェーダーストアです。"
+  },
   "{0} instances in {1}.": {
     "other": "{1} に {0} 個のインスタンスがあります。"
   },

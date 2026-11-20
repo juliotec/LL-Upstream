@@ -74,6 +74,21 @@
     "many": "{0} instâncias ocupam {1} em {2}.",
     "other": "{0} instâncias ocupam {1} em {2}."
   },
+  "{0} instances use {1} in {2}: {3} of it is the game's files, which they share.": {
+    "one": "{0} instância ocupa {1} em {2}: {3} disso são os arquivos do jogo, que ela compartilha com uma pasta que não está nesta lista.",
+    "many": "{0} instâncias ocupam {1} em {2}: {3} disso são os arquivos do jogo, que elas compartilham.",
+    "other": "{0} instâncias ocupam {1} em {2}: {3} disso são os arquivos do jogo, que elas compartilham."
+  },
+  "{0} instances use {1} in {2}: {3} of it is the game's files and {4} the shader store, which they share.": {
+    "one": "{0} instância ocupa {1} em {2}: {3} disso são os arquivos do jogo, que ela compartilha com uma pasta que não está nesta lista, e {4} o armazenamento de shaders.",
+    "many": "{0} instâncias ocupam {1} em {2}: {3} disso são os arquivos do jogo e {4} o armazenamento de shaders, que elas compartilham.",
+    "other": "{0} instâncias ocupam {1} em {2}: {3} disso são os arquivos do jogo e {4} o armazenamento de shaders, que elas compartilham."
+  },
+  "{0} instances use {1} in {2}: {3} of it is the shader store, which they share.": {
+    "one": "{0} instância ocupa {1} em {2}: {3} disso é o armazenamento de shaders.",
+    "many": "{0} instâncias ocupam {1} em {2}: {3} disso é o armazenamento de shaders, que elas compartilham.",
+    "other": "{0} instâncias ocupam {1} em {2}: {3} disso é o armazenamento de shaders, que elas compartilham."
+  },
   "{0} instances in {1}.": {
     "one": "{0} instância em {1}.",
     "many": "{0} instâncias em {1}.",

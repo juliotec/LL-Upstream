@@ -75,6 +75,24 @@
     "many": "{0} instancji zajmuje {1} w {2}.",
     "other": "{0} instancji zajmuje {1} w {2}."
   },
+  "{0} instances use {1} in {2}: {3} of it is the game's files, which they share.": {
+    "one": "{0} instancja zajmuje {1} w {2}, z czego {3} to pliki gry, które dzieli z folderem spoza tej listy.",
+    "few": "{0} instancje zajmują {1} w {2}, z czego {3} to wspólne pliki gry.",
+    "many": "{0} instancji zajmuje {1} w {2}, z czego {3} to wspólne pliki gry.",
+    "other": "{0} instancji zajmuje {1} w {2}, z czego {3} to wspólne pliki gry."
+  },
+  "{0} instances use {1} in {2}: {3} of it is the game's files and {4} the shader store, which they share.": {
+    "one": "{0} instancja zajmuje {1} w {2}, z czego {3} to pliki gry, które dzieli z folderem spoza tej listy, a {4} to magazyn shaderów.",
+    "few": "{0} instancje zajmują {1} w {2}, z czego {3} to wspólne pliki gry, a {4} wspólny magazyn shaderów.",
+    "many": "{0} instancji zajmuje {1} w {2}, z czego {3} to wspólne pliki gry, a {4} wspólny magazyn shaderów.",
+    "other": "{0} instancji zajmuje {1} w {2}, z czego {3} to wspólne pliki gry, a {4} wspólny magazyn shaderów."
+  },
+  "{0} instances use {1} in {2}: {3} of it is the shader store, which they share.": {
+    "one": "{0} instancja zajmuje {1} w {2}, z czego {3} to magazyn shaderów.",
+    "few": "{0} instancje zajmują {1} w {2}, z czego {3} to wspólny magazyn shaderów.",
+    "many": "{0} instancji zajmuje {1} w {2}, z czego {3} to wspólny magazyn shaderów.",
+    "other": "{0} instancji zajmuje {1} w {2}, z czego {3} to wspólny magazyn shaderów."
+  },
   "{0} instances in {1}.": {
     "one": "{0} instancja w {1}.",
     "few": "{0} instancje w {1}.",

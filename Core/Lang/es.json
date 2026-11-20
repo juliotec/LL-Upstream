@@ -76,6 +76,21 @@
     "many": "{0} instancias ocupan {1} en {2}.",
     "other": "{0} instancias ocupan {1} en {2}."
   },
+  "{0} instances use {1} in {2}: {3} of it is the game's files, which they share.": {
+    "one": "1 instancia ocupa {1} en {2}: {3} son los archivos del juego, que comparte con una carpeta que no está en esta lista.",
+    "many": "{0} instancias ocupan {1} en {2}: {3} son los archivos del juego, que comparten.",
+    "other": "{0} instancias ocupan {1} en {2}: {3} son los archivos del juego, que comparten."
+  },
+  "{0} instances use {1} in {2}: {3} of it is the game's files and {4} the shader store, which they share.": {
+    "one": "1 instancia ocupa {1} en {2}: {3} son los archivos del juego, que comparte con una carpeta que no está en esta lista, y {4} el almacén de sombreadores.",
+    "many": "{0} instancias ocupan {1} en {2}: {3} son los archivos del juego y {4} el almacén de sombreadores, que comparten.",
+    "other": "{0} instancias ocupan {1} en {2}: {3} son los archivos del juego y {4} el almacén de sombreadores, que comparten."
+  },
+  "{0} instances use {1} in {2}: {3} of it is the shader store, which they share.": {
+    "one": "1 instancia ocupa {1} en {2}: {3} es el almacén de sombreadores.",
+    "many": "{0} instancias ocupan {1} en {2}: {3} es el almacén de sombreadores, que comparten.",
+    "other": "{0} instancias ocupan {1} en {2}: {3} es el almacén de sombreadores, que comparten."
+  },
   "{0} instances in {1}.": {
     "one": "1 instancia en {1}.",
     "many": "{0} instancias en {1}.",

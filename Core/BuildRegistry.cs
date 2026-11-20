@@ -189,19 +189,21 @@ public sealed class BuildRegistry
     public BuildEntry? FindByFolder(string folder) => builds.FirstOrDefault(b => SameFolder(b.Folder, folder));
 
     /// Another build made from this .nup, whose game files a new build of it can take by hard links (make_game's
-    /// LONGSHOT_ROMFS_FROM): one whose folder has what make_game's romfs_from_build wants before it links, its romfs/, its kept
-    /// .longshot_exefs/ and a .longshot_romfs stamp of this .nup (UnpackStamp), so that a folder make_game would pass over (and
-    /// the whole .nup read again) is not chosen while another would do. Of those, one on the new build's drive first (a hard
-    /// link does not cross drives: make_game would copy the ~25 GB), then the one updated last; never the new build's own
-    /// folder; null when there is none, the .nup is not there, or the new build's folder has them already (an update in its own
-    /// folder: BuildRegistry.FolderOf). driveOf: the tests' stand-in for Disk.DriveName
+    /// LONGSHOT_ROMFS_FROM): one whose folder has what make_game's romfs_from_build wants before it links, its romfs/, its
+    /// kept .longshot_exefs/ and a .longshot_romfs stamp of this .nup (UnpackStamp), so that a folder make_game would pass
+    /// over (and the whole .nup read again) is not chosen while another would do. That stamp, the .nup's name and size, is
+    /// all romfs_from_build compares, so the build's own record of where its .nup was (BuildEntry.Nup) is not: a .nup moved
+    /// or copied to another folder still shares, as does a build listed again without that record. Of those, one on the new
+    /// build's drive first (a hard link does not cross drives: make_game would copy the ~25 GB), then the one updated last;
+    /// never the new build's own folder; null when there is none, the .nup is not there, or the new build's folder has them
+    /// already (an update in its own folder: BuildRegistry.FolderOf). driveOf: the tests' stand-in for Disk.DriveName
     public BuildEntry? SameGameFiles(string nup, string folder, Func<string, string>? driveOf = null)
     {
         if (UnpackStamp(nup) is not { } stamp || Unpacked(folder, stamp)) return null;
         driveOf ??= Disk.DriveName;
         var drive = driveOf(folder);
         var drives = OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
-        return builds.Where(b => b.Nup is { Length: > 0 } n && SameFolder(n, nup) && !SameFolder(b.Folder, folder) && Unpacked(b.Folder, stamp))
+        return builds.Where(b => !SameFolder(b.Folder, folder) && Unpacked(b.Folder, stamp))
                      .OrderByDescending(b => drives.Equals(driveOf(b.Folder), drive))
                      .ThenByDescending(b => b.Updated).FirstOrDefault();
     }

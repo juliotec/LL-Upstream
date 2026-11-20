@@ -615,6 +615,38 @@ public sealed class LauncherService
         });
     }
 
+    /// The shader store's bytes (ShaderCaches.StoreBytes, SaveEnvironment.ShaderStore), counted once in the home's total; null
+    /// until measured. The screenshots give their own (ShaderStoreOverride)
+    public long? ShaderStoreBytes { get; private set; }
+    public Func<long>? ShaderStoreOverride { get; set; }
+    bool measuringStore;
+
+    /// The shader store measured again in the background, each time the home is shown (the game adds to it as it plays: a few
+    /// files, no walk), then done on the UI thread when its size changed
+    public void MeasureShaderStore(Action done)
+    {
+        if (ShaderStoreOverride is { } own)
+        {
+            ShaderStoreBytes = own();
+            done();
+            return;
+        }
+        if (measuringStore) return;
+        measuringStore = true;
+        var store = SaveEnv.ShaderStore;
+        Task.Run(() =>
+        {
+            var bytes = ShaderCaches.StoreBytes(store);
+            ViewModels.Ui.Post(() =>
+            {
+                measuringStore = false;
+                if (ShaderStoreBytes == bytes) return;
+                ShaderStoreBytes = bytes;
+                done();
+            });
+        });
+    }
+
     /// Longshot's save folder, the same for every build (Saves.Shared): the one the Saves page lists and the save editor edits; null
     /// when there is none
     public string? SaveFolder() => Saves.ShownProfile(SaveEnv);

@@ -172,6 +172,12 @@ static class Program
             m => m.Home.ShowNotes(m.Home.Default!)),
         new("whats-new-launcher", "What's new in the launcher the banner offers", Platform.Linux, LauncherOffered, _ => null,
             m => m.Home.LauncherNotesCommand.Execute(null)),
+        // (two builds whose game files are hard links of each other's: each row says what it holds of its own, the footer the
+        // total and what of it they share; then with the shader store too)
+        new("home-shared-sizes", "Two builds sharing their game files: each row its own size, the footer what they share", Platform.Windows,
+            s => SharedSizes(s, 0), _ => null),
+        new("home-shared-store", "The same with the shader store: the footer counts it, and says they share it", Platform.Windows,
+            s => SharedSizes(s, 3_758_096_384), _ => null),
         // (the Track and Version dropdowns: a nightly build, the newest 5 nightlies on the server, its own the newest)
         new("home-row-opened", "A version's row opened: Saves, Open folder, Delete", Platform.Windows, NightliesListed, _ => null,
             m => m.Home.Select(m.Home.Builds[0])),
@@ -244,7 +250,11 @@ static class Program
         new("free-space", "Free up space in the launcher's Settings: what it deletes and why it was kept, the shader caches as an option",
             Platform.Windows, NightliesListed, m => new SettingsViewModel(m),
             m => m.Modal = new FreeSpaceViewModel((SettingsViewModel)m.Page,
-                                                  ([3_100_000_000, 1_640_000_000, 410_000_000, 0, 2_900_000_000, 3_280_000_000], 9_800_000_000, 1))),
+                                                  ([3_100_000_000, 1_640_000_000, 410_000_000, 0, 2_900_000_000, 3_280_000_000], 9_800_000_000, 1, 0))),
+        new("free-space-store", "Free up space with the shader store: the caches' option names it and counts it", Platform.Windows, NightliesListed,
+            m => new SettingsViewModel(m),
+            m => m.Modal = new FreeSpaceViewModel((SettingsViewModel)m.Page,
+                                                  ([3_100_000_000, 1_640_000_000, 410_000_000, 0, 2_900_000_000, 3_280_000_000], 1_200_000_000, 2, 3_758_096_384))),
         // (a completely cold build: offered after a failed build, then ticked in step 2's Advanced for the player to read and start)
         new("build-failed", "The build stopped on a message the launcher doesn't know: Build again, or Try a completely cold build", Platform.Windows, null,
             m => new ProblemViewModel(Build(m, showLog: false), "clang stopped with exit code 1 compiling sa/gen/code_412.c", "Compiling", 41)),
@@ -593,6 +603,19 @@ static class Program
     }
 
     /// A nightly build of the newest nightly, and the release list the update check read: the 5 nightlies the server keeps
+    /// Two builds measured as one PC's were (Disk.Measure): nightly-486 and v3.0.0 share 24.4 GB of game files by hard links, the
+    /// nightly counting them; store: the shader store's bytes
+    static void SharedSizes(LauncherService service, long store)
+    {
+        const long gb = 1L << 30;
+        var nightly = service.Registry.Add(@"C:\Users\Player\Games\Longshot\nightly\nightly-486-3f1c2a7b", "nightly-486-3f1c2a7b", Versions.Nightly);
+        var stable = service.Registry.Add(@"C:\Users\Player\Games\Longshot\stable\v3.0.0", "v3.0.0", Versions.Stable, makeDefault: true);
+        (nightly.Bytes, nightly.Counted, nightly.Frees) = ((long)(36.6 * gb), (long)(36.6 * gb), (long)(12.2 * gb));
+        (stable.Bytes, stable.Counted, stable.Frees) = ((long)(36.0 * gb), (long)(11.6 * gb), (long)(11.6 * gb));
+        nightly.Updated = DateTimeOffset.Now.AddDays(-1);
+        service.ShaderStoreOverride = () => store;
+    }
+
     static void NightliesListed(LauncherService service)
     {
         service.Registry.Add(@"C:\Users\Player\Games\Longshot\nightly\nightly-189-aa95d35f", "nightly-189-aa95d35f", Versions.Nightly, makeDefault: true);

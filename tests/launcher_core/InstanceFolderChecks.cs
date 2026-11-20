@@ -72,8 +72,11 @@ static partial class Program
                 && !view.Contains("{Binding HeroUpdate}") && !home.Contains("is out on the {1} channel")
                 && home.Contains("NotesDefaultCommand = new Command(() => { if (TrackUpdateItem is { } d) ShowNotes(d); });"),
                 "The picked track's newest version and What's new (a pull request's newer push: Read it) are opposite the title, once, by their shown name.");
-        Require(home.Contains("Tr.P(n, \"1 instance uses {1} in {2}.\", \"{0} instances use {1} in {2}.\"")
-                && home.Contains("Tr.P(n, \"1 instance in {1}.\", \"{0} instances in {1}.\""),
+        // (what it says of their sizes: InstancesUseChecks)
+        var disk = File.ReadAllText(Path.Combine(repo, "Core", "Disk.cs"));
+        Require(home.Contains("public string Footer => Disk.InstancesUse(")
+                && disk.Contains("Tr.P(n, \"1 instance uses {1} in {2}.\", \"{0} instances use {1} in {2}.\"")
+                && disk.Contains("Tr.P(n, \"1 instance in {1}.\", \"{0} instances in {1}.\""),
                 "The footer counts instances, as the list's heading says.");
     }
 

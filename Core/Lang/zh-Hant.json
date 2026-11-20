@@ -72,6 +72,15 @@
   "{0} instances use {1} in {2}.": {
     "other": "{0} 個實例佔用 {2} 中的 {1}。"
   },
+  "{0} instances use {1} in {2}: {3} of it is the game's files, which they share.": {
+    "other": "{0} 個實例佔用 {2} 中的 {1}，其中 {3} 是它們共用的遊戲檔案。"
+  },
+  "{0} instances use {1} in {2}: {3} of it is the game's files and {4} the shader store, which they share.": {
+    "other": "{0} 個實例佔用 {2} 中的 {1}，其中 {3} 是它們共用的遊戲檔案，{4} 是共用的著色器存放區。"
+  },
+  "{0} instances use {1} in {2}: {3} of it is the shader store, which they share.": {
+    "other": "{0} 個實例佔用 {2} 中的 {1}，其中 {3} 是它們共用的著色器存放區。"
+  },
   "{0} instances in {1}.": {
     "other": "{1} 中有 {0} 個實例。"
   },

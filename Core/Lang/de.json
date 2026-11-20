@@ -73,6 +73,18 @@
     "one": "1 Instanz belegt {1} in {2}.",
     "other": "{0} Instanzen belegen {1} in {2}."
   },
+  "{0} instances use {1} in {2}: {3} of it is the game's files, which they share.": {
+    "one": "1 Instanz belegt {1} in {2}: {3} davon sind die Spieldateien, die sie mit einem hier nicht aufgeführten Ordner teilt.",
+    "other": "{0} Instanzen belegen {1} in {2}: {3} davon sind die Spieldateien, die sie sich teilen."
+  },
+  "{0} instances use {1} in {2}: {3} of it is the game's files and {4} the shader store, which they share.": {
+    "one": "1 Instanz belegt {1} in {2}: {3} davon sind die Spieldateien, die sie mit einem hier nicht aufgeführten Ordner teilt, und {4} der Shader-Speicher.",
+    "other": "{0} Instanzen belegen {1} in {2}: {3} davon sind die Spieldateien und {4} der Shader-Speicher, die sie sich teilen."
+  },
+  "{0} instances use {1} in {2}: {3} of it is the shader store, which they share.": {
+    "one": "1 Instanz belegt {1} in {2}: {3} davon ist der Shader-Speicher.",
+    "other": "{0} Instanzen belegen {1} in {2}: {3} davon ist der Shader-Speicher, den sie sich teilen."
+  },
   "{0} instances in {1}.": {
     "one": "1 Instanz in {1}.",
     "other": "{0} Instanzen in {1}."

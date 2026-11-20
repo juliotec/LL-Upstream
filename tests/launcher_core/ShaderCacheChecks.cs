@@ -329,6 +329,61 @@ static partial class Program
             Require(ShaderCaches.ClearableBytes(linked) == 0 && ShaderCaches.Clear(linked, running: () => false) == 0
                     && File.Exists(Path.Combine(other, "longshot_programs.bin")), "A linked cache/ is not followed.");
         }
+        ShaderStoreChecks();
+    }
+
+    /// The shader store every build shares (Longshot's SPIR-V store): where it is, what it takes, and Free up space clearing it
+    /// with every version's caches, its files only, never while Longshot runs
+    static void ShaderStoreChecks()
+    {
+        var root = Folder("shader-store");
+        string Full(params string[] parts) => Path.GetFullPath(Path.Combine(parts));
+        string? Env(string key, Dictionary<string, string> vars) => vars.GetValueOrDefault(key);
+        var home = Full(root, "home");
+        Require(new SaveEnvironment(Platform.Windows, k => Env(k, new() { ["LOCALAPPDATA"] = Full(root, "Local") })).ShaderStore == Full(root, "Local", "Longshot", "shaders")
+                && new SaveEnvironment(Platform.Linux, k => Env(k, new() { ["HOME"] = home, ["XDG_CACHE_HOME"] = Full(root, "cache") })).ShaderStore == Full(root, "cache", "longshot", "shaders")
+                && new SaveEnvironment(Platform.Linux, k => Env(k, new() { ["HOME"] = home })).ShaderStore == Full(home, ".cache", "longshot", "shaders"),
+                "The store where the game keeps it: %LOCALAPPDATA%\\Longshot\\shaders, ${XDG_CACHE_HOME:-~/.cache}/longshot/shaders.");
+        Require(new SaveEnvironment(Platform.Windows, k => Env(k, new() { ["LOCALAPPDATA"] = Full(root, "Local"), ["LONGSHOT_SHADER_STORE"] = Full(root, "mine") })).ShaderStore == Full(root, "mine")
+                && new SaveEnvironment(Platform.Linux, k => Env(k, new() { ["HOME"] = home, ["LONGSHOT_SHADER_STORE"] = Full(root, "mine") })).ShaderStore == Full(root, "mine"),
+                "LONGSHOT_SHADER_STORE names another folder, on both systems.");
+        Require(new SaveEnvironment(Platform.Windows, k => Env(k, new() { ["LOCALAPPDATA"] = Full(root, "Local"), ["LONGSHOT_SHADER_STORE"] = "0" })).ShaderStore == null
+                && new SaveEnvironment(Platform.Linux, k => Env(k, new() { ["HOME"] = home, ["LONGSHOT_SHADER_STORE"] = "0" })).ShaderStore == null
+                && new SaveEnvironment(Platform.Windows, k => Env(k, new() { ["USERPROFILE"] = home })).ShaderStore == null,
+                "No store, as the game has none: LONGSHOT_SHADER_STORE=0, or no LOCALAPPDATA on Windows (never a folder named 0).");
+        Require(new SaveEnvironment(Platform.Linux, k => Env(k, new() { ["HOME"] = home, ["XDG_CACHE_HOME"] = "relative/cache" })).ShaderStore == Full(home, ".cache", "longshot", "shaders"),
+                "An XDG_CACHE_HOME that is not a full path is not used, as the game does not use it.");
+        Require(ShaderCaches.StoreBytes(null) == 0 && ShaderCaches.StoreFiles(null).Count == 0, "No store: nothing to count or clear.");
+
+        var store = Full(root, "Local", "Longshot", "shaders");
+        Touch(Path.Combine(store, "spirv.pack"), new string('p', 300));
+        Touch(Path.Combine(store, "spirv.idx"), new string('i', 20));
+        Touch(Path.Combine(store, "spirv.lock"), "");
+        Touch(Path.Combine(store, "spirv.pack.tmp"), new string('t', 7));
+        Touch(Path.Combine(store, "spirv"), "not the store's");
+        Touch(Path.Combine(store, "notes.txt"), "the player's");
+        Require(ShaderCaches.StoreBytes(store) == 327 && ShaderCaches.StoreBytes(Full(root, "none")) == 0,
+                "What the store takes: its files and what a write left beside them: " + ShaderCaches.StoreBytes(store));
+        Require(ShaderCaches.StoreNames.All(n => !ShaderCaches.IsCache(n)), "The store's files are no build's cache: a build's own clear never takes them.");
+        Require(ShaderCaches.ClearStore(store, running: () => true) == null && File.Exists(Path.Combine(store, "spirv.pack")),
+                "Nothing is cleared while Longshot runs.");
+        Require(ShaderCaches.ClearStore(store, running: () => false) == 327 && !File.Exists(Path.Combine(store, "spirv.pack"))
+                && !File.Exists(Path.Combine(store, "spirv.lock")) && !File.Exists(Path.Combine(store, "spirv.pack.tmp"))
+                && File.Exists(Path.Combine(store, "spirv")) && File.Exists(Path.Combine(store, "notes.txt")),
+                "Free up space clears the store's files and nothing else in its folder (LONGSHOT_SHADER_STORE may name one that holds other things).");
+        File.Delete(Path.Combine(store, "spirv"));
+        File.Delete(Path.Combine(store, "notes.txt"));
+        Touch(Path.Combine(store, "spirv.pack"), "p");
+        Require(ShaderCaches.ClearStore(store, running: () => false) == 1 && !Directory.Exists(store) && Directory.Exists(Path.GetDirectoryName(store)),
+                "A folder that held only the store goes with it.");
+        Require(ShaderCaches.ClearStore(store, running: () => false) == 0, "No store: nothing to clear.");
+
+        // (Free up space's option counts the store with the caches and its hint names it; with no caches, the option names it)
+        Require(ShaderCaches.ClearText(2, 9L << 30, 0) == "Also clear the shader caches of your 2 versions (9.0 GB)" && ShaderCaches.StoreHint(2, 0) == ""
+                && ShaderCaches.ClearText(2, 1L << 30, 3L << 29) == "Also clear the shader caches of your 2 versions (2.5 GB)"
+                && ShaderCaches.StoreHint(2, 3L << 29) == "1.5 GB of that is the shader store your versions share, which goes with their caches."
+                && ShaderCaches.ClearText(0, 0, 3L << 30) == "Also clear the shader store your versions share (3.0 GB)" && ShaderCaches.StoreHint(0, 3L << 30) == "",
+                "Free up space's option says what it clears: " + ShaderCaches.ClearText(2, 1L << 30, 3L << 29) + " / " + ShaderCaches.StoreHint(2, 3L << 29));
     }
 
     static bool Link(string from, string to)

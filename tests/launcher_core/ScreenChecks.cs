@@ -842,6 +842,39 @@ static partial class Program
         Require(Disk.FolderBytes(b) == 700, "FolderBytes counts each link in full, as before.");
     }
 
+    /// The home's sizes with builds sharing their game files: each row what it holds of its own (Disk.Own), the footer the total,
+    /// each file once, the shader store with it, then what of it they share (Disk.InstancesUse)
+    static void InstancesUseChecks()
+    {
+        const long gb = 1L << 30;
+        static BuildEntry Entry(long? bytes, long? counted, long? frees) => new() { Bytes = bytes, Counted = counted, Frees = frees };
+        // (as measured on a PC: nightly-486 and v3.0.0 share 24.4 GB of game files, the nightly counting them)
+        var nightly = Entry(366 * gb / 10, 366 * gb / 10, 122 * gb / 10);
+        var stable = Entry(360 * gb / 10, 116 * gb / 10, 116 * gb / 10);
+        Require(Disk.Own(nightly) == 122 * gb / 10 && Disk.Own(Entry(5 * gb, null, null)) == 5 * gb && Disk.Own(Entry(null, null, null)) == null,
+                "A row's size is what deleting it frees, else its folder's bytes; nothing before it is measured.");
+        const string at = @"D:\Games\Longshot";
+        var two = new[] { nightly, stable };
+        Require(Disk.InstancesUse(two, 0, at) == @"2 instances use 48.2 GB in D:\Games\Longshot: 24.4 GB of it is the game's files, which they share.",
+                "The total, then the game files they share: " + Disk.InstancesUse(two, 0, at));
+        Require(Disk.InstancesUse(two, 35 * gb / 10, at)
+                == @"2 instances use 51.7 GB in D:\Games\Longshot: 24.4 GB of it is the game's files and 3.5 GB the shader store, which they share.",
+                "The shader store counted in the total, and said shared: " + Disk.InstancesUse(two, 35 * gb / 10, at));
+        var apart = new[] { Entry(30 * gb, 30 * gb, 30 * gb), Entry(20 * gb, 20 * gb, 20 * gb) };
+        Require(Disk.InstancesUse(apart, 0, at) == @"2 instances use 50.0 GB in D:\Games\Longshot."
+                && Disk.InstancesUse(apart, 2 * gb, at) == @"2 instances use 52.0 GB in D:\Games\Longshot: 2.0 GB of it is the shader store, which they share.",
+                "Nothing shared: no more than the total, the store alone when there is one.");
+        Require(Disk.InstancesUse(new[] { Entry(36 * gb, 36 * gb, 12 * gb) }, 0, at)
+                == @"1 instance uses 36.0 GB in D:\Games\Longshot: 24.0 GB of it is the game's files, which it shares with a folder not listed here.",
+                "One build linked to a folder with no row (an update's old folder): what it shares said too.");
+        Require(Disk.InstancesUse(new[] { nightly, Entry(null, null, null) }, 0, at) == @"2 instances use 36.6 GB in D:\Games\Longshot: 24.4 GB of it is the game's files, which they share."
+                && Disk.InstancesUse(new[] { Entry(null, null, null) }, 0, at) == @"1 instance in D:\Games\Longshot.",
+                "A build not measured yet counts nothing; with none measured, no size.");
+        // (an older builds.json: sizes measured before Counted and Frees were: no share to say)
+        Require(Disk.InstancesUse(new[] { Entry(36 * gb, null, null), Entry(36 * gb, null, null) }, 0, at) == @"2 instances use 72.0 GB in D:\Games\Longshot.",
+                "Sizes with no Counted or Frees: the bytes, nothing said shared.");
+    }
+
     static void DiskChecks()
     {
         var root = Folder("disk");
@@ -851,6 +884,7 @@ static partial class Program
         if (!OperatingSystem.IsWindows()) File.CreateSymbolicLink(Path.Combine(root, "link"), Path.Combine(root, "a"));
         Require(Disk.FolderBytes(root) == 1024 && Disk.FolderBytes(Path.Combine(root, "none")) == 0, "A folder's bytes, links not followed.");
         MeasureChecks();
+        InstancesUseChecks();
         var free = Disk.FreeBytes(Path.Combine(root, "not", "made", "yet"));
         Require(free is > 0, "The free space where a folder would go, from the nearest folder that is there.");
         Require(Disk.DriveName(root).Length > 0, "The drive's name.");

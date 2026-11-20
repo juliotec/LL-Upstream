@@ -73,6 +73,18 @@
     "one": "1 instantie gebruikt {1} in {2}.",
     "other": "{0} instanties gebruiken {1} in {2}."
   },
+  "{0} instances use {1} in {2}: {3} of it is the game's files, which they share.": {
+    "one": "1 instantie gebruikt {1} in {2}: {3} daarvan zijn de spelbestanden, die ze deelt met een map die hier niet staat.",
+    "other": "{0} instanties gebruiken {1} in {2}: {3} daarvan zijn de spelbestanden, die ze delen."
+  },
+  "{0} instances use {1} in {2}: {3} of it is the game's files and {4} the shader store, which they share.": {
+    "one": "1 instantie gebruikt {1} in {2}: {3} daarvan zijn de spelbestanden, die ze deelt met een map die hier niet staat, en {4} de shaderopslag.",
+    "other": "{0} instanties gebruiken {1} in {2}: {3} daarvan zijn de spelbestanden en {4} de shaderopslag, die ze delen."
+  },
+  "{0} instances use {1} in {2}: {3} of it is the shader store, which they share.": {
+    "one": "1 instantie gebruikt {1} in {2}: {3} daarvan is de shaderopslag.",
+    "other": "{0} instanties gebruiken {1} in {2}: {3} daarvan is de shaderopslag, die ze delen."
+  },
   "{0} instances in {1}.": {
     "one": "1 instantie in {1}.",
     "other": "{0} instanties in {1}."
