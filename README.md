@@ -323,7 +323,8 @@ shortcuts: the tests never touch the real ones), one launcher per home, a downlo
 way, the
 saves against Longshot's `tests/test_longshot_saves.py` cases, the Hookshot import against fake saves, the NFC folder against fake tags made in the test, a tag scan against a fake controller, and the rest over
 temporary folders. With `--longshot`, it also checks the languages and the DLSS, FSR 4 and XeSS licence texts against
-Longshot's `make_game.py`, `ngx_sdk.py`, `ffx_sdk.py` and `xess_sdk.py` (XeSS's when that Longshot has it). The second checks Tooling's `release.py` with keys it makes (it needs the
+Longshot's `make_game.py` and `scripts/fetch.py` (before Longshot #1802: `ngx_sdk.py`, `ffx_sdk.py` and `xess_sdk.py`, XeSS's
+when that Longshot has it), and that a Longshot whose `make_game.py` fetches XeSS carries the script the launcher looks for. The second checks Tooling's `release.py` with keys it makes (it needs the
 `openssl` command line). CI runs both and compiles with warnings as errors. Contributing: [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ### Translations

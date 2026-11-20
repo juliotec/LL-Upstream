@@ -106,8 +106,11 @@ def check_licences(longshot):
 
     def assigned(script, name):
         tree = ast.parse((longshot / "scripts" / script).read_text(encoding="utf-8"))
-        return next(ast.literal_eval(n.value) for n in tree.body if isinstance(n, ast.Assign) and len(n.targets) == 1
-                    and isinstance(n.targets[0], ast.Name) and n.targets[0].id == name)
+        value = next((ast.literal_eval(n.value) for n in tree.body if isinstance(n, ast.Assign) and len(n.targets) == 1
+                      and isinstance(n.targets[0], ast.Name) and n.targets[0].id == name), None)
+        if value is None:
+            raise SystemExit("Longshot's scripts/%s has no %s: review the licence check against how it pins the SDKs now" % (script, name))
+        return value
 
     if (longshot / "scripts" / "fetch.py").is_file():
         pins = [("fetch.py", name) for name in ("DLSS_COMMIT", "FSR_COMMIT", "XESS_COMMIT")]
@@ -119,6 +122,19 @@ def check_licences(longshot):
         if commit not in source:
             raise SystemExit("App/ViewModels/SettingsStepViewModel.cs's licence text does not name scripts/%s's %s %s"
                              % (script, name, commit))
+
+
+def check_xess_fetch(longshot):
+    """Core/MakeGameCommand.cs's XessBuilds takes scripts/xess_sdk.py or scripts/fetch.py in a version's tools as the sign that
+    its make_game.py fetches Intel's XeSS library (--fetch-xess-runtime). A Longshot whose make_game.py takes the flag with
+    neither script would have its XeSS switch greyed out in the launcher, as every nightly from 611 was until XessBuilds took
+    fetch.py too"""
+    make_game = (longshot / "nx2" / "make_game.py").read_text(encoding="utf-8")
+    if "--fetch-xess-runtime" not in make_game:
+        return
+    if not any((longshot / "scripts" / script).is_file() for script in ("xess_sdk.py", "fetch.py")):
+        raise SystemExit("Longshot's make_game.py takes --fetch-xess-runtime, but its tools carry neither scripts/xess_sdk.py nor "
+                         "scripts/fetch.py: Core/MakeGameCommand.cs's XessBuilds would grey Intel XeSS out")
 
 
 def check_save_user(longshot):
@@ -241,6 +257,7 @@ def main():
             check_pin(args.longshot)
         check_languages(args.longshot)
         check_licences(args.longshot)
+        check_xess_fetch(args.longshot)
         check_save_user(args.longshot)
         check_shader_caches(args.longshot)
         check_save_editor(args.longshot)
