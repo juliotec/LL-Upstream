@@ -205,6 +205,68 @@ static partial class Program
         Require(ShaderCaches.Keep(old, next, same, same2, roomy, idle).What == CachesKept.HasCaches
                 && File.ReadAllText(Next("longshot_programs.bin")) == "programs", "A build with caches of its own keeps them.");
 
+        // ---- another translator: the pipeline side alone (the driver's pipelines and the notes), the programs translated again ----
+        {
+            var tg = Folder("caches-translator");
+            string from = Path.Combine(tg, "v3.1.0");
+            string From(string n) => Path.Combine(from, "cache", n);
+            string Into(string folder, string n) => Path.Combine(folder, "cache", n);
+            foreach (var (n, t) in new[] { ("longshot_programs.bin", "programs"), ("longshot_programs.idx", "index"),
+                                           ("longshot_prepared.bin", "prepared"), ("longshot_module_ids.bin", "ids"),
+                                           ("longshot_pipelines.bin.built", "built"), ("longshot_vk_pipelines.bin", "driver"),
+                                           ("longshot_vk_pipelines.stamp", "12345678"), ("longshot_vk_pipelines.base", "base base base 16"),
+                                           ("longshot_vk_pipelines_play_2.bin", "play"), ("longshot_pipelines.bin", "notes") })
+                Touch(From(n), t);
+            var side = new[] { "longshot_pipelines.bin", "longshot_vk_pipelines.base", "longshot_vk_pipelines.bin", "longshot_vk_pipelines.stamp",
+                               "longshot_vk_pipelines_play_2.bin" };
+            var to = Path.Combine(tg, "v3.2.0");
+            Directory.CreateDirectory(to);
+            var carried = ShaderCaches.Keep(from, to, same, other, roomy, idle, link: otherDrive);
+            Require(carried.What == CachesKept.Kept && carried.PipelinesOnly && !carried.Moved && carried.Taken != null && carried.Taken.SequenceEqual(side)
+                    && File.ReadAllText(Into(to, "longshot_vk_pipelines.bin")) == "driver" && File.ReadAllText(Into(to, "longshot_pipelines.bin")) == "notes",
+                    "Another translator: the driver's pipeline cache, its stamp, base and play files, and the notes are copied: " +
+                    string.Join(", ", carried.Taken ?? Array.Empty<string>()));
+            Require(new[] { "longshot_programs.bin", "longshot_programs.idx", "longshot_prepared.bin", "longshot_module_ids.bin",
+                            "longshot_pipelines.bin.built" }.All(n => !File.Exists(Into(to, n))),
+                    "The translation's own (the programs, the prepare's record, the module identifiers, the warm's record) stay behind.");
+            var toolsGone = Path.Combine(tg, "v3.2.1");
+            Directory.CreateDirectory(toolsGone);
+            var unknown = ShaderCaches.Keep(from, toolsGone, null, same2, roomy, idle, link: otherDrive);
+            Require(unknown.What == CachesKept.Kept && unknown.PipelinesOnly && unknown.Taken!.SequenceEqual(side),
+                    "A version whose tools are gone: the pipeline side alone, as for another translator.");
+            var whole = Path.Combine(tg, "v3.1.1");
+            Directory.CreateDirectory(whole);
+            var sameKept = ShaderCaches.Keep(from, whole, same, same2, roomy, idle, link: otherDrive);
+            Require(sameKept.What == CachesKept.Kept && !sameKept.PipelinesOnly && sameKept.Files == 10, "The same translator: every cache, as before.");
+            // (no driver's pipeline cache: the notes alone are not worth a copy, another translator keeps nothing)
+            var bare = Path.Combine(tg, "v3.0.9");
+            Touch(Into(bare, "longshot_programs.bin"), "programs");
+            Touch(Into(bare, "longshot_pipelines.bin"), "notes");
+            var bareTo = Path.Combine(tg, "v3.3.0");
+            Directory.CreateDirectory(bareTo);
+            Require(ShaderCaches.Keep(bare, bareTo, same, other, roomy, idle).What == CachesKept.OtherTranslator
+                    && !Directory.Exists(Path.Combine(bareTo, "cache")), "Another translator and no driver's pipeline cache: nothing kept.");
+            // (one drive: the pipeline side is copied too, so an older target cannot destroy the old cache)
+            var moveTo = Path.Combine(tg, "v3.4.0");
+            Directory.CreateDirectory(moveTo);
+            var movedSide = ShaderCaches.Keep(from, moveTo, same, other, roomy, idle, link: Link);
+            Require(movedSide.What == CachesKept.Kept && movedSide.PipelinesOnly && !movedSide.Moved && File.Exists(From("longshot_vk_pipelines.bin"))
+                    && File.Exists(From("longshot_pipelines.bin")) && File.Exists(From("longshot_programs.bin"))
+                    && File.Exists(From("longshot_vk_pipelines.stamp")) && File.Exists(From("longshot_vk_pipelines.base")),
+                    "One drive: the pipeline side is copied, the translation's own left where they are.");
+            // (the new build's game carries the cache and writes its own stamp and base; the build then does not finish)
+            File.Delete(Into(moveTo, "longshot_vk_pipelines.bin"));
+            File.WriteAllText(Into(moveTo, "longshot_vk_pipelines_play_2.bin"), "replacement");
+            File.WriteAllText(Into(moveTo, "longshot_vk_pipelines.stamp"), "87654321");
+            File.WriteAllText(Into(moveTo, "longshot_vk_pipelines.base"), "another base 16b");
+            Require(ShaderCaches.Undo(from, moveTo, movedSide) > 0 && File.ReadAllText(From("longshot_vk_pipelines.bin")) == "driver"
+                    && File.ReadAllText(From("longshot_vk_pipelines_play_2.bin")) == "play"
+                    && !File.Exists(Into(moveTo, "longshot_vk_pipelines_play_2.bin")), "Undo preserves the old cache after the target deletes or replaces files.");
+            Require(File.ReadAllText(From("longshot_vk_pipelines.stamp")) == "12345678" && File.ReadAllText(From("longshot_vk_pipelines.base")) == "base base base 16"
+                    && !File.Exists(Into(moveTo, "longshot_vk_pipelines.stamp")),
+                    "Undo leaves the old build its own stamp and base, not the new build's: it would drop its pipeline cache.");
+        }
+
         // ---- the move: both folders on one drive, where a file can have a second name ----
         var moved = Path.Combine(games, "v3.0.2");
         string Moved(string name) => Path.Combine(moved, "cache", name);

@@ -3,22 +3,27 @@ using System.Text;
 
 namespace LongshotLauncher.Core;
 
-/// What ShaderCaches.Keep did: Kept (the old build's caches are in the new build's folder), or why not. NoCaches: the old build
-/// prepared none (or is the same folder); HasCaches: the new build has its own already; OtherTranslator: the two versions translate
-/// shaders differently or compile the translator with other tools (ShaderCaches.Stamp), or one of them could not be read;
+/// What ShaderCaches.Keep did: Kept (the old build's caches are in the new build's folder: all of them, or its pipeline side
+/// alone, CachesResult.PipelinesOnly), or why not. NoCaches: the old build prepared none (or is the same folder); HasCaches: the
+/// new build has its own already; OtherTranslator: the two versions translate shaders differently or compile the translator with
+/// other tools (ShaderCaches.Stamp), or one of them could not be read, and the old build has no driver's pipeline cache to carry;
 /// Running: Longshot runs, and may be writing them; NoSpace: another drive, with no room for the copy and the build
 public enum CachesKept { Kept, NoCaches, HasCaches, OtherTranslator, Running, NoSpace }
 
-/// Moved: the old folder no longer has them (both folders on one drive); else they were copied. Taken: their names, for Undo
-public sealed record CachesResult(CachesKept What, int Files = 0, long Bytes = 0, bool Moved = false, IReadOnlyList<string>? Taken = null);
+/// Moved: the old folder no longer has them (both folders on one drive); else they were copied. Taken: their names, for Undo.
+/// PipelinesOnly: only the pipeline side was kept (Pipelines): the two versions translate shaders differently, or one of their
+/// tools could not tell, or the old build translated no program; the programs are translated again
+public sealed record CachesResult(CachesKept What, int Files = 0, long Bytes = 0, bool Moved = false, IReadOnlyList<string>? Taken = null,
+                                  bool PipelinesOnly = false);
 
 /// The shader caches an update keeps. The game writes them into its folder's cache/ as it prepares and plays (the translated
 /// programs, the pipelines, the prepare's record: 10 GB and minutes of work), and an update builds the new version into a folder
-/// of its own, so every update started them again. They are good for one shader translator (Longshot's nx2/translator_files.py:
-/// its stamp, compiled into the renderer); the game drops them when the translator is another. Two versions with the same
-/// translator, most nightlies in a row, can use the same caches: Keep takes them from the build an update replaces, before
-/// the build, so that its prepare (Prepare shaders, which every build runs) finds them; Undo puts them back when the build
-/// does not finish.
+/// of its own, so every update started them again. The translated programs are good for one shader translator (Longshot's
+/// nx2/translator_files.py: its stamp, compiled into the renderer), and the game drops them when the translator is another; its
+/// pipeline side (the driver's pipelines and the notes) it carries to another translator, within a bound (Longshot's
+/// gpu/vk/pcache_stamp.h). Two versions with the same translator, most nightlies in a row, can use all the caches; two with
+/// another, the pipeline side. Keep takes them from the build an update replaces, before the build, so that its prepare
+/// (Prepare shaders, which every build runs) finds them; Undo puts them back when the build does not finish.
 /// What the game adds to the stamp at its start (the GPU, its switches, the records' layout) the launcher cannot know: when that
 /// differs too the game drops them as it would have dropped the files in place, and prepares again.
 public static class ShaderCaches
@@ -41,6 +46,19 @@ public static class ShaderCaches
         "longshot_pipeline_states_v1.bin", "longshot_prepared.bin", "longshot_vk_pipelines.bin", "longshot_vk_pipelines.stamp",
     };
 
+    // (caches of a newer Longshot than tests/longshot.ref pins, which Names is checked against: the pipeline cache's base,
+    // longshot_vk_pipelines.base, gpu/vk/pcache_stamp.h. Into Names once the pin has them)
+    static readonly string[] Newer = { "longshot_vk_pipelines.base" };
+
+    // (the pipeline side: what the game keeps across a translator change, as it is about the game's draws and the driver's
+    // pipelines, not about the translation: the driver's pipeline cache with its stamp, base and play files (pcache_stamp.h:
+    // another translator's carried within its bound), and the pipeline notes (vk_draw.cpp notes_stamp). A Longshot from before
+    // that drops them at its start, as it did its own)
+    static readonly string[] Pipelines = { "longshot_vk_pipelines.bin", "longshot_vk_pipelines.stamp", "longshot_vk_pipelines.base",
+                                           "longshot_pipelines.bin" };
+    static bool IsPipelineSide(string name) => Pipelines.Contains(name) || IsPlayFile(name);
+    const string PipelineCache = "longshot_vk_pipelines.bin";
+
     // (what play adds to the pipeline cache: longshot_vk_pipelines_play_<n>.bin, dev_packs.py PLAY_FILES)
     const string PlayPrefix = "longshot_vk_pipelines_play_";
     const string PlaySuffix = ".bin";
@@ -48,9 +66,9 @@ public static class ShaderCaches
     // (the translated programs themselves: without one of them there is nothing worth a copy)
     static readonly string[] Programs = { "longshot_programs.bin", "longshot_programs.zst.bin" };
 
-    // (the pipeline notes, which a build writes over in place: Longshot's nx2/make_game.py seed_pipelines puts the shipped list
-    // in a notes file whose stamp is not the list's (program_cache_stamp: the GPU's lanes, mesh shaders, alignment). Copied
-    // even on one drive, so a build that does not finish never gives the old build that list for its own notes: Undo)
+    // (the pipeline notes, which a build writes over in place: Longshot's nx2/make_game.py seed_pipelines puts a shipped list
+    // in a notes file whose first 8 bytes are not the list's, and the game stamps them anew. Copied even on one drive, so a build
+    // that does not finish never gives the old build that list for its own notes: Undo)
     const string Notes = "longshot_pipelines.bin";
 
     // (Longshot's nx2/translator_files.py DIRS and FILES, below gpu/vk: tests/test_launcher_core.py --longshot)
@@ -72,9 +90,10 @@ public static class ShaderCaches
     public static readonly IReadOnlyList<string> LinuxCompiler = new[] { "usr/lib/longshot/emsdk", "usr/lib/longshot/sysroot", "usr/share/longshot/cpm" };
     const string Part = ".part";
 
-    public static bool IsCache(string name)
+    public static bool IsCache(string name) => Names.Contains(name) || Newer.Contains(name) || IsPlayFile(name);
+
+    static bool IsPlayFile(string name)
     {
-        if (Names.Contains(name)) return true;
         if (!name.StartsWith(PlayPrefix, StringComparison.Ordinal) || !name.EndsWith(PlaySuffix, StringComparison.Ordinal)) return false;
         var n = name[PlayPrefix.Length..^PlaySuffix.Length];
         return n.Length > 0 && n.All(char.IsAsciiDigit);
@@ -274,11 +293,16 @@ public static class ShaderCaches
     /// Moved when both folders are on one drive: once the update is done its old folder is no longer listed, so its caches
     /// have no other user (an update that does not finish puts them back: Undo), and a move is instant and needs no room
     /// (link: FileLinks.TryHardLink, which only one drive allows; each file gets its name in the new folder, then loses its
-    /// old one), all but the pipeline notes, which are copied (Notes). Copied otherwise, with room for the build beside the
+    /// old one), all but the pipeline notes, which are copied (Notes). The pipeline side alone is always copied so an older
+    /// target that discards or changes it cannot damage the old build's cache. Copied otherwise, with room for the build beside the
     /// copy (Room), the old folder's left as they are. Either way each file is made beside its place and put there only once
     /// all of them are, and one that cannot take its place takes the others away again, so one that stops (cancel, a full
     /// disk, a rename refused: the exception is the caller's) leaves no cache half made, here or there. progress: the bytes
-    /// done so far, and all of them
+    /// done so far, and all of them.
+    /// Versions that translate shaders differently (or whose tools are not here to tell) keep the pipeline side alone
+    /// (PipelinesOnly): most of a new translator's SPIR-V is the old one's, so the driver's pipelines still serve, and the game
+    /// carries them within a bound (Longshot's gpu/vk/pcache_stamp.h); the notes tell the preparation what play drew. The
+    /// programs are translated again. OtherTranslator: there is no pipeline side to keep either
     public static CachesResult Keep(string from, string to, Toolchain? fromTools, Toolchain? toTools, Func<string, long?>? free = null,
                                     Func<bool>? running = null, Action<long, long>? progress = null, CancellationToken cancel = default,
                                     Func<string, string, bool>? link = null)
@@ -287,10 +311,19 @@ public static class ShaderCaches
         if (Path.TrimEndingDirectorySeparator(Path.GetFullPath(from)).Equals(Path.TrimEndingDirectorySeparator(Path.GetFullPath(to)), same))
             return new CachesResult(CachesKept.NoCaches);
         var files = Caches(from);
-        if (!files.Any(f => Programs.Contains(f.Name))) return new CachesResult(CachesKept.NoCaches);
+        var programs = files.Any(f => Programs.Contains(f.Name));
+        // (the pipeline side is worth a copy for the driver's pipeline cache: the notes alone may be no more than the list a build
+        // seeded, which the next build seeds again)
+        var pipelines = files.Any(f => f.Name == PipelineCache);
+        if (!programs && !pipelines) return new CachesResult(CachesKept.NoCaches);
         if (Caches(to).Count > 0) return new CachesResult(CachesKept.HasCaches);
-        if (fromTools == null || toTools == null || Stamp(fromTools) is not { } old || Stamp(toTools) != old)
-            return new CachesResult(CachesKept.OtherTranslator);
+        var sameTranslator = fromTools != null && toTools != null && Stamp(fromTools) is { } old && Stamp(toTools) == old;
+        var pipelinesOnly = !sameTranslator || !programs;
+        if (pipelinesOnly)
+        {
+            if (!pipelines) return new CachesResult(sameTranslator ? CachesKept.NoCaches : CachesKept.OtherTranslator);
+            files = files.Where(f => IsPipelineSide(f.Name)).ToList();
+        }
         if ((running ?? LongshotRunning)()) return new CachesResult(CachesKept.Running);
         var bytes = files.Sum(f => f.Length);
         var target = Path.Combine(to, CacheDir);
@@ -303,12 +336,13 @@ public static class ShaderCaches
             // (moved: each file's second name made in the new folder, which only a folder on the same drive can have; all of
             // them or none, so the old build never keeps half of its caches)
             link ??= FileLinks.TryHardLink;
-            var moved = true;
-            foreach (var f in files)
+            var moved = !pipelinesOnly;
+            foreach (var f in moved ? files : Enumerable.Empty<FileInfo>())
             {
                 var part = PartOf(f);
                 File.Delete(part);   // (one a launcher that was closed mid-copy left)
-                if (f.Name == Notes) File.Copy(f.FullName, part);   // (the old folder keeps its own: Notes)
+                if (f.Name == Notes)
+                    File.Copy(f.FullName, part);   // (the old folder keeps its own: Notes)
                 else if (!link(f.FullName, part)) { moved = false; break; }
                 parts.Add(part);
             }
@@ -367,7 +401,7 @@ public static class ShaderCaches
                 }
                 progress?.Invoke(bytes, bytes);
             }
-            return new CachesResult(CachesKept.Kept, files.Count, bytes, moved, files.Select(f => f.Name).ToList());
+            return new CachesResult(CachesKept.Kept, files.Count, bytes, moved, files.Select(f => f.Name).ToList(), pipelinesOnly);
         }
         finally
         {

@@ -258,8 +258,8 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
         public static string Said(int files) => $"shader caches: {files} put back, the build did not finish";
     }
 
-    /// An update starts with the shader caches of the build it replaces, when both versions translate shaders the same
-    /// way with the same compiler (ShaderCaches.Keep): moved, or copied from another drive, into the new folder's cache/
+    /// An update starts with the shader caches of the build it replaces (ShaderCaches.Keep: all of them when both versions translate
+    /// shaders the same way with the same compiler, else the pipeline side): moved, or copied from another drive, into the new folder's cache/
     /// before make_game.py starts. make_game.py keeps a cache/ it finds in its folder, as a rebuild keeps its own, and its
     /// prepare (Prepare shaders, which every build runs: no switch leaves it to the game's first start) then finds them
     /// and has little left to do; after the build it would find caches of its own there already. Run on a pool thread;
@@ -303,6 +303,10 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
             });
             said = kept.What switch
             {
+                CachesKept.Kept when kept.PipelinesOnly =>
+                    $"shader caches: the pipelines and notes of {old.Version} {(kept.Moved ? "moved" : "copied")} ({kept.Files} files, " +
+                    $"{kept.Bytes >> 20} MB); its programs are not kept (another translator, none translated, or its tools are gone) " +
+                    "and are translated again",
                 CachesKept.Kept => $"shader caches: {(kept.Moved ? "moved" : "copied")} from {old.Version} ({kept.Files} files, {kept.Bytes >> 20} MB)",
                 CachesKept.NoCaches => $"shader caches: {old.Version} has none to keep",
                 CachesKept.HasCaches => "shader caches: this build's folder has its own already",

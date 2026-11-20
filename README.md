@@ -440,14 +440,14 @@ Calls made here, most of them the design mockup's; each can be changed:
   on Linux), the update takes the old build's caches into the new folder before make_game.py starts (`ShaderCaches.Keep`).
   make_game.py keeps a `cache/` it finds in its folder, as a rebuild keeps its own, so the build's Prepare shaders step
   (every build runs it) finds them and has little left to do; after the build it would already have made caches of its
-  own there. On the same drive they are moved: the old folder is no longer listed once the update is done, so nothing
-  else uses them, and a move is instant and needs no room. Only the pipeline notes (`longshot_pipelines.bin`) are
-  copied there too: make_game.py writes its shipped list over them, and a build that does not finish must not give the
-  old build that list. A new folder on another drive gets a copy, made only with room for the build beside it. Never a
-  link both folders keep, since the game writes to them. A build that fails or is stopped puts them back
-  (`ShaderCaches.Undo`), so the build still listed keeps its caches. It is skipped when the new folder has caches
-  already, while the game runs, without room for a copy, or when either version's tools are not on this PC; the build
-  then prepares from none, as before. What the game adds to the stamp itself (the GPU, its switches) the launcher cannot
+  own there. On the same drive these caches are moved, except for the pipeline notes (`longshot_pipelines.bin`), which
+  make_game.py writes over and which are copied to preserve the old build's notes. When the translators differ, their
+  tools are missing, or there are no translated programs, the driver's pipeline cache, its stamp, base and play files,
+  and the notes alone are copied, if the driver cache exists. This keeps the old build's cache intact if the target game
+  discards or changes it. Copies also serve a new folder on another drive and require room for the build beside them.
+  A build that fails or is stopped puts moved caches back and removes copies (`ShaderCaches.Undo`), so the build still
+  listed keeps its caches. Transfer is skipped when the new folder has caches already, while the game runs, or without
+  room for a copy; it also cannot carry the pipeline side without a driver's cache. What the game adds to the stamp itself (the GPU, its switches) the launcher cannot
   see: if that differs too, the game drops them and prepares again.
 - **The Track and Version dropdowns** on the left of the home pick what to play or build (`VersionPick`). Track is stable,
   nightly or a pull request, each saying what is installed on it; Version lists that track's versions the server has (and installed
