@@ -537,8 +537,9 @@ public sealed class LicenceViewModel : ViewModelBase
         "https://github.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK/blob/7539ae8b6568ad29ed78a753404351daf3b5cca7/Kits/FidelityFX/docs/license.md\n\n" +
         Tr.F("Its files stay on this PC (in the launcher's {0} folder, and the two DLLs with {1} in the game folder).", "ffx-sdk", "LICENSE-AMD-FSR-SDK.md");
 
-    // (Longshot's scripts/xess_sdk.py: libxess.dll from Intel's XeSS SDK repository at the commit Longshot's XeSS API headers come
-    // from, with Intel's licence and third-party notices beside it; tests/test_launcher_core.py checks the commit against it)
+    // (Longshot's scripts/fetch.py xess, scripts/xess_sdk.py before nightly-611: libxess.dll from Intel's XeSS SDK repository at
+    // the commit Longshot's XeSS API headers come from, with Intel's licence and third-party notices beside it;
+    // tests/test_launcher_core.py checks the commit against it)
     static string XessText =>
         Tr.F("Intel XeSS is Intel's, not Longshot's. With it on, the build downloads Intel's XeSS Super Resolution library ({0}, " +
              "signed by Intel) from {1}, each file checked against its SHA-256, under the Intel Simplified Software License:",

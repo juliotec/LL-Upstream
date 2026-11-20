@@ -1172,6 +1172,14 @@ static partial class Program
         Require(!lx.Arguments.Contains("--fetch-xess-runtime") && lx.Environment["LONGSHOT_XESS_SDK"] == null, "Linux: no XeSS.");
         Require(MakeGameCommand.XessBuilds(win, f => f == xessScript) && !MakeGameCommand.XessBuilds(win, _ => false),
                 "XeSS: tools that carry scripts/xess_sdk.py.");
+        // (Longshot #1802 folded scripts/xess_sdk.py into scripts/fetch.py, which has fetched Intel's library since it was made:
+        // tools from nightly-611 on carry fetch.py alone, and make_game.py still takes --fetch-xess-runtime)
+        var fetchScript = Path.Combine(win.ToolsRoot, "scripts", "fetch.py");
+        var wf = MakeGameCommand.For(win, xr, Platform.Windows, home, "L", _ => false, f => f == fetchScript);
+        Require(MakeGameCommand.XessBuilds(win, f => f == fetchScript)
+                && wf.Arguments.Contains("--fetch-xess-runtime") && wf.Arguments.Contains("--accept-intel-license")
+                && wf.Environment["LONGSHOT_XESS_SDK"] == home.XessSdk,
+                "XeSS: tools that carry scripts/fetch.py (Longshot from #1802 on) fetch Intel's library too: " + string.Join(" ", wf.Arguments));
         var u = MakeGameCommand.For(lin, new BuildRequest(new BuildSource.Update("/g"), null), Platform.Linux, home, "/L", fileExists: f => f == prebuilt);
         Require(u.Arguments.SequenceEqual(new[] { "-I", lin.MakeGame, "--update", "/g", "--work", home.Work })
                 && u.Environment["LONGSHOT_VK_PREBUILT"] == prebuilt, "An update: the folder, no --out or --language.");

@@ -142,10 +142,14 @@ public sealed record MakeGameCommand(
     public static bool FsrBuilds(Toolchain tools, Platform platform, Func<string, bool>? directoryExists = null) =>
         platform == Platform.Windows || (directoryExists ?? Directory.Exists)(Path.Combine(tools.ToolsRoot, "third_party", "fidelityfx"));
 
-    /// Whether these tools fetch Intel's XeSS library: they carry scripts/xess_sdk.py, which make_game.py's --fetch-xess-runtime
-    /// runs (Longshot's tools from before it would stop at the flag they do not know)
-    public static bool XessBuilds(Toolchain tools, Func<string, bool>? fileExists = null) =>
-        (fileExists ?? File.Exists)(Path.Combine(tools.ToolsRoot, "scripts", "xess_sdk.py"));
+    /// Whether these tools fetch Intel's XeSS library: they carry the script make_game.py's --fetch-xess-runtime runs, either
+    /// scripts/xess_sdk.py or, from nightly-611 on (Longshot #1802, which folded the vendors' scripts into one), scripts/fetch.py,
+    /// which has fetched XeSS since it was made. Longshot's tools from before either would stop at the flag they do not know
+    public static bool XessBuilds(Toolchain tools, Func<string, bool>? fileExists = null)
+    {
+        var exists = fileExists ?? File.Exists;
+        return exists(Path.Combine(tools.ToolsRoot, "scripts", "xess_sdk.py")) || exists(Path.Combine(tools.ToolsRoot, "scripts", "fetch.py"));
+    }
 
     /// make_game.py --check: is this the game, and the version these tools build? (the 2.x Builders' check: --nup, or the exefs
     /// folder alone). The same program and environment as a build with no DLSS; a .nup is read into &lt;work&gt;/probe

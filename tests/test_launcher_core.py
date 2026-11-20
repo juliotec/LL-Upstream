@@ -98,19 +98,27 @@ def check_languages(longshot):
 
 
 def check_licences(longshot):
-    """The DLSS, FSR 4 and XeSS licences the launcher shows before a build fetches the SDKs link the commits scripts/ngx_sdk.py,
-    scripts/ffx_sdk.py and scripts/xess_sdk.py fetch (CONTRIBUTING.md: a change to the pinned release changes the licence text
-    the player accepts). A Longshot from before scripts/xess_sdk.py has no XeSS download to check"""
+    """The DLSS, FSR 4 and XeSS licences the launcher shows before a build fetches the SDKs link the commits Longshot fetches
+    (CONTRIBUTING.md: a change to the pinned release changes the licence text the player accepts): scripts/fetch.py's
+    DLSS_COMMIT, FSR_COMMIT and XESS_COMMIT, or, in a Longshot from before #1802 (nightly-611), the COMMIT of scripts/ngx_sdk.py,
+    scripts/ffx_sdk.py and scripts/xess_sdk.py. A Longshot from before scripts/xess_sdk.py has no XeSS download to check"""
     source = (ROOT / "App" / "ViewModels" / "SettingsStepViewModel.cs").read_text(encoding="utf-8")
-    for script in ("ngx_sdk.py", "ffx_sdk.py", "xess_sdk.py"):
-        if script == "xess_sdk.py" and not (longshot / "scripts" / script).is_file():
-            continue
+
+    def assigned(script, name):
         tree = ast.parse((longshot / "scripts" / script).read_text(encoding="utf-8"))
-        commit = next(ast.literal_eval(n.value) for n in tree.body if isinstance(n, ast.Assign) and len(n.targets) == 1
-                      and isinstance(n.targets[0], ast.Name) and n.targets[0].id == "COMMIT")
+        return next(ast.literal_eval(n.value) for n in tree.body if isinstance(n, ast.Assign) and len(n.targets) == 1
+                    and isinstance(n.targets[0], ast.Name) and n.targets[0].id == name)
+
+    if (longshot / "scripts" / "fetch.py").is_file():
+        pins = [("fetch.py", name) for name in ("DLSS_COMMIT", "FSR_COMMIT", "XESS_COMMIT")]
+    else:
+        pins = [(script, "COMMIT") for script in ("ngx_sdk.py", "ffx_sdk.py", "xess_sdk.py")
+                if script != "xess_sdk.py" or (longshot / "scripts" / script).is_file()]
+    for script, name in pins:
+        commit = assigned(script, name)
         if commit not in source:
-            raise SystemExit("App/ViewModels/SettingsStepViewModel.cs's licence text does not name scripts/%s's COMMIT %s"
-                             % (script, commit))
+            raise SystemExit("App/ViewModels/SettingsStepViewModel.cs's licence text does not name scripts/%s's %s %s"
+                             % (script, name, commit))
 
 
 def check_save_user(longshot):
