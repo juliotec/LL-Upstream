@@ -12,6 +12,7 @@ public abstract record MakeGameLine
     public sealed record Plan(int Changed, int Total) : MakeGameLine;
     public sealed record File(string Name, double Seconds, string Kind) : MakeGameLine;
     public sealed record Eta(double Seconds) : MakeGameLine;
+    public sealed record ShaderEta(double? Seconds, bool Saving = false) : MakeGameLine;
     public sealed record Times(long Total, long Compile, long Previous) : MakeGameLine;
     public sealed record Check(bool Ok, string Text) : MakeGameLine;
     public sealed record Done(string Folder) : MakeGameLine;
@@ -52,6 +53,12 @@ public static class MakeGameProtocol
                 return new MakeGameLine.File(p[0], secs, p[2]);
             case "eta" when p.Length == 1 && Number(p[0], out var eta):
                 return new MakeGameLine.Eta(eta);
+            case "shader_eta" when rest == "unknown":
+                return new MakeGameLine.ShaderEta(null);
+            case "shader_eta" when rest == "saving":
+                return new MakeGameLine.ShaderEta(null, Saving: true);
+            case "shader_eta" when p.Length == 1 && Number(p[0], out var shaderEta) && shaderEta >= 0:
+                return new MakeGameLine.ShaderEta(shaderEta);
             case "times" when p.Length == 3 && Whole(p[0], out var all) && Whole(p[1], out var compile) && Whole(p[2], out var previous):
                 return new MakeGameLine.Times(all, compile, previous);
             case "check" when p[0] is "ok" or "bad":
@@ -79,6 +86,7 @@ public sealed class BuildStage
     public bool Kept { get; internal set; }
 
     internal double From, Size;
+    internal double Reported;
     /// When its latest run started and ended (BuildProgress.Now): null before it started, and while it runs for the end
     internal DateTime? Began, Ended;
     /// The seconds of its earlier runs, when make_game ran it again
@@ -122,6 +130,7 @@ public sealed class BuildProgress
     {
         ("read", "the game was read from this .nup before"),
         ("lift", "the game was translated with these tools before"),
+        ("lift", "the game was translated with these tools in another work folder:"),
     };
 
     readonly List<BuildStage> stages = new();
@@ -155,6 +164,9 @@ public sealed class BuildProgress
     /// How many @@eta lines came: build.py says one only as a file ends (minutes apart for the biggest), so BuildClock counts
     /// down from the last one
     public int EtaLines { get; private set; }
+    /// Null before the renderer supplies its own timing signal (including on older builders).
+    public MakeGameLine.ShaderEta? ShaderTiming { get; private set; }
+    public bool Linking { get; private set; }
     public int? FilesChanged { get; private set; }
     public int? FilesTotal { get; private set; }
     public int FilesCompiled { get; private set; }
@@ -177,6 +189,21 @@ public sealed class BuildProgress
         // (stages before it that never said so are done too: an older make_game, or one with nothing to do)
         foreach (var s in stages.TakeWhile(s => s != stage))
             if (s.State is StageState.Waiting or StageState.Running) End(s, now);
+        if (current != stage)
+        {
+            stage.Reported = 0;
+            if (id == "compile")
+            {
+                Eta = null;
+                Linking = false;
+                FilesChanged = FilesTotal = null;
+                FilesCompiled = 0;
+                stage.Note = null;
+                stage.Kept = false;
+            }
+            else if (id == "lift") stage.Kept = false;
+            else if (id == MakeGameProtocol.ShadersStage) ShaderTiming = null;
+        }
         current = stage;
         stage.State = StageState.Running;
         // (make_game may run a stage again: its earlier runs are kept, and this one timed from its own start, so the stages between
@@ -196,8 +223,14 @@ public sealed class BuildProgress
     {
         if (stages.FirstOrDefault(s => s.Id == "download") is not { } d) return;
         if (current != d) Begin("download");
-        Set(d.From + d.Size * Math.Clamp(fraction, 0, 1));
+        Report(d, fraction);
         if (fraction >= 1) End(d, Now());   // (downloaded: none of it is left to count down)
+    }
+
+    void Report(BuildStage stage, double fraction)
+    {
+        stage.Reported = Math.Max(stage.Reported, Math.Clamp(fraction, 0, 1));
+        Set(stage.From + stage.Size * stage.Reported);
     }
 
     // (the read's unpacking says no @@progress: nx2/nup.py says the title's size first, "title 0: ... romfs 186587 files, 26.24 GB",
@@ -223,7 +256,7 @@ public sealed class BuildProgress
                 Begin(s.Id);
                 break;
             case MakeGameLine.Progress p when current != null:
-                Set(current.From + current.Size * p.Fraction);
+                Report(current, current.Id == "read" && readBytes > 0 ? ReadUnpacking + (1 - ReadUnpacking) * p.Fraction : p.Fraction);
                 break;
             case MakeGameLine.Plan plan:
                 FilesChanged = plan.Changed;
@@ -237,25 +270,47 @@ public sealed class BuildProgress
                 FilesCompiled++;
                 Note();
                 break;
-            case MakeGameLine.Eta e:
+            case MakeGameLine.Eta e when current is { Id: "compile" }:
                 Eta = Math.Max(0, e.Seconds);
                 EtaLines++;
                 break;
+            case MakeGameLine.ShaderEta shader when current is { Id: MakeGameProtocol.ShadersStage, State: StageState.Running }:
+                ShaderTiming = shader;
+                break;
             case MakeGameLine.Plain plain when current is { Id: "read" } && ReadSize.Match(plain.Text) is { Success: true } size:
                 if (double.TryParse(size.Groups[1].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var gb) && gb > 0)
+                {
+                    current.Kept = false;   // a hard-link attempt can fall back to extracting the package
                     readBytes += gb * 1e9;   // (each title's, for a .nup of more than one)
+                }
                 break;
             case MakeGameLine.Plain plain when current is { Id: "read" } && readBytes > 0 && ReadWritten.Match(plain.Text) is { Success: true } w:
                 if (double.TryParse(w.Groups[1].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var mib))
-                    Set(current.From + current.Size * ReadUnpacking * Math.Clamp(mib * (1 << 20) / readBytes, 0, 1));
+                    Report(current, ReadUnpacking * Math.Clamp(mib * (1 << 20) / readBytes, 0, 1));
+                break;
+            case MakeGameLine.Plain plain when current is { Id: "compile" }
+                && plain.Text.StartsWith("compiled in ", StringComparison.Ordinal)
+                && plain.Text.EndsWith(", 0 failed", StringComparison.Ordinal):
+                Linking = true;
+                break;
+            case MakeGameLine.Plain plain when current is { Id: "read" }
+                && plain.Text.StartsWith("the game files come from ", StringComparison.Ordinal)
+                && plain.Text.EndsWith("linked, not read again", StringComparison.Ordinal):
+                current.Kept = true;
                 break;
             case MakeGameLine.Plain plain when current != null:
                 foreach (var (stage, kept) in KeptLines)
                     if (current.Id == stage && plain.Text.StartsWith(kept, StringComparison.Ordinal)) current.Kept = true;
                 break;
+            case MakeGameLine.Times when current is { Id: "finish", State: StageState.Running }:
+                // make_game reports its total before it starts shader preparation.
+                End(current, Now());
+                break;
             case MakeGameLine.NotPrepared n:
                 if (stages.FirstOrDefault(s => s.Id == MakeGameProtocol.ShadersStage) is { } shaders)
                 {
+                    ShaderTiming = null;
+                    shaders.Ended ??= Now();
                     shaders.State = StageState.Skipped;
                     shaders.Note = "Left to the game's first start: " + n.Reason;
                 }
@@ -282,12 +337,11 @@ public sealed class BuildProgress
         if (s.Began != null) s.Ended ??= now;
     }
 
-    /// How far a stage got, 0..1: a done one 1, one not started 0, else where the bar is within its share
+    /// How far a stage got, 0..1, from its own progress events or completion.
     public double Fraction(BuildStage s) => s.State switch
     {
         StageState.Done => 1,
-        _ when s.Began == null || s.Size <= 0 => 0,
-        _ => Math.Clamp((Overall - s.From) / s.Size, 0, 1),
+        _ => s.Reported,
     };
 
     /// What the build reports say of each stage, by its id: how far it got (Fraction), how long it ran and whether it kept an

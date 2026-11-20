@@ -219,9 +219,11 @@ static partial class Program
         Require(Math.Abs(BuildForecast.Seconds("compile", 12) - 305 * Math.Pow(2, 0.85)) < 1e-6 && BuildForecast.Seconds("read", 4) == 76
                 && BuildForecast.Seconds("compile", 32) < 305 && BuildForecast.Seconds("nothing", 8) == 0, "Threaded stages scale with the threads, the rest don't.");
 
-        Require(BuildForecast.Parallel("compile") && BuildForecast.Parallel("lift") && BuildForecast.Parallel(MakeGameProtocol.ShadersStage)
+        Require(BuildForecast.Parallel("compile") && BuildForecast.Parallel("lift")
                 && !BuildForecast.Parallel("read") && !BuildForecast.Parallel("finish") && !BuildForecast.Parallel("nothing"),
-                "The threaded stages go with the CPU, the others with the disk.");
+                "The worker count scales the translation and compile forecasts.");
+        Require(BuildForecast.Seconds(MakeGameProtocol.ShadersStage, 8) == BuildForecast.Seconds(MakeGameProtocol.ShadersStage, 24),
+                "The shader prior is independent of the selected build workers.");
 
         var p = new BuildProgress(download: true, shaders: true);
         var clock = new BuildClock(threads: 24);
@@ -242,23 +244,35 @@ static partial class Program
         Require(Math.Abs(clock.Estimate(p, lift)!.Value - 57) < 1e-6 && Math.Abs(clock.Estimate(p, p.Stages.First(s => s.Id == "finish"))!.Value - 66 * 2) < 1e-6
                 && Math.Abs(p.Stages.Sum(s => s.Weight) - 1) < 1e-9,
                 "A slow disk makes the disk's stages slower, not the CPU's.");
-        Require(Math.Abs(clock.SecondsLeft(p)!.Value - (57 + 305 + 66 * 2 + 311)) < 1e-6, "The rest, each stage at its kind's pace.");
+        Require(clock.SecondsLeft(p) == null && Math.Abs(clock.SecondsBeforeShaders(p)!.Value - (57 + 305 + 66 * 2)) < 1e-6,
+                "The partial estimate covers the remaining work through Finish at each stage's pace.");
         p.Feed("@@stage compile Compiling");
         p.Feed("@@eta 600");
         clock.Observe(p, TimeSpan.FromSeconds(300));   // (the lift took 118 s against 57)
         var cpu = 118 / 57.0;
-        Require(Math.Abs(clock.Pace(p, cpu: true)!.Value - cpu) < 1e-9 && Math.Abs(clock.SecondsLeft(p)!.Value - (600 + 66 * 2 + 311 * cpu)) < 1e-6,
-                "In the compile: make_game's eta, then the rest, the shaders at the CPU's pace.");
+        Require(Math.Abs(clock.Pace(p, cpu: true)!.Value - cpu) < 1e-9 && Math.Abs(clock.SecondsBeforeShaders(p)!.Value - (600 + 305 * 0.03 * cpu + 66 * 2)) < 1e-6,
+                "The compile ETA covers the compiler's countdown, linking, and finishing at disk pace.");
         p.Feed("@@stage finish Finishing");
         clock.Observe(p, TimeSpan.FromSeconds(900));
         p.Feed("@@progress 0.5");
         clock.Observe(p, TimeSpan.FromSeconds(940));
         // (the running finish counts for the disk's pace as far as it has gone: 80 s at its rate, half of it done)
         Require(Math.Abs(clock.Pace(p, cpu: false)!.Value - (152 + 80 * 0.5) / (76 + 66 * 0.5)) < 1e-9, "A running stage's rate counts for its kind's pace.");
-        Require(Math.Abs(clock.SecondsLeft(p)!.Value - (40 + 311 * (118 + 600) / (57.0 + 305))) < 1e-6, "A running stage counts down from its own progress.");
+        Require(Math.Abs(clock.SecondsBeforeShaders(p)!.Value - 40) < 1e-6, "A running stage counts down from its own progress.");
+        p.Feed("@@stage shaders Preparing shaders");
+        clock.Observe(p, TimeSpan.FromSeconds(980));
+        var cpuBeforeShaders = clock.Pace(p, cpu: true);
+        var diskBeforeShaders = clock.Pace(p, cpu: false);
+        Require(clock.SecondsLeft(p) == null && clock.SecondsBeforeShaders(p) == null &&
+                clock.Estimate(p, p.Stages.First(s => s.Id == MakeGameProtocol.ShadersStage)) == null,
+                "An opaque shader start shows neither a total ETA nor an unmeasured shader duration.");
+        p.Feed("@@progress 0.5");
+        clock.Observe(p, TimeSpan.FromSeconds(1010));
+        Require(clock.SecondsLeft(p) == 30 && clock.Pace(p, cpu: true) == cpuBeforeShaders && clock.Pace(p, cpu: false) == diskBeforeShaders,
+                "The shader rate comes from its own progress and does not calibrate CPU or disk work.");
         p.Feed("@@done /g");
-        clock.Observe(p, TimeSpan.FromSeconds(200));
-        Require(clock.SecondsLeft(p) == 0 && clock.Elapsed == TimeSpan.FromSeconds(200), "Done.");
+        clock.Observe(p, TimeSpan.FromSeconds(1020));
+        Require(clock.SecondsLeft(p) == 0 && clock.Elapsed == TimeSpan.FromSeconds(1020), "Done.");
 
         // (build.py says @@eta only as a file ends, minutes apart for the biggest: the time left counts down between them)
         var c = new BuildProgress(download: false, shaders: false);
@@ -286,15 +300,15 @@ static partial class Program
         c.Feed("@@eta 400");
         cc.Observe(c, TimeSpan.FromSeconds(90));
         cc.Observe(c, TimeSpan.FromSeconds(190));
-        Require(Math.Abs(cc.SecondsLeft(c)!.Value - (300 + 66)) < 1e-6, "The compile counts down from its last @@eta.");
+        Require(Math.Abs(cc.SecondsLeft(c)!.Value - (300 + 305 * 0.03 + 66)) < 1e-6, "The compile counts down from its last @@eta with time for linking and finishing.");
         c.Feed("@@eta 310");
         cc.Observe(c, TimeSpan.FromSeconds(200));
-        Require(Math.Abs(cc.SecondsLeft(c)!.Value - (310 + 66)) < 1e-6, "A new @@eta starts the countdown again.");
+        Require(Math.Abs(cc.SecondsLeft(c)!.Value - (310 + 305 * 0.03 + 66)) < 1e-6, "A new @@eta starts the countdown again.");
         cc.Observe(c, TimeSpan.FromSeconds(600));
-        Require(Math.Abs(cc.SecondsLeft(c)!.Value - (305 * 300 / 579.0 * 0.1 + 66)) < 1e-6, "A countdown run out, the compile's progress saying little: a little left, not none.");
+        Require(cc.SecondsLeft(c) == null, "A compiler that substantially overruns its ETA needs a new signal.");
         c.Feed("@@progress 0.8");
         cc.Observe(c, TimeSpan.FromSeconds(610));
-        Require(Math.Abs(cc.SecondsLeft(c)!.Value - (526 / 0.8 * 0.2 + 66)) < 1e-6, "Then the compile's own progress says the rest, its rate from its start (its files work from there).");
+        Require(Math.Abs(cc.SecondsLeft(c)!.Value - (526 / 0.8 * 0.2 + 305 * 0.03 + 66)) < 1e-6, "Then the compile's own progress says the rest, its rate from its start (its files work from there).");
         c.Feed("@@stage finish Finishing");
         cc.Observe(c, TimeSpan.FromSeconds(1000));
         Require(cc.Pace(c, cpu: true) == null && Math.Abs(cc.SecondsLeft(c)!.Value - 66) < 1e-6, "A compile of some files is no pace either.");
@@ -309,8 +323,11 @@ static partial class Program
         uc.Observe(u, TimeSpan.FromSeconds(119));
         Require(uc.SecondsLeft(u) == null, "Nothing measured for two minutes: still working it out.");
         uc.Observe(u, TimeSpan.FromSeconds(120));
-        Require(Math.Abs(uc.SecondsLeft(u)!.Value - (76 * 0.1 * 0.1 + 57 + 305 + 66)) < 1e-6,
-                "After two minutes, the forecast; a read that keeps the folder's files at a tenth of a read.");
+        Require(uc.SecondsLeft(u) == null, "An overdue kept read cannot give a reliable countdown.");
+        u.Feed("@@stage lift Translating");
+        uc.Observe(u, TimeSpan.FromSeconds(120));
+        Require(Math.Abs(uc.SecondsLeft(u)!.Value - (57 + 305 + 66)) < 1e-6,
+                "The next stage restores the forecast without learning pace from a kept read.");
 
         // (make_game's @@eta is this PC's own measure, but not in the first seconds of make_game)
         var e = new BuildProgress(download: false, shaders: false);
@@ -321,7 +338,162 @@ static partial class Program
         ec.Observe(e, TimeSpan.FromSeconds(19));
         Require(ec.SecondsLeft(e) == null, "The first seconds: still working it out.");
         ec.Observe(e, TimeSpan.FromSeconds(20));
-        Require(Math.Abs(ec.SecondsLeft(e)!.Value - (180 + 66)) < 1e-6, "Then make_game's eta says it.");
+        Require(Math.Abs(ec.SecondsLeft(e)!.Value - (180 + 305 * 0.03 + 66)) < 1e-6, "Then make_game's eta says it.");
+
+        BuildEstimateReplay();
+        ShaderEtaReplay();
+    }
+
+    static void ShaderEtaReplay()
+    {
+        var build = new BuildProgress(download: false, shaders: true);
+        var clock = new BuildClock(threads: 24);
+        void At(int seconds, params string[] lines)
+        {
+            foreach (var line in lines)
+            {
+                build.Feed(line);
+                clock.Observe(build, TimeSpan.FromSeconds(seconds));
+            }
+            clock.Observe(build, TimeSpan.FromSeconds(seconds));
+        }
+
+        At(0, "@@stage compile Compiling", "@@eta 90", "@@shader_eta 8");
+        Require(build.ShaderTiming == null && build.Eta == 90, "A shader ETA outside its stage cannot change a compile estimate.");
+        At(40, "@@stage finish Installing");
+        At(56, "@@times 56 40 -1", "@@stage shaders Preparing shaders", "@@shader_eta unknown");
+        At(57, "@@shader_eta 37", "@@eta 999");
+        At(62);
+        Require(clock.SecondsLeft(build) == 32 && build.Eta == 90, "Use the fresh renderer countdown before a cumulative rate exists.");
+        At(73);
+        Require(clock.SecondsLeft(build) == null, "The shader countdown expires during a silent renderer.");
+        At(74, "@@shader_eta unknown");
+        At(94, "@@progress 0.5");
+        Require(clock.SecondsLeft(build) == null, "Unknown from a capable renderer suppresses the fraction-based fallback.");
+        At(94, "@@shader_eta 120");
+        Require(clock.SecondsLeft(build) == 20, "A slow local pocket cannot inflate the cumulative shader forecast.");
+        At(94, "@@shader_eta 2");
+        Require(clock.SecondsLeft(build) == 15, "A fast cache burst can shorten the cumulative shader forecast by only a quarter.");
+        At(94, "@@shader_eta 18");
+        Require(clock.SecondsLeft(build) == 18, "A plausible renderer forecast updates the countdown.");
+        At(116, "@@shader_eta 55");
+        Require(clock.SecondsLeft(build) == 55, "An exhausted cumulative estimate cannot limit a fresh renderer forecast.");
+        At(117, "@@shader_eta unknown");
+        Require(clock.SecondsLeft(build) == null, "A change in the renderer's work can withdraw the ETA immediately.");
+        At(118, "@@progress 1", "@@shader_eta saving");
+        Require(clock.SecondsLeft(build) == null && build.ShaderTiming is { Saving: true } && clock.Overall < 1,
+                "Saving after the last counted pipeline says nothing of time or build completion.");
+        At(121, "@@done /build");
+        Require(clock.SecondsLeft(build) == 0 && clock.Overall == 1, "Only the builder completion fills the bar.");
+        Require(MakeGameProtocol.Parse("@@shader_eta NaN") is MakeGameLine.Plain
+                && MakeGameProtocol.Parse("@@shader_eta -2") is MakeGameLine.Plain, "Invalid renderer countdowns are ignored.");
+    }
+
+    static void BuildEstimateReplay()
+    {
+        var build = new BuildProgress(download: false, shaders: true);
+        var clock = new BuildClock(threads: 24);
+        void At(int seconds, params string[] lines)
+        {
+            var now = TimeSpan.FromSeconds(seconds);
+            var before = clock.Overall;
+            foreach (var line in lines)
+            {
+                build.Feed(line);
+                clock.Observe(build, now);
+            }
+            clock.Observe(build, now);
+            Require(clock.Overall >= before && (build.Finished ? clock.Overall == 1 : clock.Overall < 1),
+                    "Visible progress cannot rewind and reaches 100% on completion.");
+        }
+
+        At(0, "@@stage read Reading");
+        At(1, "title 0: package romfs 50000 files, 26.00 GB");
+        At(50, "  12400.0 MiB written (25000 files completed)");
+        var coldRead = clock.Overall;
+        At(72, "@@progress 0.15");
+        Require(build.Fraction(build.Stages[0]) > 0.95 && clock.Overall > coldRead,
+                "The read check advances from unpacking instead of restarting the read percentage.");
+        At(80, "@@stage lift Translating");
+        At(140, "@@stage compile Compiling", "@@plan 600 600", "@@eta 280");
+        var coldCompile = clock.Overall;
+        var coldLeft = clock.SecondsBeforeShaders(build);
+        At(200);
+        Require(clock.Overall > coldCompile && clock.SecondsBeforeShaders(build) < coldLeft,
+                "The overall bar and ETA move during compilation without a new completion line.");
+        At(420, "@@eta 0", "compiled in 280s, 0 failed");
+        At(429, "@@stage finish Putting the game folder together");
+        Require(clock.SecondsBeforeShaders(build) > 60 && clock.SecondsLeft(build) == null && clock.Overall < 0.75,
+                "After the compiler and linker, finishing has an estimate with shader work still unmeasured.");
+        At(485, "@@times 485 289 -1");
+        Require(build.Stages.First(s => s.Id == "finish").State == StageState.Done &&
+                clock.SecondsBeforeShaders(build) == null && clock.SecondsLeft(build) == null,
+                "The builder's times line ends the partial estimate while shader preparation is still ahead.");
+        At(490, "@@stage shaders Preparing shaders");
+        At(550, "@@progress 0.25");
+        var shaderLeft = clock.SecondsLeft(build);
+        At(580);
+        Require(shaderLeft is > 0 && clock.SecondsLeft(build) == shaderLeft - 30,
+                "A shader progress observation counts down during silence.");
+        At(850);
+        Require(clock.SecondsLeft(build) == null, "An opaque shader overrun returns to working out the time.");
+        At(855, "@@progress 1.0");
+        Require(clock.SecondsLeft(build) is > 0 and <= 3, "The shader bar reserves time for writing its cache.");
+        At(860, "@@done /build");
+
+        build = new BuildProgress(download: false, shaders: true, update: true);
+        clock = new BuildClock(threads: 24);
+        At(0, "@@stage read Reading");
+        At(3, "@@stage lift Translating",
+           "the game was translated with these tools before (its compiled code kept): translating it again is skipped");
+        At(6, "@@stage compile Compiling", "@@plan 0 600", "@@eta 0", "compiled in 0s, 0 failed");
+        Require(clock.Overall < coldCompile, "The update gives little credit for work it did not have to do.");
+        At(18, "@@stage finish Putting the game folder together");
+        At(21, "the shaders were not prepared now (already done): left to first start");
+        Require(clock.SecondsLeft(build) is > 0 and < 66 && clock.Overall < 1,
+                "A warm zero-file link still reserves finishing, and an explicit shader skip removes its whole forecast.");
+        At(24, "@@times 24 12 300");
+        Require(clock.SecondsLeft(build) == 0 && clock.Overall < 1,
+                "Once finishing and the skipped shaders are accounted for, only the final completion signal fills the bar.");
+        At(25, "@@done /build");
+
+        build = new BuildProgress(download: false, shaders: true, update: true);
+        clock = new BuildClock(threads: 24);
+        At(0, "@@stage read Reading");
+        At(1, "@@stage lift Translating", "the game was translated with these tools before: translating it again is skipped");
+        At(2, "@@stage compile Compiling", "@@plan 0 600", "@@eta 0");
+        At(10, "@@stage finish Putting the game folder together");
+        At(13, "@@times 13 8 600");
+        At(14, "@@stage shaders Preparing shaders");
+        At(24);
+        Require(clock.SecondsLeft(build) == null && clock.SecondsBeforeShaders(build) == null,
+                "The old warmup turning over during a zero-file rebuild cannot expose a five-minute shader guess.");
+        At(26, "@@done /build");
+
+        build = new BuildProgress(download: false, shaders: false);
+        clock = new BuildClock(threads: 24);
+        At(0, "@@stage compile Compiling", "@@plan 4 600", "@@eta 7", "@@progress 0.5");
+        At(8, "@@stage lift Translating");
+        At(38, "@@stage compile Compiling");
+        Require(build.Eta == null && build.FilesChanged == null && build.Fraction(build.Stages.First(s => s.Id == "compile")) == 0,
+                "Retrying a stale translation discards the previous compile's plan, ETA and progress.");
+        At(48, "@@plan 600 600", "@@eta 100");
+        Require(clock.Of("compile") == TimeSpan.FromSeconds(18), "Compile time includes both attempts, with translation timed separately.");
+
+        build = new BuildProgress(download: false, shaders: false);
+        clock = new BuildClock(threads: 24);
+        At(0, "@@stage read Reading");
+        At(2, "the game files come from /installed, unpacked from this .nup before: linked, not read again");
+        Require(build.Stages[0].Kept, "Linking a previous package's files is evidence of a warm read.");
+        At(4, "linking the game files from /installed stopped (copy failed): this .nup is read",
+           "title 0: package romfs 50000 files, 26.00 GB");
+        Require(!build.Stages[0].Kept, "Falling back to unpacking counts as a cold read.");
+        At(80, "@@stage lift Translating",
+           "the game was translated with these tools in another work folder: its translation is copied (from the cache)");
+        Require(build.Stages[1].Kept, "Copying a stored translation is evidence of a warm lift.");
+        At(86, "@@stage compile Compiling", "@@plan 4 600", "@@eta 62");
+        Require(clock.SecondsLeft(build) is > 130 and < 150 && clock.Pace(build, cpu: true) == null,
+                "A partial compile can still take substantial time and does not calibrate the CPU for future full stages.");
     }
 
     static async Task ToolsSourceChecks()

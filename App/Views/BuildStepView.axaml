@@ -30,11 +30,11 @@
         <TextBlock Classes="sub" Text="{c:T 'You can keep using your PC. Closing the launcher stops the build.'}"/>
       </StackPanel>
       <StackPanel Grid.Column="1" VerticalAlignment="Bottom">
-        <TextBlock Classes="tnum" Text="{Binding Percent}" FontSize="40" FontWeight="Bold" LetterSpacing="-0.8" HorizontalAlignment="Right" LineHeight="44"/>
+        <TextBlock Classes="tnum" Text="{Binding Percent}" IsVisible="{Binding ShowPercent}" FontSize="40" FontWeight="Bold" LetterSpacing="-0.8" HorizontalAlignment="Right" LineHeight="44"/>
         <TextBlock Classes="note tnum" Text="{Binding Left}" HorizontalAlignment="Right" Margin="0,6,0,0"/>
       </StackPanel>
     </Grid>
-    <c:Bar DockPanel.Dock="Top" Height="10" Margin="0,18,0,16" Value="{Binding Overall}" Notches="{Binding Notches}">
+    <c:Bar DockPanel.Dock="Top" Height="10" Margin="0,18,0,16" Value="{Binding Overall}">
       <c:Bar.Fill>
         <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
           <GradientStop Offset="0" Color="#3D63E6"/>

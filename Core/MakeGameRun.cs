@@ -159,10 +159,10 @@ public static class BuildForecast
     static readonly Dictionary<string, (double Seconds, bool Parallel)> Reference = new()
     {
         ["download"] = (10, false), ["read"] = (76, false), ["lift"] = (57, true), ["compile"] = (305, true), ["finish"] = (66, false),
-        [MakeGameProtocol.ShadersStage] = (311, true),
+        [MakeGameProtocol.ShadersStage] = (311, false),
     };
 
-    /// The stage uses every thread (the lift, the compile, the shaders): its time goes with the CPU, the others' with the disk
+    /// The build's worker setting scales translation and compilation. Shader preparation uses its own workers.
     public static bool Parallel(string stage) => Reference.TryGetValue(stage, out var r) && r.Parallel;
 
     /// A stage's seconds on a PC with this many threads (0 for a stage it does not know)
@@ -182,14 +182,10 @@ public static class BuildForecast
 /// A build's times: how long each stage took (or has run), and how long the whole build has left, from BuildProgress and a clock.
 /// It says nothing until this PC has shown its pace (Settled): the forecast alone is one PC's times scaled by threads, which
 /// is far off on a PC whose cores are slower or faster than the reference's, or whose disk is. Then the stages still to come
-/// are the forecast scaled by this PC's pace, one for the stages that use every thread (the CPU's: the lift, the compile, the
-/// shaders) and one for the others (the disk's: the read, the finish), each from how long its finished stages took against
-/// theirs and how fast its running stage moves (a stage that kept an earlier build's work, BuildStage.Kept, says nothing of
-/// the pace and is left out). A stage known to keep an earlier build's work is forecast at the share of it it still does (the
-/// compile's changed files). A running stage counts down from the rate its own progress moves at, from when it began to move
-/// (the read's progress is only its last check, after minutes of unpacking; the shaders' begins once the game has started),
-/// and the compile counts down from make_game's own estimate (@@eta, from what earlier builds measured on this PC), which
-/// build.py says only as a file ends
+/// use the measured pace of CPU work (the lift and compile) or disk work (the read and finish). Shader preparation
+/// uses its own reported progress as it runs. The bar has a shader prior before it can measure a rate. The numeric ETA
+/// covers the work up to shaders while they wait. Reused stages have smaller forecasts and are excluded from measuring pace. For a running stage, count down from its most recent observed rate or the compiler's
+/// own ETA. Use elapsed and remaining time for the overall bar. The stage rows keep their reported progress.
 public sealed class BuildClock
 {
     /// The forecast seconds of measured work a pace needs before it counts
@@ -200,22 +196,29 @@ public sealed class BuildClock
     /// The share of a stage's forecast a stage that keeps an earlier build's work is forecast at (the read or the translation
     /// skipped), and the least share of a compile of some files (the link, the checks)
     const double KeptShare = 0.1, LeastCompile = 0.03;
+    const double LeastShaderShare = 0.75, ShaderSampleLifetime = 15;
 
-    readonly Dictionary<string, TimeSpan> started = new();
+    BuildStage? active;
+    TimeSpan started, still, sampledAt;
+    TimeSpan? linkingAt;
+    double sampledFraction;
     readonly Dictionary<string, TimeSpan> took = new();
-    readonly Dictionary<string, TimeSpan> still = new();   // (a running stage's last moment at no progress: its progress moves from there)
     readonly int threads;
     TimeSpan begun = TimeSpan.MinValue;
     TimeSpan making = TimeSpan.MinValue;   // (when make_game's first stage began: the download before it is the network's)
     TimeSpan last;
     int etaLines;
-    TimeSpan etaAt;
+    TimeSpan etaAt, shaderEtaAt;
+    MakeGameLine.ShaderEta? observedShaderTiming;
     bool settled;
 
     /// threads: the CPU threads the build may use (0: this PC's)
     public BuildClock(int threads = 0) => this.threads = threads > 0 ? threads : SystemInfo.Threads();
 
-    static double Fraction(BuildProgress p, BuildStage s) => s.Weight > 0 ? Math.Clamp((p.Overall - s.Start) / s.Weight, 0, 1) : 0;
+    /// Estimated fraction of the time spent on the build, kept below 100% until the builder finishes.
+    public double Overall { get; private set; }
+
+    double RunningSeconds => Math.Max(0, (last - started).TotalSeconds);
 
     /// The progress seen at now (a monotonic time: a Stopwatch's elapsed)
     public void Observe(BuildProgress p, TimeSpan now)
@@ -227,17 +230,43 @@ public sealed class BuildClock
             etaLines = p.EtaLines;
             etaAt = now;
         }
-        foreach (var s in p.Stages)
+        if (!ReferenceEquals(p.ShaderTiming, observedShaderTiming))
         {
-            if (s.State == StageState.Running && !started.ContainsKey(s.Id)) started[s.Id] = now;
-            if (s.State == StageState.Running && s.Id != "download" && making == TimeSpan.MinValue) making = now;
-            if (s.State == StageState.Running && Fraction(p, s) == 0) still[s.Id] = now;
-            if (s.State is StageState.Done or StageState.Skipped && started.TryGetValue(s.Id, out var from) && !took.ContainsKey(s.Id))
-                took[s.Id] = now - from;
+            observedShaderTiming = p.ShaderTiming;
+            shaderEtaAt = now;
         }
-        // (once said, the time left is not taken back)
+        var running = p.Stages.FirstOrDefault(s => s.State == StageState.Running);
+        if (running != active)
+        {
+            if (active != null)
+                took[active.Id] = took.GetValueOrDefault(active.Id) + TimeSpan.FromSeconds(RunningSeconds);
+            active = running;
+            started = still = sampledAt = now;
+            sampledFraction = 0;
+            linkingAt = null;
+        }
+        if (active != null)
+        {
+            if (active.Id != "download" && making == TimeSpan.MinValue) making = now;
+            var fraction = p.Fraction(active);
+            if (fraction == 0) still = now;
+            if (fraction > sampledFraction)
+            {
+                sampledAt = now;
+                sampledFraction = fraction;
+            }
+            if (active.Id == "compile" && p.Linking) linkingAt ??= now;
+        }
+        // Warm up once. ActiveRemaining can still withdraw a stale countdown.
         if (!settled && making != TimeSpan.MinValue && now - making >= Warmup)
-            settled = now - making >= Patience || p.Eta != null || Pace(p, true) != null || Pace(p, false) != null || Moving(p) != null;
+            settled = now - making >= Patience || p.Eta != null
+                || Pace(p, true) != null || Pace(p, false) != null || p.ShaderTiming?.Seconds != null || Moving() != null;
+        if (p.Finished) Overall = 1;
+        else if (p.Error == null && making != TimeSpan.MinValue && Remaining(p) is double left)
+        {
+            var elapsed = (now - making).TotalSeconds;
+            if (elapsed > 0) Overall = Math.Max(Overall, Math.Min(0.99, elapsed / (elapsed + left)));
+        }
     }
 
     /// The time left is said: make_game has run a while (Warmup) and this PC has shown its pace (a pace, make_game's @@eta, a
@@ -245,32 +274,34 @@ public sealed class BuildClock
     public bool Settled(BuildProgress p) => settled || p.Finished;
 
     /// A stage's time: what it took, or how long it has run; null before it started
-    public TimeSpan? Of(string id) =>
-        took.TryGetValue(id, out var t) ? t : started.TryGetValue(id, out var from) ? last - from : null;
+    public TimeSpan? Of(string id) => active?.Id == id
+        ? took.GetValueOrDefault(id) + TimeSpan.FromSeconds(RunningSeconds)
+        : took.TryGetValue(id, out var t) ? t : null;
 
     public TimeSpan Elapsed => begun == TimeSpan.MinValue ? TimeSpan.Zero : last - begun;
 
-    /// The running stage whose own progress tells its rest, and that rest in seconds: it has moved a tenth of the way, for ten
-    /// seconds at least (the compile from its start: its files work from there)
-    (BuildStage Stage, double Ran, double Remaining)? Moving(BuildProgress p)
+    /// Remaining seconds at the latest progress event. Require a tenth of the work and ten seconds of movement
+    /// for a rate, or a report that all measured work is done.
+    double? Moving()
     {
-        if (p.Stages.FirstOrDefault(s => s.State == StageState.Running) is not { } s) return null;
-        var ran = Of(s.Id)?.TotalSeconds ?? 0;
-        var fraction = Fraction(p, s);
-        var moving = s.Id != "compile" && still.TryGetValue(s.Id, out var from) ? (last - from).TotalSeconds : ran;
-        return fraction >= 0.1 && moving >= 10 ? (s, ran, moving / fraction * (1 - fraction)) : null;
+        if (active == null || sampledFraction < 0.1) return null;
+        // Use the timestamp of the last progress event. Waiting for another event is not a slower measured rate.
+        var moving = (sampledAt - (active.Id == "compile" ? started : still)).TotalSeconds;
+        if (sampledFraction == 1) return 0;
+        return moving >= 10 ? moving / sampledFraction * (1 - sampledFraction) : null;
     }
 
-    /// This PC's pace against the forecast for one kind of stage (cpu: the threaded ones, BuildForecast.Parallel; else the
-    /// others): the finished stages' time over their forecast, with the running stage's own rate counted as far as it has gone.
-    /// Left out: the download (the network's, not the PC's), and a stage that kept an earlier build's work (seconds where the
-    /// forecast has minutes). Null until Evidence forecast seconds have been measured; kept within 0.2..5
+    static bool CountsForPace(BuildStage stage, bool cpu) =>
+        !stage.Kept && stage.Id is not ("download" or MakeGameProtocol.ShadersStage) && BuildForecast.Parallel(stage.Id) == cpu;
+
+    /// Pace of CPU or disk work against its forecast, using completed stages and the observed share of the running stage.
+    /// Null until Evidence forecast seconds have been measured. Limited to 0.2..5.
     public double? Pace(BuildProgress p, bool cpu)
     {
         double actual = 0, forecast = 0;
         foreach (var s in p.Stages)
         {
-            if (s.Id == "download" || s.Kept || BuildForecast.Parallel(s.Id) != cpu) continue;
+            if (!CountsForPace(s, cpu)) continue;
             if (s.State == StageState.Done && took.TryGetValue(s.Id, out var t))
             {
                 actual += t.TotalSeconds;
@@ -278,17 +309,16 @@ public sealed class BuildClock
             }
         }
         // (the running stage, by the share of it done: its whole time at its rate against its forecast)
-        if (Moving(p) is { } m && !m.Stage.Kept && BuildForecast.Parallel(m.Stage.Id) == cpu)
+        if (active is { } running && CountsForPace(running, cpu) && Moving() is double left)
         {
-            var done = Fraction(p, m.Stage);
-            actual += (m.Ran + m.Remaining) * done;
-            forecast += BuildForecast.Seconds(m.Stage.Id, threads) * done;
+            actual += ((sampledAt - started).TotalSeconds + left) * sampledFraction;
+            forecast += BuildForecast.Seconds(running.Id, threads) * sampledFraction;
         }
         return forecast >= Evidence ? Math.Clamp(actual / forecast, 0.2, 5) : null;
     }
 
-    /// A stage's pace: its kind's, else 1 (the forecast as it is: the disk's pace says nothing of the CPU's)
-    double PaceOf(BuildProgress p, BuildStage s) => Pace(p, BuildForecast.Parallel(s.Id)) ?? 1;
+    double PaceOf(BuildProgress p, BuildStage stage) => stage.Id == MakeGameProtocol.ShadersStage
+        ? 1 : Pace(p, BuildForecast.Parallel(stage.Id)) ?? 1;
 
     /// The share of a whole stage's work this build does in it: a compile of some files their share (a little at least, the
     /// link), a stage that keeps an earlier build's work a tenth, any other all of it
@@ -299,37 +329,94 @@ public sealed class BuildClock
 
     double Expected(BuildProgress p, BuildStage s) => BuildForecast.Seconds(s.Id, threads) * PaceOf(p, s) * Share(p, s);
 
-    /// The seconds left; null until Settled
-    public double? SecondsLeft(BuildProgress p)
+    // @@eta budgets only the pending objects. Linking has its own small allowance even with a zero-file plan.
+    double? ActiveRemaining(BuildProgress p, BuildStage stage)
     {
-        if (p.Finished) return 0;
-        if (!Settled(p)) return null;
-        var moving = Moving(p);
+        var expected = Expected(p, stage);
+        var ran = RunningSeconds;
+        if (IsShader(stage) && p.ShaderTiming is { } shader)
+        {
+            // A producer can explicitly withdraw a rate. A countdown also expires if its updates stop.
+            var age = (last - shaderEtaAt).TotalSeconds;
+            if (shader.Seconds is not double seconds || age > ShaderSampleLifetime) return null;
+            var estimate = CountDown(seconds, age);
+            // A short window can see a burst of cached work or a slow pocket of pipelines.
+            // The cumulative rate anchors the estimate once it has measured enough work.
+            var progressAge = (last - sampledAt).TotalSeconds;
+            if (estimate is double recent && progressAge <= ShaderSampleLifetime &&
+                Moving() is double whole && whole > progressAge)
+            {
+                var longer = Math.Max(3, whole - progressAge);
+                return Math.Clamp(recent, longer * LeastShaderShare, longer);
+            }
+            return estimate;
+        }
+        if (stage.Id == "compile")
+        {
+            var link = BuildForecast.Seconds("compile", threads) * LeastCompile * PaceOf(p, stage);
+            if (linkingAt is { } at) return CountDown(link, (last - at).TotalSeconds);
+            if (p.Eta is double eta)
+            {
+                var sinceEta = (last - etaAt).TotalSeconds;
+                if (sinceEta <= eta) return eta - sinceEta + link;
+                return Moving() is double objectTime
+                    ? CountDown(objectTime + link, (last - sampledAt).TotalSeconds)
+                    : CountDown(link, sinceEta - eta);
+            }
+        }
+        return Moving() is double left
+            ? CountDown(left, (last - sampledAt).TotalSeconds)
+            : CountDown(expected, ran);
+    }
+
+    // Keep a little time for the next signal. If the stage substantially overruns, wait for new evidence.
+    static double? CountDown(double seconds, double elapsed)
+    {
+        var grace = Math.Max(30, seconds * 0.25);
+        return elapsed > seconds + grace ? null : Math.Max(3, seconds - elapsed);
+    }
+
+    double? Remaining(BuildProgress p, bool beforeShaders = false)
+    {
         double left = 0;
         foreach (var s in p.Stages)
         {
-            if (s.State is StageState.Done or StageState.Skipped) continue;
-            var expected = Expected(p, s);
-            if (s.State != StageState.Running)
+            if (s.State is StageState.Done or StageState.Skipped || beforeShaders && IsShader(s)) continue;
+            if (s == active)
             {
-                left += expected;
-                continue;
+                if (ActiveRemaining(p, s) is not double remaining) return null;
+                left += remaining;
             }
-            var ran = Of(s.Id)?.TotalSeconds ?? 0;
-            // (the compile: build.py's @@eta less the time since it said it. Run out (the link after the last file, or a PC slower
-            // than the times it knows), the compile's own progress says the rest)
-            var countdown = s.Id == "compile" && p.Eta is double eta ? eta - (last - etaAt).TotalSeconds : 0;
-            if (countdown > 0) left += countdown;
-            else if (moving is { } m && m.Stage == s) left += m.Remaining;
-            else if (s.Id == "compile" && p.Eta != null) left += expected * 0.1;   // (its countdown out, its progress not yet telling)
-            else left += Math.Max(expected - ran, expected * 0.1);
+            else left += Expected(p, s);
         }
         return left;
     }
 
-    /// A stage that has not started, or is running: about how long it takes in all on this PC, at its kind's pace so far; null
-    /// until Settled
-    public double? Estimate(BuildProgress p, BuildStage stage) => Settled(p) ? Expected(p, stage) : null;
+    /// The build's ETA needs a measured shader rate while shader work is outstanding.
+    public double? SecondsLeft(BuildProgress p)
+    {
+        if (p.Finished) return 0;
+        if (!Settled(p) || p.Stages.Any(s => IsShader(s) && (s.State == StageState.Waiting ||
+            s.State == StageState.Running && !HasShaderEstimate(p)))) return null;
+        return Remaining(p);
+    }
+
+    /// An explicitly partial ETA while the builder still has work before shader preparation.
+    public double? SecondsBeforeShaders(BuildProgress p) =>
+        Settled(p) && p.Stages.Any(s => IsShader(s) && s.State == StageState.Waiting) &&
+        Remaining(p, beforeShaders: true) is double left && left > 0 ? left : null;
+
+    /// A running stage's elapsed time plus its remaining estimate, or the forecast for a stage still to come.
+    public double? Estimate(BuildProgress p, BuildStage stage)
+    {
+        if (!Settled(p) || IsShader(stage) && (stage != active || !HasShaderEstimate(p))) return null;
+        return stage == active ? Of(stage.Id)?.TotalSeconds + ActiveRemaining(p, stage) : Expected(p, stage);
+    }
+
+    bool HasShaderEstimate(BuildProgress p) =>
+        p.ShaderTiming is { } shader ? shader.Seconds != null : Moving() != null;
+
+    static bool IsShader(BuildStage stage) => stage.Id == MakeGameProtocol.ShadersStage;
 }
 
 /// Times and sizes as the window writes them

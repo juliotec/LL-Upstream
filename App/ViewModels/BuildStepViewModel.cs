@@ -78,11 +78,10 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
         Job = job;
         var s = job.Service.Settings;
         var threads = SettingsStepViewModel.BuildThreads(s);
-        progress = new BuildProgress(download: true, shaders: true, threads: threads);
+        progress = new BuildProgress(download: true, shaders: true, update: job.Picked?.Source is BuildSource.Update, threads: threads);
         clock = new BuildClock(threads);
         progress.Download(1);
         Rows = progress.Stages.Select(st => new StageRowViewModel(st.Id, Names.GetValueOrDefault(st.Id, st.Title))).ToList();
-        Notches = progress.Stages.Skip(1).Select(st => st.Start).ToList();
         ToggleLogCommand = new Command(() => ShowLog = !ShowLog);
         CancelCommand = new Command(() => Job.Main.Modal = new StopBuildViewModel(this));
         log.Add($"Longshot Launcher {job.Service.OwnTag}: {job.Verb.Trim().ToLowerInvariant()} {job.Version} ({job.Channel})");
@@ -101,7 +100,6 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
     public int Step => 3;
     public bool Finished => false;
     public IReadOnlyList<StageRowViewModel> Rows { get; }
-    public IReadOnlyList<double> Notches { get; }
     public BuildProgress Progress => progress;
     public BuildLog Log => log;
 
@@ -112,9 +110,14 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
         _ => Tr.F("Building Longshot {0}", Job.Shown),
     };
 
-    public double Overall => progress.Overall;
-    public string Percent => (int)Math.Floor(progress.Overall * 100) + "%";
-    public string Left => clock.SecondsLeft(progress) is double secs ? Tr.F("{0} left", Durations.About(secs)) : Tr.T("Working out the time left");
+    public double Overall => clock.Overall;
+    public string Percent => (int)Math.Floor(Overall * 100) + "%";
+    public bool ShowPercent => progress.Current != MakeGameProtocol.ShadersStage || clock.SecondsLeft(progress) != null;
+    public string Left => progress.Current == MakeGameProtocol.ShadersStage && progress.ShaderTiming is { Saving: true }
+        ? Tr.T("Saving the pipeline cache")
+        : clock.SecondsLeft(progress) is double secs ? Tr.F("{0} left", Durations.About(secs))
+        : clock.SecondsBeforeShaders(progress) is double before ? Tr.F("{0} left before shaders", Durations.About(before))
+        : Tr.T("Working out the time left");
 
     public bool ShowLog
     {
@@ -509,8 +512,9 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
                     break;
                 case StageState.Running:
                     row.State = "run";
-                    var frac = st.Weight > 0 ? Math.Clamp((progress.Overall - st.Start) / st.Weight, 0, 1) : 0;
-                    row.Detail = st.Note ?? (st.Id == "finish" ? Tr.T("Writing the game folder") : $"{(int)(frac * 100)}%");
+                    var frac = progress.Fraction(st);
+                    row.Detail = st.Note ?? (st.Id == "finish" ? Tr.T("Writing the game folder")
+                        : st.Id == MakeGameProtocol.ShadersStage && frac == 0 ? "" : $"{(int)(frac * 100)}%");
                     row.Time = took is { } r ? Durations.Clock(r) : "";
                     row.TimeFaint = clock.Estimate(progress, st) is double est ? " / " + Durations.Roughly(est) : "";
                     break;
@@ -534,7 +538,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
             first.State = "run";
             first.Detail = seeding;
         }
-        RaiseAll(nameof(Overall), nameof(Percent), nameof(Left));
+        RaiseAll(nameof(Overall), nameof(Percent), nameof(Left), nameof(ShowPercent));
         if (showLog && following) Raise(nameof(LogText));
     }
 
@@ -558,7 +562,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
         Summarize(outcome, reported ?? why);
         var at = progress.Stages.FirstOrDefault(s => s.Id == progress.Current) ?? progress.Stages.LastOrDefault(s => s.State == StageState.Done);
         var name = at != null ? Tr.T(Names.GetValueOrDefault(at.Id, at.Title)) : Tr.T("the build");
-        var pct = (int)Math.Floor(progress.Overall * 100);
+        var pct = (int)Math.Floor(Overall * 100);
         Job.Main.Navigate(new ProblemViewModel(this, why, name, pct, outcome));
     }
 
