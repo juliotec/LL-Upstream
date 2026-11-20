@@ -154,7 +154,7 @@ public static class SetupWindows
         var keep = BuildRegistry.Load(home.Builds).Builds.Select(b => b.Folder).ToList();
         var settings = LauncherSettings.Load(home.Settings);
         keep.Add(settings.BuildsFolderOrDefault());
-        keep.Add(SaveEnvironment.Current().BackupRoot);
+        keep.AddRange(SaveEnvironment.Current().BackupRoots);   // (the old backups folders too: SaveEnvironment.OldBackupRoots)
         return keep;
     }
 }

@@ -713,14 +713,15 @@ public sealed class BackupsViewModel : ViewModelBase
         var now = DateTime.Now;
         Rows = page.Backups.Select(b => new Row(this, b, now)).ToList();
         BackCommand = new Command(() => page.Main.Navigate(page));
-        FolderCommand = new Command(() => page.Main.Host?.Open(page.Env.BackupRoot), () => Directory.Exists(page.Env.BackupRoot));
+        // (the folder new backups go in once there is one; before, the old one the backups listed are in: ShownBackupRoot)
+        FolderCommand = new Command(() => page.Main.Host?.Open(page.Env.ShownBackupRoot), () => Directory.Exists(page.Env.ShownBackupRoot));
     }
 
     public SavesViewModel Page { get; }
     public IReadOnlyList<Row> Rows { get; }
     public Command BackCommand { get; }
     public Command FolderCommand { get; }
-    public string Where => ShownPath.Of(Page.Env.BackupRoot);
+    public string Where => ShownPath.Of(Page.Env.ShownBackupRoot);
     public string Count => Tr.P(Rows.Count, "1 backup", "{0} backups");
 
     /// A save's size: a few kilobytes, so in KB below a megabyte ("24 KB"), as Durations.Size above

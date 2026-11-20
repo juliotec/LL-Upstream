@@ -15,8 +15,15 @@ does (for Lichii, Eden, NX2navi and the rest) without the launcher.
 
 | | Where |
 |---|---|
-| Linux and Steam Deck | `$XDG_DATA_HOME/longshot/save/<user id>/` (default `~/.local/share/longshot/save/`) |
+| Linux and Steam Deck | `$XDG_DATA_HOME/longshot/user/save/<user id>/` (default `~/.local/share/longshot/user/save/`); `$XDG_DATA_HOME/longshot/save/<user id>/` until a Longshot that keeps its user files apart has started once (below) |
 | Windows | `%APPDATA%\Longshot\save\<user id>\`; a portable launcher's in `LongshotLauncher-data\user\save\` beside it |
+
+On Linux `~/.local/share/longshot` holds more than the game's files (the launcher's own `launcher/`, the save backups, DLSS
+and NFC files), so newer Longshot builds keep theirs (`save/`, `temp/`, `cache/`, `longshot_options.ini`, `mods.json`) in
+its `user/`. The launcher still starts every build with `--user ~/.local/share/longshot`: a newer build moves its files into
+`user/` by itself at its first start, and an older one keeps using the folder itself. The launcher looks in `user/` once it
+is there, else in the folder itself, and never moves them. Started after a newer one has moved them, an older build finds no
+save where it looks: play newer builds once you have played one.
 
 **Open saves folder** on the Saves page shows that `save` folder in the file manager (it is made first when there is none
 yet, as an import makes it), to look at the saves or copy them by hand while Longshot is closed.
@@ -42,21 +49,20 @@ The game settings (`longshot_options.ini`: the Insert menu's choices and your co
 that keeps them there has run. Before Play, a build that has none of its own, such as a new build of another channel, gets the
 newest settings of your other versions, its own Compile shaders choice kept.
 
-Backups go to `%LOCALAPPDATA%\Longshot\oot-save-backups` on Windows and `$XDG_DATA_HOME/longshot/save-backup` on Linux (default
-`~/.local/share/longshot/save-backup/`), one folder per copy, named by the time it was made; a portable launcher keeps its
-own in `LongshotLauncher-data/save-backups/` beside it.
+Backups go to one folder, `save-backups`: `%LOCALAPPDATA%\Longshot\save-backups` on Windows and
+`$XDG_DATA_HOME/longshot/save-backups` on Linux (default `~/.local/share/longshot/save-backups/`), one folder per copy, named
+by the time it was made; a portable launcher keeps its own in `LongshotLauncher-data/save-backups/` beside it.
 
-Where each kind of backup is:
+Backups made before went to other folders, which *Restore from a backup* still lists (issue #188). Nothing is moved from
+one to another, and the old folders are only read, never written or emptied:
 
-| | Windows | Linux |
+| Backups from before | Windows | Linux |
 |---|---|---|
-| The launcher's (every copy, the saves brought together, a version deleted, a restore) | `%LOCALAPPDATA%\Longshot\oot-save-backups` | `$XDG_DATA_HOME/longshot/save-backup` |
-| The launcher's from before #80 | the same | `$XDG_DATA_HOME/oot-save-backups` |
-| Longshot's `scripts/longshot_saves.py` | the same | `$XDG_DATA_HOME/oot-save-backups` |
-| The game's own (Longshot#1428) | the same | `$XDG_DATA_HOME/oot-save-backups` |
+| The launcher's (from #80 on Linux) | `%LOCALAPPDATA%\Longshot\oot-save-backups` | `$XDG_DATA_HOME/longshot/save-backup` |
+| The launcher's before #80 | the same | `$XDG_DATA_HOME/oot-save-backups` |
+| Longshot's `scripts/longshot_saves.py`, the game's own (Longshot#1428), until they write to `save-backups` too | the same | `$XDG_DATA_HOME/oot-save-backups` |
 
-On Windows that is one folder. On Linux it is two, and *Restore from a backup* lists both (issue #188): new backups keep
-going to `longshot/save-backup`, nothing is moved from one to the other, and the old folder is only read.
+The backups page shows and opens `save-backups` once there is one, else the old folder.
 
 ## Saves from before (Windows)
 
@@ -76,7 +82,7 @@ shared folder by itself (`Saves.Gather`):
   stays in the backup only, and so does a copy older than the kept save's own different slot; the home names both. A copy
   the same as one already kept changes nothing. The merge is made beside the shared save and takes its place by two
   renames, so a failure changes nothing.
-- **Every one is backed up first,** whole, in one folder: `oot-save-backups\gather-<yyyyMMdd-HHmmss>\<game folder name>`
+- **Every one is backed up first,** whole, in one folder: `save-backups\gather-<yyyyMMdd-HHmmss>\<game folder name>`
   (`shared` for the one that was already shared). The home says once which slots came from which version's folder, and
   into which slot, which stayed in the backup only, and where the backup is.
 - **Nothing is deleted.** Each old `save` folder is renamed `save.moved-<yyyyMMdd-HHmmss>` beside it, and a link to the shared
@@ -162,7 +168,8 @@ why.
 - **It copies; Hookshot keeps its saves as they were.** Nothing in Hookshot's folders is moved, changed or deleted.
 - **Where it goes:** the save folder of Longshot's player (`5a3c9e1f0b7d24680000000000000001`), the only one the game
   opens, whether it is there yet or not. Another profile folder beside it is left alone.
-  - In the shared folder above: `$XDG_DATA_HOME/longshot/save/` on Linux, `%APPDATA%\Longshot\save\` on Windows.
+  - In the shared folder above: `$XDG_DATA_HOME/longshot/user/save/` on Linux (`$XDG_DATA_HOME/longshot/save/` until a
+    Longshot that keeps its user files apart has started), `%APPDATA%\Longshot\save\` on Windows.
 - **It never replaces a Longshot save without asking.** When Longshot already has a save there, the window asks first. If
   you say yes, Longshot's save is copied whole to the backup folder before anything is replaced, and the message says
   where the backup is.

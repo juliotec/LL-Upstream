@@ -193,7 +193,7 @@ static partial class Program
         Require(start.Environment["PYTHONIOENCODING"] == "utf-8" && start.Environment["PATH"] == "/usr/bin" && !start.Environment.ContainsKey("LD_LIBRARY_PATH")
                 && !start.Environment.ContainsKey("PYTHONHOME") && !start.Environment.ContainsKey("LONGSHOT_GAME"),
                 "The game's environment (GamePlay's rule): the AppImage runtime's and any PYTHON setting dropped, the tool's output UTF-8.");
-        Require(env.BackupRoot == Path.Combine(data, "longshot", "save-backup"), "(the launcher's backup folder: where every other copy's backup goes)");
+        Require(env.BackupRoot == Path.Combine(data, "longshot", "save-backups"), "(the launcher's backup folder: where every other copy's backup goes)");
 
         // ---- the plans: what each edit asks the tool ----
         Require(SaveEditPlan.Set("slot_03", "skulltulas/KakarikoVillage", "x").Command(false).SequenceEqual(new[] { "set", "slot_03", "skulltulas/KakarikoVillage" })

@@ -216,6 +216,47 @@ static partial class Program
         lin = LauncherLayout.Of(Platform.Linux, image, env);
         Require(lin.Kind == LauncherKind.Portable && LauncherHome.Resolve(Platform.Linux, env, lin).Root == image + ".home" && lin.UpdateKey == "linux-x64",
                 "The AppImage with its .home folder: portable, its data there.");
+        var portableLinux = LauncherHome.Resolve(Platform.Linux, env, lin);
+        Require(portableLinux.Cache == portableLinux.Root && portableLinux.Work == Path.Combine(image + ".home", "work"), "A portable AppImage's build files stay in its own folder.");
+
+        // (Linux: the data folder holds what cannot be made again; the build files and the SDKs a build fetches are in the cache,
+        // moved there from a home of before by one rename each)
+        var xdgHome = Path.Combine(root, "xdg-home");
+        Func<string, string?> lx = k => k switch { "XDG_DATA_HOME" => Path.Combine(xdgHome, "data"), "XDG_CACHE_HOME" => Path.Combine(xdgHome, "cache"), _ => env(k) };
+        var lh = LauncherHome.Resolve(Platform.Linux, lx);
+        Require(lh.Root == Path.Combine(xdgHome, "data", "longshot", "launcher") && lh.Cache == Path.Combine(xdgHome, "cache", "longshot", "launcher")
+                && lh.Work == Path.Combine(lh.Cache, "work") && lh.NgxSdk == Path.Combine(lh.Cache, "ngx-sdk") && lh.XessSdk == Path.Combine(lh.Cache, "xess-sdk")
+                && lh.Toolchains == Path.Combine(lh.Root, "toolchains") && lh.Settings == Path.Combine(lh.Root, "settings.json") && lh.Logs == Path.Combine(lh.Root, "logs"),
+                "Linux: the build files and SDKs in $XDG_CACHE_HOME/longshot/launcher; the settings, list, logs and tools in the data folder.");
+        Require(LauncherHome.Resolve(Platform.Linux, k => k == "HOME" ? Path.Combine(root, "h") : null).Cache == Path.Combine(root, "h", ".cache", "longshot", "launcher"),
+                "With no XDG_CACHE_HOME: ~/.cache/longshot/launcher.");
+        Require(LauncherHome.Resolve(Platform.Linux, k => k == LauncherHome.Variable ? Path.Combine(root, "own") : lx(k)) is { } own && own.Cache == own.Root
+                && own.Work == Path.Combine(root, "own", "work"), "LONGSHOT_LAUNCHER_HOME keeps everything in that one folder.");
+        var wh = LauncherHome.Resolve(Platform.Windows, env);
+        Require(wh.Cache == wh.Root && wh.Work == Path.Combine(local, "LongshotLauncher", "work"), "Windows: the build files stay in %LOCALAPPDATA%\\LongshotLauncher.");
+        // (a home of before: work/ and ngx-sdk/ in it, a settings file, the tools; xess-sdk in both)
+        Directory.CreateDirectory(Path.Combine(lh.Root, "work", "objcache"));
+        File.WriteAllText(Path.Combine(lh.Root, "work", "objcache", "a.o"), "object");
+        Directory.CreateDirectory(Path.Combine(lh.Root, "ngx-sdk"));
+        Directory.CreateDirectory(Path.Combine(lh.Root, "xess-sdk"));
+        Directory.CreateDirectory(Path.Combine(lh.Cache, "xess-sdk"));
+        Directory.CreateDirectory(Path.Combine(lh.Root, "toolchains", "v3.0.0"));
+        File.WriteAllText(lh.Settings, "{}");
+        Require(lh.Work == Path.Combine(lh.Root, "work") && lh.NgxSdk == Path.Combine(lh.Root, "ngx-sdk") && lh.XessSdk == Path.Combine(lh.Cache, "xess-sdk"),
+                "Before the move, a folder still only in the home is used there; one in the cache, there.");
+        var chosenWork = new LauncherHome(Path.Combine(root, "chosen-home"), Path.Combine(root, "chosen-cache"));
+        Directory.CreateDirectory(Path.Combine(chosenWork.Root, "work"));
+        Require(chosenWork.MoveToCache(p => p == Path.Combine(chosenWork.Root, "work")).Count == 0 && Directory.Exists(Path.Combine(chosenWork.Root, "work"))
+                && chosenWork.Work == Path.Combine(chosenWork.Root, "work"), "A build files folder the player chose is never moved.");
+        var movedSaid = lh.MoveToCache();
+        Require(File.ReadAllText(Path.Combine(lh.Cache, "work", "objcache", "a.o")) == "object" && !Directory.Exists(Path.Combine(lh.Root, "work"))
+                && Directory.Exists(Path.Combine(lh.Cache, "ngx-sdk")) && !Directory.Exists(Path.Combine(lh.Root, "ngx-sdk"))
+                && lh.Work == Path.Combine(lh.Cache, "work") && lh.NgxSdk == Path.Combine(lh.Cache, "ngx-sdk"),
+                "MoveToCache: work/ and ngx-sdk/ renamed into the cache, whole. " + string.Join("; ", movedSaid));
+        Require(Directory.Exists(Path.Combine(lh.Root, "xess-sdk")) && movedSaid.Any(l => l.Contains("xess-sdk") && l.Contains("there already"))
+                && File.ReadAllText(lh.Settings) == "{}" && Directory.Exists(Path.Combine(lh.Root, "toolchains", "v3.0.0")),
+                "One already in the cache is left where it was (nothing deleted); the settings and the tools stay in the home.");
+        Require(!lh.MoveToCache().Any(l => l.Contains(" moved to ")) && wh.MoveToCache().Count == 0, "Nothing more to move the next time; nothing ever on Windows.");
 
         // (the AppImage's own entry in the applications menu)
         var data = Path.Combine(root, "xdg");

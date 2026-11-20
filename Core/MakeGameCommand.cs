@@ -234,21 +234,23 @@ public static class GamePlay
         return env;
     }
 
-    /// The user folder a build is started with (StartInfo's user): Longshot's shared one (SaveEnvironment.LongshotUser), where
-    /// its saves are and, from the Longshot that takes --user for them, its settings (host/options_path.c). Every Windows build.
-    /// On Linux the game finds the shared folder by itself for the saves, and keeps its settings beside itself without --user:
-    /// given it too, unless the build's folder has a user/ of its own, which the game takes in itself (an old build's saves, moved
-    /// into the shared folder at its next start) or keeps (a link of the player's: their own arrangement). Null: none
+    /// The user folder a build is started with (StartInfo's user): Longshot's shared one, where its saves are and, from the
+    /// Longshot that takes --user for them, its settings (host/options_path.c). SaveEnvironment.LongshotRoot for every version:
+    /// on Linux a Longshot that keeps its user files apart keeps them in its user/ (SaveEnvironment.LinuxUserFiles, moved there by
+    /// the game itself), one from before in the folder itself, so no version needs another. Every Windows build. On Linux the
+    /// game finds the shared folder by itself for the saves, and keeps its settings beside itself without --user: given it too,
+    /// unless the build's folder has a user/ of its own, which the game takes in itself (an old build's saves, moved into the
+    /// shared folder at its next start) or keeps (a link of the player's: their own arrangement). Null: none
     public static string? UserFolder(SaveEnvironment env, string folder)
     {
-        if (env.Platform == Platform.Windows) return env.LongshotUser;
+        if (env.Platform == Platform.Windows) return env.LongshotRoot;
         var own = Path.Combine(folder, "user");
         try
         {
             if (Directory.Exists(own) || File.Exists(own) || new FileInfo(own).LinkTarget != null) return null;
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return null; }
-        return env.LongshotUser;
+        return env.LongshotRoot;
     }
 
     /// user: Longshot's user folder, which every build shares (UserFolder), given to the game as --user. Every build takes --user,

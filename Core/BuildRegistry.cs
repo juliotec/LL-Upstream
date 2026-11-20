@@ -467,8 +467,9 @@ public sealed class BuildRegistry
             throw new IOException("This folder holds your home folder, so the launcher does not delete it: " + folder);
         if ((keep ?? Array.Empty<string>()).FirstOrDefault(k => Holds(full, k)) is { } other)
             throw new IOException($"This folder holds {other}, which the launcher keeps, so it does not delete it: {folder}");
-        if (saves != null && Holds(Saves.Real(full), Saves.Real(saves.LongshotUser)))
-            throw new IOException($"This folder holds {saves.LongshotUser}, Longshot's saves, so the launcher does not delete it: {folder}");
+        // (on Linux the root given as --user and the user/ in it a newer Longshot keeps its files in: SaveEnvironment.LongshotUser)
+        if (saves != null && new[] { saves.LongshotRoot, saves.LongshotUser }.FirstOrDefault(u => Holds(Saves.Real(full), Saves.Real(u))) is { } held)
+            throw new IOException($"This folder holds {held}, Longshot's saves, so the launcher does not delete it: {folder}");
         return full;
     }
 

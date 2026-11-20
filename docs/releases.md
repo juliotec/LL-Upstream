@@ -241,7 +241,7 @@ a tag, `scripts/release.py check-tag` (in `release.yml`, before anything is buil
 | `fix`, `perf`, or anything else | the next patch (`v3.2.2`) |
 
 The first release of each product only needs its first number (Longshot `v3.0.0`, the launcher `v1.0.0`).
-`python -I scripts/release.py next` prints the number and the notes before tagging.
+`python -I ../Tooling/scripts/release.py next` prints the number and the notes before tagging.
 
 ## Release notes
 

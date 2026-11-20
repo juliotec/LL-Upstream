@@ -24,11 +24,11 @@ cd LongshotLauncher
 dotnet build LongshotLauncher.slnx                     (the .NET 10 SDK, Windows or Linux)
 dotnet run --project App
 python -I tests/test_launcher_core.py                  (the core's tests: no game, no network, no window)
-python -I tests/test_release.py                        (scripts/release.py; needs the openssl command line)
+LAUNCHER=$PWD python -I ../Tooling/tests/test_release.py   (Tooling's release.py; needs the openssl command line)
 ```
 
 `--depth 1` fetches the newest commit only. Pulling, branches and pull requests work as usual; `git log` past it, and cutting a
-release (`scripts/release.py` counts and checks commits), need the history: `git fetch --unshallow --tags` once.
+release (Tooling's `release.py` counts and checks commits), need the history: `git fetch --unshallow --tags` once.
 
 Sign in to git.magicbean.dev with the team's tooling, [MagicBeanDev/Tooling](https://git.magicbean.dev/MagicBeanDev/Tooling), cloned beside this checkout
 (`git clone https://git.magicbean.dev/MagicBeanDev/Tooling.git ../Tooling`, then `python -I ../Tooling/scripts/forge.py login`: one sign-in covers every
@@ -55,9 +55,10 @@ repository).
 
 - **Tests read the source.** `tests/launcher_core` compiles `Core/` with no package; the screens' logic it can reach is
   checked there (`ScreenChecks.cs`). A change to the core comes with its check in the same pull request.
-- **The release format is shared.** `scripts/release.py`, `cliff.toml`, `docs/releases.md` and `RELEASING.md` are the same
-  files in Longshot's repository; a change to one goes to both. `tests/fixtures/release` holds a `SHA256SUMS` signed by
-  `scripts/release.py` with a test key, which the launcher's tests check with the launcher's own code.
+- **The release format is shared.** `release.py` is Tooling's `scripts/release.py`, for both repositories (CI runs it at
+  the commit `.tooling-rev` names); `cliff.toml`, `docs/releases.md` and `RELEASING.md` are the same files in Longshot's
+  repository; a change to one goes to both. `tests/fixtures/release` holds a `SHA256SUMS` signed by `release.py` with a
+  test key, which the launcher's tests check with the launcher's own code.
 - **The key.** `Core/ReleaseTrust.cs` lists the public key the launcher trusts; Longshot's `scripts/release_keys.json` must
   list the same one. Never commit a private key (the test key in `tests/fixtures/release` is public on purpose and is
   never trusted).

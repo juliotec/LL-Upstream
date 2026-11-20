@@ -4,8 +4,8 @@ title = "LongshotLauncher gitleaks"
 [extend]
 useDefault = true
 
-# tests/fixtures/release/test-key.pem is a PRIVATE key committed on purpose: scripts/release.py signs the fixtures' SHA256SUMS with
-# it and the launcher's tests check them. The launcher never trusts it (tests/test_release.py asserts that), and the real key
+# tests/fixtures/release/test-key.pem is a PRIVATE key committed on purpose: Tooling's scripts/release.py signed the fixtures' SHA256SUMS with
+# it and the launcher's tests check them. The launcher never trusts it (Tooling's tests/test_release.py asserts that; CI runs it here), and the real key
 # exists only as the RELEASE_SIGNING_KEY secret (CONTRIBUTING.md, RELEASING.md).
 [[allowlists]]
 description = "the committed test signing key"

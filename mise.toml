@@ -32,7 +32,7 @@ set -euo pipefail
 export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.hooksPath GIT_CONFIG_VALUE_0=/dev/null
 python -m pip install --disable-pip-version-check --require-hashes -r tests/requirements-pytest.txt
 dotnet build LongshotLauncher.slnx --configuration Release -p:RestoreLockedMode=true
-python -m pytest tests/test_release.py
+LAUNCHER="$PWD" python -m pytest "${MAGICBEAN_TOOLING:-../Tooling}/tests/test_release.py"   # (Tooling's release.py, on this repository)
 """
 
 [tasks."build:package"]

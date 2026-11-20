@@ -10,10 +10,11 @@ What agents trip on:
 - **Clean break.** Only Hookshot's saves (`Core/HookshotSaves.cs`) and the compatible game settings explicitly selected for
   a Longshot build (`Core/HookshotSettings.cs`) are imported. Keep its launcher settings, channels, versions and caches
   separate. Don't add compatibility with Hookshot's 2.x builders.
-- **Tests read the source.** Run `python -I tests/test_launcher_core.py` and `python -I tests/test_release.py` before a pull
+- **Tests read the source.** Run `python -I tests/test_launcher_core.py` and Tooling's `tests/test_release.py` (`LAUNCHER=$PWD python -I ../Tooling/tests/test_release.py`) before a pull
   request; update a check in the same pull request rather than weakening it.
-- **Two repositories, one release format.** `scripts/release.py` and docs/releases.md are the same files in Longshot's
-  repository; a change to either goes to both. The trusted key is in `Core/ReleaseTrust.cs` and in Longshot's
+- **Two repositories, one release format.** `release.py` is Tooling's `scripts/release.py`, pinned by `.tooling-rev` (a
+  change to it is a Tooling pull request, then one here moving the pin); docs/releases.md is the same file in Longshot's
+  repository; a change to it goes to both. The trusted key is in `Core/ReleaseTrust.cs` and in Longshot's
   `scripts/release_keys.json`.
 - **Never make or commit a real signing key**, and never publish a release by hand: tags and the release workflow do it
   ([RELEASING.md](RELEASING.md)). Cutting one: Tooling's release skill (`/magicbean:release`, or

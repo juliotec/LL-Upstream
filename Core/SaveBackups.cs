@@ -41,7 +41,7 @@ public static class SaveBackups
         _ => BackupKind.Other,
     };
 
-    /// Every save in the backups folders (env.BackupRoots: on Linux the old $XDG_DATA_HOME/oot-save-backups too), newest first; a backup that holds several (a gather's) is one entry per
+    /// Every save in the backups folders (env.BackupRoots: the folders backups went to before too, SaveEnvironment.OldBackupRoots), newest first; a backup that holds several (a gather's) is one entry per
     /// save, in the order its folders are named. Where one folder holds several profiles, only the game's is listed when it is
     /// there (Saves.UserId); else each is, with its profile (Profile) to tell them apart. A folder in it that holds no save, a hidden one (a copy's staging) and one that
     /// cannot be read are left out. None when there is no backups folder yet

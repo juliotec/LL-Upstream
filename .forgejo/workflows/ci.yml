@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   # (a squash-merged pull request's title is its commit on main, a line of the next release's notes, and what decides the next
-  # version: a Conventional Commit, by scripts/release.py's TITLE. Only the title is read, from the event)
+  # version: a Conventional Commit, by Tooling's scripts/release.py's TITLE. Only the title is read, from the event)
   title:
     name: Conventional Commit title
     if: github.event_name == 'pull_request'
@@ -26,22 +26,26 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.base.sha }}
           persist-credentials: false
-          sparse-checkout: scripts
-      # (the rule is main's, so a pull request cannot loosen it for itself; only while main has no scripts/release.py yet, the
-      # pull request that adds it, is it read from the pull request)
-      - if: hashFiles('scripts/release.py') == ''
+          sparse-checkout: .tooling-rev
+      # (the rule is main's, Tooling's release.py at main's .tooling-rev, so a pull request cannot loosen it for itself; only
+      # while main has no .tooling-rev yet, the pull request that adds it, is it read from the pull request)
+      - if: hashFiles('.tooling-rev') == ''
         uses: https://github.com/actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
-          sparse-checkout: scripts
+          sparse-checkout: .tooling-rev
+      - name: Tooling's release.py, at the commit .tooling-rev names
+        run: |
+          git clone -q https://git.magicbean.dev/MagicBeanDev/Tooling.git "$RUNNER_TEMP/tooling"
+          git -C "$RUNNER_TEMP/tooling" checkout -q --detach "$(cat .tooling-rev)"
       - name: The title
         env:
           TITLE: ${{ github.event.pull_request.title }}
         run: |
           python3 -I - <<'PY'
           import importlib.util, os, sys
-          spec = importlib.util.spec_from_file_location("release", "scripts/release.py")
+          spec = importlib.util.spec_from_file_location("release", os.path.join(os.environ["RUNNER_TEMP"], "tooling", "scripts", "release.py"))
           release = importlib.util.module_from_spec(spec)
           spec.loader.exec_module(release)
           title = os.environ["TITLE"]
@@ -74,5 +78,8 @@ jobs:
         run: dotnet build LongshotLauncher.slnx --configuration Release -p:RestoreLockedMode=true
       - name: The core's tests
         run: python3 -I -B tests/test_launcher_core.py --strict --longshot "$RUNNER_TEMP/longshot"
-      - name: The release script's tests
-        run: python3 -I -B tests/test_release.py
+      - name: The release script's tests (Tooling's, at .tooling-rev, on this repository)
+        run: |
+          git clone -q https://git.magicbean.dev/MagicBeanDev/Tooling.git "$RUNNER_TEMP/tooling"
+          git -C "$RUNNER_TEMP/tooling" checkout -q --detach "$(cat .tooling-rev)"
+          LAUNCHER="$PWD" python3 -I -B "$RUNNER_TEMP/tooling/tests/test_release.py"

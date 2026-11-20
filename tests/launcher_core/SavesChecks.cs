@@ -143,6 +143,24 @@ static class SavesChecks
                 && w.Linux.LongshotUser == P(w.Data, "longshot") && (w.Linux with { UserFolder = P(w.Tmp, "usb", "user") }).LongshotUser == P(w.Data, "longshot")
                 && Saves.Shared(w.Linux).Profiles.Single().Path == w.Hs, "A portable launcher's own user folder (Windows); on Linux the game's own.");
 
+        // (Linux: a Longshot that keeps its user files apart moves them into longshot/user at its first start, given --user
+        // longshot as before; the launcher reads them there from then on, and still passes the same folder to every build)
+        var u = new Case(root, "linux-user");
+        var linuxRoot = P(u.Data, "longshot");
+        Require(u.Linux.LongshotRoot == linuxRoot && u.Linux.LongshotUser == linuxRoot && u.Linux.LinuxUserFiles == P(linuxRoot, "user")
+                && GamePlay.UserFolder(u.Linux, P(u.Tmp, "game")) == linuxRoot && !Directory.Exists(u.Linux.LinuxUserFiles),
+                "Linux, before a newer Longshot ran: the folder itself, and no user/ made by the launcher.");
+        Directory.CreateDirectory(P(linuxRoot, "user"));
+        Directory.Move(P(linuxRoot, "save"), P(linuxRoot, "user", "save"));
+        var moved = P(linuxRoot, "user", "save", Uid);
+        Require(u.Linux.LongshotUser == P(linuxRoot, "user") && u.Linux.LongshotRoot == linuxRoot && u.Linux.SaveFolder == P(linuxRoot, "user", "save")
+                && Saves.Shared(u.Linux).Profiles.Single().Path == moved && Saves.ShownProfile(u.Linux) == moved
+                && Saves.ImportTarget(u.Linux) == moved && Saves.Locate(Saves.Longshot, null, u.Linux).Profiles.Single().Path == moved,
+                "Linux, after the game moved its files into user/: the save found, shown and imported into there.");
+        Require(GamePlay.UserFolder(u.Linux, P(u.Tmp, "game")) == linuxRoot && GamePlay.UserFolder(u.Windows, P(u.Tmp, "game")) == P(u.AppData, "Longshot")
+                && u.Windows.LongshotUser == P(u.AppData, "Longshot"),
+                "Every build is still started with --user longshot (an old one keeps its files there, a newer one in its user/); Windows unchanged.");
+
         // (test_lichii_s_own_folder_first)
         var l = new Case(root, "lichii-own");
         var own = EdenSave(P(l.Data, "lichii"));

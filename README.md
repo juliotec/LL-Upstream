@@ -162,7 +162,8 @@ next time it starts. If `LongshotLauncher.exe` itself is missing, rename `Longsh
 
 The cog on the home opens the launcher's settings: the **launcher's language**, the channel for new builds, the
 **launcher's own channel**, the builds folder (your instances, one folder per track and version; its folder button opens
-it in the file manager), the build files folder (working files every build reuses, not the game; and *Free up space*),
+it in the file manager), the build files folder (working files every build reuses, not the game; and *Free up space*; by
+default `~/.cache/longshot/launcher/work` on Linux, `%LOCALAPPDATA%\LongshotLauncher\work` on Windows),
 the update check at start, and on
 Linux the launcher's entry in the applications menu.
 
@@ -183,7 +184,8 @@ of it: [docs/controller.md](docs/controller.md).
 
 ## Saves
 
-Every build shares one save folder (`%APPDATA%\Longshot` on Windows, `~/.local/share/longshot` on Linux). On Windows the
+Every build shares one save folder (`%APPDATA%\Longshot` on Windows, `~/.local/share/longshot/user` on Linux, or
+`~/.local/share/longshot` itself for builds from before it: [docs/saves.md](docs/saves.md#where-longshot-keeps-them)). On Windows the
 launcher brings in, once, the saves each build kept in its own folder before, and the 2.x Builder's, keeping the newest
 after backing them all up ([docs/saves.md](docs/saves.md#saves-from-before-windows)). The **Saves** page imports saves from
 Lichii, Eden, NX2navi and the other emulators, and exports them back, or the whole save folder into one .zip file to
@@ -265,8 +267,8 @@ dotnet run --project App
 | `Core/Lang/` | The launcher's translations, one catalog per language (`Tr`, [Translations](#translations)) |
 | `App/` | `LongshotLauncher`: the Avalonia window. `ViewModels/` (one per page and dialog), `Views/` (one .axaml each, compiled bindings), `Controls/` (icons, bars and spinner), `PadInput.cs` (a controller), `App.axaml` (the palette and the styles), `Assets/` (the Longshot logo and icon, the Inter font with its licence) |
 | `tools/screenshots/` | The screens drawn without a display into PNGs ([Screenshots](#screenshots)) |
-| `tests/` | `test_launcher_core.py` (builds `launcher_core/`, which compiles `Core/` and checks it), `test_release.py` (`scripts/release.py`), `fixtures/` (signed test releases, fake Hookshot saves, what Longshot's save editor answers as JSON), `save_editor_fixtures.py` (checks that text against a Longshot checkout) |
-| `scripts/` | `package.sh` (both release programs, from Linux), `make_icon.py` (`App/Assets/longshot.ico` from the logo), `release.py` (the signed release files, the keys, the uploads; the same file as Longshot's), `translations.py` (the window's texts against each catalog) |
+| `tests/` | `test_launcher_core.py` (builds `launcher_core/`, which compiles `Core/` and checks it), `fixtures/` (signed test releases, fake Hookshot saves, what Longshot's save editor answers as JSON), `save_editor_fixtures.py` (checks that text against a Longshot checkout) |
+| `scripts/` | `package.sh` (both release programs, from Linux), `make_icon.py` (`App/Assets/longshot.ico` from the logo), `translations.py` (the window's texts against each catalog) |
 | `.forgejo/workflows/` | `ci.yml` (compile and test, every pull request), `release.yml` (the nightly from `main`, a release from a `v*` tag) |
 | `docs/` | [releases.md](docs/releases.md), [saves.md](docs/saves.md), [nfc.md](docs/nfc.md), [controller.md](docs/controller.md), and the screenshots in this README |
 
@@ -293,7 +295,7 @@ screen adds or updates the scene that shows it.
 | `LONGSHOT_NFC_DIR=<folder>` | The NFC folder somewhere else (a full path), for the game and the launcher alike: the launcher passes it on to the game it starts, on Linux too, where it drops its other `LONGSHOT_` variables ([docs/nfc.md](docs/nfc.md)) |
 | `LONGSHOT_LAUNCHER_DEBUG_SLOW=<ms>` | A Debug build only: waits that long before each answer from git.magicbean.dev and a tenth of it after each MB downloaded, to see the busy states (the launcher's update, the check, the tools' download) |
 | `LONGSHOT_LAUNCHER_EXE=<path>` | What the shortcuts and the game folders (`builder=`) start this launcher with, for a package whose own path is only inside it (the Flatpak sets it). A launcher not started from its own file (the Flatpak's, `dotnet run`) is not offered its own updates |
-| `LONGSHOT_LAUNCHER_HOME=<folder>` | The launcher's home (`builds.json`, `settings.json`, `toolchains/`, `logs/`) somewhere else, for trying it out |
+| `LONGSHOT_LAUNCHER_HOME=<folder>` | The launcher's home (`builds.json`, `settings.json`, `toolchains/`, `logs/`) somewhere else, for trying it out; the build files (`work/`) and the SDKs a build fetches go in it too, not in `~/.cache` |
 | `LONGSHOT_LAUNCHER_NO_CDN=1` | Every release list, release file and build tool from git.magicbean.dev itself, not through `git-cdn.magicbean.dev` (Cloudflare's cache of the same files and lists, tried first otherwise; a list there may be a minute old, and is still answered while git.magicbean.dev is down; the rest of the API is always git.magicbean.dev's). A file asked of git.magicbean.dev, here or after the CDN failed, has `cdn=0` in its link, without which the server redirects it to `git-cdn.magicbean.dev` |
 | `LONGSHOT_LAUNCHER_NO_PREFETCH=1` | The build tools download only in a build's first step. Otherwise, with no builds yet, the newest version's tools on your channel start downloading as soon as the update check answers; an update's too, only when Settings' "Download the build tools of an update as soon as it is out" is on (off at first) |
 | `LONGSHOT_LAUNCHER_OFFLINE=1` | No update check |
@@ -310,18 +312,18 @@ screen adds or updates the scene that shows it.
 
 ```sh
 python -I tests/test_launcher_core.py [--longshot <checkout of Longshot>]
-python -I tests/test_release.py
+LAUNCHER=$PWD python -I ../Tooling/tests/test_release.py
 ```
 
 The first builds `tests/launcher_core`, which compiles the core with no package and checks it with no game, no network
 and no window. It covers the version order, the signed releases (signatures, channels, products, replays, hashes, against
-files `scripts/release.py` signed with a test key), the launcher's own update (download, self-check, swap, rollback, the
+files Tooling's `release.py` signed with a test key), the launcher's own update (download, self-check, swap, rollback, the
 recovery from a swap cut short, the portable zip), install, uninstall and the portable layouts (with a fake registry and fake
 shortcuts: the tests never touch the real ones), one launcher per home, a download that stalls, a save copy that fails half
 way, the
 saves against Longshot's `tests/test_longshot_saves.py` cases, the Hookshot import against fake saves, the NFC folder against fake tags made in the test, a tag scan against a fake controller, and the rest over
 temporary folders. With `--longshot`, it also checks the languages and the DLSS, FSR 4 and XeSS licence texts against
-Longshot's `make_game.py`, `ngx_sdk.py`, `ffx_sdk.py` and `xess_sdk.py` (XeSS's when that Longshot has it). The second checks `scripts/release.py` with keys it makes (it needs the
+Longshot's `make_game.py`, `ngx_sdk.py`, `ffx_sdk.py` and `xess_sdk.py` (XeSS's when that Longshot has it). The second checks Tooling's `release.py` with keys it makes (it needs the
 `openssl` command line). CI runs both and compiles with warnings as errors. Contributing: [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ### Translations
@@ -353,9 +355,25 @@ catalog is welcome as a pull request. Logs and *Copy for a bug report* stay in E
 
 Calls made here, most of them the design mockup's; each can be changed:
 
+- **On Linux, the data folder holds only what cannot be made again.** `~/.local/share/longshot/launcher` keeps the
+  settings, the list of builds, the logs and the versions' tools (`toolchains/`: a build is played, updated and reported
+  with its version's, 0.5 to 3 GB to download again, and an old version's may be gone); the build files (`work/`) and the
+  SDKs a build fetches (`ngx-sdk/`, `xess-sdk/`, `ffx-sdk/`) are in `~/.cache/longshot/launcher` (`$XDG_CACHE_HOME`;
+  `LauncherHome.Cache`). A launcher from before kept them in its home: the first start that holds the home moves each with
+  one rename (`LauncherHome.MoveToCache`), never a copy; one on another disk stays and is used where it is, and a build
+  files folder you chose stays yours. Without them a build is slower, never wrong. On Windows `%LOCALAPPDATA%` is not
+  roamed already, so they stay in `%LOCALAPPDATA%\LongshotLauncher`; a portable launcher and `LONGSHOT_LAUNCHER_HOME`
+  keep everything in their one folder.
+- **One folder of save backups.** New backups go to `save-backups` (`SaveEnvironment.BackupRoot`); the folders of before
+  (`oot-save-backups`, Linux's `longshot/save-backup`) are listed and restored from, never written, moved or emptied
+  (`SaveEnvironment.OldBackupRoots`).
+
 - **One save folder for every build.** The launcher starts each build with `--user %APPDATA%\Longshot` on Windows and
   `--user ~/.local/share/longshot` on Linux (`GamePlay.UserFolder`; not on Linux while the build's folder has a `user/` of
-  its own, which the game takes in itself), so an update or a new build starts where you left off. The saves builds kept in
+  its own, which the game takes in itself), so an update or a new build starts where you left off. The same `--user` for
+  every version: on Linux a newer game keeps its files in that folder's `user/`, moving them there itself at its first
+  start, an older one in the folder itself, and the launcher reads whichever the game uses (`SaveEnvironment.LongshotUser`:
+  `user/` once it is there; `LongshotRoot` is the folder passed). The saves builds kept in
   their own folders before are brought in once (`Saves.Gather`): the one with the newest progress is kept, all of them
   backed up, the old ones renamed aside and never deleted. Where one was, `user\save` becomes a link (a junction) to the shared
   save, and `Saves.LinkSaves` makes the same link in a build that has none, so a build started on its own on Windows (no

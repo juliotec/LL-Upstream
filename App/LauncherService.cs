@@ -430,11 +430,11 @@ public sealed class LauncherService
     }
 
     /// The settings file a build reads when the launcher starts it: the shared user folder's once there is one (a Longshot that
-    /// keeps its settings there made it, Longshot's host/options_path.c), else the build's own. Hookshot's settings are imported
-    /// into it
+    /// keeps its settings there made it, Longshot's host/options_path.c; on Linux in the user/ a newer Longshot moves them to,
+    /// SaveEnvironment.LongshotUser), else the build's own. Hookshot's settings are imported into it
     public string OptionsFileOf(string folder) =>
-        GamePlay.UserFolder(SaveEnv, folder) is { } user && File.Exists(Path.Combine(user, SettingsCarry.FileName))
-            ? Path.Combine(user, SettingsCarry.FileName) : Path.Combine(folder, SettingsCarry.FileName);
+        GamePlay.UserFolder(SaveEnv, folder) != null && Path.Combine(SaveEnv.LongshotUser, SettingsCarry.FileName) is var shared && File.Exists(shared)
+            ? shared : Path.Combine(folder, SettingsCarry.FileName);
 
     /// The game folders the builds kept their own saves and settings in: every build's, every Longshot game folder in the builds
     /// folder (a version an update replaced before it took its saves along is no longer listed, its files still there; only

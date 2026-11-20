@@ -84,34 +84,53 @@ public sealed record SaveEnvironment(Platform Platform, Func<string, string?> Ge
     /// (Windows) Longshot's user folder instead of LongshotUser's default (a portable launcher's own folder); null: the default
     public string? UserFolder { get; init; }
 
-    /// Longshot's user folder, the same for every build (the game's --user: save\&lt;user id&gt;\, its cache and its temp). On
-    /// Windows %APPDATA%\Longshot, which the launcher starts every build with; on Linux $XDG_DATA_HOME/longshot, where the game
-    /// keeps it by itself
-    public string LongshotUser => Path.GetFullPath(Platform == Platform.Windows
+    /// The folder every build is started with as --user (GamePlay.UserFolder), the same for every build and every version of the
+    /// game: %APPDATA%\Longshot on Windows (or a portable launcher's own folder), $XDG_DATA_HOME/longshot on Linux
+    public string LongshotRoot => Path.GetFullPath(Platform == Platform.Windows
         ? UserFolder ?? Path.Combine(AppData, "Longshot")
         : Path.Combine(Data, "longshot"));
+
+    /// (Linux) Where a Longshot that keeps its user files apart from the rest of LongshotRoot keeps them: LongshotRoot/user. Such a
+    /// game, given --user LongshotRoot, moves them there itself at its first start (save\, temp\, cache\, the settings, mods.json);
+    /// one from before keeps them in LongshotRoot itself. The launcher never makes this folder: the game does
+    public string LinuxUserFiles => Path.Combine(LongshotRoot, "user");
+
+    /// Longshot's user folder, the same for every build (save\&lt;user id&gt;\, the settings, its cache and its temp), where the
+    /// game keeps them now: LongshotRoot on Windows; on Linux LongshotRoot/user once a game has made it (LinuxUserFiles), else
+    /// LongshotRoot (no Longshot that keeps them apart has started yet). Worked out again at each use: the game moves them while
+    /// the launcher runs
+    public string LongshotUser => Platform != Platform.Windows && Directory.Exists(LinuxUserFiles) ? LinuxUserFiles : LongshotRoot;
 
     /// Longshot's save folder, the one every build shares: save\<user id>\ in LongshotUser (Open saves folder, the .zip's top
     /// folder, ImportTarget's parent)
     public string SaveFolder => Path.Combine(LongshotUser, "save");
 
-    /// Where the launcher's backups go: %LOCALAPPDATA%\Longshot\oot-save-backups on Windows (Longshot's scripts/longshot_saves.py
-    /// writes its own there too), $XDG_DATA_HOME/longshot/save-backup on Linux (since #80, beside the saves), or a portable
-    /// launcher's own folder. On Linux the script and the game's own backups (Longshot#1428) still go to OldLinuxBackups, as the
-    /// launcher's did before #80: BackupRoots lists both, so Restore from a backup finds them all (issue #188)
+    /// Where the launcher's backups go: one folder, save-backups, in %LOCALAPPDATA%\Longshot on Windows and in
+    /// $XDG_DATA_HOME/longshot on Linux (beside the user folder, never in it), or a portable launcher's own folder (its
+    /// save-backups too). The folders backups went to before are still read (OldBackupRoots), never written, moved or emptied
     public string BackupRoot => BackupFolder ?? (Platform == Platform.Windows
-        ? Path.Combine(LocalAppData, "Longshot", "oot-save-backups")
-        : Path.Combine(Data, "longshot", "save-backup"));
+        ? Path.Combine(LocalAppData, "Longshot", "save-backups")
+        : Path.Combine(Data, "longshot", "save-backups"));
+
+    /// The backups folders of before, read only: on Windows %LOCALAPPDATA%\Longshot\oot-save-backups (the launcher's and Longshot's
+    /// scripts/longshot_saves.py's); on Linux $XDG_DATA_HOME/longshot/save-backup (the launcher's from #80) and
+    /// $XDG_DATA_HOME/oot-save-backups (the launcher's before #80, the script's and the game's own, Longshot#1428). None for a
+    /// portable launcher, which only ever wrote its own folder
+    public IReadOnlyList<string> OldBackupRoots => BackupFolder != null ? Array.Empty<string>()
+        : Platform == Platform.Windows ? new[] { Path.Combine(LocalAppData, "Longshot", "oot-save-backups") }
+        : new[] { Path.Combine(Data, "longshot", "save-backup"), OldLinuxBackups };
 
     /// (Linux) $XDG_DATA_HOME/oot-save-backups: the launcher's backups before #80, Longshot's scripts/longshot_saves.py's, and the
     /// game's own (Longshot#1428). Read, never written by the launcher
     public string OldLinuxBackups => Path.Combine(Data, "oot-save-backups");
 
-    /// Every folder backups are read from, BackupRoot first: on Linux the old folder too (OldLinuxBackups); on Windows, and for a
-    /// portable launcher (its own folder only), BackupRoot alone. Nothing is moved between them
-    public IReadOnlyList<string> BackupRoots => Platform == Platform.Windows || BackupFolder != null
-        ? new[] { BackupRoot }
-        : new[] { BackupRoot, OldLinuxBackups };
+    /// Every folder backups are read from, BackupRoot first, then OldBackupRoots, so Restore from a backup finds them all (issue
+    /// #188). Nothing is moved between them
+    public IReadOnlyList<string> BackupRoots => new[] { BackupRoot }.Concat(OldBackupRoots).ToList();
+
+    /// The backups folder to show and open: BackupRoot once it is there, else the first older one that is (a player with no backup
+    /// made since the folder's name changed), else BackupRoot
+    public string ShownBackupRoot => BackupRoots.FirstOrDefault(Directory.Exists) ?? BackupRoot;
 
     /// longshot_saves.folders: a program's data folders on this platform, in the order they are tried
     public IReadOnlyList<string> FoldersOf(SaveProgram program) =>
@@ -124,7 +143,8 @@ public sealed record SaveEnvironment(Platform Platform, Func<string, string?> Ge
 /// The game's saves, the same files in Longshot and in the emulators and ports that run it (Longshot's docs/saves.md): found, summed up and
 /// copied one way after a backup. A port of scripts/longshot_saves.py, rule for rule (each piece names the function it mirrors), so
 /// that the launcher needs no Python and no installed tools for it. Every build shares one save folder
-/// (SaveEnvironment.LongshotUser: save\&lt;user id&gt;\ in %APPDATA%\Longshot on Windows, $XDG_DATA_HOME/longshot on Linux). Windows
+/// (SaveEnvironment.LongshotUser: save\&lt;user id&gt;\ in %APPDATA%\Longshot on Windows, $XDG_DATA_HOME/longshot/user on Linux, or
+/// $XDG_DATA_HOME/longshot itself until a Longshot that keeps its user files apart has started). Windows
 /// builds kept their own in their game folder (&lt;folder&gt;\user) before: Gather brings those into the shared one.
 public static class Saves
 {
@@ -150,7 +170,10 @@ public static class Saves
         new SaveProgram("nx2navi", "NX2navi", On(new[] { "{home}/Games/Ocarina" }, new[] { "{localappdata}/Programs/NX2navi/game", "C:/Games/Ocarina" }),
                         new[] { "nx2navi", "ocarina" }, Array.Empty<string>()),
     };
-    public static readonly SaveProgram Longshot = new("longshot", "Longshot", On(new[] { "{data}/longshot" }, new[] { "{appdata}/Longshot" }), new[] { "longshot" }, Array.Empty<string>());
+    // (Linux: the user folder a Longshot that keeps its user files apart moved them to, SaveEnvironment.LinuxUserFiles, first;
+    // then the folder an older one keeps them in itself)
+    public static readonly SaveProgram Longshot = new("longshot", "Longshot", On(new[] { "{data}/longshot/user", "{data}/longshot" }, new[] { "{appdata}/Longshot" }),
+                                                      new[] { "longshot" }, Array.Empty<string>());
     public static readonly SaveProgram Folder = new("folder", "the folder", On(Array.Empty<string>(), Array.Empty<string>()), Array.Empty<string>(), Array.Empty<string>());
     /// A .zip of saves (SaveArchive), unpacked into a folder of its own first: its import's backup is named import-zip-&lt;stamp&gt;
     public static readonly SaveProgram Zip = new("zip", "the .zip file", On(Array.Empty<string>(), Array.Empty<string>()), Array.Empty<string>(), Array.Empty<string>());

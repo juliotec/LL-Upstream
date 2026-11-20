@@ -84,14 +84,14 @@ One `mb/setup` job per event; filters are mutually exclusive (on `pipeline.event
 | `.circleci/mapping.conf` | path-filtering mapping |
 | `.circleci/gitleaks.toml` | Gitleaks (`mise`) |
 | `tests/test_launcher_core.py` | Python + C# harness; `--pinned` for Longshot pin |
-| `tests/test_release.py` | `scripts/release.py` harness (unittest; **pytest** + junitxml in CI) |
+| Tooling's `tests/test_release.py` | Tooling's `scripts/release.py` harness, at `.tooling-rev`, with `LAUNCHER` this checkout (unittest; **pytest** + junitxml in CI) |
 | `tests/longshot.ref` | Longshot commit for `--pinned` |
 
 Longshot checkout in jobs: sparse paths the contract reads → `git fetch --depth 1 --filter=blob:none origin <ref>` → `checkout FETCH_HEAD`.
 
 **Lint:** `mb/commit-subjects`, `mb/policy-check` (`shared`, `events-dir`, `forks`; Rego policies ship in the orb). YAML/JSON sanity uses `yq` and `jq`, not inline Python.
 
-**JUnit:** `release-scripts` runs `python -m pytest tests/test_release.py --junitxml=…` after `pip install --require-hashes -r tests/requirements-pytest.txt` (same as `mise run test`). `build-test` / `contract-longshot-main` use `test_launcher_core.py` as pass/fail job output only. The C# side is a console harness today; when it moves to xUnit, use `dotnet test --logger "junit;LogFilePath=..."` in CI.
+**JUnit:** `release-scripts` runs `python -m pytest <Tooling>/tests/test_release.py --junitxml=…` (Tooling cloned at `.tooling-rev`) after `pip install --require-hashes -r tests/requirements-pytest.txt` (same as `mise run test`). `build-test` / `contract-longshot-main` use `test_launcher_core.py` as pass/fail job output only. The C# side is a console harness today; when it moves to xUnit, use `dotnet test --logger "junit;LogFilePath=..."` in CI.
 
 ## Fork PR approval (sticky label)
 

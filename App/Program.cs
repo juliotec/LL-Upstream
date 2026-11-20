@@ -83,6 +83,7 @@ static class Program
         var installing = platform == Platform.Windows && !Uninstalling && Start.Ignored.Contains(Installer.InstallArgument);
         OpenLog(roll: !installing && !(!Uninstalling && Layout.OffersInstall(SelfUpdate.OwnTag(), Environment.GetEnvironmentVariable)));
         if (installing) return InstallNow();
+        if (!Uninstalling) MoveToCache();
         // (the Windows download started again once the launcher it installed has updated itself: that newer launcher starts, with
         // these arguments, in place of an offer to put this older one back over it. Installer.InstalledIsNewer, #129)
         if (!Uninstalling && Layout.OffersInstall(SelfUpdate.OwnTag(), Environment.GetEnvironmentVariable) && StartNewerInstalled(args)) return 0;
@@ -132,6 +133,24 @@ static class Program
         var kind = Layout.Kind switch { LauncherKind.Installed => "installed", LauncherKind.Portable => "portable", _ => "not installed" };
         LauncherLog.OpenFile(Home.Logs, $"Longshot Launcher {SelfUpdate.OwnTag()} ({kind}) started; {BugReport.System()}; home {Home.Root}"
                                         + (Args.Count > 0 ? "; arguments: " + string.Join(" ", Args) : ""), file: file, roll: roll);
+    }
+
+    /// (Linux) The build files and SDKs a launcher from before kept in its home, moved to the cache folder (LauncherHome.MoveToCache),
+    /// only while this launcher holds the home: no other launcher builds in them then. The build files' folder the player chose
+    /// stays where it is
+    static void MoveToCache()
+    {
+        if (hold == null) return;
+        try
+        {
+            var settings = LauncherSettings.Load(Home.Settings);
+            if (settings.Problem != null) return;   // (the folder chosen cannot be told: nothing moves until it can)
+            var chosen = settings.Work is { Length: > 0 } w ? Path.GetFullPath(w) : null;
+            foreach (var line in Home.MoveToCache(old => chosen != null && Path.TrimEndingDirectorySeparator(Path.GetFullPath(old))
+                                                                           .Equals(Path.TrimEndingDirectorySeparator(chosen), StringComparison.Ordinal)))
+                LauncherLog.Add("cache: " + line);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException) { LauncherLog.Add("cache: not moved: " + e.Message); }
     }
 
     static bool TakeLock()

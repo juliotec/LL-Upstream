@@ -153,8 +153,8 @@ public static class InstanceFolders
             throw new IOException("This folder is a link to another one, so the launcher leaves it as it is: " + move.From);
         if (BuildRegistry.Holds(from, LauncherHome.Home(getenv ?? Environment.GetEnvironmentVariable)))
             throw new IOException("This folder holds your home folder, so the launcher leaves it as it is: " + move.From);
-        if (saves != null && BuildRegistry.Holds(Saves.Real(from), Saves.Real(saves.LongshotUser)))
-            throw new IOException($"This folder holds {saves.LongshotUser}, Longshot's saves, so the launcher leaves it as it is: {move.From}");
+        if (saves != null && new[] { saves.LongshotRoot, saves.LongshotUser }.FirstOrDefault(u => BuildRegistry.Holds(Saves.Real(from), Saves.Real(u))) is { } held)
+            throw new IOException($"This folder holds {held}, Longshot's saves, so the launcher leaves it as it is: {move.From}");
         if (Path.Exists(move.To)) throw new IOException("A folder of that name is there already: " + move.To);
         if (Parent(move.To) is { } into && !BuildRegistry.SameFolder(into, from) && Directory.Exists(into)
             && (registry.FindByFolder(into) != null || GameFolder.IsGameFolder(into, platform)))

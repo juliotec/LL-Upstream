@@ -219,12 +219,14 @@ jobs:
           repo-url: "https://git.magicbean.dev/MagicBeanDev/LongshotLauncher.git"
       - mise-tools
       - run:
-          name: tests/test_release.py (pytest junit)
+          name: Tooling's tests/test_release.py, at .tooling-rev, on this repository (pytest junit)
           command: |
             set -euo pipefail
             python -m pip install --disable-pip-version-check --require-hashes -r tests/requirements-pytest.txt
+            git clone -q https://git.magicbean.dev/MagicBeanDev/Tooling.git .mb-tooling
+            git -C .mb-tooling checkout -q --detach "$(cat .tooling-rev)"
             mkdir -p test-results/release
-            python -m pytest tests/test_release.py --junitxml=test-results/release/junit.xml
+            LAUNCHER="$PWD" python -m pytest .mb-tooling/tests/test_release.py --junitxml=test-results/release/junit.xml
           no_output_timeout: 15m
       - store_test_results:
           path: test-results
@@ -318,7 +320,7 @@ jobs:
             git fetch -q --filter=blob:none --unshallow origin || true
             git fetch -q origin main:refs/remotes/origin/main '+refs/tags/*:refs/tags/*'
       - run:
-          name: Release name (scripts/release.py)
+          name: Release name (Tooling's scripts/release.py)
           command: |
             set -euo pipefail
             mkdir -p /tmp/ws
@@ -333,10 +335,13 @@ jobs:
             elif [[ -n "$circle_tag" && "$circle_tag" == v* ]]; then
               tag="$circle_tag"
             fi
-            mkdir -p .mb-main
-            git show origin/main:scripts/release.py > .mb-main/release.py
+            # (Tooling's release.py at main's .tooling-rev, so a branch cannot change the release for itself; the branch's
+            # own pin until main has one)
+            rev=$(git show origin/main:.tooling-rev 2>/dev/null || cat .tooling-rev)
+            git clone -q https://git.magicbean.dev/MagicBeanDev/Tooling.git .mb-tooling
+            git -C .mb-tooling checkout -q --detach "$rev"
             if [[ -n "$tag" ]]; then
-              python3 -I .mb-main/release.py check-tag "$tag" --main origin/main
+              python3 -I .mb-tooling/scripts/release.py check-tag "$tag" --main origin/main
             elif [[ "${CIRCLE_BRANCH:-}" == "main" || "<< pipeline.parameters.nightly >>" == "true" ]]; then
               head=$(git rev-parse origin/main)
               if [[ "$head" != "$ref" ]]; then
@@ -344,7 +349,7 @@ jobs:
                 tag=""
                 skip=1
               else
-                tag=$(python3 -I .mb-main/release.py nightly-name)
+                tag=$(python3 -I .mb-tooling/scripts/release.py nightly-name)
               fi
             else
               tag=""
