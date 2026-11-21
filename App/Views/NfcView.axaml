@@ -37,11 +37,16 @@
         <!-- what the last add skipped or renamed, each file by name; or why a scan saved nothing -->
         <ScrollViewer Grid.Row="1" MaxHeight="120" Margin="0,0,0,10" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" IsVisible="{Binding HasReport}">
           <Border Classes="warnbox" Margin="0">
-            <ItemsControl ItemsSource="{Binding Report}">
-              <ItemsControl.ItemTemplate>
-                <DataTemplate x:DataType="x:String"><TextBlock Text="{Binding}" TextWrapping="Wrap"/></DataTemplate>
-              </ItemsControl.ItemTemplate>
-            </ItemsControl>
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+              <Border Classes="boxicon">
+                <c:Icon Kind="alert" Width="13" Height="13" Foreground="{StaticResource Warn}"/>
+              </Border>
+              <ItemsControl Grid.Column="1" ItemsSource="{Binding Report}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="x:String"><TextBlock Text="{Binding}" TextWrapping="Wrap"/></DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </Grid>
           </Border>
         </ScrollViewer>
         <!-- the list scrolls inside its card, so the card always ends with its own edge -->

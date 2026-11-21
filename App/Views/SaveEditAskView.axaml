@@ -77,7 +77,12 @@
         <TextBlock Classes="faint" Text="{c:T 'Asking the save editor…'}" VerticalAlignment="Center"/>
       </StackPanel>
       <Border Classes="warnbox" IsVisible="{Binding HasProblem}">
-        <TextBlock Text="{Binding Problem}" TextWrapping="Wrap"/>
+        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+          <Border Classes="boxicon">
+            <c:Icon Kind="alert" Width="13" Height="13" Foreground="{StaticResource Warn}"/>
+          </Border>
+          <TextBlock Grid.Column="1" Text="{Binding Problem}" TextWrapping="Wrap"/>
+        </Grid>
       </Border>
       <StackPanel Classes="buttons">
         <Button Content="{c:T 'Cancel'}" Command="{Binding CancelCommand}" c:Pad.Back="True"/>

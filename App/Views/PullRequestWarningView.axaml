@@ -25,7 +25,9 @@
                  Text="{c:T 'A pull request is a change someone proposed for Longshot. It is not in a release yet: this launcher builds its code on your PC and runs it, and it may have bugs, crash, or be changed again soon.'}"/>
       <Border Classes="warnbox">
         <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
-          <c:Icon Kind="disk" Width="15" Height="15" Foreground="{StaticResource Warn}" VerticalAlignment="Top" Margin="0,2,0,0"/>
+          <Border Classes="boxicon">
+            <c:Icon Kind="disk" Width="13" Height="13" Foreground="{StaticResource Warn}"/>
+          </Border>
           <TextBlock Grid.Column="1" TextWrapping="Wrap"
                      Text="{c:T 'Your saves are shared with your other versions, and a change can damage them. Export them first from Manage saves to keep a copy.'}"/>
         </Grid>

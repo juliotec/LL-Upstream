@@ -36,18 +36,28 @@
         <TextBlock Classes="mono path" Text="{Binding TargetPath}" IsVisible="{Binding HasTarget}" TextWrapping="Wrap" Margin="0,6,0,0"/>
         <TextBlock Classes="note" Text="{Binding FilesText}" IsVisible="{Binding HasFiles}" TextWrapping="Wrap" Margin="0,12,0,0"/>
         <Border Classes="warnbox" IsVisible="{Binding HasPreview}">
-          <StackPanel Spacing="6">
-            <TextBlock Text="{c:T 'Hookshot\'s graphics and controls replace the same settings in this version\'s longshot_options.ini; its other settings stay as they are. The game language replaces this version\'s. Hookshot keeps its originals. Saves are imported separately.'}" TextWrapping="Wrap"/>
-            <TextBlock Text="{Binding LanguageText}" IsVisible="{Binding HasLanguageText}" TextWrapping="Wrap"/>
-            <TextBlock Text="{Binding BackupText}" TextWrapping="Wrap"/>
-          </StackPanel>
+          <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+            <Border Classes="boxicon">
+              <c:Icon Kind="alert" Width="13" Height="13" Foreground="{StaticResource Warn}"/>
+            </Border>
+            <StackPanel Grid.Column="1" Spacing="6">
+              <TextBlock Text="{c:T 'Hookshot\'s graphics and controls replace the same settings in this version\'s longshot_options.ini; its other settings stay as they are. The game language replaces this version\'s. Hookshot keeps its originals. Saves are imported separately.'}" TextWrapping="Wrap"/>
+              <TextBlock Text="{Binding LanguageText}" IsVisible="{Binding HasLanguageText}" TextWrapping="Wrap"/>
+              <TextBlock Text="{Binding BackupText}" TextWrapping="Wrap"/>
+            </StackPanel>
+          </Grid>
         </Border>
         <TextBlock Classes="hint" Text="{Binding SkippedText}" IsVisible="{Binding HasSkipped}" TextWrapping="Wrap" Margin="0,8,0,0"/>
         <Border Classes="warnbox" IsVisible="{Binding HasProblem}">
-          <StackPanel Spacing="4">
-            <TextBlock Text="{Binding Problem}" TextWrapping="Wrap"/>
-            <Button Classes="link soft" HorizontalAlignment="Left" Content="{c:T 'Copy for a bug report'}" Command="{Binding CopyCommand}"/>
-          </StackPanel>
+          <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+            <Border Classes="boxicon">
+              <c:Icon Kind="alert" Width="13" Height="13" Foreground="{StaticResource Warn}"/>
+            </Border>
+            <StackPanel Grid.Column="1" Spacing="4">
+              <TextBlock Text="{Binding Problem}" TextWrapping="Wrap"/>
+              <Button Classes="link soft" HorizontalAlignment="Left" Content="{c:T 'Copy for a bug report'}" Command="{Binding CopyCommand}"/>
+            </StackPanel>
+          </Grid>
         </Border>
       </StackPanel>
     </ScrollViewer>

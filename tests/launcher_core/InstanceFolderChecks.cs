@@ -23,8 +23,9 @@ static partial class Program
     }
 
     /// The home's layout in its source, at 960x600 with a banner over it: the scroll bar has a gutter of its own (Fluent draws it over
-    /// the content's edge), the title is on a row of its own so both columns start level and from the top, and every top banner is
-    /// a title and one line, the rest under Details (a toggle, not a tooltip only: a touch screen reaches it)
+    /// the content's edge), the title is on a row of its own so both columns start level and from the top, and every top card is
+    /// one style (Border.offer: an icon in a circle, a title, its whole text, a quiet link and one strong button), nothing cut to a
+    /// line; the old-layout offer's list of folders alone is under a toggle (not a tooltip only: a touch screen reaches it)
     static void HomeLayoutSourceChecks(string repo)
     {
         var view = File.ReadAllText(Path.Combine(repo, "App", "Views", "HomeView.axaml"));
@@ -35,11 +36,16 @@ static partial class Program
                 && view.Contains("<StackPanel Grid.Row=\"1\" VerticalAlignment=\"Top\">")
                 && view.Contains("<StackPanel Grid.Row=\"1\" Grid.Column=\"1\" VerticalAlignment=\"Top\""),
                 "The title has a row of its own and both columns start from the top, level.");
-        foreach (var more in new[] { "LauncherMore", "HookshotMore", "Nx2naviMore", "LeftoverMore", "RenameMore", "NoticeMore" })
-            Require(view.Contains($"x:Name=\"{more}\" Classes=\"details\"") && view.Contains($"IsVisible=\"{{Binding !#{more}.IsChecked}}\""),
-                    $"A home banner is one line with Details ({more}).");
-        Require(System.Text.RegularExpressions.Regex.Matches(view, "MaxLines=\"1\" TextTrimming=\"CharacterEllipsis\"").Count >= 6,
-                "Each banner's line is one line, cut with an ellipsis.");
+        foreach (var has in new[] { "HasLauncherUpdate", "HasHookshotOffer", "HasNx2naviOffer", "HasInstalledOffer", "HasLeftoverOffer", "HasRenameOffer" })
+            Require(view.Contains($"<Border DockPanel.Dock=\"Top\" Classes=\"offer\" IsVisible=\"{{Binding {has}}}\">"),
+                    $"A home card has the one card style ({has}).");
+        Require(view.Contains("<Border DockPanel.Dock=\"Top\" Classes=\"offer warn\" IsVisible=\"{Binding HasNotice}\">"),
+                "A problem is the same card, in the warning's colour.");
+        Require(!view.Contains("MaxLines=\"1\" TextTrimming=\"CharacterEllipsis\""), "No card's text is cut to one line.");
+        Require(view.Contains("x:Name=\"RenameMore\" Classes=\"details\"") && view.Contains("IsVisible=\"{Binding #RenameMore.IsChecked}\""),
+                "The old-layout offer's folders are under a toggle.");
+        Require(System.Text.RegularExpressions.Regex.Matches(view, "<Button Classes=\"small primary\"").Count >= 6,
+                "Each offer has one strong button.");
         HomeUpdateSourceChecks(repo, view);
     }
 

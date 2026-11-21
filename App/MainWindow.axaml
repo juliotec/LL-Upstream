@@ -231,10 +231,14 @@
                    HorizontalAlignment="Center" VerticalAlignment="Center"/>
       </Border>
 
-      <Border IsVisible="{Binding HasToast}" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,18" Padding="16,10"
-              CornerRadius="8" Background="{StaticResource Raised}" BorderBrush="{StaticResource LineStrong}" BorderThickness="1"
-              BoxShadow="0 12 30 0 #66000000" IsHitTestVisible="False">
-        <TextBlock Text="{Binding Toast}" FontSize="13"/>
+      <Border Classes="toast" IsVisible="{Binding HasToast}" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,18"
+              IsHitTestVisible="False">
+        <StackPanel Orientation="Horizontal" Spacing="10">
+          <Border Width="24" Height="24" CornerRadius="12" Background="#403D63E6">
+            <c:Icon Kind="info" Width="13" Height="13" Foreground="{StaticResource InfoInk}"/>
+          </Border>
+          <TextBlock Text="{Binding Toast}" FontSize="13" VerticalAlignment="Center"/>
+        </StackPanel>
       </Border>
     </Panel>
     </LayoutTransformControl>

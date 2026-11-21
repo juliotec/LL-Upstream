@@ -58,8 +58,8 @@
       <StackPanel IsVisible="{Binding HasProblem}" VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="560" Spacing="10">
         <Border Classes="warnbox">
           <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
-            <Border Width="18" Height="18" CornerRadius="9" Background="#33E2B86B" VerticalAlignment="Top" Margin="0,1,0,0">
-              <c:Icon Kind="alert" Width="18" Height="18" Foreground="{StaticResource Warn}"/>
+            <Border Classes="boxicon">
+              <c:Icon Kind="alert" Width="13" Height="13" Foreground="{StaticResource Warn}"/>
             </Border>
             <TextBlock Grid.Column="1" Text="{Binding Problem}" TextWrapping="Wrap"/>
           </Grid>

@@ -146,7 +146,7 @@ static class Program
         new("home-banner-nx2navi", "The home offering to import NX2navi's saves", Platform.Windows, UpdateOffered, _ => null,
             m => m.Home.Nx2naviOffer = @"Found 2 slots, the last saved yesterday at 21:40, in C:\Users\Player\AppData\Local\Programs\NX2navi\game. " +
                                        "Copy them into Longshot? The originals stay where they are."),
-        new("home-banner-details", "The home's old-layout offer with Details pressed: the whole text", Platform.Linux,
+        new("home-banner-details", "The home's old-layout offer with Which folders pressed: the folders and what a move keeps", Platform.Linux,
             s =>
             {
                 s.Registry.Add("/home/player/Games/Longshot/v3.0.0-rc.5", "v3.0.0", Versions.Stable, makeDefault: true);

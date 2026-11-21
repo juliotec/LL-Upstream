@@ -36,15 +36,22 @@
         <!-- the question before a Longshot save is replaced -->
         <Border Classes="warnbox" IsVisible="{Binding Asking}">
           <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
-            <c:Icon Kind="alert" Width="18" Height="18" Foreground="{StaticResource Warn}" VerticalAlignment="Top"/>
+            <Border Classes="boxicon">
+              <c:Icon Kind="alert" Width="13" Height="13" Foreground="{StaticResource Warn}"/>
+            </Border>
             <TextBlock Grid.Column="1" Text="{Binding AskText}" TextWrapping="Wrap"/>
           </Grid>
         </Border>
         <Border Classes="warnbox" IsVisible="{Binding HasProblem}">
-          <StackPanel Spacing="4">
-            <TextBlock Text="{Binding Problem}" TextWrapping="Wrap"/>
-            <Button Classes="link soft" HorizontalAlignment="Left" Content="{c:T 'Copy for a bug report'}" Command="{Binding CopyCommand}"/>
-          </StackPanel>
+          <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+            <Border Classes="boxicon">
+              <c:Icon Kind="alert" Width="13" Height="13" Foreground="{StaticResource Warn}"/>
+            </Border>
+            <StackPanel Grid.Column="1" Spacing="4">
+              <TextBlock Text="{Binding Problem}" TextWrapping="Wrap"/>
+              <Button Classes="link soft" HorizontalAlignment="Left" Content="{c:T 'Copy for a bug report'}" Command="{Binding CopyCommand}"/>
+            </StackPanel>
+          </Grid>
         </Border>
         <StackPanel Classes="buttons" Margin="0,16,0,0" IsVisible="{Binding Listing}">
           <Button Content="{c:T 'Import graphics and controls…'}" Command="{Binding SettingsCommand}"/>

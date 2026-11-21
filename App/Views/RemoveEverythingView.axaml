@@ -37,8 +37,13 @@
         <CheckBox Classes="tick" Margin="0,10,0,0" IsChecked="{Binding Saves}">
           <TextBlock Text="{Binding SavesLabel}" TextWrapping="Wrap"/>
         </CheckBox>
-        <Border Classes="warnbox" Margin="0,6,0,0" Padding="12,8" IsVisible="{Binding Saves}">
-          <TextBlock Text="{Binding SavesWarning}" FontSize="13" TextWrapping="Wrap"/>
+        <Border Classes="warnbox" Margin="0,6,0,0" IsVisible="{Binding Saves}">
+          <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+            <Border Classes="boxicon">
+              <c:Icon Kind="alert" Width="13" Height="13" Foreground="{StaticResource Warn}"/>
+            </Border>
+            <TextBlock Grid.Column="1" Text="{Binding SavesWarning}" FontSize="13" TextWrapping="Wrap"/>
+          </Grid>
         </Border>
       </StackPanel>
       <!-- done: what is left, and what the player still does -->

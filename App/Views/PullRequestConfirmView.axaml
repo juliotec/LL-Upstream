@@ -13,12 +13,17 @@
       </StackPanel>
       <TextBlock Classes="sub" Margin="0,8,0,0" Text="{Binding Sub}" TextWrapping="Wrap"/>
       <Border Classes="badbox">
-        <StackPanel Spacing="8">
-          <TextBlock TextWrapping="Wrap" FontWeight="SemiBold"
-                     Text="{c:T 'Nobody who reviews Longshot has looked at this code.'}"/>
-          <TextBlock TextWrapping="Wrap"
-                     Text="{c:T 'Building it runs its scripts on your PC, and playing it runs its game, with the same rights as you: they could read, change or delete your files. Build it only if you know and trust its author.'}"/>
-        </StackPanel>
+        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+          <Border Classes="boxicon">
+            <c:Icon Kind="alert" Width="13" Height="13" Foreground="{StaticResource Bad}"/>
+          </Border>
+          <StackPanel Grid.Column="1" Spacing="8">
+            <TextBlock TextWrapping="Wrap" FontWeight="SemiBold"
+                       Text="{c:T 'Nobody who reviews Longshot has looked at this code.'}"/>
+            <TextBlock TextWrapping="Wrap"
+                       Text="{c:T 'Building it runs its scripts on your PC, and playing it runs its game, with the same rights as you: they could read, change or delete your files. Build it only if you know and trust its author.'}"/>
+          </StackPanel>
+        </Grid>
       </Border>
       <TextBlock Classes="hint" Margin="0,12,0,0" TextWrapping="Wrap"
                  Text="{c:T 'To have it checked first, ask a BigBean to approve it for the Test Farm on its page.'}"/>

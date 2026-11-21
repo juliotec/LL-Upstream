@@ -62,8 +62,8 @@
         </Grid>
         <Border Classes="warnbox" Margin="0,14,0,0">
           <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
-            <Border Width="18" Height="18" CornerRadius="9" Background="#33E2B86B" VerticalAlignment="Top" Margin="0,1,0,0">
-              <c:Icon Kind="alert" Width="18" Height="18" Foreground="{StaticResource Warn}"/>
+            <Border Classes="boxicon">
+              <c:Icon Kind="alert" Width="13" Height="13" Foreground="{StaticResource Warn}"/>
             </Border>
             <TextBlock Grid.Column="1" Text="{Binding Replaced}" TextWrapping="Wrap"/>
           </Grid>

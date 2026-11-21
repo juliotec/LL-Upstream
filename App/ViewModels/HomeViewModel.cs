@@ -895,21 +895,17 @@ public sealed class HomeViewModel : ViewModelBase
     public Command KeepNamesCommand { get; }
     public Command RenameFoldersCommand { get; }
 
-    /// The banner's one line: how many, where Move puts them, and that saves and settings go with them (the rest: RenameOffer,
-    /// under Details)
+    /// The card's line: how many, where Move puts them, and that saves, settings and mods go with them (which folders: RenameMoves,
+    /// under Which folders)
     public string RenameSummary => renames.Count == 0 ? "" :
-        Tr.P(renames.Count, "Your instance uses the old folder layout. Move puts it in {1}; saves and settings go with it.",
-             "{0} instances use the old folder layout. Move puts them in {1}; saves and settings go with them.",
+        Tr.P(renames.Count, "Your instance uses the old folder layout. Move puts it in {1}, with its saves, settings and mods.",
+             "{0} instances use the old folder layout. Move puts them in {1}, with their saves, settings and mods.",
              Path.Combine("<track>", "<version>"));
 
-    /// Which folders, where they would go, and what a move keeps
-    public string RenameOffer => renames.Count == 0 ? "" : Tr.Sentences(
-        Tr.P(renames.Count,
-             "Your instance in {1} is in the old folder layout. New instances go in their track's folder, named after their version, and are renamed when they update.",
-             "{0} of your instances are in the old folder layout: {1}. New instances go in their track's folder, named after their version, and are renamed when they update.",
-             string.Join(Tr.T(", "), renames.Select(m => m.FromName))),
-        Tr.F("Move puts them there ({0}). Saves, settings, shader caches and mods go with them, and the launcher's shortcuts keep working. A shortcut or Steam entry you made to the game's own program needs making again.",
-             string.Join(Tr.T(", "), renames.Select(m => m.ToName))));
+    /// Which folders go where, one line each ("v3.0.0-rc.5 → stable/v3.0.0"), under Which folders
+    public IReadOnlyList<string> RenameMoves => renames.Select(m => $"{m.FromName}  →  {m.ToName}").ToList();
+    /// The one thing a move does not take care of, under the list
+    public string RenameCaveat => Tr.T("A shortcut or Steam entry you made yourself to the game's program needs making again.");
 
     /// Looks for them once, as the home opens
     void OfferRenames()
@@ -924,7 +920,7 @@ public sealed class HomeViewModel : ViewModelBase
     public void ShowRenames(IReadOnlyList<InstanceFolders.Move> found)
     {
         renames = found;
-        RaiseAll(nameof(HasRenameOffer), nameof(RenameSummary), nameof(RenameOffer));
+        RaiseAll(nameof(HasRenameOffer), nameof(RenameSummary), nameof(RenameMoves));
     }
 
     /// Keep: they stay where they are, and are not offered again

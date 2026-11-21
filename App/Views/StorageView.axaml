@@ -165,10 +165,15 @@
             </Grid>
             <TextBlock Text="{Binding GroupAbout}" Foreground="{StaticResource InkSoft}" TextWrapping="Wrap"/>
             <Border Classes="badbox" Margin="0" IsVisible="{Binding ConfirmingAll}">
-              <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
-                <TextBlock Text="{Binding ConfirmAllText}" TextWrapping="Wrap" VerticalAlignment="Center"/>
-                <Button Grid.Column="1" Classes="bad" Content="{c:T 'Remove'}" Command="{Binding RemoveAllCommand}"/>
-                <Button Grid.Column="2" Content="{c:T 'Cancel'}" Command="{Binding CancelCommand}"/>
+              <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                <Border Classes="boxicon">
+                  <c:Icon Kind="alert" Width="13" Height="13" Foreground="{StaticResource Bad}"/>
+                </Border>
+                <Grid Grid.Column="1" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
+                  <TextBlock Text="{Binding ConfirmAllText}" TextWrapping="Wrap" VerticalAlignment="Center"/>
+                  <Button Grid.Column="1" Classes="bad" Content="{c:T 'Remove'}" Command="{Binding RemoveAllCommand}"/>
+                  <Button Grid.Column="2" Content="{c:T 'Cancel'}" Command="{Binding CancelCommand}"/>
+                </Grid>
               </Grid>
             </Border>
             <StackPanel Spacing="4" IsVisible="{Binding IsFasterUpdates}">
@@ -197,10 +202,15 @@
                                 AutomationProperties.Name="{Binding RemoveName}" VerticalAlignment="Center"/>
                       </Grid>
                       <Border Classes="badbox" Margin="0" IsVisible="{Binding Confirming}">
-                        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
-                          <TextBlock Text="{Binding ConfirmText}" FontSize="13" TextWrapping="Wrap" VerticalAlignment="Center"/>
-                          <Button Grid.Column="1" Classes="bad" Content="{c:T 'Remove'}" Command="{Binding Remove}"/>
-                          <Button Grid.Column="2" Content="{c:T 'Cancel'}" Command="{Binding Cancel}"/>
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                          <Border Classes="boxicon">
+                            <c:Icon Kind="alert" Width="13" Height="13" Foreground="{StaticResource Bad}"/>
+                          </Border>
+                          <Grid Grid.Column="1" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
+                            <TextBlock Text="{Binding ConfirmText}" FontSize="13" TextWrapping="Wrap" VerticalAlignment="Center"/>
+                            <Button Grid.Column="1" Classes="bad" Content="{c:T 'Remove'}" Command="{Binding Remove}"/>
+                            <Button Grid.Column="2" Content="{c:T 'Cancel'}" Command="{Binding Cancel}"/>
+                          </Grid>
                         </Grid>
                       </Border>
                     </StackPanel>
@@ -223,7 +233,12 @@
             <TextBlock Classes="faint" Text="{c:T 'Build files'}" Margin="0,6,0,0"/>
             <TextBox Classes="path" Text="{Binding Work, Mode=OneWay}" IsReadOnly="True" AutomationProperties.Name="{c:T 'Build files'}"/>
             <Border Classes="warnbox" IsVisible="{Binding WorkElsewhere}" Margin="0,6,0,0">
-              <TextBlock Text="{Binding WorkElsewhereText}" FontSize="13" TextWrapping="Wrap"/>
+              <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                <Border Classes="boxicon">
+                  <c:Icon Kind="alert" Width="13" Height="13" Foreground="{StaticResource Warn}"/>
+                </Border>
+                <TextBlock Grid.Column="1" Text="{Binding WorkElsewhereText}" FontSize="13" TextWrapping="Wrap"/>
+              </Grid>
             </Border>
           </StackPanel>
         </Border>

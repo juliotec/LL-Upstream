@@ -903,10 +903,10 @@
     <!-- a stronger warning box: a pull request nobody approved -->
     <Style Selector="Border.badbox">
       <Setter Property="Background" Value="{StaticResource BadSoft}"/>
-      <Setter Property="BorderBrush" Value="#44E2776B"/>
+      <Setter Property="BorderBrush" Value="#55E2776B"/>
       <Setter Property="BorderThickness" Value="1"/>
-      <Setter Property="CornerRadius" Value="8"/>
-      <Setter Property="Padding" Value="12,10"/>
+      <Setter Property="CornerRadius" Value="10"/>
+      <Setter Property="Padding" Value="14,12"/>
       <Setter Property="Margin" Value="0,16,0,0"/>
       <Setter Property="TextElement.FontSize" Value="13"/>
     </Style>
@@ -914,12 +914,37 @@
     <!-- a warning box -->
     <Style Selector="Border.warnbox">
       <Setter Property="Background" Value="{StaticResource WarnSoft}"/>
-      <Setter Property="BorderBrush" Value="#33E2B86B"/>
+      <Setter Property="BorderBrush" Value="#55E2B86B"/>
       <Setter Property="BorderThickness" Value="1"/>
-      <Setter Property="CornerRadius" Value="8"/>
-      <Setter Property="Padding" Value="12,10"/>
+      <Setter Property="CornerRadius" Value="10"/>
+      <Setter Property="Padding" Value="14,12"/>
       <Setter Property="Margin" Value="0,16,0,0"/>
       <Setter Property="TextElement.FontSize" Value="13"/>
+    </Style>
+
+    <!-- a warning box's icon: a small circle in the box's colour, centred on the text beside it (the Home cards' offericon, smaller) -->
+    <Style Selector="Border.boxicon">
+      <Setter Property="Width" Value="22"/>
+      <Setter Property="Height" Value="22"/>
+      <Setter Property="CornerRadius" Value="11"/>
+      <Setter Property="Background" Value="#33E2B86B"/>
+      <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+    <!-- (a box's text beside its icon: centred on it, so one line sits level with the icon) -->
+    <Style Selector="Border.warnbox > Grid > TextBlock, Border.badbox > Grid > TextBlock">
+      <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+    <Style Selector="Border.badbox Border.boxicon">
+      <Setter Property="Background" Value="#33E2776B"/>
+    </Style>
+    <!-- a toast: a raised card with its icon in a circle -->
+    <Style Selector="Border.toast">
+      <Setter Property="Padding" Value="10,8,16,8"/>
+      <Setter Property="CornerRadius" Value="12"/>
+      <Setter Property="Background" Value="{StaticResource Raised}"/>
+      <Setter Property="BorderBrush" Value="#553D63E6"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="BoxShadow" Value="0 12 30 0 #66000000"/>
     </Style>
 
     <Style Selector="ToolTip">
