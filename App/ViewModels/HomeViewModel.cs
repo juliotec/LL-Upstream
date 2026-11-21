@@ -1366,6 +1366,17 @@ public sealed class DeleteViewModel : ViewModelBase
                 service.SetDefault(rel);
             Main.ShowToast(Freed(entry) is long b && files ? Tr.F("Deleted {0}, {1} freed.", build.Version, Durations.Size(b)) : Tr.F("Deleted {0}.", build.Version));
             Main.Home.Refresh();
+            // (the last version gone: the build files it left, often many GB, offered to go too (asked from Storage, the page
+            // lists them itself, under Faster updates). Measured off the window's thread: objcache is thousands of files)
+            if (began == null && service.Registry.Builds.Count == 0)
+            {
+                var work = service.Work;
+                long left = 0;
+                try { left = await Task.Run(() => Storage.LeftAfterLast(work, service.Registry.Builds.Count)); }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.Security.SecurityException) { }
+                if (left > 0 && Main.Modal == null && !Main.InWizard && service.Registry.Builds.Count == 0)
+                    Main.Modal = new BuildFilesViewModel(Main, work, left);
+            }
             return true;
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
@@ -1374,5 +1385,56 @@ public sealed class DeleteViewModel : ViewModelBase
         }
         Main.Home.Refresh();
         return false;
+    }
+}
+
+/// After the last version went (Home's delete): the build files left in the build files folder (compiled code, translations
+/// and their stores: often many GB), deleted too or kept. Only what make_game made goes (Disk.FreeWork), never the folder
+/// itself, which the player may have chosen and which may hold other things; saves and their backups are never in it. Kept,
+/// the Storage page frees them later (Faster updates)
+public sealed class BuildFilesViewModel : ViewModelBase
+{
+    readonly string work;
+    readonly long bytes;
+    bool deleting;
+
+    public BuildFilesViewModel(MainViewModel main, string work, long bytes)
+    {
+        Main = main;
+        this.work = work;
+        this.bytes = bytes;
+        KeepCommand = new Command(() => Main.Modal = null, () => !deleting);
+        DeleteCommand = new Command(() => _ = DeleteAsync(), () => !deleting);
+    }
+
+    public MainViewModel Main { get; }
+    public string Title => Tr.T("Delete the build files too?");
+    public string Sub => Tr.F("No version is installed now, but the files your builds made are still here, {0}:", Durations.Size(bytes));
+    public string Folder => ShownPath.Of(work);
+    public string FolderFull => work;
+    public string Note => Tr.T("They only make the next build quicker: none of it is needed to play. Kept, you can free them later in Storage.");
+    public string DeleteLabel => deleting ? Tr.T("Deleting…") : Tr.T("Delete them");
+
+    public Command KeepCommand { get; }
+    public Command DeleteCommand { get; }
+
+    /// The dialog stays until they are gone, so that no build starts on the folder meanwhile
+    async Task DeleteAsync()
+    {
+        deleting = true;
+        KeepCommand.Changed();
+        DeleteCommand.Changed();
+        Raise(nameof(DeleteLabel));
+        try
+        {
+            await Task.Run(() => Disk.FreeWork(work));
+            Main.StorageMeasured = null;
+            Main.ShowToast(Tr.F("Deleted the build files, {0} freed.", Durations.Size(bytes)));
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.Security.SecurityException)
+        {
+            Main.Home.Notice = Tr.F("Some build files could not be deleted: {0} Storage can try again.", e.Message);
+        }
+        finally { Main.Modal = null; }
     }
 }

@@ -205,6 +205,7 @@
           <ContentControl.DataTemplates>
             <DataTemplate DataType="vm:ChannelPickerViewModel"><views:ChannelPickerView/></DataTemplate>
             <DataTemplate DataType="vm:DeleteViewModel"><views:DeleteView/></DataTemplate>
+            <DataTemplate DataType="vm:BuildFilesViewModel"><views:BuildFilesView/></DataTemplate>
             <DataTemplate DataType="vm:LicenceViewModel"><views:LicenceView/></DataTemplate>
             <DataTemplate DataType="vm:StopBuildViewModel"><views:StopBuildView/></DataTemplate>
             <DataTemplate DataType="vm:SavePickViewModel"><views:SavePickView/></DataTemplate>

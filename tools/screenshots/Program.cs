@@ -250,6 +250,8 @@ static class Program
             m => m.Modal = new PullRequestConfirmViewModel(m, new PullRequestBuild(m.Service.PullRequestOf(1571)!, JobKind.Build, null))),
         new("pr-find", "Find a pull request by its number or link", Platform.Linux, PullRequestsListed, _ => null,
             m => m.Modal = new PullRequestFindViewModel(m) { Text = "https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/1571" }),
+        new("build-files-left", "The last version deleted: its build files offered to go too, or kept for Storage to free later", Platform.Linux,
+            null, _ => null, m => m.Modal = new BuildFilesViewModel(m, m.Service.Work, 23L << 30)),
         new("home-go-back", "An older nightly picked: Go back to it, built in the nightly build's place", Platform.Windows, NightliesListed,
             _ => null, m => m.Home.PickVersion = m.Home.TrackVersions.First(v => v.Tag == "nightly-187-9e6f231d")),
         new("home-build-track", "A track with no build picked: Build its newest, into a folder of its own", Platform.Windows,

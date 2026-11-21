@@ -83,7 +83,7 @@ static partial class Program
         CommandChecks();
         GamescopeChecks();
         ShaderCacheChecks();
-        StorageChecks();
+        StorageChecks(Path.GetFullPath(Path.Combine(fixtures, "..", "..")));
         UpdatePolicyChecks();
         await PullRequestChecks(Path.GetFullPath(Path.Combine(fixtures, "..", "..")));
         CommandLineChecks();

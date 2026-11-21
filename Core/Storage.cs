@@ -367,6 +367,12 @@ public static class Storage
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
     }
 
+    /// What deleting a version leaves behind to offer with it (Home's delete): the build files' bytes (Disk.WorkBytes, often
+    /// many GB) once no version is left, as no update needs them then; 0 while one is (its next update reuses them). Freeing
+    /// them is Disk.FreeWork: only what make_game made, never the folder (the player may have chosen one that holds other
+    /// things), nor the saves and their backups, which are elsewhere
+    public static long LeftAfterLast(string work, int versionsLeft) => versionsLeft > 0 ? 0 : Disk.WorkBytes(work);
+
     static bool DeleteFolder(string folder)
     {
         try { File.GetAttributes(folder); }

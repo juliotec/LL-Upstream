@@ -4,7 +4,7 @@ using LongshotLauncher.Core;
 /// go, one item at a time and only what it is; and what stays after a build (only that build's work)
 static partial class Program
 {
-    static void StorageChecks()
+    static void StorageChecks(string repo)
     {
         // (every kind in one group with a name, only the ones that may go with a cost; every part of the work folder in one kind)
         Require(Storage.Kinds.Select(k => k.Kind).Distinct().Count() == Enum.GetValues<Storage.Kind>().Length
@@ -337,6 +337,31 @@ static partial class Program
                 && !File.Exists(Path.Combine(shaderStore, "spirv.pack")) && !File.Exists(Path.Combine(shaderStore, "spirv.idx"))
                 && File.Exists(Path.Combine(shaderStore, "notes.txt")),
                 "Storage: clearing the shader store takes its files and leaves the rest of its folder.");
+
+        // (issue #147: deleting the last version left the build files, often many GB. Home's delete offers them then, never
+        // while a version is left (its next update reuses them); only what make_game made goes, never the folder, which the
+        // player may have chosen, nor anything else in it)
+        var chosen = Folder("storage-last");
+        Touch(Path.Combine(chosen, "objcache", "a.o"), new string('o', 300));
+        Touch(Path.Combine(chosen, Disk.LiftStore, "k", "sa", "gen", "code_1.c"), new string('c', 40));
+        Touch(Path.Combine(chosen, "My notes.txt"), "the player's");
+        Touch(Path.Combine(chosen, "saves", "slot.txt"), "the player's");
+        Require(Storage.LeftAfterLast(chosen, versionsLeft: 1) == 0 && Storage.LeftAfterLast(chosen, versionsLeft: 0) == 340
+                && Storage.LeftAfterLast(Path.Combine(chosen, "none"), 0) == 0,
+                "Storage: the build files are offered once no version is left, with their size, and only then.");
+        Disk.FreeWork(chosen);
+        Require(Storage.LeftAfterLast(chosen, 0) == 0 && File.Exists(Path.Combine(chosen, "My notes.txt"))
+                && File.Exists(Path.Combine(chosen, "saves", "slot.txt")),
+                "Storage: deleting them with the last version leaves the folder and everything else in it.");
+        var home = File.ReadAllText(Path.Combine(repo, "App", "ViewModels", "HomeViewModel.cs"));
+        var offer = home[home.IndexOf("async Task<bool> DeleteNowAsync()", StringComparison.Ordinal)..];
+        var dialog = home[home.IndexOf("public sealed class BuildFilesViewModel", StringComparison.Ordinal)..];
+        Require(offer.Contains("Storage.LeftAfterLast(work, service.Registry.Builds.Count)") && offer.Contains("new BuildFilesViewModel(Main, work, left)")
+                && dialog.Contains("Disk.FreeWork(work)") && !dialog.Contains("Directory.Delete") && !dialog.Contains("DeleteTree")
+                && dialog.Contains("in Storage"),
+                "Home: deleting the last version offers its build files (Disk.FreeWork, never the folder), and says Storage frees them later.");
+        Require(File.ReadAllText(Path.Combine(repo, "App", "MainWindow.axaml")).Contains("<DataTemplate DataType=\"vm:BuildFilesViewModel\"><views:BuildFilesView/></DataTemplate>"),
+                "Home: the build files' dialog is shown over the window.");
     }
 
     static bool HasValueText(this string? s) => !string.IsNullOrEmpty(s);
