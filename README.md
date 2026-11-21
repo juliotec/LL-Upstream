@@ -120,8 +120,18 @@ There is no installer program: the launcher installs itself.
 
 **Uninstalling** (Windows): *Settings > Apps > Installed apps > Longshot Launcher > Uninstall*, which runs
 `LongshotLauncher.exe --uninstall`. It removes the program, its Start menu shortcut, the *Longshot* shortcuts it made, and
-its *Apps & features* entry. It asks whether to delete its data too; your builds' game folders and your saves are never
-deleted, even when they are inside it.
+its *Apps & features* entry. Ticked, it also removes everything else Longshot put on the PC, as *Remove everything* below
+does; your saves and their backups are kept.
+
+**Removing everything** (Windows and Linux): *Storage > Remove everything…* lists what goes and what stays, with their sizes,
+then removes everything Longshot put on the PC in one go (`Core/RemoveEverything.cs`): the versions' folders (a save still in
+one backed up first, as Home's delete does), the build files, the builders and graphics libraries, the shader caches, the
+game's caches, the logs, the launcher's settings and list, and the shortcuts it made (desktop, applications menu, Steam's tile,
+Start menu); the installed Windows launcher also uninstalls itself. Your saves, their backups, the game's settings and the NFC
+tags stay unless you tick them too (then they go with no copy kept: export them first in *Saves* to keep one). A builds or
+build files folder you chose keeps whatever else is in it, an old version's folder holding mods of yours stays, nothing is
+deleted through a link, and Hookshot's folders are never touched. Then the launcher closes; on Linux, and for a portable
+launcher, delete the AppImage or the launcher's folder yourself.
 
 **Updates keep the kind.** An installed launcher updates its installed `LongshotLauncher.exe`, from the release's setup
 file; a portable one takes `LongshotLauncher.exe` out of the release's portable zip and updates itself in place, beside its
@@ -316,7 +326,7 @@ screen adds or updates the scene that shows it.
 | `--self-check` | Prints `LongshotLauncher <version>` (a new launcher answers it before it is put in place) |
 | `--rollback` | Puts back the launcher the last update replaced |
 | `--install` | Windows: installs this launcher without asking ([Installing](#installing)), then starts the installed copy |
-| `--uninstall` | Windows: uninstalls the installed launcher (what *Apps & features* runs); it asks about the data first |
+| `--uninstall` | Windows: uninstalls the installed launcher (what *Apps & features* runs); it asks whether to remove everything else too (the saves kept) |
 
 ### Tests
 

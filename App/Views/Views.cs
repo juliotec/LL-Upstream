@@ -128,6 +128,7 @@ public sealed partial class ReleaseNotesView : UserControl { public ReleaseNotes
 // (files and folders dropped on the NFC page go through the window's own drop handling, as step 1's do: MainViewModel.Drop)
 public sealed partial class NfcView : UserControl { public NfcView() => InitializeComponent(); }
 public sealed partial class NfcDeleteView : UserControl { public NfcDeleteView() => InitializeComponent(); }
+public sealed partial class RemoveEverythingView : UserControl { public RemoveEverythingView() => InitializeComponent(); }
 public sealed partial class PullRequestWarningView : UserControl { public PullRequestWarningView() => InitializeComponent(); }
 public sealed partial class PullRequestConfirmView : UserControl { public PullRequestConfirmView() => InitializeComponent(); }
 public sealed partial class PullRequestFindView : UserControl { public PullRequestFindView() => InitializeComponent(); }

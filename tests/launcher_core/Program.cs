@@ -110,6 +110,7 @@ static partial class Program
         CrashReportChecks();
         await BuildReportChecks(Path.GetFullPath(Path.Combine(fixtures, "..", "..")));
         TranslationChecks();
+        RemoveEverythingChecks();
         checks += SavesChecks.Count;
         checks += SaveArchiveChecks.Count;
         checks += SaveBackupsChecks.Count;

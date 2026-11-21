@@ -1,0 +1,61 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:LongshotLauncher.ViewModels"
+             xmlns:c="using:LongshotLauncher.Controls"
+             x:Class="LongshotLauncher.Views.RemoveEverythingView"
+             x:DataType="vm:RemoveEverythingViewModel">
+  <UserControl.Styles>
+    <!-- (what goes in the removal's colour, what stays faint) -->
+    <Style Selector="TextBlock.state">
+      <Setter Property="Foreground" Value="{StaticResource InkFaintText}"/>
+    </Style>
+    <Style Selector="TextBlock.state.goes">
+      <Setter Property="Foreground" Value="{StaticResource Bad}"/>
+    </Style>
+  </UserControl.Styles>
+  <Border Classes="dialog" MaxWidth="560">
+    <StackPanel>
+      <TextBlock Classes="modaltitle" Text="{Binding Title}"/>
+      <!-- asked: what goes and what stays, with their sizes, and the saves' own tick -->
+      <StackPanel IsVisible="{Binding Asking}">
+        <Border Margin="0,10,0,0" Padding="12,6" CornerRadius="8" Background="#26000000" BorderBrush="{StaticResource GlassLine}" BorderThickness="1">
+          <ItemsControl ItemsSource="{Binding Lines}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:RemoveEverythingViewModel+LineRow">
+                <Grid ColumnDefinitions="*,Auto,64" ColumnSpacing="12" Margin="0,4">
+                  <TextBlock Text="{Binding Name}" FontSize="13" TextWrapping="Wrap" VerticalAlignment="Center"/>
+                  <TextBlock Grid.Column="1" Text="{Binding SizeText}" FontSize="13" Foreground="{StaticResource InkSoft}" VerticalAlignment="Center"/>
+                  <TextBlock Grid.Column="2" Text="{Binding State}" FontSize="13" FontWeight="SemiBold" HorizontalAlignment="Right" VerticalAlignment="Center"
+                             Classes="state" Classes.goes="{Binding Goes}"/>
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </Border>
+        <TextBlock Classes="hint" Margin="0,10,0,0" Text="{Binding TotalText}" FontWeight="SemiBold"/>
+        <TextBlock Classes="hint" Margin="0,6,0,0" Text="{Binding Sub}"/>
+        <CheckBox Classes="tick" Margin="0,10,0,0" IsChecked="{Binding Saves}">
+          <TextBlock Text="{Binding SavesLabel}" TextWrapping="Wrap"/>
+        </CheckBox>
+        <Border Classes="warnbox" Margin="0,6,0,0" Padding="12,8" IsVisible="{Binding Saves}">
+          <TextBlock Text="{Binding SavesWarning}" FontSize="13" TextWrapping="Wrap"/>
+        </Border>
+      </StackPanel>
+      <!-- done: what is left, and what the player still does -->
+      <Border IsVisible="{Binding IsDone}" Margin="0,10,0,0" MaxHeight="220" Padding="12,9" CornerRadius="8" Background="#26000000"
+              BorderBrush="{StaticResource GlassLine}" BorderThickness="1">
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+          <SelectableTextBlock Classes="mono" Text="{Binding DoneText}" FontSize="12" TextWrapping="Wrap" Foreground="{StaticResource InkSoft}"/>
+        </ScrollViewer>
+      </Border>
+      <TextBlock Classes="hint" Margin="0,10,0,0" Text="{Binding Problem}" IsVisible="{Binding HasProblem}" Foreground="{StaticResource Bad}"/>
+      <StackPanel Classes="buttons" IsVisible="{Binding Asking}">
+        <Button Content="{c:T 'Keep everything'}" Command="{Binding KeepCommand}" c:Pad.Back="True"/>
+        <Button Classes="bad" Content="{Binding RemoveLabel}" Command="{Binding RemoveCommand}"/>
+      </StackPanel>
+      <StackPanel Classes="buttons" IsVisible="{Binding IsDone}">
+        <Button Classes="primary" Content="{c:T 'Close the launcher'}" Command="{Binding CloseCommand}"/>
+      </StackPanel>
+    </StackPanel>
+  </Border>
+</UserControl>

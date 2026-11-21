@@ -216,6 +216,7 @@
             <DataTemplate DataType="vm:SaveEditAskViewModel"><views:SaveEditAskView/></DataTemplate>
             <DataTemplate DataType="vm:SaveEditConfirmViewModel"><views:SaveEditConfirmView/></DataTemplate>
             <DataTemplate DataType="vm:NfcDeleteViewModel"><views:NfcDeleteView/></DataTemplate>
+            <DataTemplate DataType="vm:RemoveEverythingViewModel"><views:RemoveEverythingView/></DataTemplate>
             <DataTemplate DataType="vm:PullRequestWarningViewModel"><views:PullRequestWarningView/></DataTemplate>
             <DataTemplate DataType="vm:PullRequestConfirmViewModel"><views:PullRequestConfirmView/></DataTemplate>
             <DataTemplate DataType="vm:PullRequestFindViewModel"><views:PullRequestFindView/></DataTemplate>

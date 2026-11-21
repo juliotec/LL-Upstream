@@ -66,6 +66,9 @@ public sealed class StorageViewModel : ViewModelBase
         busyTick = new DispatcherTimer(TimeSpan.FromMilliseconds(400), DispatcherPriority.Background, (_, _) => Tick());
         if (running == null) watch.Start();
         RefreshCommand = new Command(Measure, () => !IsBusy);
+        // (what goes, with the sizes of the last measure: Remove everything asks first, the saves kept unless ticked)
+        RemoveEverythingCommand = new Command(() => { if (items != null) Main.Modal = new RemoveEverythingViewModel(Main, items, running); },
+                                              () => items != null && !IsBusy);
         if (measured != null)
         {
             items = measured;
@@ -211,6 +214,7 @@ public sealed class StorageViewModel : ViewModelBase
         else busyTick.Stop();
         RaiseAll(nameof(IsBusy), nameof(BusyText), nameof(BusyDetail), nameof(BusyFraction), nameof(HasFraction), nameof(SweepBusy), nameof(RefreshTip));
         RefreshCommand.Changed();
+        RemoveEverythingCommand.Changed();
     }
 
     void Tick()
@@ -537,6 +541,8 @@ public sealed class StorageViewModel : ViewModelBase
     bool DownloadingNow => Main.Service.Prefetch.Busy;
     public string BusyNote => Tr.T("Nothing is removed while a build is running or Longshot is open.");
 
+    /// Everything Longshot put on this PC, in one go (RemoveEverythingViewModel)
+    public Command RemoveEverythingCommand { get; }
     public Command CancelCommand { get; }
     public Command AskAllCommand { get; }
     public Command RemoveAllCommand { get; }
@@ -553,6 +559,7 @@ public sealed class StorageViewModel : ViewModelBase
     void RaiseEverything()
     {
         RaiseAll(string.Empty);
+        RemoveEverythingCommand.Changed();
         AskAllCommand.Changed();
         RemoveAllCommand.Changed();
     }

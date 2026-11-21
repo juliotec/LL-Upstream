@@ -227,6 +227,14 @@
             </Border>
           </StackPanel>
         </Border>
+        <!-- everything Longshot put on this PC, in one go: asked first, with what goes and what stays, the saves kept unless
+             ticked (RemoveEverythingViewModel) -->
+        <Border Classes="card" Padding="16,12">
+          <StackPanel Spacing="8">
+            <TextBlock Text="{c:T 'Remove Longshot from this PC'}" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap"/>
+            <Button Classes="bad" HorizontalAlignment="Left" Content="{c:T 'Remove everything…'}" Command="{Binding RemoveEverythingCommand}"/>
+          </StackPanel>
+        </Border>
         <TextBlock Text="{Binding BusyNote}" FontSize="12" Foreground="{StaticResource InkFaintText}" TextWrapping="Wrap"/>
       </StackPanel>
     </Grid>

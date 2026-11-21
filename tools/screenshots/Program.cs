@@ -295,6 +295,20 @@ static class Program
         new("storage-drive-c", "The Storage page with C: picked: only what Longshot keeps on C:, and Remove lets only that go",
             Platform.Windows, NightliesListed, m => new StorageViewModel(m, StorageOnDrives(m), free: 41L << 30, show: Storage.Group.BuildTools, running: false,
                                                                          onDrive: "C:")),
+        // (Remove everything: what goes and what stays with their sizes, the saves' own tick off, then on, then what is left)
+        new("storage-remove-everything", "Storage's Remove everything: what goes and what stays with the sizes measured, the saves kept unless ticked",
+            Platform.Windows, NightliesListed, m => new StorageViewModel(m, StorageListed(m), free: 115L << 30, running: false),
+            m => m.Modal = new RemoveEverythingViewModel(m, StorageListed(m), running: false)),
+        new("storage-remove-everything-saves", "Storage's Remove everything with the saves ticked: they go too, with the warning that no copy is kept",
+            Platform.Windows, NightliesListed, m => new StorageViewModel(m, StorageListed(m), free: 115L << 30, running: false),
+            m => m.Modal = new RemoveEverythingViewModel(m, StorageListed(m), running: false) { Saves = true }),
+        new("storage-remove-everything-done", "Storage's Remove everything done: what was kept and why, then the launcher closes",
+            Platform.Windows, NightliesListed, m => new StorageViewModel(m, StorageListed(m), free: 115L << 30, running: false),
+            m => m.Modal = new RemoveEverythingViewModel(m, StorageListed(m), running: false).ShownDone(new RemoveEverything.Done(
+                [new(@"C:\Users\Player\Games\Longshot\nightly-77-9f64464b", RemoveEverything.Reason.Yours),
+                 new(@"C:\Users\Player\AppData\Roaming\Longshot", RemoveEverything.Reason.Yours),
+                 new(@"C:\Users\Player\AppData\Local\Longshot\save-backups", RemoveEverything.Reason.Yours),
+                 new(@"D:\Longshot build files", RemoveEverything.Reason.Others)], []))),
         // (a completely cold build: offered after a failed build, then ticked in step 2's Advanced for the player to read and start)
         new("build-failed", "The build stopped on a message the launcher doesn't know: Build again, or Try a completely cold build", Platform.Windows, null,
             m => new ProblemViewModel(Build(m, showLog: false), "clang stopped with exit code 1 compiling sa/gen/code_412.c", "Compiling", 41)),

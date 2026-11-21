@@ -101,8 +101,8 @@ public static class SetupWindows
         var window = Frame(body);
         var data = new CheckBox
         {
-            Content = Text(Tr.F("Also delete the launcher's data in {0}: its list of builds, its settings, the downloaded builder tools and the " +
-                                "build files. Builds inside it are kept.", at.Home), 12),
+            Content = Text(Tr.T("Also remove everything else Longshot put on this PC: its versions (the game folders), the build files, the downloaded " +
+                                "builder tools, the shader caches, the logs and the launcher's settings. Your saves and their backups are kept."), 12),
         };
         data.Classes.Add("tick");
         var heading = Text(Tr.T("Uninstall the Longshot Launcher?"), 20, "Ink", FontWeight.SemiBold);
@@ -115,17 +115,17 @@ public static class SetupWindows
         {
             try
             {
-                var keep = Keep(at);
-                var removed = OperatingSystem.IsWindows()
-                    ? Installer.Uninstall(at, new UserRegistry(), new ShellShortcuts(), data.IsChecked == true, keep, Environment.ProcessPath)
-                    : throw new PlatformNotSupportedException("Only the Windows launcher uninstalls itself.");
+                if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException("Only the Windows launcher uninstalls itself.");
+                // (everything else first, the saves kept: refused with nothing touched while Longshot runs. RemoveEverything)
+                var everything = data.IsChecked == true ? RemoveEverything.Run(Everything(at), saves: false, () => Saves.Running(Platform.Windows)) : null;
+                var removed = Installer.Uninstall(at, new UserRegistry(), new ShellShortcuts(), false, Array.Empty<string>(), Environment.ProcessPath);
                 WindowsShortcuts.RemoveGame();
                 Program.ReleaseLock();
                 if (removed.Pending != null) WindowsInstall.DeleteAfterExit(removed.Pending);
                 heading.Text = Tr.T("The Longshot Launcher is uninstalled");
-                about.Text = removed.Kept.Count > 0
-                    ? Tr.F("Kept, because they hold builds or saves: {0}.", string.Join(", ", removed.Kept))
-                    : data.IsChecked == true ? Tr.T("Its data is deleted too. Your builds and saves are where they were.") : Tr.F("Its data is still in {0}.", at.Home);
+                about.Text = everything == null ? Tr.F("Its data is still in {0}.", at.Home)
+                    : everything.Kept.Count > 0 ? Tr.F("Everything else is removed too. Kept: {0}.", string.Join(", ", everything.Kept.Select(k => k.Path)))
+                    : Tr.T("Everything else is removed too.");
                 data.IsVisible = false;
                 problem.IsVisible = false;
                 go!.IsVisible = false;
@@ -147,14 +147,18 @@ public static class SetupWindows
         return window;
     }
 
-    /// What deleting the data must leave: every build's game folder, the folder new builds go in, and the save backups
-    static List<string> Keep(InstallPlaces at)
+    /// Where the installed launcher keeps everything, for RemoveEverything: its home, its versions, the builds folder and the build
+    /// files folder (the player's choice, or its own)
+    static RemoveEverything.Places Everything(InstallPlaces at)
     {
-        var home = new LauncherHome(at.Home);
-        var keep = BuildRegistry.Load(home.Builds).Builds.Select(b => b.Folder).ToList();
+        var home = LauncherHome.Resolve(Platform.Windows);
+        var registry = BuildRegistry.Load(home.Builds);
+        if (registry.Problem != null) throw new IOException("The list of versions could not be read, so nothing else is removed.");
         var settings = LauncherSettings.Load(home.Settings);
-        keep.Add(settings.BuildsFolderOrDefault());
-        keep.AddRange(SaveEnvironment.Current().BackupRoots);   // (the old backups folders too: SaveEnvironment.OldBackupRoots)
-        return keep;
+        if (settings.Problem != null) throw new IOException("The launcher's settings could not be read, so nothing else is removed.");
+        var nfc = Environment.GetEnvironmentVariable(NfcTags.Variable) is { Length: > 0 } ? null : NfcTags.Folder(Platform.Windows);
+        return new RemoveEverything.Places(SaveEnvironment.Current(), home, registry.Builds.Select(b => b.Folder).ToList(), settings.BuildsFolderOrDefault(),
+                                           !string.IsNullOrWhiteSpace(settings.BuildsFolder), string.IsNullOrWhiteSpace(settings.Work) ? home.Work : settings.Work,
+                                           !string.IsNullOrWhiteSpace(settings.Work), nfc);
     }
 }
