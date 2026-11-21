@@ -1296,7 +1296,7 @@ public sealed class DeleteViewModel : ViewModelBase
         ? Freed(build.Entry) is long b ? Tr.F("This deletes its folder and frees {0}:", Durations.Size(b)) : Tr.T("This deletes its folder:")
         : Tr.T("This takes it off your versions. Its folder is not a Longshot game folder, so it stays on the disk:");
     public string Folder => ShownPath.Of(build.Entry.Folder);
-    public string FolderFull => build.Entry.Folder;
+    public string FolderFull => ShownPath.Of(build.Entry.Folder);
 
     /// What deleting it frees: its files with no hard link outside its folder (game files shared with another build stay with
     /// that one: BuildEntry.Frees); null when not measured

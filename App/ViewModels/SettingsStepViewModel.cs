@@ -206,7 +206,7 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
     public bool ShowFsrLibrary => Linux && Fsr;
     public bool FsrLibraryChosen => s.FsrLibraryPath != null;
     public string FsrLibraryText => s.FsrLibraryPath is { } p ? ShownPath.Of(p) : Tr.T("None chosen");
-    public string FsrLibraryFull => s.FsrLibraryPath ?? "";
+    public string FsrLibraryFull => ShownPath.Of(s.FsrLibraryPath);
     public string FsrLibraryDesc => s.FsrLibraryPath != null
         ? Tr.T("Copied into the game folder with each build.")
         : Tr.T("Choose your amd_fidelityfx_upscaler_vk.so, or put it beside the game yourself.");
@@ -291,12 +291,12 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
     // ---- install ----
 
     public string InstallDir => ShownPath.Of(Job.InstallDir);
-    public string InstallDirFull => Job.InstallDir;
+    public string InstallDirFull => ShownPath.Of(Job.InstallDir);
 
     /// The builds folder: Settings' own (LauncherSettings.BuildsFolder), so step 2 and Settings never disagree. Every new instance
     /// goes in it, in its track's folder and named after its version (BuildRegistry.FolderOf)
     public string BuildsFolder => ShownPath.Of(Job.Service.BuildsFolder);
-    public string BuildsFolderFull => Job.Service.BuildsFolder;
+    public string BuildsFolderFull => ShownPath.Of(Job.Service.BuildsFolder);
 
     /// Where this build goes: builds/&lt;track&gt;/&lt;version&gt;; an update or a go-back whose folder takes its new version's name when the
     /// build starts (BuildJob.RenameFrom): the old path and what follows it

@@ -84,24 +84,42 @@ public interface IWindowHost
     void Close();
 }
 
-/// A path as the screens show it: on Linux, the home folder as ~ (~/Games/Longshot). Only for reading: a path a player can edit,
-/// or one handed to a program, stays whole
+/// A path as the screens show it, without the account's name: the home folder as ~ on Linux (~/Games/Longshot), as %USERPROFILE%
+/// on Windows (%USERPROFILE%\Games\Longshot). Only for reading, tooltips too: a path handed to a program stays whole
 public static class ShownPath
 {
+    const string WindowsHome = "%USERPROFILE%";
+
+    static string Home => Environment.GetFolderPath(Environment.SpecialFolder.UserProfile).TrimEnd('/', '\\');
+
     public static string Of(string? path)
     {
-        if (string.IsNullOrEmpty(path) || OperatingSystem.IsWindows()) return path ?? "";
-        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile).TrimEnd('/');
+        if (string.IsNullOrEmpty(path)) return path ?? "";
+        var home = Home;
+        if (OperatingSystem.IsWindows())
+        {
+            // (C:\Users\Name: no shorter, so a drive's root is never taken for it)
+            if (home.Length <= 3) return path;
+            if (string.Equals(path.TrimEnd('\\', '/'), home, StringComparison.OrdinalIgnoreCase)) return WindowsHome;
+            return path.Length > home.Length && path[home.Length] is '\\' or '/' && path.StartsWith(home, StringComparison.OrdinalIgnoreCase)
+                ? WindowsHome + path[home.Length..] : path;
+        }
         if (home.Length <= 1) return path;
         if (path == home) return "~";
         return path.StartsWith(home + "/", StringComparison.Ordinal) ? "~" + path[home.Length..] : path;
     }
 
-    /// A path a player typed, ~ read back as the home folder (Linux)
+    /// A path a player typed (or left as it was shown), ~ (Linux) or %USERPROFILE% (Windows) read back as the home folder
     public static string Typed(string path)
     {
-        if (OperatingSystem.IsWindows() || !(path == "~" || path.StartsWith("~/", StringComparison.Ordinal))) return path;
-        return Environment.GetFolderPath(Environment.SpecialFolder.UserProfile).TrimEnd('/') + path[1..];
+        if (OperatingSystem.IsWindows())
+        {
+            if (!path.StartsWith(WindowsHome, StringComparison.OrdinalIgnoreCase)) return path;
+            var rest = path[WindowsHome.Length..];
+            return rest.Length == 0 || rest[0] is '\\' or '/' ? Home + rest : path;
+        }
+        if (!(path == "~" || path.StartsWith("~/", StringComparison.Ordinal))) return path;
+        return Home + path[1..];
     }
 }
 

@@ -307,7 +307,7 @@
                 <StackPanel VerticalAlignment="Center" Spacing="1">
                   <TextBlock Classes="rtitle" Text="{c:T 'Build files'}"/>
                   <WrapPanel>
-                    <TextBlock Classes="mono path" Foreground="{StaticResource InkSoft}" Text="{Binding Work}" ToolTip.Tip="{Binding WorkFull}" VerticalAlignment="Center"/>
+                    <TextBlock Classes="mono path" Foreground="{StaticResource InkSoft}" Text="{Binding Work}" ToolTip.Tip="{Binding Work}" VerticalAlignment="Center"/>
                     <TextBlock Classes="rdesc" Text="{c:T ', 60 GB while building'}" TextWrapping="NoWrap" VerticalAlignment="Center"/>
                   </WrapPanel>
                   <TextBlock Classes="rdesc" Text="{c:T 'Working files Longshot makes while building, reused by every build. Not the game: they can be on another drive.'}" TextWrapping="Wrap"/>

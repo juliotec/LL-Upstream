@@ -122,7 +122,7 @@ public sealed class GameFileViewModel : ViewModelBase
     public FoundGameFile File { get; }
     public string Name => File.Folders ? Tr.F("{0} (romfs and exefs)", File.Name) : File.Name;
     public string Where => File.Where == "Dropped on the window" ? Tr.T("Dropped on the window") : ShownPath.Of(Path.GetDirectoryName(File.Path) ?? File.Path);
-    public string? WhereFull => File.Where == "Dropped on the window" ? null : File.Path;
+    public string? WhereFull => File.Where == "Dropped on the window" ? null : ShownPath.Of(File.Path);
 
     public GameCheck? Check
     {

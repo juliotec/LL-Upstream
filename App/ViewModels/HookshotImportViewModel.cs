@@ -11,7 +11,7 @@ public sealed class HookshotImportViewModel : ViewModelBase
     {
         public HookshotSource Value => source;
         public string Where => ShownPath.Of(source.Path);
-        public string WhereFull => source.Path;
+        public string WhereFull => ShownPath.Of(source.Path);
         public string Summary => source.Valid ? SaveText.Long(source.Slots, DateTime.Now) : Tr.F("Cannot be imported: {0}", string.Join("; ", source.Problems));
         public bool Valid => source.Valid;
         public Command ImportCommand { get; } = new(() => owner.Choose(source), () => source.Valid);
