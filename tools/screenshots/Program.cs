@@ -64,6 +64,21 @@ static class Program
         new("settings-windows", "Step 2, the build settings, on Windows with an NVIDIA GPU", Platform.Windows,
             s => { s.GpuCards = [new Gpu(SystemInfo.Nvidia, "NVIDIA GeForce RTX 4070")]; s.Settings.Dlss = true; s.Settings.DlssLicense = true; },
             m => Settings(m)),
+        // (a desktop's Ryzen graphics beside its RTX card: Windows lists both, the game renders on the card, and the rows judge it)
+        new("settings-windows-igpu", "Step 2 on Windows, Ryzen graphics beside an RTX 5080: DLSS is Your GPU, FSR 4 is not, and says so in red",
+            Platform.Windows,
+            s =>
+            {
+                s.GpuCards = [new Gpu(SystemInfo.Amd, "AMD Radeon(TM) Graphics"), new Gpu(SystemInfo.Nvidia, "NVIDIA GeForce RTX 5080")];
+                s.VulkanProbe = () => Task.FromResult<IReadOnlyList<GpuRequirement>?>(
+                [
+                    new(true, 2UL << 30, false, GpuKind.Integrated, 1, SystemInfo.Amd, "AMD Radeon(TM) Graphics"),
+                    new(true, 16UL << 30, true, GpuKind.Discrete, 1, SystemInfo.Nvidia, "NVIDIA GeForce RTX 5080"),
+                ]);
+                s.Settings.Dlss = true;
+                s.Settings.DlssLicense = true;
+            },
+            m => Settings(m)),
         new("settings-windows-unsupported", "Step 2 on Windows with a GeForce GTX: DLSS and FSR 4 unsupported, in red, DLSS on all the same",
             Platform.Windows,
             s => { s.GpuCards = [new Gpu(SystemInfo.Nvidia, "NVIDIA GeForce GTX 1660 SUPER")]; s.Settings.Dlss = true; s.Settings.DlssLicense = true; },
@@ -699,6 +714,7 @@ static class Program
     [STAThread]
     static int Main(string[] args)
     {
+        if (args.Length == 1 && args[0] == "--check-vulkan") return VulkanChecks.Run();
         var outDir = Path.GetFullPath(args.Length > 0 ? args[0] : Path.Combine("work", "screenshots"));
         var wanted = args.Skip(1).ToHashSet(StringComparer.Ordinal);
         var unknown = wanted.Where(w => Scenes.All(s => s.Name != w)).ToList();
@@ -747,6 +763,8 @@ static class Program
             // (the update check's answer, without asking the server: the newest on the channel new builds start on is v3.0.0)
             service.SetNewest(service.DefaultChannel, "v3.0.0");
             service.Checked = true;
+            // (Vulkan not read: the scene's GpuCards are the cards the switches judge, unless the scene says which the game takes)
+            service.VulkanProbe = () => Task.FromResult<IReadOnlyList<GpuRequirement>?>(null);
             scene.Setup?.Invoke(service);
             var main = new MainViewModel(service, StartRequest.Parse([]));
             // (the TV view: as Steam's Gaming Mode asks for it, on a 1080p screen)

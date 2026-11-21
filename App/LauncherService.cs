@@ -32,6 +32,8 @@ public sealed class LauncherService
     public IReadOnlyList<Gpu> GpuCards { get; set; }
     /// The makers of this PC's graphics cards, each once
     public IReadOnlyList<string> Gpus => GpuCards.Select(g => g.Vendor).Distinct().ToList();
+    /// The screenshots and checks can supply a probe for each wizard.
+    public Func<Task<IReadOnlyList<GpuRequirement>?>> VulkanProbe { get; set; } = () => Task.Run(SystemRequirements.ReadGpus);
     /// This PC's CPU name (WindowsCpu, SystemInfo.CpuName), read once, the first time it is asked for; "" when the system names none
     public string Cpu => cpu ??= (OperatingSystem.IsWindows() ? WindowsCpu.Read() : SystemInfo.CpuName()) ?? "";
     string? cpu;

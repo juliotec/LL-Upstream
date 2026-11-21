@@ -614,6 +614,8 @@
   "Could not connect to {0}. Check that this PC is online, and that no firewall, VPN or antivirus blocks the site.": "{0} に接続できませんでした。この PC がインターネットに接続されているか、ファイアウォール、VPN、ウイルス対策ソフトがサイトをブロックしていないか確認してください。",
   "This PC is set to go through the proxy {1}, which did not answer, so {0} was not reached. Check the proxy settings, or turn the proxy off.": "この PC はプロキシ {1} を経由する設定ですが、プロキシが応答しなかったため {0} に接続できませんでした。プロキシの設定を確認するか、プロキシをオフにしてください。",
   "No version is out on the {0} channel yet.": "{0} チャンネルにはまだバージョンが公開されていません。",
+  "The estimated Auto GPU is not a GeForce RTX card.": "推定された自動 GPU は GeForce RTX カードではありません。",
+  "The estimated Auto GPU is not a Radeon RX 6000 or newer.": "推定された自動 GPU は Radeon RX 6000 以降ではありません。",
   "This PC has no GeForce RTX card.": "この PC には GeForce RTX カードがありません。",
   "This PC has no Radeon RX 6000 or newer.": "この PC には Radeon RX 6000 以降がありません。",
   "Uses your Vulkan FSR 4 library.": "お使いの Vulkan FSR 4 ライブラリを使います。",

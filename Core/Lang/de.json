@@ -634,6 +634,8 @@
   "Could not connect to {0}. Check that this PC is online, and that no firewall, VPN or antivirus blocks the site.": "Keine Verbindung zu {0} möglich. Prüfe, ob dieser PC online ist und ob keine Firewall, kein VPN und kein Virenschutz die Seite blockiert.",
   "This PC is set to go through the proxy {1}, which did not answer, so {0} was not reached. Check the proxy settings, or turn the proxy off.": "Dieser PC ist so eingestellt, dass er über den Proxy {1} geht, der nicht geantwortet hat; {0} wurde deshalb nicht erreicht. Prüfe die Proxy-Einstellungen oder schalte den Proxy aus.",
   "No version is out on the {0} channel yet.": "Im Kanal {0} ist noch keine Version erschienen.",
+  "The estimated Auto GPU is not a GeForce RTX card.": "Die geschätzte Auto-GPU ist keine GeForce-RTX-Karte.",
+  "The estimated Auto GPU is not a Radeon RX 6000 or newer.": "Die geschätzte Auto-GPU ist keine Radeon RX 6000 oder neuer.",
   "This PC has no GeForce RTX card.": "Dieser PC hat keine GeForce-RTX-Karte.",
   "This PC has no Radeon RX 6000 or newer.": "Dieser PC hat keine Radeon RX 6000 oder neuer.",
   "Uses your Vulkan FSR 4 library.": "Nutzt deine Vulkan-FSR-4-Bibliothek.",

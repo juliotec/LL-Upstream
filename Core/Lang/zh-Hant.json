@@ -614,6 +614,8 @@
   "Could not connect to {0}. Check that this PC is online, and that no firewall, VPN or antivirus blocks the site.": "無法連線至 {0}。請檢查這台電腦是否已連上網際網路，以及防火牆、VPN 或防毒軟體是否封鎖了該網站。",
   "This PC is set to go through the proxy {1}, which did not answer, so {0} was not reached. Check the proxy settings, or turn the proxy off.": "這台電腦設定為透過代理伺服器 {1} 連線，但該代理伺服器沒有回應，因此無法連線至 {0}。請檢查代理伺服器設定，或關閉代理伺服器。",
   "No version is out on the {0} channel yet.": "{0}通道尚未推出任何版本。",
+  "The estimated Auto GPU is not a GeForce RTX card.": "估計的自動 GPU 不是 GeForce RTX 顯示卡。",
+  "The estimated Auto GPU is not a Radeon RX 6000 or newer.": "估計的自動 GPU 不是 Radeon RX 6000 或更新型號。",
   "This PC has no GeForce RTX card.": "這台電腦沒有 GeForce RTX 顯示卡。",
   "This PC has no Radeon RX 6000 or newer.": "這台電腦沒有 Radeon RX 6000 或更新的顯示卡。",
   "Uses your Vulkan FSR 4 library.": "使用你自己的 Vulkan FSR 4 程式庫。",

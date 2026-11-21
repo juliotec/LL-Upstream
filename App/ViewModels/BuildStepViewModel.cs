@@ -69,9 +69,9 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
     bool dlss;  // (NVIDIA DLSS in this build: asked for, and licence accepted)
     bool xess;  // (Intel XeSS's library fetched by this build: asked for, licence accepted, and these tools fetch it; Windows)
 
-    /// ", DLSS" in the settings line when it is on, and that no card here runs it when none does (Upscalers.Unsupported)
-    string Upscaler(bool on, string name, Func<Gpu, bool> runs) =>
-        !on ? "" : ", " + name + (Upscalers.Unsupported(Job.Service.GpuCards, runs) ? " (no card here runs it)" : "");
+    static string Upscaler(bool on, string name, Func<Gpu, bool> runs, IReadOnlyList<Gpu> cards, bool auto, bool pending) =>
+        !on ? "" : ", " + name + (pending ? " (Auto GPU check pending)" : Upscalers.Unsupported(cards, runs)
+            ? auto ? " (estimated Auto GPU does not run it)" : " (no card here runs it)" : "");
 
     public BuildStepViewModel(BuildJob job, bool start = true)
     {
@@ -85,8 +85,13 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
         ToggleLogCommand = new Command(() => ShowLog = !ShowLog);
         CancelCommand = new Command(() => Job.Main.Modal = new StopBuildViewModel(this));
         log.Add($"Longshot Launcher {job.Service.OwnTag}: {job.Verb.Trim().ToLowerInvariant()} {job.Version} ({job.Channel})");
+        var probe = job.VulkanGpus;
+        var pending = !probe.IsCompleted;
+        var snapshot = probe.IsCompletedSuccessfully ? probe.Result : null;
+        var cards = SystemInfo.GameCards(job.Service.GpuCards, snapshot);
+        var auto = SystemInfo.EstimatedGpu(snapshot) != null;
         log.Add($"settings: memory {(s.MemoryGb is int m ? m + " GB" : "automatic")}, workers {(s.BuildWorkers is int w ? w : "automatic")}, " +
-                $"{Languages.NameOf(s.Language)}{Upscaler(s.Dlss, "DLSS", SystemInfo.DlssRuns)}{Upscaler(s.Fsr, "FSR 4", SystemInfo.FsrRuns)}" +
+                $"{Languages.NameOf(s.Language)}{Upscaler(s.Dlss, "DLSS", SystemInfo.DlssRuns, cards, auto, pending)}{Upscaler(s.Fsr, "FSR 4", SystemInfo.FsrRuns, cards, auto, pending)}" +
                 $"{(s.Xess && !job.Main.Linux ? ", XeSS" : "")}");
         if (start)
         {

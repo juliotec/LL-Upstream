@@ -1135,6 +1135,66 @@ static partial class Program
                 && !Upscalers.Unsupported([intel, rtx], SystemInfo.DlssRuns) && !Upscalers.Unsupported([rx6700], SystemInfo.FsrRuns)
                 && !Upscalers.Unsupported([], SystemInfo.DlssRuns) && !Upscalers.Unsupported([], SystemInfo.FsrRuns),
                 "Unsupported: no card here runs it; no card found is not.");
+
+        // (the switches judge the GPU the game renders on, as Longshot's pick_device (gpu/vk/vk_main.cpp) takes it from Vulkan's
+        // list: a discrete GPU over an integrated one, then the newer driver. A Ryzen 9000's Radeon graphics beside an RTX 5080 is
+        // no "Your GPU" for FSR 4; Windows lists both as display adapters)
+        Gpu ryzen = new(SystemInfo.Amd, "AMD Radeon(TM) Graphics"), rtx5080 = new(SystemInfo.Nvidia, "NVIDIA GeForce RTX 5080"),
+            rx7800 = new(SystemInfo.Amd, "AMD Radeon RX 7800 XT");
+        GpuRequirement vkRyzen = new(true, 2UL << 30, false, GpuKind.Integrated, 1, SystemInfo.Amd, "AMD Radeon(TM) Graphics"),
+            vkRtx = new(true, 16UL << 30, true, GpuKind.Discrete, 1, SystemInfo.Nvidia, "NVIDIA GeForce RTX 5080"),
+            vk7800 = new(true, 16UL << 30, true, GpuKind.Discrete, 1, SystemInfo.Amd, "AMD Radeon RX 7800 XT");
+        var desktop = SystemInfo.GameCards([ryzen, rtx5080], [vkRyzen, vkRtx]);
+        Require(desktop.SequenceEqual([rtx5080]) && SystemInfo.GameCards([rtx5080, ryzen], [vkRtx, vkRyzen]).SequenceEqual([rtx5080]),
+                "The game's card: the discrete GPU it renders on, not the processor's graphics beside it, in either order.");
+        Require(!desktop.Any(SystemInfo.FsrRuns) && Upscalers.Unsupported(desktop, SystemInfo.FsrRuns)
+                && desktop.Any(SystemInfo.DlssRuns) && !desktop.Any(SystemInfo.XessIntel),
+                "An RTX 5080 beside Ryzen graphics: DLSS is Your GPU; FSR 4 is not, and says so in red (its switch still turns on).");
+        Require(SystemInfo.GameCards([ryzen, rx7800], [vkRyzen, vk7800]).SequenceEqual([rx7800]),
+                "Two of one maker: the name says which card the game takes.");
+        var linuxGtx = SystemInfo.GameCards([new Gpu(SystemInfo.Amd), new Gpu(SystemInfo.Nvidia)],
+            [vkRyzen, vkRtx with { Name = "NVIDIA GeForce GTX 1660" }]);
+        var windowsRx = SystemInfo.GameCards([ryzen, new Gpu(SystemInfo.Amd, "Radeon RX 580 Series")],
+            [vkRyzen, vk7800 with { Name = "AMD Radeon RX 580" }]);
+        Require(!linuxGtx.Any(SystemInfo.DlssRuns) && !windowsRx.Any(SystemInfo.FsrRuns),
+                "Vulkan's model is used for a Linux GTX and an RX 580 spelled differently in the Windows adapter list.");
+        Require(SystemInfo.GameCards([ryzen], [vkRyzen]).SequenceEqual([ryzen])
+                && SystemInfo.GameCards([ryzen, rtx5080], [vkRtx with { Kind = GpuKind.Integrated }, vkRyzen with { DriverVersion = 2 }]).SequenceEqual([ryzen]),
+                "Integrated graphics alone count; between GPUs of one kind, the newer driver's, as in the game.");
+        Require(SystemInfo.GameCards([ryzen, rtx5080], null).SequenceEqual([ryzen, rtx5080]) && SystemInfo.GameCards([ryzen, rtx5080], []).SequenceEqual([ryzen, rtx5080])
+                && SystemInfo.GameCards([ryzen, rtx5080], [vkRtx with { Vulkan13 = false }]).SequenceEqual([ryzen, rtx5080])
+                && SystemInfo.GameCards([ryzen, rtx5080], [vkRtx with { Vendor = null }]).SequenceEqual([ryzen, rtx5080])
+                && SystemInfo.GameCards([ryzen, rtx5080], [vkRtx with { Name = null }]).SequenceEqual([ryzen, rtx5080]),
+                "Every card counts when Vulkan cannot identify the estimated GPU.");
+        Require(SystemInfo.GameCards([new Gpu(SystemInfo.Amd), new Gpu(SystemInfo.Nvidia)], [vkRyzen, vkRtx]).SequenceEqual([rtx5080])
+                && SystemInfo.GameCards([ryzen], [vkRyzen, vkRtx]).SequenceEqual([rtx5080])
+                && Upscalers.Unsupported(SystemInfo.GameCards([new Gpu(SystemInfo.Amd), new Gpu(SystemInfo.Nvidia)],
+                                                              [vkRyzen, vkRtx with { Name = "NVIDIA GeForce GTX 1660" }]), SystemInfo.DlssRuns)
+                && SystemInfo.EstimatedGpu(null) == null && SystemInfo.EstimatedGpu([vkRtx with { Name = "  " }]) == null,
+                "The card Vulkan names, whatever the display adapters list; a Linux GTX beside AMD graphics is said in red under DLSS.");
+        // (Vulkan's deviceName: its 256 bytes, up to the NUL; none within them is a driver's fault, and no name)
+        byte[] Field(string text, bool nul = true)
+        {
+            var field = new byte[VulkanRequirements.DeviceNameSize + 8];
+            Array.Fill(field, (byte)'x');
+            var bytes = System.Text.Encoding.UTF8.GetBytes(text);
+            bytes.CopyTo(field, 0);
+            if (nul) field[bytes.Length] = 0;
+            return field;
+        }
+        Require(VulkanRequirements.DeviceName(Field("NVIDIA GeForce RTX 5080")) == "NVIDIA GeForce RTX 5080"
+                && VulkanRequirements.DeviceName(Field(" AMD Radeon™ Graphics ")) == "AMD Radeon™ Graphics"
+                && VulkanRequirements.DeviceName(Field(new string('A', 255))) == new string('A', 255)
+                && VulkanRequirements.DeviceName(Field(new string('A', 256), nul: false)) == null
+                && VulkanRequirements.DeviceName(Field("")) == null && VulkanRequirements.DeviceName(Field("   ")) == null,
+                "A device name up to its NUL within the 256 bytes; none there, or blank: no name.");
+        // (the launcher log's line, to set beside the game log's)
+        Require(SystemRequirements.LogLine([vkRyzen, vkRtx]) == "vulkan: estimated Auto GPU: NVIDIA GeForce RTX 5080; " +
+                "listed: AMD Radeon(TM) Graphics (AMD, integrated); NVIDIA GeForce RTX 5080 (NVIDIA, discrete)"
+                && SystemRequirements.LogLine([vkRtx with { Vulkan13 = false, Vendor = null, Name = null }]).EndsWith(
+                    "unknown: the upscaler rows judge every display adapter; listed: unnamed (other maker, discrete, no Vulkan 1.3)")
+                && SystemRequirements.LogLine(null).StartsWith("vulkan: not read"),
+                "The launcher log says which GPU it estimates the game takes on Auto, and what Vulkan listed.");
         var upHome = new LauncherHome(Path.Combine(scratch, "upscalers-home"));
         var upTools = new Toolchain("v3.3.0", Path.Combine(upHome.Toolchains, "v3.3.0"), ListKind.Setup, "LongshotBuilder/LongshotBuilder.exe");
         var upBase = new BuildRequest(new BuildSource.Nup("C:/g/game.nup"), "C:/Games/Longshot");

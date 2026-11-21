@@ -29,11 +29,9 @@ public static class SystemRequirements
         else if (!gpus.Any(g => g.Vulkan13)) failures.Add(Tr.T("No Vulkan 1.3 GPU found; check your graphics driver"));
         else
         {
-            // Check the GPU the game will use (Longshot's pick_device in gpu/vk/vk_main.cpp): a discrete GPU over an
-            // integrated one, then the newer driver. Never combine different cards' capabilities. An integrated GPU
+            // Check the GPU the game will use (GameGpu). Never combine different cards' capabilities. An integrated GPU
             // reports a share of system RAM as its memory, so ranking by memory picks it over a laptop's own card.
-            var gpu = gpus.Where(g => g.Vulkan13)
-                .OrderByDescending(g => g.Kind).ThenByDescending(g => g.DriverVersion).First();
+            var gpu = GameGpu(gpus)!;
             observed.Add("Vulkan 1.3");
             if (gpu.MemoryBytes > 0) observed.Add(Tr.F("{0} GB VRAM", FormattableString.Invariant($"{gpu.MemoryBytes / (double)(1UL << 30):0.#}")));
             if (gpu.MeshShaders == true) observed.Add(Tr.T("Mesh shaders available"));
@@ -60,12 +58,35 @@ public static class SystemRequirements
     // allow 256 MiB under the marketed size.
     static bool AtLeastGb(ulong bytes, int gb) => bytes >= ((ulong)gb << 30) - (256UL << 20);
 
-    public static RequirementResult Check(string folder)
+    /// The GPU the game renders on, as Longshot's pick_device (gpu/vk/vk_main.cpp) takes it with no RX_VK_DEVICE and its GPU row on
+    /// Auto: a Vulkan 1.3 GPU, discrete over integrated over the rest, then the newer driver. Null when none has Vulkan 1.3
+    public static GpuRequirement? GameGpu(IEnumerable<GpuRequirement> gpus) =>
+        gpus.Where(g => g.Vulkan13).OrderByDescending(g => g.Kind).ThenByDescending(g => g.DriverVersion).FirstOrDefault();
+
+    /// This PC's GPUs as Vulkan lists them; null when the loader can't be asked. It starts a Vulkan instance: off the UI thread
+    public static IReadOnlyList<GpuRequirement>? ReadGpus() => VulkanRequirements.Read();
+
+    /// The launcher log's line for a Vulkan read (ReadGpus): the estimated Auto GPU (SystemInfo.EstimatedGpu), to set beside the
+    /// device in the game log's "vk:" lines, and every GPU Vulkan listed
+    public static string LogLine(IReadOnlyList<GpuRequirement>? gpus)
+    {
+        if (gpus == null) return "vulkan: not read (no loader): the upscaler rows judge every display adapter";
+        static string Kind(GpuKind k) => k switch { GpuKind.Discrete => "discrete", GpuKind.Integrated => "integrated", _ => "other" };
+        var listed = string.Join("; ", gpus.Select(g => $"{g.Name ?? "unnamed"} ({g.Vendor ?? "other maker"}, {Kind(g.Kind)}" +
+                                                         $"{(g.Vulkan13 ? "" : ", no Vulkan 1.3")})"));
+        var auto = SystemInfo.EstimatedGpu(gpus) is { } gpu ? gpu.Name : "unknown: the upscaler rows judge every display adapter";
+        return $"vulkan: estimated Auto GPU: {auto}; listed: {(listed.Length > 0 ? listed : "none")}";
+    }
+
+    public static RequirementResult Check(string folder) => Check(folder, ReadGpus());
+
+    /// The check with the GPUs already read (ReadGpus)
+    public static RequirementResult Check(string folder, IReadOnlyList<GpuRequirement>? gpus)
     {
         bool linux = OperatingSystem.IsLinux();
         bool os = RuntimeInformation.OSArchitecture == Architecture.X64 &&
             (OperatingSystem.IsWindowsVersionAtLeast(10) || linux && GlibcSupported());
-        return Evaluate(os, SystemInfo.MemoryGb(), SystemInfo.Threads(), Disk.FreeBytes(folder), VulkanRequirements.Read());
+        return Evaluate(os, SystemInfo.MemoryGb(), SystemInfo.Threads(), Disk.FreeBytes(folder), gpus);
     }
 
     static bool GlibcSupported()
@@ -78,8 +99,9 @@ public static class SystemRequirements
 
 /// Ordered as the game prefers them: VkPhysicalDeviceType discrete over integrated over the rest.
 public enum GpuKind { Other, Integrated, Discrete }
+/// A GPU as Vulkan lists it: Vendor is its maker (SystemInfo.Nvidia, Amd, Intel; null for another) and Name its deviceName
 public sealed record GpuRequirement(bool Vulkan13, ulong MemoryBytes, bool? MeshShaders = null,
-    GpuKind Kind = GpuKind.Other, uint DriverVersion = 0);
+    GpuKind Kind = GpuKind.Other, uint DriverVersion = 0, string? Vendor = null, string? Name = null);
 
 /// Queries the installed Vulkan loader without external utilities or a Vulkan package.
 internal static class VulkanRequirements
@@ -99,6 +121,17 @@ internal static class VulkanRequirements
     [UnmanagedFunctionPointer(CallingConvention.Winapi)] delegate void Destroy(IntPtr instance, IntPtr allocator);
     [UnmanagedFunctionPointer(CallingConvention.Winapi)] delegate int Enumerate(IntPtr instance, ref uint count, IntPtr devices);
     [UnmanagedFunctionPointer(CallingConvention.Winapi)] delegate void Properties(IntPtr device, IntPtr properties);
+
+    /// VkPhysicalDeviceProperties' deviceName: VK_MAX_PHYSICAL_DEVICE_NAME_SIZE bytes of UTF-8, NUL-terminated within them
+    internal const int DeviceNameSize = 256;
+
+    /// The name in a deviceName field: up to its NUL, trimmed. Null when it is blank, or has no NUL within the field (a driver's
+    /// fault: the bytes past it are the next fields')
+    internal static string? DeviceName(ReadOnlySpan<byte> field)
+    {
+        var end = field[..Math.Min(field.Length, DeviceNameSize)].IndexOf((byte)0);
+        return end > 0 && System.Text.Encoding.UTF8.GetString(field[..end]).Trim() is { Length: > 0 } name ? name : null;
+    }
 
     public static IReadOnlyList<GpuRequirement>? Read()
     {
@@ -134,10 +167,14 @@ internal static class VulkanRequirements
             {
                 var device = Marshal.ReadIntPtr(devices, i * IntPtr.Size);
                 properties(device, buffer);
-                // VkPhysicalDeviceProperties: apiVersion, driverVersion, vendorID, deviceID, deviceType.
+                // VkPhysicalDeviceProperties: apiVersion, driverVersion, vendorID, deviceID, deviceType, deviceName[256].
                 uint api = (uint)Marshal.ReadInt32(buffer);
                 uint driver = (uint)Marshal.ReadInt32(buffer, 4);
+                var vendor = SystemInfo.VendorOf($"0x{(uint)Marshal.ReadInt32(buffer, 8):x4}");
                 int type = Marshal.ReadInt32(buffer, 16);
+                var field = new byte[DeviceNameSize];
+                Marshal.Copy(buffer + 20, field, 0, DeviceNameSize);
+                var name = DeviceName(field);
                 // CPU software renderers are not suitable game GPUs.
                 if (type == 4) continue;
                 var kind = type switch { 1 => GpuKind.Integrated, 2 => GpuKind.Discrete, _ => GpuKind.Other };
@@ -162,7 +199,7 @@ internal static class VulkanRequirements
                     // taskShader and meshShader: the game uses mesh shaders only with both.
                     mesh = Marshal.ReadInt32(buffer, 512 + 16) != 0 && Marshal.ReadInt32(buffer, 512 + 20) != 0;
                 }
-                result.Add(new(api >= ((1u << 22) | (3u << 12)), bytes, mesh, kind, driver));
+                result.Add(new(api >= ((1u << 22) | (3u << 12)), bytes, mesh, kind, driver, vendor, name));
             }
             return result;
         }

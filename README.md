@@ -146,8 +146,10 @@ next time it starts. If `LongshotLauncher.exe` itself is missing, rename `Longsh
 2. **Game files**: the launcher looks for your dump on this PC; point it at the folder if it doesn't find it.
 3. **Settings**: the builds folder (Settings' own: Change sets it for every build; this build goes in
    `<builds>/<track>/<version>`, shown under it), the language, and DLSS, FSR 4 or, on Windows, Intel XeSS (their licences are shown
-   first; with XeSS on, the build downloads Intel's XeSS library for the game's Upscaler row). A PC with no card that runs
-   DLSS or FSR 4 says so in red, and the switch still turns on: the build fetches its files for tools like OptiScaler. XeSS
+   first; with XeSS on, the build downloads Intel's XeSS library for the game's Upscaler row). A red line warns when the
+   launcher's estimated Auto GPU cannot run DLSS or FSR 4; if the estimate is unavailable, it checks all display adapters.
+   The estimate can differ from the game, for example when a laptop has a per-executable graphics preference. The switch still
+   turns on: the build fetches its files for tools like OptiScaler. XeSS
    is never red: it runs on other makers' cards too where their driver has what it needs, which the game checks at its
    start. Your saves come
    along: every build shares them. On Windows with Intel graphics, **Intel shader compiles** chooses how many shaders
@@ -514,7 +516,10 @@ Calls made here, most of them the design mockup's; each can be changed:
   flags, the shader preparation or the toolchain, and before each release, the way that section describes.
 - **Disk space**: step 2 wants about 60 GB free on the builds folder's drive, the same figure as Longshot's requirements, and stops Build below it.
 - **Slots are shown as "Slot N"** with the time they were saved: the place a slot was saved at (caption.sav) is not read.
-- **"Your GPU"** comes from `/sys/class/drm` on Linux; on Windows the chip is not shown yet.
+- **"Your GPU"** and the red "can't run it" lines use the launcher's estimate of Longshot's Auto GPU from Vulkan
+  (a discrete GPU over an integrated one). If its vendor or name is unavailable, every display adapter counts instead.
+  The game can select a different GPU through its GPU row, `RX_VK_DEVICE`, or a per-executable graphics preference.
+  The launcher log's `vulkan:` line has the estimate and every GPU Vulkan listed, to set beside the game log's `vk:` lines.
 
 ## Credits
 

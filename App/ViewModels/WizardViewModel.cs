@@ -40,6 +40,17 @@ public sealed class BuildJob
 
     public MainViewModel Main { get; }
     public LauncherService Service => Main.Service;
+    /// One Vulkan probe shared by this wizard's steps, fresh for each build job.
+    public Task<IReadOnlyList<GpuRequirement>?> VulkanGpus => vulkanGpus ??= Probe();
+    Task<IReadOnlyList<GpuRequirement>?>? vulkanGpus;
+    async Task<IReadOnlyList<GpuRequirement>?> Probe()
+    {
+        var gpus = await Service.VulkanProbe().ConfigureAwait(false);
+        LauncherLog.Add(SystemRequirements.LogLine(gpus));   // (the estimate and the list, to set beside the game log's "vk:" lines)
+        return gpus;
+    }
+    public IReadOnlyList<GpuRequirement>? VulkanSnapshot => VulkanGpus is { IsCompletedSuccessfully: true } t ? t.Result : null;
+    public IReadOnlyList<Gpu> GameGpuCards => SystemInfo.GameCards(Service.GpuCards, VulkanSnapshot);
     public JobKind Kind { get; }
     public string Channel { get; }
     public string Version { get; }
@@ -187,7 +198,9 @@ public sealed class FilesStepViewModel : ViewModelBase, IWizardPage
         RetryCommand = new Command(StartTools, () => toolsFailed);
         CopyToolsReportCommand = job.Main.CopyReportCommand(() => ToolsNote, () => new[] { $"tools: {Job.Version} ({Job.Channel})" });
         RequirementsCommand = new Command(() => Main.Host?.Open(SystemRequirements.Url));
-        _ = Task.Run(() => SystemRequirements.Check(job.InstallDir)).ContinueWith(task => Ui.Post(() =>
+        // (the same probe is shared with the other steps of this wizard)
+        var gpus = job.VulkanGpus;
+        _ = Task.Run(async () => SystemRequirements.Check(job.InstallDir, await gpus)).ContinueWith(task => Ui.Post(() =>
         {
             if (task.IsCompletedSuccessfully) requirements = task.Result;
             else requirements = new(RequirementStatus.Gray, Tr.T("This PC could not be checked"), Tr.T("See the system requirements before building."));

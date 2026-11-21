@@ -36,6 +36,8 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
         AdvancedCommand = new Command(() => AdvancedOpen = !AdvancedOpen);
         ChooseFsrLibraryCommand = new Command(() => _ = ChooseFsrLibraryAsync());
         Measure();
+        if (job.VulkanGpus is { IsCompleted: false } vulkan)
+            vulkan.ContinueWith(_ => Ui.Post(RaiseGameGpu), TaskScheduler.Default);
     }
 
     public BuildJob Job { get; }
@@ -62,13 +64,19 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
 
     // ---- upscaling ----
 
-    public bool DlssYourGpu => Job.Service.GpuCards.Any(SystemInfo.DlssRuns);
-    public bool FsrYourGpu => Job.Service.GpuCards.Any(SystemInfo.FsrRuns);
+    // (each row judges the estimated Auto GPU, or all adapters when it is unknown)
+    public bool DlssYourGpu => Job.GameGpuCards.Any(SystemInfo.DlssRuns);
+    public bool FsrYourGpu => Job.GameGpuCards.Any(SystemInfo.FsrRuns);
 
-    /// None of this PC's cards runs it (Upscalers.Unsupported): its line says so in red. The switch still turns on, and the build
-    /// fetches its files all the same (for OptiScaler)
-    public bool DlssUnsupported => Upscalers.Unsupported(Job.Service.GpuCards, SystemInfo.DlssRuns);
-    public bool FsrUnsupported => Upscalers.Unsupported(Job.Service.GpuCards, SystemInfo.FsrRuns);
+    /// The card the game renders on does not run it (Upscalers.Unsupported): its line says so in red. The switch still turns on, and
+    /// the build fetches its files all the same (for OptiScaler)
+    public bool DlssUnsupported => Upscalers.Unsupported(Job.GameGpuCards, SystemInfo.DlssRuns);
+    public bool FsrUnsupported => Upscalers.Unsupported(Job.GameGpuCards, SystemInfo.FsrRuns);
+
+    /// Refresh the rows when this wizard's Vulkan probe answers.
+    void RaiseGameGpu() =>
+        RaiseAll(nameof(DlssYourGpu), nameof(FsrYourGpu), nameof(XessYourGpu), nameof(DlssUnsupported), nameof(FsrUnsupported),
+                 nameof(DlssLine), nameof(FsrLine), nameof(ShowDlssLine), nameof(ShowFsrLine));
 
     public bool Dlss
     {
@@ -127,15 +135,31 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
     public bool DlssAccepted => Dlss;
     /// The line under the switch: hidden once the licence's tick shows, unless it says this PC has no card for it (in red)
     public bool ShowDlssLine => !DlssAccepted || DlssUnsupported;
-    public string DlssLine => DlssUnsupported ? Tr.T("This PC has no GeForce RTX card.")
-        : Dlss ? "" : s.DlssLicense ? Tr.T("Licence accepted earlier.") : Tr.T("Shows NVIDIA's licence first.");
+    public string DlssLine
+    {
+        get
+        {
+            var snapshot = Job.VulkanSnapshot;
+            return Upscalers.Unsupported(SystemInfo.GameCards(Job.Service.GpuCards, snapshot), SystemInfo.DlssRuns)
+                ? (SystemInfo.EstimatedGpu(snapshot) != null ? Tr.T("The estimated Auto GPU is not a GeForce RTX card.") : Tr.T("This PC has no GeForce RTX card."))
+                : Dlss ? "" : s.DlssLicense ? Tr.T("Licence accepted earlier.") : Tr.T("Shows NVIDIA's licence first.");
+        }
+    }
     // (Linux: nothing of AMD's is downloaded, so there is no licence to accept; the player's own library goes beside the game)
     public bool FsrAccepted => Fsr && Windows;
     public bool ShowFsrLine => !FsrAccepted || FsrUnsupported;
-    public string FsrLine => FsrUnsupported ? Tr.T("This PC has no Radeon RX 6000 or newer.")
-        : Linux
-        ? (!FsrBuildable ? Tr.T("This version can't build it on Linux yet.") : Tr.T("Uses your Vulkan FSR 4 library."))
-        : Fsr ? "" : s.FsrLicense ? Tr.T("Licence accepted earlier.") : Tr.T("Shows AMD's licence first.");
+    public string FsrLine
+    {
+        get
+        {
+            var snapshot = Job.VulkanSnapshot;
+            return Upscalers.Unsupported(SystemInfo.GameCards(Job.Service.GpuCards, snapshot), SystemInfo.FsrRuns)
+                ? (SystemInfo.EstimatedGpu(snapshot) != null ? Tr.T("The estimated Auto GPU is not a Radeon RX 6000 or newer.") : Tr.T("This PC has no Radeon RX 6000 or newer."))
+                : Linux
+                ? (!FsrBuildable ? Tr.T("This version can't build it on Linux yet.") : Tr.T("Uses your Vulkan FSR 4 library."))
+                : Fsr ? "" : s.FsrLicense ? Tr.T("Licence accepted earlier.") : Tr.T("Shows AMD's licence first.");
+        }
+    }
 
     // ---- (Windows) Intel XeSS ----
 
@@ -143,7 +167,7 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
     // fetch it under Intel's licence. Intel publishes no XeSS library for Linux, so the row is Windows' alone. As DLSS and FSR 4,
     // it turns on whatever this PC's cards. Unlike theirs its line is never red: XeSS runs on other makers' cards too where their
     // Vulkan driver has what it asks for, which only the game can tell, at its start: SystemInfo.XessIntel)
-    public bool XessYourGpu => Job.Service.GpuCards.Any(SystemInfo.XessIntel);
+    public bool XessYourGpu => Job.GameGpuCards.Any(SystemInfo.XessIntel);
 
     /// This version's tools fetch Intel's library (MakeGameCommand.XessBuilds). Unknown tools (not found yet) are taken as able:
     /// the build says so in its log if they were not

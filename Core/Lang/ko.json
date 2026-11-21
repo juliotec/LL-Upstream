@@ -614,6 +614,8 @@
   "Could not connect to {0}. Check that this PC is online, and that no firewall, VPN or antivirus blocks the site.": "{0}에 연결할 수 없습니다. 이 PC가 인터넷에 연결되어 있는지, 방화벽, VPN 또는 백신 프로그램이 사이트를 차단하고 있지 않은지 확인하세요.",
   "This PC is set to go through the proxy {1}, which did not answer, so {0} was not reached. Check the proxy settings, or turn the proxy off.": "이 PC는 프록시 {1}을(를) 거치도록 설정되어 있지만 프록시가 응답하지 않아 {0}에 연결하지 못했습니다. 프록시 설정을 확인하거나 프록시를 끄세요.",
   "No version is out on the {0} channel yet.": "{0} 채널에 아직 나온 버전이 없습니다.",
+  "The estimated Auto GPU is not a GeForce RTX card.": "예상 자동 GPU는 GeForce RTX 카드가 아닙니다.",
+  "The estimated Auto GPU is not a Radeon RX 6000 or newer.": "예상 자동 GPU는 Radeon RX 6000 이상이 아닙니다.",
   "This PC has no GeForce RTX card.": "이 PC에는 GeForce RTX 카드가 없습니다.",
   "This PC has no Radeon RX 6000 or newer.": "이 PC에는 Radeon RX 6000 이상이 없습니다.",
   "Uses your Vulkan FSR 4 library.": "사용자의 Vulkan FSR 4 라이브러리를 사용합니다.",

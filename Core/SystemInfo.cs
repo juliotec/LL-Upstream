@@ -100,6 +100,16 @@ public static class SystemInfo
     /// the game finds out at its start and says in the Upscaler row's hint, so no card is said in red under XeSS's switch
     public static bool XessIntel(Gpu gpu) => gpu.Vendor == Intel;
 
+    /// A known Vulkan vendor and name identify the estimated Auto GPU; otherwise use every display adapter.
+    public static Gpu? EstimatedGpu(IReadOnlyList<GpuRequirement>? vulkan) =>
+        vulkan != null && SystemRequirements.GameGpu(vulkan) is { Vendor: { } vendor, Name: { } name }
+            && !string.IsNullOrWhiteSpace(name) ? new Gpu(vendor, name) : null;
+
+    public static IReadOnlyList<Gpu> GameCards(IReadOnlyList<Gpu> cards, IReadOnlyList<GpuRequirement>? vulkan)
+    {
+        return EstimatedGpu(vulkan) is { } gpu ? [gpu] : cards;
+    }
+
     /// Whether this PC runs an upscaler: one of its cards runs it, or no card was found (unknown). Else its switch says so in red,
     /// and still turns on (Upscalers.Unsupported)
     public static bool Offers(IReadOnlyList<Gpu> gpus, Func<Gpu, bool> runs) => gpus.Count == 0 || gpus.Any(runs);

@@ -674,6 +674,8 @@
   "Could not connect to {0}. Check that this PC is online, and that no firewall, VPN or antivirus blocks the site.": "Не удалось подключиться к {0}. Проверьте, что этот ПК подключён к интернету и что брандмауэр, VPN или антивирус не блокируют сайт.",
   "This PC is set to go through the proxy {1}, which did not answer, so {0} was not reached. Check the proxy settings, or turn the proxy off.": "Этот ПК настроен работать через прокси {1}, который не ответил, поэтому {0} недоступен. Проверьте настройки прокси или отключите его.",
   "No version is out on the {0} channel yet.": "На канале «{0}» пока нет ни одной версии.",
+  "The estimated Auto GPU is not a GeForce RTX card.": "Предполагаемый GPU в режиме «Авто» — не GeForce RTX.",
+  "The estimated Auto GPU is not a Radeon RX 6000 or newer.": "Предполагаемый GPU в режиме «Авто» — не Radeon RX 6000 или новее.",
   "This PC has no GeForce RTX card.": "На этом ПК нет видеокарты GeForce RTX.",
   "This PC has no Radeon RX 6000 or newer.": "На этом ПК нет Radeon RX 6000 или новее.",
   "Uses your Vulkan FSR 4 library.": "Использует вашу библиотеку Vulkan FSR 4.",
