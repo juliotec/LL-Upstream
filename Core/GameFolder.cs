@@ -70,4 +70,20 @@ public static class GameFolder
     /// A folder make_game.py made: its stamp, or the game executable. Only such a folder may be deleted from the launcher
     public static bool IsGameFolder(string folder, Platform platform) =>
         Directory.Exists(folder) && (File.Exists(Path.Combine(folder, StampName)) || IsBuilt(folder, platform));
+
+    /// As IsGameFolder, but report probes that could not be made during a storage scan.
+    public static bool IsGameFolder(string folder, Platform platform, Action partial)
+    {
+        bool Exists(string path, bool directory = false)
+        {
+            try { return ((File.GetAttributes(path) & FileAttributes.Directory) != 0) == directory; }
+            catch (Exception e) when (e is FileNotFoundException or DirectoryNotFoundException) { return false; }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.Security.SecurityException) { partial(); return false; }
+        }
+        if (!Exists(folder, directory: true)) return false;
+        var exe = Platforms.GameExe(platform);
+        return Exists(Path.Combine(folder, StampName))
+            || (Exists(Path.Combine(folder, exe)) && Exists(Path.Combine(folder, platform == Platform.Windows ? "longshot_vk.dll" : "longshot_vk.so")))
+            || Exists(Path.Combine(folder, "bin", exe));
+    }
 }

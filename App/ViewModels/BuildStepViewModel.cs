@@ -83,7 +83,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
         progress.Download(1);
         Rows = progress.Stages.Select(st => new StageRowViewModel(st.Id, Names.GetValueOrDefault(st.Id, st.Title))).ToList();
         ToggleLogCommand = new Command(() => ShowLog = !ShowLog);
-        CancelCommand = new Command(() => Job.Main.Modal = new StopBuildViewModel(this));
+        CancelCommand = new Command(() => { if (!Finalizing) Job.Main.Modal = new StopBuildViewModel(this); }, () => !Finalizing);
         log.Add($"Longshot Launcher {job.Service.OwnTag}: {job.Verb.Trim().ToLowerInvariant()} {job.Version} ({job.Channel})");
         var probe = job.VulkanGpus;
         var pending = !probe.IsCompleted;
@@ -165,6 +165,8 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
     public Command ToggleLogCommand { get; }
     public Command CancelCommand { get; }
 
+    string? buildWork;
+
     void Run()
     {
         var job = Job;
@@ -181,6 +183,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
                              RomfsFrom: romfsFrom, IntelCompiles: job.Service.IntelCompilesApply ? s.IntelCompiles : GamePlay.IntelCompilesAuto,
                              IntelLongerLimits: s.IntelLongerLimits && job.Service.IntelCompilesApply),
             s, job.Service.Platform);
+        buildWork = job.Service.Work;
         dlss = request.Dlss && request.DlssLicense;
         MakeGameCommand command;
         try
@@ -216,6 +219,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
             if (job.Cold && !ClearForCold())
             {
                 PutBack();
+                Ui.Post(StoppedIfRequested);
                 return;
             }
             Seeded? seeded;
@@ -223,6 +227,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
             catch (OperationCanceledException)   // (stopped before the build started: Keep left nothing taken)
             {
                 PutBack();
+                Ui.Post(StoppedIfRequested);
                 return;
             }
             int code;
@@ -235,8 +240,8 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
             catch (OperationCanceledException)
             {
                 // (already on a pool thread: Undo may wait a moment for a file a killed compiler or game still holds)
-                seeded?.Undo();
-                PutBack();
+                try { seeded?.Undo(); PutBack(); }
+                finally { Ui.Post(StoppedIfRequested); }
                 return;
             }
             catch (Exception e) when (e is System.ComponentModel.Win32Exception or IOException or InvalidOperationException)
@@ -245,6 +250,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
                 PutBack();
                 Ui.Post(() =>
                 {
+                    if (cancel.IsCancellationRequested) { StoppedIfRequested(); return; }
                     if (back is { } n) log.Add(Seeded.Said(n));
                     Fail(Tr.F("The build tools could not start: {0}", e.Message),
                          reported: English("The build tools could not start: {0}", e.Message));
@@ -362,7 +368,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
         {
             seeding = null;
             Update();
-            if (failed != null) Fail(failed);
+            if (failed != null && !cancel.IsCancellationRequested) Fail(failed);
         });
         return failed == null;
     }
@@ -400,7 +406,12 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
 
     void Exited(int code, Seeded? seeded = null)
     {
-        SetRunning(false);
+        // Stop can win while the process has exited but its callback is still queued.
+        if (cancel.IsCancellationRequested)
+        {
+            _ = Task.Run(() => { try { seeded?.Undo(); PutBack(); } finally { Ui.Post(StoppedIfRequested); } });
+            return;
+        }
         ticker?.Stop();
         Update();
         if (progress.Finished && code == 0)
@@ -428,6 +439,8 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
         // (put back on a pool thread: Undo may wait up to ShaderCaches.UndoWait for a file something the build started still
         // holds, too long for the window's thread, and the folder's rename too. The problem page shows once they are back, so
         // that building again finds the old build's caches in their place, in its folder of its version's name)
+        Finalizing = true;
+        CancelCommand.Changed();
         Task.Run(() =>
         {
             var n = seeded?.Undo();
@@ -435,6 +448,8 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
             return n;
         }).ContinueWith(t => Ui.Post(() =>
         {
+            Finalizing = false;
+            if (CloseAfterFinalizing != null) { SetRunning(false); CloseAfterFinalizing(); return; }
             if (t.IsCompletedSuccessfully && t.Result is { } n) log.Add(Seeded.Said(n));
             Fail(why, outcome, reported);
         }), TaskScheduler.Default);
@@ -554,10 +569,21 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
     /// Cancel: the build and everything it started stopped, back home
     public void Stop()
     {
-        SetRunning(false);
+        if (Finalizing) return;
         ticker?.Stop();
+        Finalizing = true;
+        CancelCommand.Changed();
         Summarize(BuildReports.Cancelled, "");
         cancel.Cancel();
+    }
+
+    void StoppedIfRequested()
+    {
+        if (!cancel.IsCancellationRequested || !Finalizing) return;
+        if (Current == this) Current = null;
+        SetRunning(false);
+        Finalizing = false;
+        if (CloseAfterFinalizing != null) { CloseAfterFinalizing(); return; }
         Job.Main.ShowHome();
         Job.Main.ShowToast(Tr.T("Build stopped."));
     }
@@ -575,8 +601,11 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
         Job.Main.Navigate(new ProblemViewModel(this, why, name, pct, outcome));
     }
 
-    void Complete()
+    async void Complete()
     {
+        Finalizing = true;
+        Job.Main.Modal = null;
+        CancelCommand.Changed();
         Summarize(BuildReports.Completed, "");
         var job = Job;
         var service = job.Service;
@@ -616,6 +645,20 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
             }
         }
         service.PruneTools();
+        // (Keep the build's work and capped stores, or remove them when keeping is off. Off the window's thread.)
+        var work = buildWork ?? service.Work;
+        var keep = s.KeepBuildFiles;
+        await Task.Run(() => Storage.AfterBuild(work, keep));
+        // (what the Storage page measured before this build is not what is there now)
+        Job.Main.StorageMeasured = null;
+        SetRunning(false);
+        Finalizing = false;
+
+        if (CloseAfterFinalizing != null)
+        {
+            CloseAfterFinalizing();
+            return;
+        }
 
         // (no saves to move: every build shares them, SaveEnvironment.LongshotUser)
         job.Main.Navigate(new ReadyViewModel(job.Main, entry, job.Kind, job.From, clock.Elapsed + job.ToolsTime, problem, job.Older));
@@ -634,6 +677,8 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
     public void ReplayExit(int code) => Exited(code);
 
     public bool Running => running;
+    public bool Finalizing { get; private set; }
+    public Action? CloseAfterFinalizing { get; set; }
 
     IDisposable? awake;
 
@@ -644,6 +689,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
         if (on) awake ??= KeepAwake.Hold("Building Longshot");
         else
         {
+            if (Current == this) Current = null;
             awake?.Dispose();
             awake = null;
         }
@@ -688,47 +734,31 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
 
     /// The build that is running, if any: what the launcher's SIGTERM reports (Terminated)
     public static BuildStepViewModel? Current { get; private set; }
+    public static BuildReports.Shutdown Shutdown { get; } = new();
     readonly BuildReports.Once summarized = new();
 
     /// With Settings' "Send performance statistics" ticked: how the build ended, sent on its own (BuildReports, Auto), once a
     /// build. Not for the screenshots' replays. On the window's thread
     void Summarize(string outcome, string why)
     {
-        if (Summary(outcome, why) is { } json) _ = BuildReports.SendAsync(BuildReports.Http, json, CancellationToken.None);
+        if (Summary(outcome, why) is { } json) Shutdown.Track(BuildReports.SendAsync(BuildReports.Http, json, CancellationToken.None));
     }
 
     /// The summary to send, made on the window's thread (it reads the stages); null when none is sent: the statistics unticked, a
     /// screenshot's replay, or the build already summarized (once only, whichever thread ends it first: BuildReports.Once)
     string? Summary(string outcome, string why)
     {
-        if (Current == this) Current = null;
         if (fixedTime != null || !Job.Service.Settings.SendPerformanceStatistics || !summarized.Claim()) return null;
         return BuildReports.Json(Failure(why, outcome, auto: true), null);
     }
 
-    /// The launcher was sent SIGTERM while this build ran, on the signal's thread: its summary made on the window's thread (waited
-    /// for, at most 1 s: this thread reads none of the window's data) and sent (its answer waited for, at most 2 s), then the
-    /// build stopped: whatever is thrown on the way is caught, and the build is stopped all the same
-    public void Terminated()
+    /// SIGTERM on the window's thread: report it and close only after cancellation or finalization has put files back.
+    public void Terminated(Action shutdown)
     {
-        try
-        {
-            var json = BuildReports.OnWindow<string>(Ui.Post, () =>
-            {
-                SetRunning(false);
-                return Summary(BuildReports.Terminated, BuildReports.LauncherStopped);
-            }, TimeSpan.FromSeconds(1));
-            if (json != null) BuildReports.SendAsync(BuildReports.Http, json, CancellationToken.None).Wait(TimeSpan.FromSeconds(2));
-        }
-        catch (Exception e)
-        {
-            LauncherLog.Add($"build summary: not sent at SIGTERM: {e.GetType().Name}: {e.Message}");
-        }
-        finally
-        {
-            try { cancel.Cancel(); }
-            catch (Exception e) when (e is AggregateException or ObjectDisposedException) { }
-        }
+        if (Shutdown.Terminating) return;
+        Summarize(BuildReports.Terminated, BuildReports.LauncherStopped);
+        Shutdown.Terminate(close => CloseAfterFinalizing = close, shutdown, TimeSpan.FromSeconds(2));
+        if (!Finalizing) Stop();
     }
 
     /// This PC's memory, threads and graphics cards

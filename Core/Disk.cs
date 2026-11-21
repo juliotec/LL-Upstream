@@ -19,25 +19,9 @@ public static class Disk
     public const string ObjectStore = "obj-store";
     public const string LiftStore = "lift-store";
 
-    /// What Free up space lists before it deletes, in this order: a name, what it is kept for (English: Tr.T where shown), and
-    /// the WorkParts it covers. Every one of WorkParts is in exactly one (tests/launcher_core ScreenChecks)
-    public sealed record WorkGroup(string Name, string About, IReadOnlyList<string> Parts);
-
-    public static readonly IReadOnlyList<WorkGroup> WorkGroups = new[]
-    {
-        new WorkGroup(Tr.N("Compiled game code"), Tr.N("Kept so an update or a rebuild compiles only what changed."), new[] { "objcache", "system_headers.txt" }),
-        new WorkGroup(Tr.N("The game's code, translated to C"), Tr.N("Kept so building the same version again skips translating it."), new[] { "sa" }),
-        new WorkGroup(Tr.N("The game's program, unpacked"), Tr.N("Unpacked from your dump again by the next build."), new[] { "exefs" }),
-        new WorkGroup(Tr.N("What checking your dump unpacked"), Tr.N("Made again the next time a dump is checked."), new[] { "probe" }),
-        new WorkGroup(Tr.N("Other versions' compiled code"), Tr.N("The object store: switching to a version you built before compiles only what it lacks."), new[] { ObjectStore }),
-        new WorkGroup(Tr.N("Other versions' translations"), Tr.N("The lift store: switching to a version you built before copies its translation instead of making it again."), new[] { LiftStore }),
-    };
-
-    /// The bytes Free up space would let go in work
+    /// The bytes freeing all of the build files would let go in work (Settings' note; the Storage page frees them by kind:
+    /// Storage.WorkPartsOf)
     public static long WorkBytes(string work) => WorkParts.Sum(p => PartBytes(work, p));
-
-    /// The bytes of each of WorkGroups in work, in their order
-    public static IReadOnlyList<long> GroupBytes(string work) => WorkGroups.Select(g => g.Parts.Sum(p => PartBytes(work, p))).ToList();
 
     /// The bytes one of WorkParts takes in work: a file's, a folder's (a link counts nothing), the object store's less what is
     /// one file with objcache (ObjectStoreBytes)
@@ -75,19 +59,32 @@ public static class Disk
     }
 
     /// WorkParts let go (a link among them is removed, never followed); the rest of work stays
-    public static void FreeWork(string work)
+    public static void FreeWork(string work) => FreeWork(work, WorkParts);
+
+    /// Some of WorkParts let go (the Storage page: one group at a time); a name that is not one of WorkParts is never touched,
+    /// so nothing else in a folder the player chose can go this way
+    public static void FreeWork(string work, IEnumerable<string> parts, Action<int, int, int>? outcome = null)
     {
         var gone = new List<string>();
+        int skipped = 0, failed = 0;
         try
         {
-            foreach (var p in WorkParts)
+            foreach (var p in parts.Where(WorkParts.Contains).Distinct())
             {
                 var path = Path.Combine(work, p);
-                if (Directory.Exists(path) || new DirectoryInfo(path).LinkTarget != null) Toolchains.DeleteTree(path);
-                else if (File.Exists(path)) File.Delete(path);
-                else continue;
-                gone.Add(p);
+                try
+                {
+                    var attributes = File.GetAttributes(path);
+                    if ((attributes & FileAttributes.Directory) != 0)
+                    {
+                        if (Toolchains.DeleteTreeIfPresent(path)) gone.Add(p); else skipped++;
+                    }
+                    else { File.Delete(path); gone.Add(p); }
+                }
+                catch (Exception e) when (e is FileNotFoundException or DirectoryNotFoundException) { skipped++; }
+                catch (Exception e) when (outcome != null && (e is IOException or UnauthorizedAccessException or System.Security.SecurityException)) { failed++; }
             }
+            outcome?.Invoke(gone.Count, skipped, failed);
             LauncherLog.Add($"free up space: deleted in {work}: {(gone.Count > 0 ? string.Join(", ", gone) : "nothing there")}");
         }
         catch (Exception e)
@@ -100,6 +97,8 @@ public static class Disk
     /// The bytes of the files under folder; links are counted as links, never followed; what cannot be read counts nothing
     public static long FolderBytes(string folder)
     {
+        try { if (new DirectoryInfo(folder).LinkTarget != null) return 0; }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.Security.SecurityException) { return 0; }
         long sum = 0;
         var pending = new Stack<string>();
         pending.Push(folder);
@@ -131,36 +130,79 @@ public static class Disk
     /// built into a new folder leaves the old one on the disk with no row, holding links to the game files it gave the new
     /// one. Windows' listing does not say a file's links, so there the files that could be freed (all their links seen in one
     /// folder) are asked, on up to 8 threads: a game folder of ~187,000 files took 3.0 to 4.0 s, the listing alone 0.4 to 0.7 s
-    /// (Ryzen 5 5600, NVMe; one thread took about 16 s). Links are not followed; what cannot be read counts nothing
-    public static IReadOnlyList<FolderSize> Measure(IReadOnlyList<string> folders)
+    /// (Ryzen 5 5600, NVMe; one thread took about 16 s). Links are not followed; what cannot be read counts nothing. skip: what
+    /// of the entries right inside folders[i] (by name) is left out of it, so that one folder can be measured as several parts
+    /// (Storage: a game folder's game files, shader caches and the rest) with each file still counted once across all of them
+    public static IReadOnlyList<FolderSize> Measure(IReadOnlyList<string> folders, Func<int, string, bool>? skip = null) =>
+        MeasureCopies(folders, skip).Sizes;
+
+    /// Measure's sizes, with the copies among the folders copies asks about (Storage: each game folder's romfs/): folders that
+    /// share a file (a hard link) are one copy. Copy[i]: the first folder of i's copy (-1: one not asked about); CopyFrees[c]:
+    /// what deleting every folder of copy c frees, its files with no hard link outside them; CopyHeld[c]: its largest file
+    /// another folder links to too, outside the copy's (none: every file is freed with it), to name those folders by
+    public sealed record Measured(IReadOnlyList<FolderSize> Sizes, IReadOnlyList<int> Copy, IReadOnlyDictionary<int, long> CopyFrees,
+                                 IReadOnlyDictionary<int, string>? CopyHeld = null, bool Partial = false);
+
+    /// Measure, telling apart the copies among the folders copies says (null: none); see Measured
+    public static Measured MeasureCopies(IReadOnlyList<string> folders, Func<int, string, bool>? skip = null, Func<int, bool>? copies = null)
     {
         var bytes = new long[folders.Count];
         var counted = new long[folders.Count];
         var frees = new long[folders.Count];
+        // (each folder's files that are its alone: no identity, or one link)
+        var sole = new long[folders.Count];
         // (a file that may be linked elsewhere: its bytes, its links, 0 when unknown, and how many of its links each folder has;
         // where it is in all of folders, and the folder that counts it)
         var shared = new Dictionary<FileId, (long Size, uint Links, int First, int Seen, string Path)>();
         var here = new Dictionary<FileId, int>[folders.Count];
+        var partial = false;
         for (var i = 0; i < folders.Count; i++)
         {
             var mine = here[i] = new Dictionary<FileId, int>();
             var at = i;
-            Walk(folders[i], (path, size, id, links) =>
+            Walk(folders[i], skip == null ? null : name => skip(at, name), (path, size, id, links) =>
             {
                 bytes[at] += size;
                 if (id is not { } key || links == 1)
                 {
                     counted[at] += size;
                     frees[at] += size;
+                    sole[at] += size;
                     return;
                 }
                 mine[key] = mine.GetValueOrDefault(key) + 1;
                 shared[key] = shared.TryGetValue(key, out var s) ? s with { Seen = s.Seen + 1 } : (size, links, at, 1, path);
-            });
+            }, () => partial = true);
+        }
+        // (the copies: the folders asked about that share a file, joined; each file's first such folder, and how many of its
+        // links they have)
+        var asked0 = Enumerable.Range(0, folders.Count).Select(i => copies?.Invoke(i) == true).ToArray();
+        var parent = Enumerable.Range(0, folders.Count).ToArray();
+        int Root(int x)
+        {
+            while (parent[x] != x) x = parent[x] = parent[parent[x]];
+            return x;
+        }
+        var firstAsked = new Dictionary<FileId, int>();
+        var askedSeen = new Dictionary<FileId, int>();
+        for (var i = 0; i < folders.Count; i++)
+        {
+            if (!asked0[i]) continue;
+            foreach (var (key, n) in here[i])
+            {
+                if (firstAsked.TryGetValue(key, out var f))
+                {
+                    var (a, b) = (Root(f), Root(i));
+                    if (a != b) parent[Math.Max(a, b)] = Math.Min(a, b);
+                }
+                else firstAsked[key] = i;
+                askedSeen[key] = askedSeen.GetValueOrDefault(key) + n;
+            }
         }
         // (Windows: a file seen only in one folder, all its links there, may have more outside every folder; one seen in two is
-        // freed by deleting neither, whatever its link count)
-        var ask = shared.Where(p => p.Value.Links == 0 && p.Value.Size > 0 && here[p.Value.First].GetValueOrDefault(p.Key) == p.Value.Seen)
+        // freed by deleting neither, whatever its link count; one of a copy's, whose folders may hold all its links, asked too)
+        var ask = shared.Where(p => p.Value.Links == 0 && p.Value.Size > 0
+                                    && (here[p.Value.First].GetValueOrDefault(p.Key) == p.Value.Seen || firstAsked.ContainsKey(p.Key)))
                         .Select(p => (p.Key, p.Value.Path)).ToList();
         var asked = new uint[ask.Count];
         Parallel.For(0, ask.Count, new ParallelOptions { MaxDegreeOfParallelism = Math.Clamp(Environment.ProcessorCount, 1, 8) },
@@ -174,7 +216,20 @@ public static class Disk
                 if (s.First == i) counted[i] += s.Size;
                 if (n >= (s.Links > 0 ? s.Links : (uint)s.Seen)) frees[i] += s.Size;
             }
-        return Enumerable.Range(0, folders.Count).Select(i => new FolderSize(bytes[i], counted[i], frees[i])).ToList();
+        var copyFrees = new Dictionary<int, long>();
+        for (var i = 0; i < folders.Count; i++)
+            if (asked0[i]) copyFrees[Root(i)] = copyFrees.GetValueOrDefault(Root(i)) + sole[i];
+        // (a file of a copy is freed with it when every link it has is in the copy's folders; of the others, the largest kept)
+        var held = new Dictionary<int, (long Size, string Path)>();
+        foreach (var (key, f) in firstAsked)
+        {
+            var s = shared[key];
+            if (askedSeen[key] == s.Seen && s.Seen >= (s.Links > 0 ? s.Links : (uint)s.Seen)) copyFrees[Root(f)] += s.Size;
+            else if (!held.TryGetValue(Root(f), out var h) || s.Size > h.Size) held[Root(f)] = (s.Size, s.Path);
+        }
+        return new Measured(Enumerable.Range(0, folders.Count).Select(i => new FolderSize(bytes[i], counted[i], frees[i])).ToList(),
+                            Enumerable.Range(0, folders.Count).Select(i => asked0[i] ? Root(i) : -1).ToList(), copyFrees,
+                            held.ToDictionary(h => h.Key, h => h.Value.Path), partial);
     }
 
     /// What a build holds of its own, as its row says it and its Delete frees: its files with no hard link outside its folder
@@ -208,21 +263,26 @@ public static class Disk
     }
 
     /// Each file under folder: its path, its bytes, its identity (null: unknown) and its hard links (0: unknown). Links are not
-    /// followed
-    static void Walk(string folder, Action<string, long, FileId?, uint> file)
+    /// followed. skip: the entries right inside folder (by name) to leave out
+    static void Walk(string folder, Func<string, bool>? skip, Action<string, long, FileId?, uint> file, Action partial)
     {
+        try { if (new DirectoryInfo(folder).LinkTarget != null) return; }
+        catch (Exception e) when (e is FileNotFoundException or DirectoryNotFoundException) { return; }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.Security.SecurityException) { partial(); return; }
         var pending = new Stack<string>();
         var listing = new List<FileLinks.Listed>();
         pending.Push(folder);
         while (pending.Count > 0)
         {
             var dir = pending.Pop();
+            var top = skip != null && ReferenceEquals(dir, folder);
             try
             {
                 if (FileLinks.TryWindowsListing(dir, listing, out var volume))
                 {
                     foreach (var e in listing)
                     {
+                        if (top && skip!(e.Name)) continue;
                         if ((e.Attributes & FileLinks.AttributeReparsePoint) != 0 && e.Tag is FileLinks.TagSymlink or FileLinks.TagMountPoint) continue;
                         if ((e.Attributes & FileLinks.AttributeDirectory) != 0) pending.Push(Path.Combine(dir, e.Name));
                         // (0 and all ones: no id the volume can give, as ReFS's longer ones)
@@ -232,6 +292,7 @@ public static class Disk
                 }
                 foreach (var entry in new DirectoryInfo(dir).EnumerateFileSystemInfos())
                 {
+                    if (top && skip!(entry.Name)) continue;
                     if (entry.LinkTarget != null) continue;
                     if (entry is DirectoryInfo d) pending.Push(d.FullName);
                     else if (entry is FileInfo f)
@@ -241,7 +302,8 @@ public static class Disk
                     }
                 }
             }
-            catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.Security.SecurityException) { }
+            catch (Exception e) when (e is FileNotFoundException or DirectoryNotFoundException) { if (dir != folder) partial(); }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.Security.SecurityException) { partial(); }
         }
     }
 

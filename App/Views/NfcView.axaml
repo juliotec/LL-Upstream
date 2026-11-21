@@ -147,7 +147,6 @@
         <c:Icon Kind="info" Width="14" Height="14" Foreground="{StaticResource InkFaintText}" VerticalAlignment="Center"/>
         <TextBlock Classes="faint" Text="The dumps stay on this PC, in a folder every Longshot version shares." VerticalAlignment="Center"/>
       </StackPanel>
-      <Button Grid.Column="1" Classes="primary" Content="Done" Command="{Binding DoneCommand}" c:Pad.Back="True"/>
     </Grid>
   </Grid>
 </UserControl>

@@ -128,10 +128,47 @@
             </ItemsControl>
           </Border>
           <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" Classes.linux="{Binding Linux}">
-            <!-- (Settings is the one the keyboard and a controller reach: up from the page) -->
-            <Button Classes="caption gear" Focusable="True" Command="{Binding SettingsCommand}" IsVisible="{Binding IsHome}" ToolTip.Tip="{c:T 'Settings'}">
-              <c:Icon Kind="gear"/>
-            </Button>
+            <!-- the tabs: the pages a player moves between, the one shown lit, on those pages only (a build or a transfer keeps
+                 its own way back). The keyboard and a controller reach them up from the page; Home is a controller's B there -->
+            <StackPanel Name="NavBar" Orientation="Horizontal" IsVisible="{Binding ShowsTabs}">
+              <Button Classes="caption gear nav" Classes.on="{Binding IsHome}" Focusable="True" Command="{Binding GoHomeCommand}" c:Pad.Back="True"
+                      ToolTip.Tip="{c:T 'Home'}" AutomationProperties.Name="{c:T 'Home'}">
+                <StackPanel Classes="navitem">
+                  <c:Icon Kind="home"/>
+                  <TextBlock Classes="navlabel" Text="{c:T 'Home'}"/>
+                </StackPanel>
+              </Button>
+              <Button Classes="caption gear nav" Classes.on="{Binding IsSavesShown}" Focusable="True" Command="{Binding GoSavesCommand}"
+                      ToolTip.Tip="{c:T 'Saves'}" AutomationProperties.Name="{c:T 'Saves'}">
+                <StackPanel Classes="navitem">
+                  <c:Icon Kind="disk"/>
+                  <TextBlock Classes="navlabel" Text="{c:T 'Saves'}"/>
+                </StackPanel>
+              </Button>
+              <Button Classes="caption gear nav" Classes.on="{Binding IsNfcShown}" Focusable="True" Command="{Binding GoNfcCommand}"
+                      ToolTip.Tip="{c:T 'NFC tags'}" AutomationProperties.Name="{c:T 'NFC tags'}">
+                <StackPanel Classes="navitem">
+                  <c:Icon Kind="nfc"/>
+                  <TextBlock Classes="navlabel" Text="{c:T 'NFC'}"/>
+                </StackPanel>
+              </Button>
+              <Button Classes="caption gear nav" Classes.on="{Binding IsStorageShown}" Focusable="True" Command="{Binding StorageCommand}"
+                      ToolTip.Tip="{c:T 'Storage'}" AutomationProperties.Name="{c:T 'Storage'}">
+                <StackPanel Classes="navitem">
+                  <c:Icon Kind="drive"/>
+                  <TextBlock Classes="navlabel" Text="{c:T 'Storage'}"/>
+                </StackPanel>
+              </Button>
+              <Button Classes="caption gear nav" Classes.on="{Binding IsSettingsShown}" Focusable="True" Command="{Binding SettingsCommand}"
+                      ToolTip.Tip="{c:T 'Settings'}" AutomationProperties.Name="{c:T 'Settings'}">
+                <StackPanel Classes="navitem">
+                  <c:Icon Kind="gear"/>
+                  <TextBlock Classes="navlabel" Text="{c:T 'Settings'}"/>
+                </StackPanel>
+              </Button>
+              <!-- (the tabs apart from the window's own buttons) -->
+              <Border Width="1" Height="18" Margin="8,0" VerticalAlignment="Center" Background="{StaticResource GlassLine}"/>
+            </StackPanel>
             <Button Name="MinimizeButton" Classes="caption" Command="{Binding MinimizeCommand}" ToolTip.Tip="{c:T 'Minimize'}">
               <c:Icon Kind="min"/>
             </Button>
@@ -151,6 +188,7 @@
             <DataTemplate DataType="vm:ProblemViewModel"><views:ProblemView/></DataTemplate>
             <DataTemplate DataType="vm:ProblemPageViewModel"><views:ProblemPageView/></DataTemplate>
             <DataTemplate DataType="vm:SettingsViewModel"><views:SettingsView/></DataTemplate>
+            <DataTemplate DataType="vm:StorageViewModel"><views:StorageView/></DataTemplate>
             <DataTemplate DataType="vm:SavesViewModel"><views:SavesView/></DataTemplate>
             <DataTemplate DataType="vm:SavesConfirmViewModel"><views:SavesConfirmView/></DataTemplate>
             <DataTemplate DataType="vm:SavesResultViewModel"><views:SavesResultView/></DataTemplate>
@@ -167,7 +205,6 @@
           <ContentControl.DataTemplates>
             <DataTemplate DataType="vm:ChannelPickerViewModel"><views:ChannelPickerView/></DataTemplate>
             <DataTemplate DataType="vm:DeleteViewModel"><views:DeleteView/></DataTemplate>
-            <DataTemplate DataType="vm:FreeSpaceViewModel"><views:FreeSpaceView/></DataTemplate>
             <DataTemplate DataType="vm:LicenceViewModel"><views:LicenceView/></DataTemplate>
             <DataTemplate DataType="vm:StopBuildViewModel"><views:StopBuildView/></DataTemplate>
             <DataTemplate DataType="vm:SavePickViewModel"><views:SavePickView/></DataTemplate>

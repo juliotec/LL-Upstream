@@ -135,6 +135,15 @@ public sealed class ToolsPrefetch
         get { lock (gate) return running > 0; }
     }
 
+    /// Run staging cleanup under the same exclusion as an install.
+    public bool CleanStaging(Action cleanup)
+    {
+        if (!one.Wait(0)) return false;
+        try { cleanup(); }
+        finally { one.Release(); }
+        return true;
+    }
+
     /// The versions fetched or being fetched this session (not one that failed or was stopped), which pruning keeps
     public IReadOnlyList<string> Tags
     {

@@ -1,5 +1,6 @@
 using Avalonia;
 using LongshotLauncher.Core;
+using LongshotLauncher.ViewModels;
 
 namespace LongshotLauncher;
 
@@ -105,11 +106,21 @@ static class Program
             catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.Security.SecurityException
                                           or System.ComponentModel.Win32Exception or InvalidOperationException) { }
         }
-        // (SIGTERM while a build runs, the PC shutting down or a task manager: the build's summary sent, with the statistics ticked,
-        // before the launcher ends as it did. BuildStepViewModel.Terminated)
+        // Graceful shutdown goes through the window thread so a build can finish putting its files back first.
         using var sigterm = OperatingSystem.IsWindows() ? null
             : System.Runtime.InteropServices.PosixSignalRegistration.Create(System.Runtime.InteropServices.PosixSignal.SIGTERM,
-                                                                             _ => ViewModels.BuildStepViewModel.Current?.Terminated());
+                signal =>
+                {
+                    if (Avalonia.Application.Current?.ApplicationLifetime is not Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime) return;
+                    signal.Cancel = true;
+                    Ui.Post(() =>
+                    {
+                        if (Avalonia.Application.Current?.ApplicationLifetime is not Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop) return;
+                        if (ViewModels.BuildStepViewModel.Shutdown.Terminating) return;
+                        if (ViewModels.BuildStepViewModel.Current is { } build) build.Terminated(() => desktop.Shutdown());
+                        else ViewModels.BuildStepViewModel.Shutdown.Terminate(close => close(), () => desktop.Shutdown(), TimeSpan.FromSeconds(2));
+                    });
+                });
         try
         {
             var code = BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);

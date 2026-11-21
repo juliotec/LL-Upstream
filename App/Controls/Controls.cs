@@ -64,6 +64,13 @@ public sealed class Icon : Control
         ["min"] = new[] { ("M7 12h10", 1.2) },
         ["close"] = new[] { ("M7 7l10 10M17 7L7 17", 1.2) },
         ["disk"] = new[] { ("M5 4.5h11l3.5 3.5v11.5a1 1 0 0 1-1 1h-13a1 1 0 0 1-1-1v-14a1 1 0 0 1 1-1z M8 4.5v5h7v-5 M8 20.5v-6h8v6", 1.6) },
+        ["home"] = new[] { ("M4 11.2 12 4.5l8 6.7M6.5 9.4v10.1h4v-5.5h3v5.5h4V9.4", 1.7) },
+        // (a hard drive, for Storage; "disk" is a floppy, for saving)
+        ["drive"] = new[]
+        {
+            ("M3.5 13h17M7.7 4.5h8.6a1.6 1.6 0 0 1 1.5 1.1L20.5 13v4.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2V13l2.7-7.4a1.6 1.6 0 0 1 1.5-1.1z", 1.5),
+            ("M8.6 16.25a1.1 1.1 0 1 1-2.2 0a1.1 1.1 0 1 1 2.2 0z", 0.0),
+        },
         ["swap"] = new[] { ("M7 7h11m0 0l-3.5-3.5M18 7l-3.5 3.5M17 17H6m0 0l3.5-3.5M6 17l3.5 3.5", 1.8) },
         ["arrowRight"] = new[] { ("M5 12h13m0 0l-5-5m5 5l-5 5", 2.0) },
         ["upload"] = new[] { ("M12 15V4m0 0L7.5 8.5M12 4l4.5 4.5M5 19.5h14", 1.9) },
@@ -104,9 +111,55 @@ public sealed class Icon : Control
     }
 }
 
-/// A progress bar: a rounded track, a fill to Value (0..1), and notches between a build's stages
+/// A progress bar: a rounded track, a fill to Value (0..1), and notches between a build's stages. Indeterminate: a part of
+/// the fill sweeping along the track, for work whose share done is not known (the Storage page measuring)
 public sealed class Bar : Control
 {
+    public static readonly StyledProperty<bool> IndeterminateProperty = AvaloniaProperty.Register<Bar, bool>(nameof(Indeterminate));
+    public bool Indeterminate { get => GetValue(IndeterminateProperty); set => SetValue(IndeterminateProperty, value); }
+    DispatcherTimer? sweep;
+    double phase = 0.4;
+
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+        if (change.Property == IndeterminateProperty || change.Property == IsVisibleProperty) Sweep();
+    }
+
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        Sweep();
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        sweep?.Stop();
+        sweep = null;
+        base.OnDetachedFromVisualTree(e);
+    }
+
+    /// The sweep's timer runs only while it is shown and indeterminate
+    void Sweep()
+    {
+        var on = Indeterminate && IsEffectivelyVisible && VisualRoot != null && !Motion.Reduced;
+        if (on && sweep == null)
+        {
+            sweep = new DispatcherTimer(TimeSpan.FromMilliseconds(33), DispatcherPriority.Render, (_, _) =>
+            {
+                phase = (phase + 0.012) % 1;
+                InvalidateVisual();
+            });
+            sweep.Start();
+        }
+        else if (!on && sweep != null)
+        {
+            sweep.Stop();
+            sweep = null;
+        }
+        InvalidateVisual();
+    }
+
     public static readonly StyledProperty<double> ValueProperty = AvaloniaProperty.Register<Bar, double>(nameof(Value));
     public static readonly StyledProperty<IBrush?> FillProperty = AvaloniaProperty.Register<Bar, IBrush?>(nameof(Fill), Brushes.RoyalBlue);
     public static readonly StyledProperty<IBrush?> TrackProperty = AvaloniaProperty.Register<Bar, IBrush?>(nameof(Track), new SolidColorBrush(Color.Parse("#12FFFFFF")));
@@ -135,6 +188,14 @@ public sealed class Bar : Control
         using (context.PushClip(clip))
         {
             if (Track != null) context.DrawRectangle(Track, null, clip);
+            if (Indeterminate)
+            {
+                // (a third of the track, coming in from the left and leaving at the right)
+                var part = w / 3;
+                var x = -part + (w + part) * phase;
+                if (Fill != null) context.DrawRectangle(Fill, null, new RoundedRect(new Rect(x, 0, part, h), r));
+                return;
+            }
             var v = Math.Clamp(double.IsFinite(Value) ? Value : 0, 0, 1);
             if (v > 0 && Fill != null) context.DrawRectangle(Fill, null, new RoundedRect(new Rect(0, 0, Math.Max(h, w * v), h), r));
             if (Notches != null)

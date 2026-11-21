@@ -1,7 +1,8 @@
 namespace LongshotLauncher.Core;
 
 /// A game folder no build lists (Leftovers.Find): where it is, and the version its stamp names (null: none)
-public sealed record Leftover(string Folder, string? Version)
+/// HoldsYours: something of the player's is in it that a delete would lose (mods, a link of their own): never deleted from Storage
+public sealed record Leftover(string Folder, string? Version, bool HoldsYours = false)
 {
     /// The version as players see it, else the folder's name
     public string Shown => Version is { } v ? Versions.Shown(v) : Path.GetFileName(Path.TrimEndingDirectorySeparator(Folder));
@@ -33,14 +34,46 @@ public static class Leftovers
                .Select(f => new Leftover(f.Dir, f.Version)).ToList();
     }
 
+    /// Every game folder in buildsFolder that no build lists, as Find scans them, for the Storage page: they take space wherever
+    /// they came from. Also the ones Find leaves out: the ones the player kept, a channel's newest whose row went, and the ones
+    /// with something of the player's in them (HoldsYours: mods, or a link of their own; a save is backed up by the delete,
+    /// BuildRegistry.DeleteFolder). keep: the launcher's home, as Find's
+    public static IReadOnlyList<Leftover> All(string buildsFolder, IEnumerable<string> builds, Platform platform, IEnumerable<string>? keep = null,
+                                              SaveEnvironment? saves = null, Action? partial = null) =>
+        Unlisted(buildsFolder, builds.ToList(), (keep ?? Array.Empty<string>()).ToList(), platform, Array.Empty<string>(),
+                 dir => partial == null ? GameFolder.IsGameFolder(dir, platform) : GameFolder.IsGameFolder(dir, platform, partial), partial)
+            .Select(f => new Leftover(f.Dir, f.Version, HoldsYours(f.Dir, saves))).ToList();
+
+    /// Something of the player's in the folder a delete would lose: user/ a link, user/save a link but the launcher's own to the
+    /// shared save, or anything in mods/ (a save in user/save is backed up first by the delete)
+    public static bool HoldsYours(string dir, SaveEnvironment? saves)
+    {
+        try
+        {
+            var user = Path.Combine(dir, "user");
+            var save = Path.Combine(user, "save");
+            if (IsLink(user)) return true;
+            if (IsLink(save) && !(saves != null && Saves.LinksToShared(saves, save))) return true;
+            return !NoMods(dir);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return true; }
+    }
+
+    /// Recheck player data immediately before deleting an unlisted game.
+    public static string? Delete(string folder, Platform platform, IReadOnlyList<string> keep, SaveEnvironment? saves)
+    {
+        if (HoldsYours(folder, saves)) throw new IOException("The folder holds mods or links; move them out before removing it.");
+        return BuildRegistry.DeleteFolder(folder, platform, keep, null, saves, guard: () => !HoldsYours(folder, saves));
+    }
+
     /// The folders an instance can be in buildsFolder (right in it, and in its tracks' folders: builds/nightly/&lt;version&gt;,
     /// InstanceFolders.Folders), in ordinal order, with the version their stamp names: no link, no listed build's folder nor one
     /// holding or in one, none holding the launcher's home (homes), none the player kept (kept), and passing want. One that cannot
     /// be read is left out. The one scan Find, LostUpdate and Relist share
     static IEnumerable<(string Dir, string? Version)> Unlisted(string buildsFolder, IReadOnlyList<string> listed, IReadOnlyList<string> homes,
-                                                               Platform platform, IReadOnlyList<string> kept, Func<string, bool> want)
+                                                               Platform platform, IReadOnlyList<string> kept, Func<string, bool> want, Action? partial = null)
     {
-        foreach (var dir in InstanceFolders.Folders(buildsFolder, platform).Order(StringComparer.Ordinal))
+        foreach (var dir in InstanceFolders.Folders(buildsFolder, platform, partial).Order(StringComparer.Ordinal))
         {
             string? version;
             try
@@ -49,7 +82,7 @@ public static class Leftovers
                 if (kept.Any(k => BuildRegistry.SameFolder(k, dir)) || !want(dir)) continue;
                 version = GameFolder.Version(dir);
             }
-            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { continue; }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.Security.SecurityException) { partial?.Invoke(); continue; }
             yield return (dir, version);
         }
     }
@@ -164,11 +197,23 @@ public static class Leftovers
 
     static bool NoMods(string dir)
     {
-        var mods = Path.Combine(dir, "mods");
-        if (IsLink(mods) || Directory.Exists(mods) && Directory.EnumerateFileSystemEntries(mods, "*", SearchOption.AllDirectories)
-                                                               .Any(e => File.Exists(e))) return false;
+        return EmptyMods(Path.Combine(dir, "mods")) && EmptyMods(Path.Combine(dir, "user", "mods"));
+    }
+
+    static bool EmptyMods(string mods)
+    {
+        if (IsLink(mods)) return false;
+        if (!Directory.Exists(mods)) return true;
+        var pending = new Stack<string>();
+        pending.Push(mods);
+        while (pending.Count > 0)
+            foreach (var entry in new DirectoryInfo(pending.Pop()).EnumerateFileSystemInfos())
+            {
+                if (entry.LinkTarget != null || entry.Attributes.HasFlag(FileAttributes.ReparsePoint) || entry is FileInfo) return false;
+                if (entry is DirectoryInfo) pending.Push(entry.FullName);
+            }
         return true;
     }
 
-    static bool IsLink(string path) => (Directory.Exists(path) || File.Exists(path)) && new DirectoryInfo(path).LinkTarget != null;
+    static bool IsLink(string path) => new DirectoryInfo(path).LinkTarget != null;
 }

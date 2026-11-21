@@ -54,6 +54,10 @@ GET https://beanstalk.magicbean.dev/api/v1/public/pulls
 
 ## The build
 
+Like other builds, pull request builds keep the latest work and the object and lift stores by default. The stores are capped
+at 4 GB of objects and two translations. Turning off *Keep build files and stores* in Storage removes the work and stores
+after a successful build. A failed or stopped build can leave these files behind.
+
 `pr-<number>-<first 8 hex of the head>` is the version (`Versions.PullRequestOf`), on the `pr` track.
 
 1. Its pull request is read again: it must still be open, out of draft, for this system and at that very commit; a newer
@@ -74,9 +78,9 @@ GET https://beanstalk.magicbean.dev/api/v1/public/pulls
    Beanstalk refuses to judge one: its build would need tools nobody checked.
 5. The wizard's other steps are as for any version.
 
-**Builds stay fast.** A pull request's build uses the same work folder as every other build, so Longshot's lift and object
-stores (`LONGSHOT_LIFT_STORE`, `LONGSHOT_OBJ_STORE`) apply. The translation is keyed by the translator and its settings, not
-the version, so a pull request that leaves `nx2/` alone takes the nightly's translation instead of translating again, and
+**Builds stay fast.** A pull request's build uses the same work folder as every other build, which keeps the most recent
+build's translation and objects. The translation is keyed by the translator and its settings, not the version, so a pull
+request built after its nightly that leaves `nx2/` alone takes the nightly's translation instead of translating again, and
 the objects nothing changed are reused. Its game files are linked from another build of the same dump
 (`LONGSHOT_ROMFS_FROM`), and its tools are links to the nightly's.
 

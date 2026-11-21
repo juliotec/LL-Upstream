@@ -11,12 +11,12 @@ a TV, or at a desk ([#1186](https://git.magicbean.dev/MagicBeanDev/Longshot/issu
 |---|---|
 | **D-pad or left stick** | Moves to the next control that way. Held, it repeats |
 | **A** | Presses the control: a button, a switch, a choice; opens a list, then chooses in it |
-| **B** | Closes an open list; otherwise presses the dialog's or the page's Back, Cancel, Keep, Decline or Done |
+| **B** | Closes an open list; otherwise presses the dialog's or page's Back, Cancel, Keep, Decline or Done, or returns to Home from a tab |
 | **LB / RB** | The previous and next control in order, for one no direction reaches |
 | **Right stick** | Scrolls the page or the list |
 
 The first press focuses the home's **Play** (or **Build**), a page's main button, or a dialog's safe button (Keep, Cancel,
-Decline). While a dialog is open the focus stays in it. The cog (Settings) is up from the top of the home.
+Decline). While a dialog is open the focus stays in it. The Settings cog is in the title bar.
 
 ## Which controllers
 

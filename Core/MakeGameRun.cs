@@ -473,8 +473,11 @@ public static class Durations
         return Date(t, now);
     }
 
-    /// "38.4 GB", "340 MB"
+    /// "38.4 GB", "340 MB", "122 KB": the unit steps down as it steps up, so something is never shown as nothing (under 1 KB:
+    /// "1 KB"); nothing at all is "0 MB"
     public static string Size(long bytes) =>
         bytes >= 1L << 30 ? string.Create(CultureInfo.InvariantCulture, $"{bytes / (double)(1L << 30):0.0} GB")
-        : string.Create(CultureInfo.InvariantCulture, $"{Math.Max(0, bytes) >> 20} MB");
+        : bytes >= 1L << 20 ? string.Create(CultureInfo.InvariantCulture, $"{bytes >> 20} MB")
+        : bytes > 0 ? string.Create(CultureInfo.InvariantCulture, $"{Math.Max(1, bytes >> 10)} KB")
+        : "0 MB";
 }

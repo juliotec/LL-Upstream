@@ -1,7 +1,7 @@
 # NFC
 
 What the launcher does with your NFC tags: where Longshot reads them from, what a dump must be, adding them, scanning one with a controller, and deleting
-them. Everything is on the **NFC** page (the *NFC* card on the home, under *Manage saves*). The tags are dumps of figures
+them. Everything is on the **NFC** page (the *NFC* tab in the title bar). The tags are dumps of figures
 you own. In the game, the Insert menu's NFC tab lists them, picks one and taps it.
 
 Nothing of a dump leaves your PC: the launcher uploads none of it and writes none of it to a log. A message names a file

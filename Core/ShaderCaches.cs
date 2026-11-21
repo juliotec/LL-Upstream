@@ -178,18 +178,21 @@ public static class ShaderCaches
     /// (IsCache), and what a copy into it left half made (.part); never a link, nor anything else there. Not the pipeline
     /// notes unless notes: they hold the list the build shipped (make_game.py seed_pipelines), which only a build writes
     /// again, and without it the game prepares less ahead until then. A cold build clears them too: it writes them again
-    public static IReadOnlyList<FileInfo> Clearable(string game, bool notes = false)
+    public static IReadOnlyList<FileInfo> Clearable(string game, bool notes = false, bool strict = false)
     {
         var dir = new DirectoryInfo(Path.Combine(game, CacheDir));
         try
         {
-            if (!dir.Exists || dir.LinkTarget != null) return Array.Empty<FileInfo>();
+            if (strict) File.GetAttributes(dir.FullName);
+            else if (!dir.Exists) return Array.Empty<FileInfo>();
+            if (dir.LinkTarget != null) return Array.Empty<FileInfo>();
             return dir.EnumerateFiles()
                       .Where(f => f.LinkTarget == null && (IsCache(f.Name) || f.Name.EndsWith(Part, StringComparison.Ordinal) && IsCache(f.Name[..^Part.Length]))
                                   && (notes || f.Name != Notes))
                       .OrderBy(f => f.Name, StringComparer.Ordinal).ToList();
         }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.Security.SecurityException) { return Array.Empty<FileInfo>(); }
+        catch (Exception e) when (e is FileNotFoundException or DirectoryNotFoundException) { return Array.Empty<FileInfo>(); }
+        catch (Exception e) when (!strict && e is IOException or UnauthorizedAccessException or System.Security.SecurityException) { return Array.Empty<FileInfo>(); }
     }
 
     /// The bytes Clearable would let go in game
@@ -212,7 +215,7 @@ public static class ShaderCaches
         var count = 0;
         try
         {
-            foreach (var f in Clearable(game, notes))
+            foreach (var f in Clearable(game, notes, strict: true))
             {
                 var size = f.Length;
                 f.Delete();
@@ -227,40 +230,31 @@ public static class ShaderCaches
     // ---- the shader store every build shares ----
 
     /// The shader store's files (Longshot's SPIR-V store, in SaveEnvironment.ShaderStore), which every build's
-    /// longshot_programs.bin refers to. One for all builds: only Free up space with every build's caches clears it (a build's
-    /// own delete or cold build leaves it), and that is safe: each build's cache sees the store changed and starts over
+    /// longshot_programs.bin refers to. One for all builds: only the Storage page clears it (a build's own delete or cold build
+    /// leaves it), and that is safe: each build's cache sees the store changed and starts over
     public static readonly IReadOnlyList<string> StoreNames = new[] { "spirv.pack", "spirv.idx", "spirv.lock" };
 
     /// The store's files in store, with what a write of one left beside it (spirv.pack.&lt;anything&gt;); never a link, nor
     /// anything else there: LONGSHOT_SHADER_STORE may name a folder that holds other things. None with no store (null)
-    public static IReadOnlyList<FileInfo> StoreFiles(string? store)
+    public static IReadOnlyList<FileInfo> StoreFiles(string? store, bool strict = false)
     {
         if (store == null) return Array.Empty<FileInfo>();
         var dir = new DirectoryInfo(store);
         try
         {
-            if (!dir.Exists || dir.LinkTarget != null) return Array.Empty<FileInfo>();
+            if (strict) File.GetAttributes(dir.FullName);
+            else if (!dir.Exists) return Array.Empty<FileInfo>();
+            if (dir.LinkTarget != null) return Array.Empty<FileInfo>();
             return dir.EnumerateFiles()
                       .Where(f => f.LinkTarget == null && StoreNames.Any(n => f.Name == n || f.Name.StartsWith(n + ".", StringComparison.Ordinal)))
                       .OrderBy(f => f.Name, StringComparer.Ordinal).ToList();
         }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.Security.SecurityException) { return Array.Empty<FileInfo>(); }
+        catch (Exception e) when (e is FileNotFoundException or DirectoryNotFoundException) { return Array.Empty<FileInfo>(); }
+        catch (Exception e) when (!strict && e is IOException or UnauthorizedAccessException or System.Security.SecurityException) { return Array.Empty<FileInfo>(); }
     }
 
     /// The bytes the store takes (StoreFiles): the home's total counts them once, for every build
     public static long StoreBytes(string? store) => StoreFiles(store).Sum(f => f.Length);
-
-    /// Free up space's option to clear the shader caches (versions: how many have some, caches: their bytes) and the store they
-    /// share (store: its bytes), which goes with them: its size counted in theirs, and named in its hint (StoreHint). One line, as
-    /// the option's box does not wrap
-    public static string ClearText(int versions, long caches, long store) =>
-        versions <= 0 && store > 0 ? Tr.F("Also clear the shader store your versions share ({0})", Durations.Size(store))
-        : Tr.P(versions, "Also clear the shader caches of your version ({1})", "Also clear the shader caches of your {0} versions ({1})", Durations.Size(caches + store));
-
-    /// What the option's hint says of the store when it goes with the versions' caches; "" when there is none, or the option names
-    /// it alone
-    public static string StoreHint(int versions, long store) =>
-        versions > 0 && store > 0 ? Tr.F("{0} of that is the shader store your versions share, which goes with their caches.", Durations.Size(store)) : "";
 
     /// The store's files deleted (StoreFiles), then its folder if that leaves it empty. Null, and nothing deleted, while Longshot
     /// runs (running: the tests' stand-in); else the bytes freed. A file that cannot be deleted is the caller's exception
@@ -275,7 +269,7 @@ public static class ShaderCaches
         var count = 0;
         try
         {
-            foreach (var f in StoreFiles(store))
+            foreach (var f in StoreFiles(store, strict: true))
             {
                 var size = f.Length;
                 f.Delete();

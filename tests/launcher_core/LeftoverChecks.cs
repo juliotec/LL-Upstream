@@ -44,6 +44,11 @@ static partial class Program
                 "A leftover's version from its stamp, shown as players see it.");
         Require(Names(Leftovers.Find(builds, new[] { nightly }, p)).Contains("v3.0.0-rc.2", StringComparison.Ordinal),
                 "A kept folder is offered again only when it is no longer kept.");
+        // (the Storage page: every unlisted game folder, the kept one and the ones with the player's things in them too)
+        var all = Leftovers.All(builds, new[] { nightly }, p);
+        Require(Names(all) == "nightly-130-0caf0618 nightly-150-11111111 nightly-160-22222222 nightly-161-33333333 v3.0.0-rc.2"
+                && all.Where(l => l.HoldsYours).Select(l => Path.GetFileName(l.Folder)).SequenceEqual(new[] { "nightly-160-22222222" }),
+                "Leftovers.All: every game folder no row lists, the one with mods marked as holding the player's (got: " + Names(all) + ").");
 
         // (a build's folder inside another game folder, as a 2.x install's ~/Games/Longshot holds the builds; and the reverse)
         var outer = Game("outer");
@@ -62,6 +67,21 @@ static partial class Program
         try { BuildRegistry.DeleteFolder(outer, p, keepAll); }
         catch (IOException) { refused = true; }
         Require(refused && Directory.Exists(inner), "A folder that holds a build's folder is never deleted, even if asked.");
+
+        var later = Game("later");
+        var measured = Leftovers.All(builds, new[] { nightly }, p).Single(l => l.Folder == later);
+        Write(Path.Combine(later, "mods", "nested", "new.mod"));
+        refused = false;
+        try { Leftovers.Delete(measured.Folder, p, keepAll, null); }
+        catch (IOException) { refused = true; }
+        Require(!measured.HoldsYours && refused && Directory.Exists(later), "A mod added after measurement prevents deletion.");
+
+        var userMod = Game("user-mod");
+        Write(Path.Combine(userMod, "user", "mods", "pack", "file"));
+        Require(Leftovers.All(builds, new[] { nightly }, p).Single(l => l.Folder == userMod).HoldsYours
+                && !Leftovers.Find(builds, new[] { nightly }, p).Any(l => l.Folder == userMod),
+                "Mods under user are protected in discovery.");
+        Throws<IOException>(() => Leftovers.Delete(userMod, p, keepAll, null), "Mods under user must prevent deletion.");
 
         // (a stamp with no version: shown by its folder's name)
         var noVersion = Path.Combine(builds, "old build");
@@ -112,6 +132,17 @@ static partial class Program
             Directory.CreateSymbolicLink(Path.Combine(builds, "linked-game"), nightly);
             Require(Leftovers.Find(builds, Array.Empty<string>(), p).All(l => !l.Folder.EndsWith("linked-game", StringComparison.Ordinal)),
                     "A builds folder entry that is a link is not a leftover.");
+            foreach (var dangling in new[] { false, true })
+            {
+                var game = Game(dangling ? "dangling-mod" : "linked-mod");
+                Directory.CreateDirectory(Path.Combine(game, "mods", "nested"));
+                Directory.CreateSymbolicLink(Path.Combine(game, "mods", "nested", "link"),
+                    dangling ? Path.Combine(game, "missing") : Folder("mod-target"));
+                var blocked = false;
+                try { Leftovers.Delete(game, p, keepAll, null); }
+                catch (IOException) { blocked = true; }
+                Require(blocked && Directory.Exists(game), "A nested directory link, including a dangling one, prevents deletion.");
+            }
 
             // (the launcher's own link to the shared save, which a gather leaves where it took a save in (Saves.LinkSaves), holds nothing of
             // the player's: the folder is offered as one whose save was renamed aside. A link to anywhere else is still the player's own)

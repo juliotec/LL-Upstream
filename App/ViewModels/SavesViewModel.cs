@@ -84,7 +84,6 @@ public sealed class SavesViewModel : ViewModelBase
         ExportCommand = new Command(() => Main.Modal = new SavePickViewModel(this, SaveMode.Export), () => Slots.Count > 0);
         HookshotCommand = new Command(() => Main.Modal = new HookshotImportViewModel(Main));
         BackupsCommand = new Command(() => Main.Navigate(new BackupsViewModel(this)), () => Backups.Count > 0);
-        DoneCommand = new Command(Main.ShowHome);
         OpenFolderCommand = new Command(OpenFolder);
         Reload();
     }
@@ -112,7 +111,6 @@ public sealed class SavesViewModel : ViewModelBase
     public string ExportHint => HasSlots ? Tr.T("Send to an emulator, a folder or a .zip") : Tr.T("Play or import saves to enable export");
     public Command ImportCommand { get; }
     public Command ExportCommand { get; }
-    public Command DoneCommand { get; }
     public Command BackupsCommand { get; }
     public Command OpenFolderCommand { get; }
     public string SaveFolderShown => ShownPath.Of(Env.SaveFolder);

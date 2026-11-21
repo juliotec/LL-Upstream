@@ -43,7 +43,7 @@ public sealed class NfcRowViewModel : ViewModelBase
 /// NFC: the NFC tag dumps in the folder every build of the game reads (NfcTags.Folder), which the Insert menu's NFC tab lists.
 /// Add one, many or a folder of them (each checked first, never over another file), scan one with a Switch 2 Pro Controller
 /// over USB (Windows; NfcReader), delete them (asked first), open the folder
-public sealed class NfcViewModel : ViewModelBase
+public sealed class NfcViewModel : ViewModelBase, ILeavingPage
 {
     IReadOnlyList<string> report = Array.Empty<string>();
     CancellationTokenSource? scanning;
@@ -63,12 +63,6 @@ public sealed class NfcViewModel : ViewModelBase
         OpenCommand = new Command(Open);
         ScanCommand = new Command(() => _ = ScanAsync(), () => CanScan && !Scanning);
         CancelScanCommand = new Command(() => scanning?.Cancel());
-        // (leaving the page stops a scan: the controller is let go)
-        DoneCommand = new Command(() =>
-        {
-            scanning?.Cancel();
-            Main.ShowHome();
-        });
         Reload();
     }
 
@@ -113,7 +107,8 @@ public sealed class NfcViewModel : ViewModelBase
     public Command AddFolderCommand { get; }
     public Command DeleteCommand { get; }
     public Command OpenCommand { get; }
-    public Command DoneCommand { get; }
+    /// Left by a title bar tab: a scan stops, the controller let go
+    public void Left() => scanning?.Cancel();
     public Command ScanCommand { get; }
     public Command CancelScanCommand { get; }
 

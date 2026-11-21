@@ -4,13 +4,11 @@ namespace LongshotLauncher.ViewModels;
 
 /// The launcher's settings: the channel new builds start on, where builds go, the build files, the update check. Each version
 /// keeps its own build settings (step 2)
-public sealed class SettingsViewModel : ViewModelBase
+public sealed class SettingsViewModel : ViewModelBase, ILeavingPage
 {
     readonly LauncherSettings s;
-    long? workBytes, cacheBytes, storeBytes;
+    long? workBytes, cacheBytes;
     bool measuring;
-    // (what the confirmation asked for: the shader caches too)
-    bool clearCaches;
 
     public sealed class ChannelOption(SettingsViewModel owner, string id, string name, string about, string? version) : ViewModelBase
     {
@@ -55,14 +53,15 @@ public sealed class SettingsViewModel : ViewModelBase
         s = main.Service.Settings;
         Channels = ChannelPickerViewModel.All.Select(c => new ChannelOption(this, c.Id, c.Name, c.About, main.Service.NewestOf(c.Id))).ToList();
         LauncherChannels = ChannelPickerViewModel.All.Select(c => new LauncherChannelOption(this, c.Id, c.Name)).ToList();
-        DoneCommand = new Command(Done);
         ChangeBuildsCommand = new Command(() => _ = ChangeBuildsAsync());
         OpenBuildsCommand = new Command(() => Main.Host?.Open(Main.Service.BuildsFolder), () => Directory.Exists(Main.Service.BuildsFolder));
         ChangeWorkCommand = new Command(() => _ = ChangeWorkAsync());
         DefaultWorkCommand = new Command(() => { s.Work = null; Save(); RaiseAll(nameof(Work)); MeasureWork(); });
-        FreeingCommand = new BusyCommand(FreeSpaceAsync, null, e => Main.ShowToast(Tr.F("The build files could not all be deleted: {0}", e.Message)));
-        FreeSpaceCommand = new Command(() => Main.Modal = new FreeSpaceViewModel(this),
-                                       () => (workBytes > 0 || cacheBytes > 0 || storeBytes > 0) && !measuring && !FreeingCommand.IsBusy);
+        StorageCommand = new Command(() =>
+        {
+            Save();
+            Main.ShowStorage();
+        });
         ReleaseNotesCommand = new Command(() => Main.Host?.Open(Releases.Repo + "/releases"));
         AddToMenuCommand = new Command(AddToMenu, () => Program.Layout.File != null);
         RemoveFromMenuCommand = new Command(RemoveFromMenu);
@@ -210,8 +209,7 @@ public sealed class SettingsViewModel : ViewModelBase
         }
     }
 
-    public string WorkNote => FreeingCommand.IsBusy ? Tr.T("Deleting the build files…")
-        : measuring ? Tr.T("Measuring the build files…")
+    public string WorkNote => measuring ? Tr.T("Measuring the build files…")
         : workBytes is long b && b > 0 ? Tr.F("{0} kept to make updates quicker.", Durations.Size(b)) : Tr.T("Nothing kept yet.");
 
     /// What is kept and why, under the folder: the build files here, the shader caches in each version's folder
@@ -221,10 +219,12 @@ public sealed class SettingsViewModel : ViewModelBase
 
     public string WorkHint => Tr.Sentences(
         Tr.T("Working files Longshot makes while building, reused by every build. Not the game: they can be on another drive."),
-        Tr.T("Builds keep their compiled code and translations here, so an update, a rebuild or going back to a version you built before is quicker."),
-        storeBytes is long st && st > 0 ? Tr.F("Your versions' shader caches take another {0}: in their own folders, and the shader store they share.", Durations.Size((cacheBytes ?? 0) + st))
-        : cacheBytes is long c && c > 0 ? Tr.F("Your versions' shader caches take another {0} in their own folders.", Durations.Size(c)) : "",
-        Tr.T("Free up space lists what it deletes first."));
+        Tr.T("The most recent build keeps its compiled code and translation here, so the next update redoes only what changed."));
+
+    /// Beside Manage storage: what the page shows, and the shader caches' size once measured
+    public string StorageHint => Tr.Sentences(
+        Tr.T("See what Longshot keeps on this PC, by what it is for, and free it one part at a time."),
+        cacheBytes is long c && c > 0 ? Tr.F("Your versions' shader caches take another {0} in their own folders.", Durations.Size(c)) : "");
 
     /// The update check that a change of the launcher's channel starts (HomeViewModel.CheckCommand): a spinner beside the channels
     public BusyCommand CheckCommand => Main.Home.CheckCommand;
@@ -292,7 +292,6 @@ public sealed class SettingsViewModel : ViewModelBase
 
     public string Version => "Longshot Launcher " + Versions.Shown(Main.Service.OwnTag);
 
-    public Command DoneCommand { get; }
     public Command ChangeBuildsCommand { get; }
 
     /// The builds folder in the system's file manager; off until there is one (the first build makes it: a folder typed here is
@@ -302,13 +301,11 @@ public sealed class SettingsViewModel : ViewModelBase
         : Tr.T("Not made yet: the first build makes it");
     public Command ChangeWorkCommand { get; }
     public Command DefaultWorkCommand { get; }
-    /// Opens the confirmation (FreeSpaceViewModel), which lists what goes
-    public Command FreeSpaceCommand { get; }
-    /// The deleting itself, once confirmed: its spinner on the link
-    public BusyCommand FreeingCommand { get; }
+    /// The Storage page: what Longshot keeps on this PC, by what it is for, and freeing it one item at a time
+    public Command StorageCommand { get; }
     public Command ReleaseNotesCommand { get; }
 
-    /// The game folders of the builds listed, whose shader caches Free up space may clear: only folders make_game.py made
+    /// The game folders of the builds listed, whose shader caches the hint counts: only folders make_game.py made
     internal IReadOnlyList<string> GameFolders() =>
         Main.Service.Registry.Builds.Select(b => b.Folder).Where(f => GameFolder.IsGameFolder(f, Main.Platform)).ToList();
 
@@ -316,70 +313,20 @@ public sealed class SettingsViewModel : ViewModelBase
     {
         var folder = Main.Service.Work;
         var games = GameFolders();
-        var store = Main.Service.SaveEnv.ShaderStore;
         measuring = true;
         Raise(nameof(WorkNote));
-        FreeSpaceCommand.Changed();
         Task.Run(() =>
         {
             var bytes = Disk.WorkBytes(folder);
             var caches = games.Sum(g => ShaderCaches.ClearableBytes(g));
-            var stored = ShaderCaches.StoreBytes(store);
             Ui.Post(() =>
             {
                 workBytes = bytes;
                 cacheBytes = caches;
-                storeBytes = stored;
                 measuring = false;
-                RaiseAll(nameof(WorkNote), nameof(WorkHint));
-                FreeSpaceCommand.Changed();
+                RaiseAll(nameof(WorkNote), nameof(WorkHint), nameof(StorageHint));
             });
         });
-    }
-
-    /// Free up space, as confirmed: caches, the shader caches of every version too
-    internal void Free(bool caches)
-    {
-        clearCaches = caches;
-        FreeingCommand.Execute(null);
-    }
-
-    /// The build files deleted: the next build or update makes them again. Only what make_game made there (Disk.WorkParts): the
-    /// folder may be one the player chose, holding other things. With clearCaches, each version's shader caches too
-    /// (ShaderCaches.Clear: never while Longshot runs, and never the pipeline notes the build shipped), then the shader store
-    /// they all share (ShaderCaches.ClearStore: each version's caches start over without it, so only with all of them).
-    /// Gigabytes: off the window's thread, the link off meanwhile
-    async Task FreeSpaceAsync(BusyCommand busy, CancellationToken cancel)
-    {
-        var folder = Main.Service.Work;
-        var games = clearCaches ? GameFolders() : Array.Empty<string>();
-        var store = clearCaches ? Main.Service.SaveEnv.ShaderStore : null;
-        var freed = workBytes ?? 0;
-        Raise(nameof(WorkNote));
-        FreeSpaceCommand.Changed();
-        try
-        {
-            var running = false;
-            var caches = await Task.Run(() =>
-            {
-                Disk.FreeWork(folder);
-                long sum = 0;
-                foreach (var g in games)
-                    if (ShaderCaches.Clear(g) is long b) sum += b;
-                    else running = true;
-                if (store != null && !running)
-                    if (ShaderCaches.ClearStore(store) is long b) sum += b;
-                    else running = true;
-                return sum;
-            });
-            Main.ShowToast(running ? Tr.F("Freed {0} of build files. Longshot is running, so the shader caches stay.", Durations.Size(freed))
-                : caches > 0 ? Tr.F("Freed {0}: the build files and the shader caches. The next build makes the build files again, and each version prepares its shaders again when it starts.", Durations.Size(freed + caches))
-                : Tr.F("Freed {0} of build files. The next update makes them again.", Durations.Size(freed)));
-        }
-        finally
-        {
-            MeasureWork();
-        }
     }
 
     async Task ChangeBuildsAsync()
@@ -394,98 +341,6 @@ public sealed class SettingsViewModel : ViewModelBase
         if (await host.PickFolderAsync(Tr.T("Where the build files go"), Main.Service.Work) is { } picked) Work = Path.GetFullPath(picked);
     }
 
-    void Done()
-    {
-        Save();
-        Main.ShowHome();
-    }
-}
-
-/// Free up space, confirmed first: each part of the build files it deletes with its size and what it was kept for, what the next
-/// build then costs, and the shader caches as an option (unticked: preparing them again takes minutes at each version's next start)
-public sealed class FreeSpaceViewModel : ViewModelBase
-{
-    readonly SettingsViewModel settings;
-    IReadOnlyList<long>? groups;
-    long caches, store;
-    int versions;
-    bool clearCaches;
-
-    public sealed record Part(string Name, string About, string Size);
-
-    /// measured: the sizes as the screenshots show them (Disk.WorkGroups' bytes, the caches', the versions with caches, the shader
-    /// store's), no disk read; null: measured here, off the window's thread
-    public FreeSpaceViewModel(SettingsViewModel settings, (IReadOnlyList<long> Groups, long Caches, int Versions, long Store)? measured = null)
-    {
-        this.settings = settings;
-        // (the screenshots: not this PC's games)
-        Running = measured == null && Saves.Running(settings.Main.Platform).Contains(Saves.Longshot.Display);
-        KeepCommand = new Command(() => settings.Main.Modal = null);
-        DeleteCommand = new Command(Delete, () => groups != null && (WorkTotal > 0 || clearCaches && HasCaches));
-        if (measured is { } m)
-        {
-            (groups, caches, versions, store) = m;
-            return;
-        }
-        var work = settings.Main.Service.Work;
-        var games = settings.GameFolders();
-        var shaderStore = settings.Main.Service.SaveEnv.ShaderStore;
-        Task.Run(() =>
-        {
-            var measured = Disk.GroupBytes(work);
-            var withCaches = games.Select(g => ShaderCaches.ClearableBytes(g)).ToList();
-            var stored = ShaderCaches.StoreBytes(shaderStore);
-            Ui.Post(() =>
-            {
-                groups = measured;
-                caches = withCaches.Sum();
-                store = stored;
-                versions = withCaches.Count(b => b > 0);
-                RaiseAll(nameof(Measuring), nameof(Parts), nameof(HasParts), nameof(Total), nameof(CacheText), nameof(CacheHint), nameof(HasCaches), nameof(CanClearCaches));
-                DeleteCommand.Changed();
-            });
-        });
-    }
-
-    public bool Measuring => groups == null;
-    long WorkTotal => groups?.Sum() ?? 0;
-
-    /// The parts that hold something, in Disk.WorkGroups' order
-    public IReadOnlyList<Part> Parts => groups == null ? Array.Empty<Part>()
-        : Disk.WorkGroups.Select((g, i) => (g, b: groups[i])).Where(p => p.b > 0)
-              .Select(p => new Part(Tr.T(p.g.Name), Tr.T(p.g.About), Durations.Size(p.b))).ToList();
-    public bool HasParts => WorkTotal > 0;
-    public string Total => groups == null ? "" : WorkTotal > 0
-        ? Tr.F("{0} in all. The next build or update makes them again, so it takes longer: up to as long as a first build.", Durations.Size(WorkTotal))
-        : Tr.T("No build files to delete.");
-
-    /// Longshot runs: it holds its shader caches, so they cannot be cleared now (ShaderCaches.Clear refuses too)
-    public bool Running { get; }
-    public bool HasCaches => caches + store > 0;
-    public bool CanClearCaches => HasCaches && !Running;
-    /// The shader caches, and the shader store every version's caches refer to (ShaderCaches.StoreFiles), which goes only with
-    /// all of them
-    public string CacheText => ShaderCaches.ClearText(versions, caches, store);
-    public string CacheHint => Running ? Tr.T("Close Longshot to clear the shader caches: it holds them while it runs.")
-        : Tr.Sentences(ShaderCaches.StoreHint(versions, store),
-                       Tr.T("Each version then prepares its shaders again when it next starts: several minutes, and it may stutter at first."));
-
-    public bool ClearCaches
-    {
-        get => clearCaches;
-        set
-        {
-            if (!Set(ref clearCaches, value && CanClearCaches)) return;
-            DeleteCommand.Changed();
-        }
-    }
-
-    public Command KeepCommand { get; }
-    public Command DeleteCommand { get; }
-
-    void Delete()
-    {
-        settings.Main.Modal = null;
-        settings.Free(clearCaches && CanClearCaches);
-    }
+    /// Left by a title bar tab (no Done: the tabs move between the pages): what was chosen saved
+    public void Left() => Save();
 }

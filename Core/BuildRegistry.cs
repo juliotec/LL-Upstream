@@ -422,11 +422,11 @@ public sealed class BuildRegistry
     /// when no saves are given; nor is a folder that holds the shared saves deleted. Returns where that copy is (null: there was
     /// no save in it). The entry itself is removed with Remove
     public static string? DeleteFolder(string folder, Platform platform, IEnumerable<string>? keep = null, Func<string, string?>? getenv = null,
-                                       SaveEnvironment? saves = null, Func<DateTime>? now = null)
+                                       SaveEnvironment? saves = null, Func<DateTime>? now = null, Func<bool>? guard = null)
     {
         try
         {
-            var backup = DeleteGameFolder(folder, platform, keep, getenv, saves, now);
+            var backup = DeleteGameFolder(folder, platform, keep, getenv, saves, now, guard);
             LauncherLog.Add("build folder deleted: " + folder + (backup != null ? $"; the save it held is backed up in {backup}" : ""));
             return backup;
         }
@@ -439,7 +439,7 @@ public sealed class BuildRegistry
     }
 
     static string? DeleteGameFolder(string folder, Platform platform, IEnumerable<string>? keep, Func<string, string?>? getenv,
-                                    SaveEnvironment? saves, Func<DateTime>? now)
+                                    SaveEnvironment? saves, Func<DateTime>? now, Func<bool>? guard)
     {
         var full = MayDelete(folder, platform, keep, getenv, saves);
         string? backup = null;
@@ -451,7 +451,11 @@ public sealed class BuildRegistry
             catch (SaveFailure e) { throw new IOException(e.Message, e); }
         }
         // (a delete that stops half-way, a file in use: the copy of the save is named still, as it may be gone from the folder now)
-        try { Toolchains.DeleteTree(full); }
+        try
+        {
+            if (guard != null && !guard()) throw new IOException("The folder holds mods or links; move them out before removing it.");
+            Toolchains.DeleteTree(full);
+        }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { throw new FolderNotDeleted(e.Message, backup, e); }
         return backup;
     }

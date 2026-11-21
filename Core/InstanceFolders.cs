@@ -86,21 +86,22 @@ public static class InstanceFolders
 
     /// The folders in the builds folder an instance can be: those right in it (before this layout) and those in its tracks'
     /// folders (builds/nightly/*). What Leftovers and the saves' gather look through
-    public static IReadOnlyList<string> Folders(string buildsFolder, Platform platform)
+    public static IReadOnlyList<string> Folders(string buildsFolder, Platform platform, Action? partial = null)
     {
         var found = new List<string>();
         try
         {
-            if (!Directory.Exists(buildsFolder)) return found;
+            try { File.GetAttributes(buildsFolder); }
+            catch (Exception e) when (e is FileNotFoundException or DirectoryNotFoundException) { return found; }
             foreach (var dir in Directory.EnumerateDirectories(buildsFolder).Order(StringComparer.Ordinal))
             {
                 found.Add(dir);
-                if (!TrackName(Name(dir)) || GameFolder.IsGameFolder(dir, platform) || new DirectoryInfo(dir).LinkTarget != null) continue;
+                if (!TrackName(Name(dir)) || (partial == null ? GameFolder.IsGameFolder(dir, platform) : GameFolder.IsGameFolder(dir, platform, partial)) || new DirectoryInfo(dir).LinkTarget != null) continue;
                 try { found.AddRange(Directory.EnumerateDirectories(dir).Order(StringComparer.Ordinal)); }
-                catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.Security.SecurityException) { partial?.Invoke(); }
             }
         }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.Security.SecurityException) { partial?.Invoke(); }
         return found;
     }
 

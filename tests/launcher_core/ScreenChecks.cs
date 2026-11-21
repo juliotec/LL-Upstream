@@ -212,6 +212,8 @@ static partial class Program
                 "When a save was made.");
         Require(Durations.Day(new DateTime(2026, 11, 3), now) == "3 Nov" && Durations.Day(now, now) == "today", "The day a build was made.");
         Require(Durations.Size(41231686042) == "38.4 GB" && Durations.Size(340L << 20) == "340 MB", "Sizes.");
+        Require(Durations.Size(125_633) == "122 KB" && Durations.Size(1) == "1 KB" && Durations.Size(0) == "0 MB" && Durations.Size(-5) == "0 MB",
+                "Sizes under 1 MB in KB, never shown as nothing; nothing as 0 MB.");
 
         // (the forecast: the reference PC's measured times; half the threads, about 1.8 times as long for the threaded stages)
         Require(Math.Abs(BuildForecast.Total(true, true, 24) - 825) < 1e-6 && Math.Abs(BuildForecast.Total(false, false, 24) - 504) < 1e-6,
@@ -942,16 +944,15 @@ static partial class Program
             Touch(Path.Combine(work, "system_headers.txt"), bad);
             Require(Disk.WorkBytes(work) == bad.Length + objects + 100 + 200, "A stamp of no store folder: every object counts: " + Disk.WorkBytes(work));
         }
-        // (what the confirmation lists: each part in one group, the groups' bytes adding up to what it deletes)
-        Require(Disk.WorkGroups.SelectMany(g => g.Parts).OrderBy(p => p, StringComparer.Ordinal).SequenceEqual(Disk.WorkParts.OrderBy(p => p, StringComparer.Ordinal))
-                && Disk.WorkGroups.All(g => g.Name.Length > 0 && g.About.Length > 0), "Free up space names every part it deletes, each once.");
+        // (some of the parts only, as the Storage page frees them by kind: the ones named go, a name that is not one of WorkParts
+        // never does, whatever is in the folder by it)
         Touch(Path.Combine(work, "system_headers.txt"), stamp);
         Touch(Path.Combine(work, "exefs", "main"), new string('e', 40));
-        var groups = Disk.GroupBytes(work);
-        int GroupOf(string part) => Disk.WorkGroups.Select((g, i) => (g, i)).First(p => p.g.Parts.Contains(part)).i;
-        Require(groups.Sum() == Disk.WorkBytes(work) && groups[GroupOf("objcache")] == stamp.Length + 100 + 70 && groups[GroupOf("exefs")] == 40
-                && groups[GroupOf(Disk.ObjectStore)] == 70 + 50 + 30 && groups[GroupOf(Disk.LiftStore)] == 200 && groups[GroupOf("probe")] == 0,
-                "Each part's size, the object store less what is one file with objcache: " + string.Join(",", groups));
+        Disk.FreeWork(work, new[] { Disk.LiftStore, "exefs", "photos", "My notes.txt" });
+        Require(!Directory.Exists(Path.Combine(work, Disk.LiftStore)) && !Directory.Exists(Path.Combine(work, "exefs"))
+                && Directory.Exists(Path.Combine(work, Disk.ObjectStore)) && File.Exists(Path.Combine(work, "objcache", "a.o"))
+                && File.Exists(Path.Combine(work, "photos", "p.jpg")) && File.Exists(Path.Combine(work, "My notes.txt")),
+                "Freeing some parts lets go of those alone, never a name that is not one of the build files'.");
         Disk.FreeWork(work);
         Require(!Directory.Exists(Path.Combine(work, Disk.ObjectStore)) && !Directory.Exists(Path.Combine(work, Disk.LiftStore))
                 && File.Exists(Path.Combine(work, "My notes.txt")) && Disk.WorkBytes(work) == 0, "Free up space let go of the stores too.");

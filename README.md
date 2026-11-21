@@ -56,6 +56,7 @@ Discord: https://discord.gg/magicbean
 | **Saves** | One save folder for every build, imports saves from emulators and from Hookshot, exports them to emulators, and to and from one .zip file; a Progress view per slot shows what a save has and is missing and edits it, with a backup first; and it restores the backups every copy makes ([docs/saves.md](docs/saves.md)) |
 | **Pull requests** | The *Pull request* track builds an open Longshot pull request on your PC to help test it: the ones a BigBean wrote or approved are listed, any other found by its number, with warnings before its code is built; it updates with each push ([docs/pull-requests.md](docs/pull-requests.md)) |
 | **Controller and TV** | The whole launcher with a controller (the d-pad or stick moves, A presses, B goes back), and in Steam's Gaming Mode or Big Picture a full-screen view for the TV ([docs/controller.md](docs/controller.md)) |
+| **Storage** | What Longshot keeps on your PC by what it is for: the game files (one row a copy), the installed games, shader caches, the files that make updates faster, the build tools and your data, with what removing each costs; it also finds old versions' folders an update left behind |
 | **NFC** | Keeps the NFC tag dumps of figures you own, which the game's NFC tab lists: add one, many or a folder of them, scan one with a Switch 2 Pro Controller (Windows), delete them ([docs/nfc.md](docs/nfc.md)) |
 
 ## Download
@@ -114,7 +115,7 @@ There is no installer program: the launcher installs itself.
   their own saves. A portable launcher that starts with no build offers the installed launcher's builds and saves on this
   PC: its builds are listed where they are, and its saves are copied in if the portable launcher has none yet. The other way,
   *Add a build folder…* on the home takes a game folder, a folder of them, or a portable launcher's `LongshotLauncher-data`
-  (its builds, and its saves where there are none yet). A save is never copied over another: *Manage saves* imports one, after a
+  (its builds, and its saves where there are none yet). A save is never copied over another: the *Saves* tab imports one, after a
   backup.
 
 **Uninstalling** (Windows): *Settings > Apps > Installed apps > Longshot Launcher > Uninstall*, which runs
@@ -162,9 +163,11 @@ next time it starts. If `LongshotLauncher.exe` itself is missing, rename `Longsh
 4. **Build**: about 15 to 30 minutes the first time, shaders included. An update compiles only what changed.
 5. **Play**. Ready can also make desktop and menu shortcuts, which start the default version.
 
-The cog on the home opens the launcher's settings: the **launcher's language**, the channel for new builds, the
-**launcher's own channel**, the builds folder (your instances, one folder per track and version; its folder button opens
-it in the file manager), the build files folder (working files every build reuses, not the game; and *Free up space*; by
+The title bar's tabs move between the launcher's pages: **Home**, **Saves**, **NFC**, **Storage** and **Settings**, the
+one shown lit (a build or a transfer keeps its own way back). Settings has the **launcher's language**, the channel for new
+builds, the **launcher's own channel**, the builds folder (your instances, one folder per track and version; its folder
+button opens it in the file manager), the build files folder (working files every build reuses, not the game; and *Manage
+storage*; by
 default `~/.cache/longshot/launcher/work` on Linux, `%LOCALAPPDATA%\LongshotLauncher\work` on Windows),
 the update check at start, and on
 Linux the launcher's entry in the applications menu.
@@ -177,9 +180,13 @@ game's own language is apart from it: a build setting (step 2), as before.
   <img src="docs/images/settings.png" alt="The launcher's settings: the channel for new builds, the launcher's own channel, where builds go" width="720">
 </p>
 
+<p align="center">
+  <img src="docs/images/storage.png" alt="The Storage tab: what Longshot keeps by what it is for, one bar of its groups, the installed games with an old version's folder not in the list" width="720">
+</p>
+
 ### With a controller, on a TV
 
-The d-pad or left stick moves between the buttons, **A** presses one, **B** goes back (Back, Cancel, Keep or Done), the
+The d-pad or left stick moves between the buttons, **A** presses one, **B** goes back (Cancel or Keep, else to Home), the
 bumpers step through every control in turn and the right stick scrolls. Started from Steam's **Gaming Mode** (a Steam
 Deck, a ROG Ally on Bazzite) or **Big Picture**, the launcher fills the screen for the TV; **F11** does it anywhere. All
 of it: [docs/controller.md](docs/controller.md).
@@ -219,7 +226,7 @@ line (`scripts/longshot_saves.py import|export`).
 
 ### NFC
 
-The **NFC** page (the *NFC* card on the home, under *Manage saves*) keeps the NFC tag dumps of figures you own: `.bin`
+The **NFC** page (the *NFC* tab in the title bar) keeps the NFC tag dumps of figures you own: `.bin`
 (a raw NTAG215 dump) and `.nfc` (Flipper Zero) files, in one folder every build of the game shares. Add one file, many,
 or a whole folder; each is checked first, and a file that is not a dump is skipped and named. Delete one or several, or
 open the folder. In the game, the Insert menu's NFC tab lists them by file name. Nothing of a dump leaves your PC. All of
@@ -467,31 +474,43 @@ Calls made here, most of them the design mockup's; each can be changed:
 - **Delete takes the folder**: only a game folder make_game.py made, and never a link, the home folder, or a folder that
   holds another build or the launcher's home; not while Longshot runs. On Windows it warns that the build's saves go with
   it.
-- **Switching versions reuses the earlier builds' work.** Every build turns on Longshot's object store and lift store
-  (`LONGSHOT_OBJ_STORE`, `LONGSHOT_LIFT_STORE`) in the build files folder, `obj-store` and `lift-store`, so they are on
-  its drive whichever folder the player chose (the objects are hard links into `objcache`, copies only on a file system
-  without hard links: exFAT, FAT, some network shares). Going between stable and nightly, or back to a version built
-  before, then compiles only what no earlier build compiled and copies the translation instead of making it again. The
-  first switch back to a version may still translate again: the lift store's key hashes the build files folder's
-  `chunks.txt` and `hot_pieces.txt` as they are, which the other version's build has rewritten. What they cost: an object
-  a build still uses is one file with `objcache` (where it is hard-linked), the others go after 14 days and the oldest
-  first above 4 GB (`LONGSHOT_OBJ_STORE_GB=4`, Longshot's default is 8); a kept translation is about 1.6 GB, its lifted C
-  whole, and two are kept (`LONGSHOT_LIFT_STORE_KEEP=2`, Longshot's is 3). The stores came with Longshot v3.0.0-rc.4 and
-  nightly-164; tools from before them ignore the variables.
-- **Free up space** (the launcher's settings) lets go of what make_game made in the build files folder (`objcache`, `sa`,
-  `exefs`, `probe`, as the 2.x Builder, and the two stores), never the folder itself, which the player may have chosen.
-  It asks first, listing each part in plain words with its size and what it was kept for (`Disk.WorkGroups`), and what the
-  next build then costs. It can clear the versions' shader caches too, unticked by default (`ShaderCaches.Clear`): each
-  game folder's `cache/` files the game reads back, never anything else there, never while Longshot runs, and never the
-  pipeline notes (`longshot_pipelines.bin`), which hold the list the build shipped and only a build writes again. Each
-  version then prepares its shaders again at its next start. The settings say what is kept and why, with the shader
-  caches' size beside the build files'.
+- **Build work is kept.** The build files folder keeps the last build's compiled objects
+  (`objcache`) and its translation's smaller files (`sa`), about 1.1 GB, which the next update takes as its start: a
+  nightly grows from the last stable and a stable is cut from a tested nightly, so the newest build is the best start for
+  either, and an update compiles only what changed. Longshot's object and lift stores (`LONGSHOT_OBJ_STORE`,
+  `LONGSHOT_LIFT_STORE`) also keep older work, capped at 4 GB of objects and two translations. *Keep build files and stores*
+  (the Storage page, on by default; `KeepBuildFiles`) off removes both stores and the build's work after a successful build.
+  A failed or stopped build can leave these files behind.
+- **Storage** (the title bar's *Storage* tab) shows what Longshot keeps on the PC by what it is for, never by build
+  (`Core/Storage.cs`): the game files, the installed games' programs, the shader caches (one row a version), the
+  faster-update files, the build tools and the player's data. One bar shows how the space is split, the groups' tabs above
+  it; the group shown lists its items, each with its size and what removing it costs, asked before it goes. Measured off
+  the window's thread with a pinned progress bar, kept while the launcher is open, measured again with the refresh
+  beside the drive. With things on more than one drive, a dropdown shows all of them or one, and Remove lets go only that
+  drive's.
+  - **Game files**: one row a copy on the disk (`Disk.MeasureCopies`: the versions' `romfs/` that share files by hard links
+    are one copy), named by the versions using it, with what removing them frees. A copy other folders link to as well (a
+    developer's base, an old builds folder) says so and frees only what is its own; on Windows it names those folders
+    (`FileLinks.Names`, a file's other names), on Linux there is no call for it.
+  - **Installed games**: each version's program and shader list, removed whole through Home's delete (its saves brought out
+    first). Also every game folder in the builds folder no row lists (`Leftovers.All`: an old version an update left, one
+    the player kept, a version taken off the list with its files kept), measured whole, its game files with the copies,
+    and deleted through the launcher's delete (`LauncherService.DeleteLeftover`, a save still in it backed up first);
+    never one with the player's mods in it.
+  - **What may go**: a version's shader caches (each version then prepares its shaders again before it can start, so only
+    recommended when not playing soon; never the pipeline notes, `longshot_pipelines.bin`), the most recent build's work
+    and what older builds left, a stopped build's leftovers, the graphics SDKs, unfinished downloads (never while one runs)
+    and earlier logs (never the one this run writes). The game files, the builders, the saves, the mods and the settings
+    never go from there. Nothing that Longshot holds goes while it runs; a Remove that cannot be pressed says why.
+  - Each file is measured once (`Disk.Measure`, hard links counted once), and only what a part is goes, by name
+    (`Disk.FreeWork`: never a name that is not one of the build files'), never the folder itself, which the player may
+    have chosen.
 - **A completely cold build** (step 2's Advanced, for that build only; the problem page after a failed build offers it as
   *Try a completely cold build*, which opens step 2 with it ticked) uses nothing earlier builds kept: before make_game.py
-  starts it deletes the build files and both stores, and the build's folder's shader caches with their pipeline notes
+  starts it deletes the build files (and any store an earlier launcher left), and the build's folder's shader caches with their pipeline notes
   (`ColdBuild.Clear`; make_game.py writes the notes again). It takes no caches from the build it replaces and no game
-  files from another build (`LONGSHOT_ROMFS_FROM`), so the .nup is read again. It takes as long as a first build, and
-  switching to another version afterwards builds slower, its stores gone. Never while Longshot runs; saves, settings
+  files from another build (`LONGSHOT_ROMFS_FROM`), so the .nup is read again. It takes as long as a first build. Never
+  while Longshot runs; saves, settings
   and mods stay. The bug report's settings line says `cold build`.
 - **The shortcuts** Ready makes (desktop, Start menu / applications menu), ticked by default and made as Ready shows,
   start `--play`, the default build, so they follow "Play starts this version" and updates. A portable launcher's ticks

@@ -439,13 +439,6 @@ static partial class Program
         Require(ShaderCaches.ClearStore(store, running: () => false) == 1 && !Directory.Exists(store) && Directory.Exists(Path.GetDirectoryName(store)),
                 "A folder that held only the store goes with it.");
         Require(ShaderCaches.ClearStore(store, running: () => false) == 0, "No store: nothing to clear.");
-
-        // (Free up space's option counts the store with the caches and its hint names it; with no caches, the option names it)
-        Require(ShaderCaches.ClearText(2, 9L << 30, 0) == "Also clear the shader caches of your 2 versions (9.0 GB)" && ShaderCaches.StoreHint(2, 0) == ""
-                && ShaderCaches.ClearText(2, 1L << 30, 3L << 29) == "Also clear the shader caches of your 2 versions (2.5 GB)"
-                && ShaderCaches.StoreHint(2, 3L << 29) == "1.5 GB of that is the shader store your versions share, which goes with their caches."
-                && ShaderCaches.ClearText(0, 0, 3L << 30) == "Also clear the shader store your versions share (3.0 GB)" && ShaderCaches.StoreHint(0, 3L << 30) == "",
-                "Free up space's option says what it clears: " + ShaderCaches.ClearText(2, 1L << 30, 3L << 29) + " / " + ShaderCaches.StoreHint(2, 3L << 29));
     }
 
     static bool Link(string from, string to)

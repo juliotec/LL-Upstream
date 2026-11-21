@@ -487,6 +487,12 @@ public sealed class LauncherService
     public IReadOnlyList<Leftover> FindLeftovers() =>
         Leftovers.Find(BuildsFolder, Registry.Builds.Select(b => b.Folder), Platform, Settings.KeptFolders, new[] { Home.Root }, SaveEnv);
 
+    /// Every game folder in the builds folder no row lists, for the Storage page (Leftovers.All): the ones Home offers, and the
+    /// ones it does not (kept, holding mods, a channel's newest whose row went)
+    public IReadOnlyList<Leftover> UnlistedGames() =>
+        Leftovers.All(BuildsFolder, Registry.Builds.Select(b => b.Folder), Platform, new[] { Home.Root }, SaveEnv)
+            .Select(l => Registry.Problem != null ? l with { HoldsYours = true } : l).ToList();
+
     /// The games in the builds folder a row should have, listed: first a row that lost the game its update built in a new folder
     /// takes it back (Leftovers.LostUpdate), then, once (Leftovers.ShouldRelist), each game whose row went is listed again
     /// (Leftovers.Relist, #141). Nothing when builds.json could not be read: it is never written over then. Saved once, the tools
@@ -531,8 +537,11 @@ public sealed class LauncherService
 
     /// An old version's folder deleted (BuildRegistry.DeleteFolder: a game folder only, never one that holds a build's or the
     /// launcher's home). Returns where the save it still held was copied first (null: it held none)
-    public string? DeleteLeftover(Leftover leftover) =>
-        BuildRegistry.DeleteFolder(leftover.Folder, Platform, Registry.Builds.Select(b => b.Folder).Append(Home.Root).ToList(), null, SaveEnv);
+    public string? DeleteLeftover(Leftover leftover)
+    {
+        if (Registry.Problem != null) throw new IOException("The builds list could not be read; the folder was not removed.");
+        return Leftovers.Delete(leftover.Folder, Platform, Registry.Builds.Select(b => b.Folder).Append(Home.Root).ToList(), SaveEnv);
+    }
 
     /// What deleting a build's folder must leave: the other builds' folders and the launcher's home (BuildRegistry.DeleteFolder)
     public IReadOnlyList<string> KeepOf(BuildEntry b) => Registry.Builds.Where(x => x.Id != b.Id).Select(x => x.Folder).Append(Home.Root).ToList();

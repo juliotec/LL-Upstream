@@ -210,6 +210,54 @@ static class FileLinks
         catch (Exception e) when (e is DllNotFoundException or EntryPointNotFoundException or IOException or ArgumentException) { return 0; }
     }
 
+    [DllImport("kernel32.dll", EntryPoint = "FindFirstFileNameW", CharSet = CharSet.Unicode, SetLastError = true)]
+    static extern IntPtr WindowsFirstName(string file, uint flags, ref uint length, [Out] char[] name);
+
+    [DllImport("kernel32.dll", EntryPoint = "FindNextFileNameW", CharSet = CharSet.Unicode, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    static extern bool WindowsNextName(IntPtr find, ref uint length, [Out] char[] name);
+
+    [DllImport("kernel32.dll", EntryPoint = "FindClose", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    static extern bool WindowsFindClose(IntPtr find);
+
+    [DllImport("kernel32.dll", EntryPoint = "GetVolumePathNameW", CharSet = CharSet.Unicode, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    static extern bool WindowsVolumePath(string file, [Out] char[] volume, uint length);
+
+    /// Every name of the file at path (its hard links), in full, on Windows; none elsewhere (Linux has no call that lists them)
+    /// or when they cannot be told. A few calls, never the file's data
+    public static IReadOnlyList<string> Names(string path)
+    {
+        var names = new List<string>();
+        if (!OperatingSystem.IsWindows()) return names;
+        try
+        {
+            var full = Path.GetFullPath(path);
+            var volume = new char[32768];
+            if (!WindowsVolumePath(LongPath(full), volume, (uint)volume.Length)) return names;
+            var root = new string(volume, 0, Array.IndexOf(volume, '\0') is var end && end >= 0 ? end : volume.Length);
+            if (root.StartsWith(@"\\?\UNC\", StringComparison.OrdinalIgnoreCase)) root = @"\\" + root[8..];
+            else if (root.StartsWith(@"\\?\", StringComparison.Ordinal)) root = root[4..];
+            root = Path.TrimEndingDirectorySeparator(root);
+            var name = new char[32768];
+            var length = (uint)name.Length;
+            var find = WindowsFirstName(LongPath(full), 0, ref length, name);
+            if (find == new IntPtr(-1)) return names;
+            try
+            {
+                do
+                {
+                    names.Add(root + new string(name, 0, Math.Max(0, (int)length - 1)).TrimEnd('\0'));
+                    length = (uint)name.Length;
+                } while (WindowsNextName(find, ref length, name));
+            }
+            finally { WindowsFindClose(find); }
+        }
+        catch (Exception e) when (e is DllNotFoundException or EntryPointNotFoundException or IOException or ArgumentException) { names.Clear(); }
+        return names;
+    }
+
     const uint GenericWrite = 0x40000000, ControlSetReparsePoint = 0x000900A4;
 
     /// The data FSCTL_SET_REPARSE_POINT takes to make a junction to target (REPARSE_DATA_BUFFER, a mount point): its tag, the length

@@ -190,6 +190,38 @@ public static partial class BuildReports
     /// What became of a report: Sent with its comment (Link, null when the answer named none on the build issue), or why not
     public sealed record Answer(Outcome Outcome, string? Link = null, string? Detail = null);
 
+    /// Give a summary already being sent a bounded window, without holding the window's thread or delaying rollback.
+    public static async Task WaitForSendAsync(Task send, TimeSpan wait)
+    {
+        await Task.WhenAny(send, Task.Delay(wait));
+    }
+
+    /// Tracks summaries across build attempts and holds shutdown until finalization and the bounded send window both finish.
+    /// Called on the window's thread.
+    public sealed class Shutdown
+    {
+        readonly List<Task> sends = [];
+        public bool Terminating { get; private set; }
+
+        public void Track(Task send)
+        {
+            sends.RemoveAll(t => t.IsCompleted);
+            sends.Add(send);
+        }
+
+        public void Terminate(Action<Action> hold, Action shutdown, TimeSpan wait)
+        {
+            if (Terminating) return;
+            Terminating = true;
+            var window = WaitForSendAsync(Task.WhenAll(sends), wait);
+            hold(async () =>
+            {
+                await window;
+                shutdown();
+            });
+        }
+    }
+
     /// Posts the report (Json) to address, Address unless a test says otherwise
     public static async Task<Answer> SendAsync(HttpClient http, string json, CancellationToken cancel, string address = Address)
     {

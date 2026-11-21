@@ -136,8 +136,10 @@ sealed class PadInput : IDisposable
             return;
         }
         var root = scope ?? window.PadPage;
-        if (root.GetVisualDescendants().OfType<Button>().FirstOrDefault(b => Pad.GetBack(b) && Usable(b)) is { } back)
-            Send(back, Key.Enter, KeyModifiers.None);
+        var back = root.GetVisualDescendants().OfType<Button>().FirstOrDefault(b => Pad.GetBack(b) && Usable(b))
+                   // (a page the title bar's tabs move from has no Back of its own: B goes home, as their Home)
+                   ?? (scope == null ? window.PadNav.GetVisualDescendants().OfType<Button>().FirstOrDefault(b => Pad.GetBack(b) && Usable(b)) : null);
+        if (back != null) Send(back, Key.Enter, KeyModifiers.None);
     }
 
     /// The first press with nothing focused: the dialog's Keep or Cancel (or its first control), or the page's Play, its main button, its first control

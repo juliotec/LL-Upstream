@@ -25,6 +25,7 @@ static partial class Program
     {
         DiagnosticChecks();
         BuildSummarySourceChecks(repo);
+        await ShutdownSummaryChecks();
         var home = OperatingSystem.IsWindows() ? @"C:\Users\Ana" : "/home/ana";
         var sep = OperatingSystem.IsWindows() ? @"\" : "/";
         var homeAs = OperatingSystem.IsWindows() ? Privacy.WindowsHome : Privacy.LinuxHome;
@@ -99,6 +100,39 @@ static partial class Program
         answer = await BuildReports.SendAsync(new HttpClient(new NoServer()), json, CancellationToken.None);
         Require(answer.Outcome == BuildReports.Outcome.Unreachable && answer.Detail == "No such host is known.", "No answer: not sent, and why.");
         BuildStatisticsChecks(home);
+    }
+
+    static async Task ShutdownSummaryChecks()
+    {
+        var first = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var retry = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var closed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var gate = new BuildReports.Shutdown();
+        gate.Track(first.Task); // The failed attempt's summary is still sending when the player retries.
+        gate.Track(retry.Task);
+        Action? finalization = null;
+        var closes = 0;
+        gate.Terminate(close => finalization = close, () => { closes++; closed.TrySetResult(); }, TimeSpan.FromSeconds(5));
+        gate.Terminate(_ => throw new InvalidOperationException("held twice"), () => closes++, TimeSpan.FromSeconds(5));
+        retry.SetResult();
+        Require(finalization != null && !closed.Task.IsCompleted, "Shutdown holds the build's finalization callback during rollback.");
+        finalization!();
+        Require(!closed.Task.IsCompleted, "After rollback, shutdown still waits for the earlier attempt's summary.");
+        first.SetResult();
+        await closed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Require(closes == 1, "A repeated termination closes only once, after both attempts' summaries.");
+
+        var pending = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        closed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        gate = new BuildReports.Shutdown();
+        gate.Track(pending.Task);
+        finalization = null;
+        gate.Terminate(close => finalization = close, () => closed.TrySetResult(), TimeSpan.FromMilliseconds(50));
+        await Task.Delay(150);
+        Require(!closed.Task.IsCompleted, "The send deadline cannot close the launcher while rollback is held.");
+        finalization!();
+        await closed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Require(!pending.Task.IsCompleted, "After rollback the deadline permits shutdown even if the send is still pending.");
     }
 
     /// How a build ended and each stage's progress and time (BuildProgress.Times), the CPU's name, and the statistics' summary: the
@@ -273,8 +307,14 @@ static partial class Program
         var build = File.ReadAllText(Path.Combine(repo, "App", "ViewModels", "BuildStepViewModel.cs"));
         Require(build.Contains("void Summarize(string outcome, string why)") && build.Contains("string? Summary(string outcome, string why)"),
             "A build's summary is always given why it ended.");
-        Require(build.Contains("Summary(BuildReports.Terminated, BuildReports.LauncherStopped)"),
+        Require(build.Contains("Summarize(BuildReports.Terminated, BuildReports.LauncherStopped)"),
             "The launcher's SIGTERM: the summary says the launcher was stopped.");
+        Require(build.Contains("Shutdown.Track(BuildReports.SendAsync") &&
+                build.Contains("Shutdown.Terminate(close => CloseAfterFinalizing = close"),
+            "Build attempts track their sends and hold the shutdown callback for finalization.");
+        var program = File.ReadAllText(Path.Combine(repo, "App", "Program.cs"));
+        Require(program.Contains("if (ViewModels.BuildStepViewModel.Shutdown.Terminating) return;"),
+            "Another SIGTERM cannot bypass the held shutdown after the current build is cleared.");
         Require(!System.Text.RegularExpressions.Regex.IsMatch(build, @"Summar(?:ize|y)\([^;\n]*Tr\.[TFP]\("),
             "No summary is given a translated why (Tr.T, Tr.F, Tr.P).");
         Require(build.Contains("? Tr.N(\"make_game.py was stopped by a signal (SIGTERM) from outside the launcher.\")") &&

@@ -261,15 +261,33 @@ static class Program
         new("settings-go-back", "Step 2 going back to an older nightly: its folder takes that version's name when the build starts", Platform.Windows, NightliesListed,
             m => new SettingsStepViewModel(new BuildJob(m, JobKind.Update, Versions.Nightly, "nightly-187-9e6f231d", m.Service.Registry.Builds[0]))
                  { Free = 412L << 30 }),
-        // (Free up space, confirmed first: what it deletes, each part's size, the shader caches as an option)
-        new("free-space", "Free up space in the launcher's Settings: what it deletes and why it was kept, the shader caches as an option",
-            Platform.Windows, NightliesListed, m => new SettingsViewModel(m),
-            m => m.Modal = new FreeSpaceViewModel((SettingsViewModel)m.Page,
-                                                  ([3_100_000_000, 1_640_000_000, 410_000_000, 0, 2_900_000_000, 3_280_000_000], 9_800_000_000, 1, 0))),
-        new("free-space-store", "Free up space with the shader store: the caches' option names it and counts it", Platform.Windows, NightliesListed,
-            m => new SettingsViewModel(m),
-            m => m.Modal = new FreeSpaceViewModel((SettingsViewModel)m.Page,
-                                                  ([3_100_000_000, 1_640_000_000, 410_000_000, 0, 2_900_000_000, 3_280_000_000], 1_200_000_000, 2, 3_758_096_384))),
+        // (the Storage page: what Longshot keeps on the PC by what it is for, Faster updates shown, two versions of one dump)
+        new("storage", "The Storage page: what Longshot keeps by what it is for, one bar of its groups, Faster updates' items with what removing each costs",
+            Platform.Windows, NightliesListed, m => new StorageViewModel(m, StorageShown, free: 115L << 30)),
+        new("storage-shaders", "The Storage page's shader caches: one row a version, each removable on its own with the warning",
+            Platform.Windows, NightliesListed, m => new StorageViewModel(m, StorageShown, free: 115L << 30, show: Storage.Group.ShaderCaches)),
+        new("storage-games", "The Storage page's installed games: one row a version, each deleted as Home deletes it",
+            Platform.Windows, s => { NightliesListed(s); s.Registry.Add(@"C:\Users\Player\Games\Longshot\stable\v3.0.3", "v3.0.3", Versions.Stable, makeDefault: false); },
+            m => new StorageViewModel(m, StorageListed(m), free: 115L << 30, show: Storage.Group.Games)),
+        new("storage-copies", "The Storage page's game files: one row a copy on the disk, with the versions using it and what freeing it takes",
+            Platform.Windows, s => { NightliesListed(s); s.Registry.Add(@"C:\Users\Player\Games\Longshot\stable\v3.0.3", "v3.0.3", Versions.Stable, makeDefault: false); },
+            m => new StorageViewModel(m, StorageListed(m), free: 115L << 30, show: Storage.Group.GameFiles)),
+        new("storage-running", "The Storage page while Longshot runs: the versions' Remove off, with why on hover", Platform.Windows,
+            s => { NightliesListed(s); s.Registry.Add(@"C:\Users\Player\Games\Longshot\stable\v3.0.3", "v3.0.3", Versions.Stable, makeDefault: false); },
+            m => new StorageViewModel(m, StorageListed(m), free: 115L << 30, show: Storage.Group.Games, running: true)),
+        new("storage-deleting", "The Storage page deleting a version: pinned with how much of it is gone, every Remove off meanwhile", Platform.Windows,
+            s => { NightliesListed(s); s.Registry.Add(@"C:\Users\Player\Games\Longshot\stable\v3.0.3", "v3.0.3", Versions.Stable, makeDefault: false); },
+            m => new StorageViewModel(m, StorageListed(m), free: 115L << 30, show: Storage.Group.Games, running: false)
+                .ShownBusy("Deleting v3.0.3…", 10_900_000_000, 0.42)),
+        new("storage-measuring", "The Storage page measuring again after a removal: a sweep, the sizes the last ones until it is done",
+            Platform.Windows, NightliesListed, m => new StorageViewModel(m, StorageShown, free: 115L << 30, running: false).ShownBusy("Updating the sizes…", 0, 0)),
+        new("storage-first-measure", "The Storage page's first measure: nothing to show yet, its progress where the bar goes",
+            Platform.Windows, NightliesListed, m => new StorageViewModel(m, StorageShown, free: 115L << 30, running: false).ShownFirstMeasure()),
+        new("storage-drives","The Storage page with Longshot on two drives: All drives picked, the dropdown in place of the free space",
+            Platform.Windows, NightliesListed, m => new StorageViewModel(m, StorageOnDrives(m), free: 115L << 30, show: Storage.Group.BuildTools, running: false)),
+        new("storage-drive-c", "The Storage page with C: picked: only what Longshot keeps on C:, and Remove lets only that go",
+            Platform.Windows, NightliesListed, m => new StorageViewModel(m, StorageOnDrives(m), free: 41L << 30, show: Storage.Group.BuildTools, running: false,
+                                                                         onDrive: "C:")),
         // (a completely cold build: offered after a failed build, then ticked in step 2's Advanced for the player to read and start)
         new("build-failed", "The build stopped on a message the launcher doesn't know: Build again, or Try a completely cold build", Platform.Windows, null,
             m => new ProblemViewModel(Build(m, showLog: false), "clang stopped with exit code 1 compiling sa/gen/code_412.c", "Compiling", 41)),
@@ -616,6 +634,57 @@ static class Program
         ]);
         service.AddFound(1571);
     }
+
+    /// What the Storage page shows: two versions of one dump (a stable and a nightly), typical sizes from Longshot's builder
+    /// (the game files ~26 GB once, a version's shader caches ~10 GB, a build's work ~1.1 GB, an earlier launcher's stores)
+    static readonly IReadOnlyList<Storage.Item> StorageShown =
+    [
+        new(Storage.Kind.GameFiles, 26_200_000_000, 26_200_000_000, new("a", "v3.0.3", @"C:\Users\Player\Games\Longshot\stable\v3.0.3"), Users:
+            [new("a", "v3.0.3", @"C:\Users\Player\Games\Longshot\stable\v3.0.3"),
+             new("b", "Nightly 189 · aa95d35f", @"C:\Users\Player\Games\Longshot\nightly\nightly-189-aa95d35f")]),
+        new(Storage.Kind.Programs, 1_050_000_000, 1_050_000_000, new("a", "v3.0.3", @"C:\Users\Player\Games\Longshot\stable\v3.0.3")),
+        new(Storage.Kind.Programs, 1_050_000_000, 1_050_000_000, new("b", "Nightly 189 · aa95d35f", @"C:\Users\Player\Games\Longshot\nightly\nightly-189-aa95d35f")),
+        new(Storage.Kind.ShaderCache, 9_600_000_000, 9_600_000_000, new("a", "v3.0.3", @"C:\Users\Player\Games\Longshot\stable\v3.0.3")),
+        new(Storage.Kind.ShaderCache, 9_800_000_000, 9_800_000_000, new("b", "Nightly 189 · aa95d35f", @"C:\Users\Player\Games\Longshot\nightly\nightly-189-aa95d35f")),
+        new(Storage.Kind.ShaderStore, 3_758_096_384, 3_758_096_384),
+        new(Storage.Kind.RecentCode, 990_000_000, 990_000_000),
+        new(Storage.Kind.RecentTranslation, 130_000_000, 130_000_000),
+        new(Storage.Kind.OlderCode, 2_420_000_000, 2_420_000_000),
+        new(Storage.Kind.OlderTranslations, 3_220_000_000, 3_220_000_000),
+        new(Storage.Kind.Builders, 1_900_000_000, 0),
+        new(Storage.Kind.GraphicsLibraries, 700_000_000, 700_000_000),
+        new(Storage.Kind.UnfinishedDownloads, 200_000_000, 200_000_000),
+        new(Storage.Kind.Saves, 330_000_000, 0),
+        new(Storage.Kind.ModsAndSettings, 70_000_000, 0),
+        new(Storage.Kind.Logs, 100_000_000, 100_000_000),
+    ];
+
+    /// StorageShown with each version's items under the id of its row on Home (the folder's), for the rows' delete
+    /// And two game folders no row lists, as updates before #104 left them: one nothing of the player's is in, one with mods
+    static IReadOnlyList<Storage.Item> StorageListed(MainViewModel m) =>
+        StorageShown.Select(i => i.Game is { } g && m.Service.Registry.FindByFolder(g.Folder) is { } b ? i with { Game = g with { Id = b.Id } } : i)
+            .Concat([
+                new(Storage.Kind.Unlisted, 11_400_000_000, 11_400_000_000,
+                    new("unlisted:130", "Nightly 130 · 0caf0618", @"C:\Users\Player\Games\Longshot\nightly-130-0caf0618", Unlisted: true)),
+                new(Storage.Kind.Unlisted, 10_900_000_000, 10_900_000_000,
+                    new("unlisted:77", "Nightly 77 · 9f64464b", @"C:\Users\Player\Games\Longshot\nightly-77-9f64464b", Unlisted: true, HoldsYours: true)),
+                // (a second copy of the game files, an old version's own; a third, a PR build's, linked from a developer's base)
+                new(Storage.Kind.GameFiles, 26_100_000_000, 26_100_000_000,
+                    new("unlisted:77", "Nightly 77 · 9f64464b", @"C:\Users\Player\Games\Longshot\nightly-77-9f64464b", Unlisted: true),
+                    Users: [new("unlisted:77", "Nightly 77 · 9f64464b", @"C:\Users\Player\Games\Longshot\nightly-77-9f64464b", Unlisted: true)]),
+                new(Storage.Kind.GameFiles, 26_200_000_000, 90_000_000,
+                    new("unlisted:130", "Nightly 130 · 0caf0618", @"C:\Users\Player\Games\Longshot\nightly-130-0caf0618", Unlisted: true),
+                    Users: [new("unlisted:130", "Nightly 130 · 0caf0618", @"C:\Users\Player\Games\Longshot\nightly-130-0caf0618", Unlisted: true)],
+                    Elsewhere: [@"C:\Users\Player\Longshot-dev\bases\47430e8140b7\game", @"C:\Users\Player\Longshot-dev\bases\47430e8140b7\game-out"]),
+            ]).ToList();
+
+    /// StorageListed on two drives, as a Windows PC with its games on E: and the launcher's own folder and the saves on C:: the
+    /// builders on both (an older one left on C: before the folder moved)
+    static IReadOnlyList<Storage.Item> StorageOnDrives(MainViewModel m) =>
+        StorageListed(m).SelectMany(i => i.Kind == Storage.Kind.Builders
+                ? new[] { i with { Bytes = 1_200_000_000, Drive = "E:" }, i with { Bytes = 700_000_000, Frees = 700_000_000, Drive = "C:" } }
+                : new[] { i with { Drive = i.Kind is Storage.Kind.Saves or Storage.Kind.Logs or Storage.Kind.GraphicsLibraries or Storage.Kind.UnfinishedDownloads ? "C:" : "E:" } })
+            .ToList();
 
     /// A nightly build of the newest nightly, and the release list the update check read: the 5 nightlies the server keeps
     /// Two builds measured as one PC's were (Disk.Measure): nightly-486 and v3.0.0 share 24.4 GB of game files by hard links, the

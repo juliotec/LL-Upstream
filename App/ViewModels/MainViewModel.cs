@@ -21,6 +21,13 @@ public sealed class StepItem(int number, string title) : ViewModelBase
     public bool IsTodo => !done && !now;
 }
 
+/// A page that does something when it is left, however it is (a title bar tab, Back, a controller's B): Settings saves,
+/// the NFC page stops its scan
+public interface ILeavingPage
+{
+    void Left();
+}
+
 /// The window: one page at a time (home, the wizard's steps, settings, saves, NFC), a dialog over it, a toast at the bottom
 public sealed class MainViewModel : ViewModelBase
 {
@@ -38,7 +45,12 @@ public sealed class MainViewModel : ViewModelBase
         Home.Open(start);
         MinimizeCommand = new Command(() => Host?.Minimize());
         CloseCommand = new Command(() => Host?.Close());
-        SettingsCommand = new Command(ShowSettings);
+        // (the title bar's tabs: the one shown does nothing)
+        GoHomeCommand = new Command(() => { if (!IsHome) ShowHome(); });
+        GoSavesCommand = new Command(() => { if (Shown != Section.Saves) ShowSaves(); });
+        GoNfcCommand = new Command(() => { if (Shown != Section.Nfc) ShowNfc(); });
+        StorageCommand = new Command(() => { if (Shown != Section.Storage) ShowStorage(); });
+        SettingsCommand = new Command(() => { if (Shown != Section.Settings) ShowSettings(); });
         if (start.Kind == StartKind.Window) OfferCrash();
     }
 
@@ -92,7 +104,33 @@ public sealed class MainViewModel : ViewModelBase
 
     public Command MinimizeCommand { get; }
     public Command CloseCommand { get; }
+    /// The title bar's tabs, in their order: Home, Saves, NFC tags, Storage, Settings
+    public Command GoHomeCommand { get; }
+    public Command GoSavesCommand { get; }
+    public Command GoNfcCommand { get; }
+    public Command StorageCommand { get; }
     public Command SettingsCommand { get; }
+
+    /// The pages the title bar's tabs move between; None: another page (the wizard, a build, a transfer's steps), which keeps
+    /// its own way back and shows no tabs
+    public enum Section { None, Home, Saves, Nfc, Storage, Settings }
+
+    public Section Shown => page switch
+    {
+        HomeViewModel => Section.Home,
+        SavesViewModel => Section.Saves,
+        NfcViewModel => Section.Nfc,
+        StorageViewModel => Section.Storage,
+        SettingsViewModel => Section.Settings,
+        _ => Section.None,
+    };
+
+    /// The tabs, on their pages only; the one shown lit
+    public bool ShowsTabs => Shown != Section.None;
+    public bool IsSavesShown => Shown == Section.Saves;
+    public bool IsNfcShown => Shown == Section.Nfc;
+    public bool IsStorageShown => Shown == Section.Storage;
+    public bool IsSettingsShown => Shown == Section.Settings;
 
     public IReadOnlyList<StepItem> Steps { get; } = new[] { new StepItem(1, Tr.N("Game files")), new StepItem(2, Tr.N("Settings")), new StepItem(3, Tr.N("Build")) };
 
@@ -101,9 +139,13 @@ public sealed class MainViewModel : ViewModelBase
         get => page;
         private set
         {
+            var was = page;
             if (!Set(ref page, value)) return;
+            // (however it is left: a tab, Back, a controller's B)
+            if (was is ILeavingPage left) left.Left();
             RefreshSteps();
-            RaiseAll(nameof(IsHome), nameof(InWizard), nameof(AcceptsDrop), nameof(DropText));
+            RaiseAll(nameof(IsHome), nameof(InWizard), nameof(AcceptsDrop), nameof(DropText), nameof(Shown), nameof(ShowsTabs),
+                     nameof(IsSavesShown), nameof(IsNfcShown), nameof(IsStorageShown), nameof(IsSettingsShown));
         }
     }
 
@@ -216,6 +258,19 @@ public sealed class MainViewModel : ViewModelBase
     }
 
     public void ShowSettings() => Navigate(new SettingsViewModel(this));
+
+    /// The Storage page's last measure, kept while the launcher is open so that coming back to the page shows it at once (its
+    /// refresh measures again); forgotten after a build, and not used once the places it measured changed (StorageViewModel)
+    StorageViewModel.Snapshot? storageMeasured;
+    public long StorageGeneration { get; set; }
+    public StorageViewModel.Snapshot? StorageMeasured
+    {
+        get => storageMeasured;
+        set { storageMeasured = value; if (value == null) StorageGeneration++; }
+    }
+
+    /// What Longshot keeps on this PC, by what it is for, and freeing it: the title bar's Storage tab, or Settings > Manage storage
+    public void ShowStorage() => Navigate(new StorageViewModel(this));
 
     public void ShowSaves() => Navigate(new SavesViewModel(this));
 

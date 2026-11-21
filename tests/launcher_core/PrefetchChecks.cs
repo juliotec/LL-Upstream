@@ -38,6 +38,8 @@ static partial class Program
         Require(ReferenceEquals(early, joined) && early.Early, "The wizard joins the fetch the launcher started early, not a second download.");
         await WaitUntil(() => early.Last.Total == 1000);
         Require(prefetch.Busy && prefetch.Tags.SequenceEqual(new[] { "v3.0.0" }), "A running fetch keeps pruning off, and its version is kept.");
+        var cleaned = false;
+        Require(!prefetch.CleanStaging(() => cleaned = true) && !cleaned, "Staging cleanup refuses immediately while a fetch holds it.");
         var seen = new List<ToolsDownloadProgress>();
         using (early.Watch(p => { lock (seen) seen.Add(p); }))
         {
@@ -47,6 +49,7 @@ static partial class Program
             Require(t.Tag == "v3.0.0" && seen[^1].Fraction == 1, "The watcher sees the fetch finish, and gets the version's tools.");
         }
         await WaitUntil(() => !prefetch.Busy);
+        Require(prefetch.CleanStaging(() => cleaned = true) && cleaned, "Staging cleanup runs after the fetch ends.");
         Require(calls["v3.0.0"] == 1 && idles == 1, "One download for both, and nothing runs after it: Idle once.");
         Require(ReferenceEquals(prefetch.Get("v3.0.0"), early), "A finished fetch is kept: a later build finds its tools at once.");
 

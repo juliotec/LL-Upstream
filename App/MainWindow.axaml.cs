@@ -33,6 +33,8 @@ public sealed partial class MainWindow : Window, IWindowHost
     internal Control? PadScope => (DataContext as MainViewModel)?.HasModal == true ? Dialog : null;
     /// The page, for a controller's first press and its B
     internal Control PadPage => Pages;
+    /// The title bar's tabs: their Home is B on a page with no Back of its own
+    internal Control PadNav => NavBar;
 
     public MainWindow()
     {
@@ -94,7 +96,8 @@ public sealed partial class MainWindow : Window, IWindowHost
         if (vm.Page is BuildStepViewModel { Running: true } build)
         {
             e.Cancel = true;
-            vm.Modal = new StopBuildViewModel(build);
+            if (build.Finalizing) build.CloseAfterFinalizing ??= Close;
+            else vm.Modal = new StopBuildViewModel(build);
             return;
         }
         if (vm.Page is FilesStepViewModel files) files.Job.Stop();

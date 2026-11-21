@@ -69,6 +69,9 @@ public sealed class LauncherSettings
     /// Download an update's build tools as soon as the update check finds it, before the player starts the update (ToolsPrefetch):
     /// ~500 MB a version, so off unless chosen. A first build's tools always start early (LONGSHOT_LAUNCHER_NO_PREFETCH=1 stops both)
     public bool DownloadUpdatesEarly { get; set; }
+    /// Keep the most recent build's files: its compiled code and translation in the build files folder, so the next update
+    /// redoes only what changed (Storage.AfterBuild; ~1.1 GB). Off: they go once each build is done. On by default
+    public bool KeepBuildFiles { get; set; } = true;
     /// Send performance statistics: every build's game measures how its frames went and the launcher sends the summaries to the
     /// team (PerfReports); off by default
     public bool SendPerformanceStatistics { get; set; }

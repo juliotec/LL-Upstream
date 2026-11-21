@@ -11,7 +11,6 @@
         <Ellipse Width="3" Height="3" Fill="{StaticResource InkFaint}" Margin="12,0" VerticalAlignment="Center"/>
         <Button Classes="link soft" Content="{c:T 'Release notes'}" Command="{Binding ReleaseNotesCommand}"/>
       </StackPanel>
-      <Button Grid.Column="1" Classes="primary" Content="{c:T 'Done'}" Command="{Binding DoneCommand}" c:Pad.Back="True"/>
     </Grid>
     <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="-8,0" Padding="8,0,8,4">
       <StackPanel>
@@ -92,13 +91,16 @@
             </Grid>
             <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,8,0,0">
               <TextBlock FontSize="12" Foreground="{StaticResource InkSoft}" Text="{Binding WorkNote}" VerticalAlignment="Center"/>
-              <Button Classes="link smaller" Command="{Binding FreeSpaceCommand}">
-                <c:BusyContent Content="{c:T 'Free up space'}" IsBusy="{Binding FreeingCommand.IsBusy}" BusyText="{c:T 'Freeing…'}"/>
-              </Button>
               <Button Classes="link smaller" Content="{c:T 'Default'}" Command="{Binding DefaultWorkCommand}"/>
             </StackPanel>
             <TextBlock Classes="hint" Text="{Binding WorkHint}" TextWrapping="Wrap"/>
           </StackPanel>
+        </Grid>
+        <!-- the Storage page: all that Longshot keeps, by kind, across both folders above and the games' -->
+        <TextBlock Classes="label" Text="{c:T 'STORAGE'}"/>
+        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="16" Margin="0,0,0,22">
+          <Button Content="{c:T 'Manage storage'}" Command="{Binding StorageCommand}" VerticalAlignment="Center"/>
+          <TextBlock Grid.Column="1" Classes="hint" Margin="0" Text="{Binding StorageHint}" TextWrapping="Wrap" VerticalAlignment="Center"/>
         </Grid>
         <CheckBox Classes="tick" Content="{c:T 'Check for updates when the launcher starts'}" IsChecked="{Binding CheckUpdates}"/>
         <CheckBox Classes="tick" Content="{c:T 'Download the build tools of an update as soon as it is out (about 500 MB). Nothing updates until you choose to.'}"

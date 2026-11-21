@@ -497,6 +497,54 @@
     <Style Selector="StackPanel.linux Button.caption.gear c|Icon">
       <Setter Property="Weight" Value="1"/>
     </Style>
+    <!-- the title bar's tabs: an icon over a small label (the size of the launcher's version beside its name), as wide as
+         the label needs -->
+    <Style Selector="Button.caption.nav">
+      <Setter Property="Width" Value="NaN"/>
+      <Setter Property="MinWidth" Value="50"/>
+      <Setter Property="Height" Value="50"/>
+      <Setter Property="Padding" Value="8,4,8,0"/>
+    </Style>
+    <Style Selector="StackPanel.navitem">
+      <Setter Property="Spacing" Value="2"/>
+      <Setter Property="HorizontalAlignment" Value="Center"/>
+      <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+    <Style Selector="Button.caption.gear.nav c|Icon">
+      <Setter Property="Width" Value="16"/>
+      <Setter Property="Height" Value="16"/>
+      <Setter Property="HorizontalAlignment" Value="Center"/>
+    </Style>
+    <Style Selector="TextBlock.navlabel">
+      <Setter Property="FontSize" Value="11"/>
+      <Setter Property="FontWeight" Value="Normal"/>
+      <Setter Property="HorizontalAlignment" Value="Center"/>
+    </Style>
+    <Style Selector="StackPanel.linux Button.caption.nav">
+      <Setter Property="Width" Value="NaN"/>
+      <Setter Property="MinWidth" Value="50"/>
+      <Setter Property="Height" Value="40"/>
+      <Setter Property="CornerRadius" Value="8"/>
+      <Setter Property="Padding" Value="8,0"/>
+    </Style>
+    <Style Selector="StackPanel.linux Button.caption.gear.nav c|Icon">
+      <Setter Property="Width" Value="16"/>
+      <Setter Property="Height" Value="16"/>
+    </Style>
+    <!-- the title bar's tab of the page shown: lit, with a line of the brand's colour at its foot (Windows) or filled (Linux) -->
+    <Style Selector="Button.caption.nav.on">
+      <Setter Property="Foreground" Value="{StaticResource Ink}"/>
+      <Setter Property="Background" Value="{StaticResource Glass}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource Brand}"/>
+      <Setter Property="BorderThickness" Value="0,0,0,2"/>
+    </Style>
+    <Style Selector="StackPanel.linux StackPanel#NavBar">
+      <Setter Property="Spacing" Value="10"/>
+    </Style>
+    <Style Selector="StackPanel.linux Button.caption.nav.on">
+      <Setter Property="Background" Value="{StaticResource ChipFill}"/>
+      <Setter Property="BorderThickness" Value="0"/>
+    </Style>
     <Style Selector="StackPanel.linux Button.caption:pointerover, StackPanel.linux Button.caption.close:pointerover">
       <Setter Property="Background" Value="{StaticResource GlassLineStrong}"/>
       <Setter Property="Foreground" Value="{StaticResource Ink}"/>

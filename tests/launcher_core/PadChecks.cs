@@ -96,10 +96,14 @@ static partial class Program
         foreach (var file in Directory.GetFiles(views, "*.axaml"))
         {
             var name = Path.GetFileNameWithoutExtension(file);
-            if (name is "HomeView") continue;
+            // (the pages the title bar's tabs move between: their B is the tabs' Home, checked below)
+            if (name is "HomeView" or "SettingsView" or "SavesView" or "NfcView" or "StorageView") continue;
             var text = File.ReadAllText(file);
             if (!Regex.IsMatch(text, "<Button\\b")) continue;
             Require(text.Contains("c:Pad.Back=\"True\""), name + " has no button a controller's B presses (c:Pad.Back).");
         }
+        var window = File.ReadAllText(Path.Combine(repo, "App", "MainWindow.axaml"));
+        Require(Regex.IsMatch(window, "Command=\"\\{Binding GoHomeCommand\\}\"[^>]*c:Pad\\.Back=\"True\""),
+                "The title bar's Home tab is not a controller's B on the pages the tabs move between (c:Pad.Back).");
     }
 }

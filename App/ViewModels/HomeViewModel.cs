@@ -173,8 +173,6 @@ public sealed class HomeViewModel : ViewModelBase
         RemoveCommand = new Command(() => { if (HeroItem is { } h) AskDelete(h); }, () => HeroItem is { IsDeleting: false });
         // (the hero's build: the version picked when it is installed)
         UpdateDefaultCommand = new Command(() => { if (HeroItem is { } d) UpdateBuild(d); }, () => CanStartBuild && HeroItem is { IsDeleting: false });
-        SavesDefaultCommand = new Command(() => Main.ShowSaves());
-        NfcCommand = new Command(Main.ShowNfc);
         CancelLauncherUpdateCommand = new Command(() => UpdateLauncherCommand.Cancel());
         NotesDefaultCommand = new Command(() => { if (TrackUpdateItem is { } d) ShowNotes(d); });
         ReadPullRequestCommand = new Command(() =>
@@ -437,7 +435,6 @@ public sealed class HomeViewModel : ViewModelBase
         return string.Join(Tr.T(", "), bits);
     }
 
-    public string HeroSaves => Default is { } d ? SaveText.Short(d.Saves, DateTime.Now) : "";
     /// Update available beside the Version field: the version picked is installed and its build has a newer version
     public bool PickHasUpdate => PickVersion?.HasUpdate == true;
 
@@ -574,8 +571,6 @@ public sealed class HomeViewModel : ViewModelBase
     public BusyCommand RetryCheckCommand => CheckCommand;
     public Command PlayDefaultCommand { get; }
     public Command UpdateDefaultCommand { get; }
-    public Command SavesDefaultCommand { get; }
-    public Command NfcCommand { get; }
     public BusyCommand UpdateLauncherCommand { get; }
     /// What's new in the default version's update, beside it
     public Command NotesDefaultCommand { get; }
@@ -745,7 +740,7 @@ public sealed class HomeViewModel : ViewModelBase
     }
 
     /// Looks for them once, as the home opens (after Saves.Gather took their saves in), and measures them in the background
-    void OfferLeftovers()
+    public void OfferLeftovers()
     {
         IReadOnlyList<Leftover> found;
         try { found = Service.FindLeftovers(); }
@@ -1023,7 +1018,7 @@ public sealed class HomeViewModel : ViewModelBase
             Builds.Add(item);
         }
         ShowPick();
-        RaiseAll(nameof(HasBuilds), nameof(NoBuilds), nameof(Default), nameof(ShowLeftPanel), nameof(HeroSaves), nameof(Footer), nameof(NewestDefault), nameof(NewestDefaultText), nameof(DefaultChannel), nameof(DefaultIsRelease),
+        RaiseAll(nameof(HasBuilds), nameof(NoBuilds), nameof(Default), nameof(ShowLeftPanel), nameof(Footer), nameof(NewestDefault), nameof(NewestDefaultText), nameof(DefaultChannel), nameof(DefaultIsRelease),
                  nameof(DefaultIsNightly), nameof(KnowsNewest), nameof(CheckFailed), nameof(CheckWhy), nameof(HasCheckWhy), nameof(ShowCheckReport), nameof(ChannelEmpty), nameof(CheckFailedText), nameof(Checking), nameof(ShowCheckLine), nameof(HasLauncherUpdate),
                  nameof(LauncherUpdateText), nameof(LauncherUpdateHeading), nameof(LauncherUpdateButton));
         BuildCommand.Changed();
@@ -1142,7 +1137,10 @@ public sealed class HomeViewModel : ViewModelBase
         Main.ShowToast(Tr.F("Play now starts {0}.", b.Version));
     }
 
-    public void AskDelete(BuildItemViewModel b) => Main.Modal = new DeleteViewModel(Main, b);
+    /// began: its folder starts to go (the Storage page pins its progress, in place of the toast); after: the delete ended,
+    /// with whether the version went (the page drops its rows and measures again)
+    public void AskDelete(BuildItemViewModel b, Action<bool>? after = null, Action? began = null) =>
+        Main.Modal = new DeleteViewModel(Main, b, after, began);
 
     /// A build's folder being deleted (tens of GB: seconds to minutes): its row shows it, and nothing starts on it meanwhile
     public void Deleting(BuildEntry b, bool on)
@@ -1277,11 +1275,15 @@ public sealed class ChannelPickerViewModel : ViewModelBase
 public sealed class DeleteViewModel : ViewModelBase
 {
     readonly BuildItemViewModel build;
+    readonly Action<bool>? after;
+    readonly Action? began;
 
-    public DeleteViewModel(MainViewModel main, BuildItemViewModel build)
+    public DeleteViewModel(MainViewModel main, BuildItemViewModel build, Action<bool>? after = null, Action? began = null)
     {
         Main = main;
         this.build = build;
+        this.after = after;
+        this.began = began;
         KeepCommand = new Command(() => Main.Modal = null);
         DeleteCommand = new Command(() => _ = DeleteAsync());
     }
@@ -1309,6 +1311,22 @@ public sealed class DeleteViewModel : ViewModelBase
 
     async Task DeleteAsync()
     {
+        var deleted = false;
+        try { deleted = await DeleteNowAsync(); }
+        finally { after?.Invoke(deleted); }
+    }
+
+    /// What the delete has to say: on Home's notice, and as a toast too when it was asked from another page (Storage), where
+    /// Home's notice is not seen
+    void Say(string text)
+    {
+        Main.Home.Notice = text;
+        if (!Main.IsHome) Main.ShowToast(text);
+    }
+
+    /// Whether the version went
+    async Task<bool> DeleteNowAsync()
+    {
         Main.Modal = null;
         var service = Main.Service;
         var entry = build.Entry;
@@ -1317,8 +1335,8 @@ public sealed class DeleteViewModel : ViewModelBase
         var running = files ? Saves.Running(service.Platform) : Array.Empty<string>();
         if (running.Contains(Saves.Longshot.Display))
         {
-            Main.Home.Notice = Tr.F("Close Longshot first: {0} is not deleted while a game runs.", build.Version);
-            return;
+            Say(Tr.F("Close Longshot first: {0} is not deleted while a game runs.", build.Version));
+            return false;
         }
         try
         {
@@ -1327,16 +1345,18 @@ public sealed class DeleteViewModel : ViewModelBase
                 // (tens of GB: off the window's thread, the folder first and the row once it is gone; the row marked first, so that
                 // nothing starts on it meanwhile. The save the folder holds itself goes first: a Windows build started outside the
                 // launcher saves there. Brought into the shared one, or backed up, never deleted: BuildRegistry.DeleteGame)
-                Main.ShowToast(Tr.F("Deleting {0}…", build.Version));
+                // (asked from Storage: its pinned progress says it for as long as it takes, not a toast that fades first)
+                if (began != null) began();
+                else Main.ShowToast(Tr.F("Deleting {0}…", build.Version));
                 Main.Home.Deleting(entry, true);
                 DeletedGame done;
                 try { done = await Task.Run(() => service.DeleteGame(entry, running)); }
                 finally { Main.Home.Deleting(entry, false); }
-                if (done.Said() is { } said) Main.Home.Notice = said;
+                if (done.Said() is { } said) Say(said);
                 if (!done.Deleted)
                 {
                     Main.Home.Refresh();
-                    return;
+                    return false;
                 }
             }
             // (the default goes to a release when there is one left, as the mockup: Registry.Remove takes the first otherwise)
@@ -1345,11 +1365,14 @@ public sealed class DeleteViewModel : ViewModelBase
             if (wasDefault && service.Registry.Builds.FirstOrDefault(b => UpdatePolicy.ChannelOf(b.Channel, b.Version) == Versions.Stable) is { } rel)
                 service.SetDefault(rel);
             Main.ShowToast(Freed(entry) is long b && files ? Tr.F("Deleted {0}, {1} freed.", build.Version, Durations.Size(b)) : Tr.F("Deleted {0}.", build.Version));
+            Main.Home.Refresh();
+            return true;
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
-            Main.Home.Notice = Tr.F("{0} could not be deleted: {1}", entry.Folder, e.Message);
+            Say(Tr.F("{0} could not be deleted: {1}", entry.Folder, e.Message));
         }
         Main.Home.Refresh();
+        return false;
     }
 }

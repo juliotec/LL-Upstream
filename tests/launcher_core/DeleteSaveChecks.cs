@@ -61,6 +61,18 @@ static partial class Program
         Require(refused && Tree(save) == own, "DeleteFolder with no backups given refuses a folder that holds a save, and says where it is.");
 
         var when = new DateTime(2026, 11, 17, 9, 0, 0);
+        var lateMod = Version("nightly-late-mod");
+        var lateSave = Path.Combine(lateMod, "user", "save", Saves.UserId);
+        MakeSave(lateSave, "LATE");
+        var lateTree = Tree(Path.Combine(lateMod, "user", "save"));
+        var mod = Path.Combine(lateMod, "mods", "added.txt");
+        Saves.Fault = s => { if (s == "backup") { Directory.CreateDirectory(Path.GetDirectoryName(mod)!); File.WriteAllText(mod, "mod"); } };
+        FolderNotDeleted? lateFailure = null;
+        try { Leftovers.Delete(lateMod, Platform.Windows, Array.Empty<string>(), windows with { BackupFolder = Path.Combine(root, "late-backups") }); }
+        catch (FolderNotDeleted e) { lateFailure = e; }
+        finally { Saves.Fault = null; }
+        Require(File.Exists(mod) && Directory.Exists(lateMod) && lateFailure?.Backup is { } lateBackup && Tree(lateBackup) == lateTree,
+                "A mod added during backup prevents deletion and the verified backup is reported.");
         var longshotRuns = () => (IReadOnlyList<string>)new[] { "Longshot" };
         var nothingRuns = () => (IReadOnlyList<string>)Array.Empty<string>();
         DeletedGame Delete(SaveEnvironment env, string folder, Func<IReadOnlyList<string>> running) =>

@@ -682,9 +682,16 @@ public sealed class Toolchains
     /// A folder and everything in it; a link in it is removed, never followed
     public static void DeleteTree(string dir)
     {
+        DeleteTreeIfPresent(dir);
+    }
+
+    /// Delete a tree, reporting whether its root was present when deletion began.
+    public static bool DeleteTreeIfPresent(string dir)
+    {
         var info = new DirectoryInfo(dir);
-        if (info.LinkTarget != null) { info.Delete(); return; }
-        if (!info.Exists) return;
+        try { File.GetAttributes(dir); }
+        catch (Exception e) when (e is FileNotFoundException or DirectoryNotFoundException) { return false; }
+        if (info.LinkTarget != null) { info.Delete(); return true; }
         foreach (var child in info.EnumerateFileSystemInfos())
         {
             if (child is DirectoryInfo d && d.LinkTarget == null) DeleteTree(d.FullName);
@@ -696,6 +703,7 @@ public sealed class Toolchains
             }
         }
         info.Delete();
+        return true;
     }
 
     static void TryDeleteEmpty(string dir)
