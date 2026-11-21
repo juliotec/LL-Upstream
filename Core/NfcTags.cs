@@ -1,5 +1,7 @@
 using System.Globalization;
+using System.Runtime.InteropServices;
 using System.Text;
+using Microsoft.Win32.SafeHandles;
 
 namespace LongshotLauncher.Core;
 
@@ -312,6 +314,186 @@ public static class NfcTags
 
     static bool Same(string path, byte[] bytes) =>
         File.Exists(path) && ReadAtMost(path, bytes.Length).AsSpan().SequenceEqual(bytes);
+
+    /// Keep the original file open so its identity cannot be reused while the question is open.
+    public sealed class DeletionSnapshot(FileStream stream, byte[] bytes) : IDisposable
+    {
+        internal FileStream Stream { get; } = stream;
+        internal byte[] Bytes { get; } = bytes;
+        public void Dispose() => Stream.Dispose();
+    }
+
+    /// Capture a listed file for a later delete. Limit even invalid files, and leave unreadable or oversized files alone.
+    public static DeletionSnapshot? DeleteSnapshot(string folder, string name)
+    {
+        if (name != Path.GetFileName(name) || !IsCandidate(name)) return null;
+        try
+        {
+            var stream = OpenSnapshotFile(Path.Combine(folder, name));
+            if (stream == null) return null;
+            try
+            {
+                if (stream.Length > LargestNfc) { stream.Dispose(); return null; }
+                var bytes = new byte[(int)stream.Length];
+                stream.ReadExactly(bytes);
+                return new DeletionSnapshot(stream, bytes);
+            }
+            catch { stream.Dispose(); throw; }
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or DllNotFoundException or EntryPointNotFoundException) { return null; }
+    }
+
+    [DllImport("kernel32.dll", EntryPoint = "CreateFileW", CharSet = CharSet.Unicode, SetLastError = true)]
+    static extern SafeFileHandle OpenForDelete(string path, uint access, uint share, IntPtr security, uint creation, uint flags, IntPtr template);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    static extern bool GetFileInformationByHandleEx(SafeFileHandle file, int infoClass, out FileAttributeTagInfo info, uint size);
+
+    [StructLayout(LayoutKind.Sequential)]
+    struct FileAttributeTagInfo { public uint Attributes; public uint ReparseTag; }
+
+    [StructLayout(LayoutKind.Sequential)]
+    struct FileIdInfo { public ulong Volume, Low, High; }
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    static extern bool GetFileInformationByHandleEx(SafeFileHandle file, int infoClass, out FileIdInfo info, uint size);
+
+    // statx has a fixed layout on Linux, including on 32-bit and non-x86 systems.
+    [StructLayout(LayoutKind.Explicit, Size = 256)]
+    struct Statx
+    {
+        [FieldOffset(0)] public uint Mask;
+        [FieldOffset(28)] public ushort Mode;
+        [FieldOffset(32)] public ulong Inode;
+        [FieldOffset(136)] public uint DeviceMajor;
+        [FieldOffset(140)] public uint DeviceMinor;
+    }
+
+    [DllImport("libc", SetLastError = true)]
+    static extern int statx(int fd, string path, int flags, uint mask, out Statx stat);
+
+    [DllImport("libc", SetLastError = true)]
+    static extern int open(string path, int flags);
+
+    static bool LinuxIdentity(SafeFileHandle handle, out Statx stat) =>
+        statx(handle.DangerousGetHandle().ToInt32(), "", 0x1000, 0x103, out stat) == 0 &&
+        (stat.Mask & 0x103) == 0x103 && (stat.Mode & 0xf000) == 0x8000;
+
+    static FileStream? OpenSnapshotFile(string path)
+    {
+        SafeFileHandle handle;
+        if (OperatingSystem.IsLinux())
+        {
+            // O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC: do not follow links or block on a FIFO.
+            var fd = open(path, 0x800 | 0x20000 | 0x80000);
+            if (fd < 0) return null;
+            handle = new SafeFileHandle((IntPtr)fd, true);
+            try { if (!LinuxIdentity(handle, out _)) { handle.Dispose(); return null; } }
+            catch { handle.Dispose(); throw; }
+        }
+        else if (OperatingSystem.IsWindows())
+        {
+            // Allow replacement while the question is open, but do not follow reparse points.
+            handle = OpenForDelete(path, 0x80000000, 7, IntPtr.Zero, 3, 0x00200000, IntPtr.Zero);
+            if (handle.IsInvalid || !GetFileInformationByHandleEx(handle, 9, out FileAttributeTagInfo info, 8) ||
+                (info.Attributes & (0x400 | 0x10)) != 0) { handle.Dispose(); return null; }
+        }
+        else return null;
+        try { return new FileStream(handle, FileAccess.Read); }
+        catch { handle.Dispose(); throw; }
+    }
+
+    static bool SameIdentity(SafeFileHandle first, SafeFileHandle second)
+    {
+        if (OperatingSystem.IsLinux())
+            return LinuxIdentity(first, out var a) && LinuxIdentity(second, out var b) &&
+                a.Inode == b.Inode && a.DeviceMajor == b.DeviceMajor && a.DeviceMinor == b.DeviceMinor;
+        return GetFileInformationByHandleEx(first, 18, out FileIdInfo x, 24) &&
+            GetFileInformationByHandleEx(second, 18, out FileIdInfo y, 24) &&
+            x.Volume == y.Volume && x.Low == y.Low && x.High == y.High;
+    }
+
+    static bool SameContents(FileStream stream, byte[] bytes)
+    {
+        if (stream.Length != bytes.Length) return false;
+        stream.Position = 0;
+        var current = new byte[bytes.Length];
+        stream.ReadExactly(current);
+        return current.AsSpan().SequenceEqual(bytes);
+    }
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    static extern bool SetFileInformationByHandle(SafeFileHandle file, int infoClass, ref int info, uint size);
+
+    [DllImport("libc", SetLastError = true)]
+    static extern int mkdir(string path, uint mode);
+
+    // Isolate the entry before checking it, so a replacement at the original name cannot be deleted. A writer with an
+    // already open handle can still change it after the check; the confirmation warns about that on Linux.
+    static bool DeleteSnapshotLinux(string folder, string name, DeletionSnapshot snapshot, out string? recovery)
+    {
+        recovery = null;
+        var path = Path.Combine(folder, name);
+        var quarantine = Path.Combine(folder, ".nfc-delete-" + Guid.NewGuid().ToString("N"));
+        if (mkdir(quarantine, 448) != 0) return false; // 0700
+        var held = Path.Combine(quarantine, name);
+        var moved = false;
+        try
+        {
+            File.Move(path, held);
+            moved = true;
+            using var stream = OpenSnapshotFile(held);
+            if (stream == null || !SameIdentity(snapshot.Stream.SafeFileHandle, stream.SafeFileHandle) || !SameContents(stream, snapshot.Bytes)) return false;
+            File.Delete(held);
+            moved = false;
+            return true;
+        }
+        finally
+        {
+            if (moved)
+            {
+                try { File.Move(held, path); moved = false; }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+                for (var n = 2; moved && n <= 1000; n++)
+                {
+                    var alternative = Path.Combine(folder, $"{Path.GetFileNameWithoutExtension(name)} (recovered {n}){Path.GetExtension(name)}");
+                    try { File.Move(held, alternative); moved = false; recovery = alternative; }
+                    catch (IOException) { if (!File.Exists(alternative) && !Directory.Exists(alternative)) break; }
+                    catch (UnauthorizedAccessException) { break; }
+                }
+                if (moved) recovery = held;
+            }
+            if (!moved)
+                try { Directory.Delete(quarantine); }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+        }
+    }
+
+    /// On Windows, denying write and delete sharing prevents changes and replacement until the handle is closed.
+    /// On Linux, isolate the entry before checking it; the player confirms the remaining concurrent-write risk.
+    public static bool DeleteSnapshot(string folder, string name, DeletionSnapshot? snapshot, out string? recovery)
+    {
+        recovery = null;
+        if (snapshot == null || name != Path.GetFileName(name) || !IsCandidate(name)) return false;
+        try
+        {
+            if (OperatingSystem.IsLinux()) return DeleteSnapshotLinux(folder, name, snapshot, out recovery);
+            if (!OperatingSystem.IsWindows()) return false;
+            var path = Path.Combine(folder, name);
+            // GENERIC_READ | DELETE, FILE_SHARE_READ, OPEN_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT.
+            using var handle = OpenForDelete(path, 0x80010000, 1, IntPtr.Zero, 3, 0x00200000, IntPtr.Zero);
+            if (handle.IsInvalid || !GetFileInformationByHandleEx(handle, 9, out FileAttributeTagInfo info, 8) || (info.Attributes & 0x400) != 0 ||
+                !SameIdentity(snapshot.Stream.SafeFileHandle, handle)) return false;
+            using var stream = new FileStream(handle, FileAccess.Read);
+            if (!SameContents(stream, snapshot.Bytes)) return false;
+            var delete = 1; // FILE_DISPOSITION_INFO.DeleteFile
+            return SetFileInformationByHandle(handle, 4, ref delete, 1);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or DllNotFoundException or EntryPointNotFoundException) { return false; }
+    }
 
     /// Deletes files of the NFC folder by their file names: only .bin and .nfc files directly in it, never a key file, a folder
     /// or anything outside it. The names of the ones deleted

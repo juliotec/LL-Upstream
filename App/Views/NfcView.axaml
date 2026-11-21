@@ -9,70 +9,75 @@
       <Setter Property="HorizontalAlignment" Value="Stretch"/>
       <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
       <Setter Property="Padding" Value="14,8"/>
-      <Setter Property="Height" Value="56"/>
+      <Setter Property="MinHeight" Value="56"/>
     </Style>
     <Style Selector="TextBlock.transferTitle">
       <Setter Property="FontWeight" Value="SemiBold"/>
       <Setter Property="FontSize" Value="13"/>
     </Style>
   </UserControl.Styles>
-  <Grid RowDefinitions="Auto,*,Auto" RowSpacing="18">
+  <Grid RowDefinitions="Auto,*" RowSpacing="18">
     <StackPanel>
       <TextBlock Classes="heading" Text="NFC"/>
       <TextBlock Classes="sub" TextWrapping="Wrap"
-                 Text="NFC tag dumps of figures you own. In the game, the Insert menu's NFC tab picks one and taps it. Files and folders can be dropped on this page too."/>
+                 Text="Dumps of figures you own, for the NFC tab of the game's Insert menu. Drop files or folders here to add them."/>
     </StackPanel>
 
     <Grid Grid.Row="1" ColumnDefinitions="*,290" ColumnSpacing="24">
-      <Grid RowDefinitions="Auto,*" RowSpacing="10">
-        <Grid ColumnDefinitions="*,Auto">
+      <Grid RowDefinitions="Auto,Auto,*">
+        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8" Margin="0,0,0,10">
           <TextBlock Classes="label" Text="YOUR NFC TAGS" Margin="0" VerticalAlignment="Center"/>
-          <TextBlock Grid.Column="1" Classes="faint" Text="{Binding Count}" VerticalAlignment="Center"/>
+          <!-- past the game's 256: a chip, the why in its tooltip -->
+          <Border Grid.Column="1" Classes="chip warn small" IsVisible="{Binding TooMany}" VerticalAlignment="Center"
+                  ToolTip.Tip="{Binding TooManyText}">
+            <TextBlock Text="{Binding TooManyChip}"/>
+          </Border>
+          <TextBlock Grid.Column="2" Classes="faint" Text="{Binding Count}" VerticalAlignment="Center"/>
         </Grid>
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" ClipToBounds="True">
-          <StackPanel Spacing="10">
-            <!-- what the last add skipped or renamed, each file by name; or why a scan saved nothing -->
-            <Border Classes="warnbox" Margin="0" IsVisible="{Binding HasReport}">
-              <ItemsControl ItemsSource="{Binding Report}">
+        <!-- what the last add skipped or renamed, each file by name; or why a scan saved nothing -->
+        <ScrollViewer Grid.Row="1" MaxHeight="120" Margin="0,0,0,10" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" IsVisible="{Binding HasReport}">
+          <Border Classes="warnbox" Margin="0">
+            <ItemsControl ItemsSource="{Binding Report}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="x:String"><TextBlock Text="{Binding}" TextWrapping="Wrap"/></DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </Border>
+        </ScrollViewer>
+        <!-- the list scrolls inside its card, so the card always ends with its own edge -->
+        <Border Grid.Row="2" Classes="card" Padding="0" VerticalAlignment="Top" ClipToBounds="True">
+          <Panel>
+            <StackPanel IsVisible="{Binding NoRows}" Spacing="6" Margin="16,26">
+              <TextBlock Text="No NFC tags yet" FontWeight="SemiBold"/>
+              <TextBlock Classes="note" TextWrapping="Wrap"
+                         Text="Add the dumps of your own figures: .bin files (a raw NTAG215 dump) or .nfc files (Flipper Zero). Each keeps its file name, which is the name the game shows."/>
+            </StackPanel>
+            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" IsVisible="{Binding HasRows}">
+              <ItemsControl ItemsSource="{Binding Rows}" Margin="16,8">
                 <ItemsControl.ItemTemplate>
-                  <DataTemplate x:DataType="x:String"><TextBlock Text="{Binding}" TextWrapping="Wrap"/></DataTemplate>
+                  <DataTemplate x:DataType="vm:NfcRowViewModel">
+                    <Border BorderBrush="{StaticResource GlassLine}" BorderThickness="{Binding Line}" Padding="0,7">
+                      <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="10">
+                        <CheckBox Classes="tick" IsChecked="{Binding IsPicked}" VerticalAlignment="Center" AutomationProperties.Name="{Binding PickName}"/>
+                        <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                          <TextBlock Classes="ellipsis" Text="{Binding Name}" FontSize="13" FontWeight="SemiBold" ToolTip.Tip="{Binding Name}"/>
+                          <TextBlock Classes="faint mono" IsVisible="{Binding Valid}" Text="{Binding Model}" ToolTip.Tip="The figure's model ID"/>
+                          <TextBlock Classes="faint bad" IsVisible="{Binding Invalid}" Text="{Binding Problem}" TextWrapping="Wrap"/>
+                        </StackPanel>
+                        <Border Grid.Column="2" Classes="chip small" Classes.bad="{Binding Invalid}">
+                          <TextBlock Text="{Binding Format}"/>
+                        </Border>
+                        <Button Grid.Column="3" Classes="icon iconbad" Command="{Binding DeleteCommand}" ToolTip.Tip="Delete" AutomationProperties.Name="Delete">
+                          <c:Icon Kind="trash"/>
+                        </Button>
+                      </Grid>
+                    </Border>
+                  </DataTemplate>
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
-            </Border>
-            <TextBlock Classes="hint" Margin="0" IsVisible="{Binding TooMany}" Text="{Binding TooManyText}" TextWrapping="Wrap"/>
-            <Border Classes="card" Padding="16,8">
-              <Panel>
-                <StackPanel IsVisible="{Binding NoRows}" Spacing="6" Margin="0,18">
-                  <TextBlock Text="No NFC tags yet" FontWeight="SemiBold"/>
-                  <TextBlock Classes="note" TextWrapping="Wrap"
-                             Text="Add the dumps of your own figures: .bin files (a raw NTAG215 dump) or .nfc files (Flipper Zero). Each keeps its file name, which is the name the game shows."/>
-                </StackPanel>
-                <ItemsControl ItemsSource="{Binding Rows}">
-                  <ItemsControl.ItemTemplate>
-                    <DataTemplate x:DataType="vm:NfcRowViewModel">
-                      <Border BorderBrush="{StaticResource GlassLine}" BorderThickness="{Binding Line}" Padding="0,7">
-                        <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="10">
-                          <CheckBox Classes="tick" IsChecked="{Binding IsPicked}" VerticalAlignment="Center" AutomationProperties.Name="{Binding PickName}"/>
-                          <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
-                            <TextBlock Classes="ellipsis" Text="{Binding Name}" FontSize="13" FontWeight="SemiBold" ToolTip.Tip="{Binding Name}"/>
-                            <TextBlock Classes="faint mono" IsVisible="{Binding Valid}" Text="{Binding Model}" ToolTip.Tip="The figure's model ID"/>
-                            <TextBlock Classes="faint bad" IsVisible="{Binding Invalid}" Text="{Binding Problem}" TextWrapping="Wrap"/>
-                          </StackPanel>
-                          <Border Grid.Column="2" Classes="chip small" Classes.bad="{Binding Invalid}">
-                            <TextBlock Text="{Binding Format}"/>
-                          </Border>
-                          <Button Grid.Column="3" Classes="icon iconbad" Command="{Binding DeleteCommand}" ToolTip.Tip="Delete" AutomationProperties.Name="Delete">
-                            <c:Icon Kind="trash"/>
-                          </Button>
-                        </Grid>
-                      </Border>
-                    </DataTemplate>
-                  </ItemsControl.ItemTemplate>
-                </ItemsControl>
-              </Panel>
-            </Border>
-          </StackPanel>
-        </ScrollViewer>
+            </ScrollViewer>
+          </Panel>
+        </Border>
       </Grid>
 
       <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" ClipToBounds="True">
@@ -98,7 +103,7 @@
             </Grid>
           </Button>
           <!-- a scan under way: what to do, and Cancel -->
-          <Border Classes="card" Height="56" Padding="14,8" IsVisible="{Binding Scanning}">
+          <Border Classes="card" MinHeight="56" Padding="14,8" IsVisible="{Binding Scanning}">
             <Grid ColumnDefinitions="20,*,Auto" ColumnSpacing="10">
               <c:Spinner VerticalAlignment="Center"/>
               <TextBlock Grid.Column="1" Classes="faint" Text="{Binding ScanText}" TextWrapping="Wrap" VerticalAlignment="Center"/>
@@ -115,7 +120,7 @@
             </Grid>
           </Button>
           <!-- files being found and copied in, off the window's thread -->
-          <Border Classes="card" Height="56" Padding="14,8" IsVisible="{Binding Adding}">
+          <Border Classes="card" MinHeight="56" Padding="14,8" IsVisible="{Binding Adding}">
             <Grid ColumnDefinitions="20,*" ColumnSpacing="10">
               <c:Spinner VerticalAlignment="Center"/>
               <TextBlock Grid.Column="1" Classes="faint" Text="{Binding AddingText}" TextWrapping="Wrap" VerticalAlignment="Center"/>
@@ -131,22 +136,25 @@
               </StackPanel>
             </Grid>
           </Button>
-          <Button Classes="small" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Margin="0,10,0,0" Command="{Binding DeleteCommand}"
+          <TextBlock Classes="faint" FontSize="11.5" TextWrapping="Wrap" Margin="2,0"
+                     Text="The dumps stay on this PC, in a folder every Longshot version shares."/>
+          <TextBlock Classes="label" Text="DELETE" Margin="0,10,0,2"/>
+          <Button Classes="small" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Command="{Binding DeleteCommand}"
                   ToolTip.Tip="Tick the files to delete" ToolTip.ShowOnDisabled="True">
             <StackPanel Orientation="Horizontal" Spacing="8">
               <c:Icon Kind="trash" Width="14" Height="14"/>
               <TextBlock Text="{Binding DeleteLabel}"/>
             </StackPanel>
           </Button>
+          <Button Classes="small" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Command="{Binding DeleteAllCommand}"
+                  ToolTip.Tip="Deletes every file in the list, after asking" ToolTip.ShowOnDisabled="True">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <c:Icon Kind="trash" Width="14" Height="14"/>
+              <TextBlock Text="Delete all"/>
+            </StackPanel>
+          </Button>
         </StackPanel>
       </ScrollViewer>
-    </Grid>
-
-    <Grid Grid.Row="2" ColumnDefinitions="*,Auto" ColumnSpacing="20">
-      <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-        <c:Icon Kind="info" Width="14" Height="14" Foreground="{StaticResource InkFaintText}" VerticalAlignment="Center"/>
-        <TextBlock Classes="faint" Text="The dumps stay on this PC, in a folder every Longshot version shares." VerticalAlignment="Center"/>
-      </StackPanel>
     </Grid>
   </Grid>
 </UserControl>

@@ -19,7 +19,7 @@
       </Border>
       <StackPanel Classes="buttons">
         <Button Content="{Binding KeepLabel}" Command="{Binding KeepCommand}" c:Pad.Back="True"/>
-        <Button Classes="bad" Content="Delete" Command="{Binding DeleteCommand}"/>
+        <Button Classes="bad" Content="{Binding DeleteLabel}" Command="{Binding DeleteCommand}"/>
       </StackPanel>
     </StackPanel>
   </Border>

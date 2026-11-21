@@ -238,8 +238,8 @@ line (`scripts/longshot_saves.py import|export`).
 
 The **NFC** page (the *NFC* tab in the title bar) keeps the NFC tag dumps of figures you own: `.bin`
 (a raw NTAG215 dump) and `.nfc` (Flipper Zero) files, in one folder every build of the game shares. Add one file, many,
-or a whole folder; each is checked first, and a file that is not a dump is skipped and named. Delete one or several, or
-open the folder. In the game, the Insert menu's NFC tab lists them by file name. Nothing of a dump leaves your PC. All of
+or a whole folder; each is checked first, and a file that is not a dump is skipped and named. Delete one, several or all of them
+(asked first), or open the folder. In the game, the Insert menu's NFC tab lists them by file name. Nothing of a dump leaves your PC. All of
 it: [docs/nfc.md](docs/nfc.md).
 
 **Scan a tag…** (Windows) reads a tag with a Nintendo Switch 2 Pro Controller plugged in over USB and saves it there as
@@ -305,7 +305,7 @@ dotnet run --project tools/screenshots -- --lang de --size 960x560 work/screensh
 
 Each scene is one PNG of the 960x600 window, named after it; the scenes are in `tools/screenshots/Program.cs` (the home,
 the build settings on Linux and Windows, on Windows with a card that runs neither DLSS nor FSR 4, and with Intel graphics, the FSR 4 notice, Intel's XeSS licence, the build page with and
-without its details). A change to a
+without its details, the NFC page and its Delete all). A change to a
 screen adds or updates the scene that shows it.
 
 ### Environment and command line

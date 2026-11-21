@@ -268,6 +268,17 @@ static class Program
         new("settings-go-back", "Step 2 going back to an older nightly: its folder takes that version's name when the build starts", Platform.Windows, NightliesListed,
             m => new SettingsStepViewModel(new BuildJob(m, JobKind.Update, Versions.Nightly, "nightly-187-9e6f231d", m.Service.Registry.Builds[0]))
                  { Free = 412L << 30 }),
+        // (the NFC page over fake tags made in the scene's own NFC folder: past the game's 256, then Delete all asked and said yes to)
+        new("nfc", "The NFC page: 300 tags, past the game's 256, Delete selected and Delete all", Platform.Windows, s => FakeNfc(s, 300),
+            m => new NfcViewModel(m)),
+        new("nfc-delete-all", "The NFC page's Delete all, asked first with how many go", Platform.Windows, s => FakeNfc(s, 300),
+            m => new NfcViewModel(m), m => ((NfcViewModel)m.Page).DeleteAllCommand.Execute(null)),
+        new("nfc-deleted-all", "The NFC page after Delete all: no tags, the 256 note gone, Delete all off", Platform.Windows, s => FakeNfc(s, 300),
+            m => new NfcViewModel(m), m =>
+            {
+                ((NfcViewModel)m.Page).DeleteAllCommand.Execute(null);
+                ((NfcDeleteViewModel)m.Modal!).DeleteCommand.Execute(null);
+            }),
         // (the Storage page: what Longshot keeps on the PC by what it is for, Faster updates shown, two versions of one dump)
         new("storage", "The Storage page: what Longshot keeps by what it is for, one bar of its groups, Faster updates' items with what removing each costs",
             Platform.Windows, NightliesListed, m => new StorageViewModel(m, StorageShown, free: 115L << 30)),
@@ -473,6 +484,21 @@ static class Program
     }
 
     /// Longshot's save with three slots (made-up files: only their names and times are a save's), saved 2 hours, a day and 6 days ago
+    /// Fake NFC tags in the scene's NFC folder (no real dump: CONTRIBUTING.md): 540 patterned bytes with an NTAG215's capability
+    /// container at 0x0C and a figure's 0x02 at 0x5B (docs/nfc.md)
+    static void FakeNfc(LauncherService service, int count)
+    {
+        var folder = Directory.CreateDirectory(NfcTags.Folder(service.Platform, service.SaveEnv.Getenv, null)).FullName;
+        for (var n = 1; n <= count; n++)
+        {
+            var tag = new byte[540];
+            for (var i = 0; i < tag.Length; i++) tag[i] = (byte)(i * 7 + n * 13);
+            new byte[] { 0xF1, 0x10, 0xFF, 0xEE }.CopyTo(tag, 0x0C);
+            tag[0x5B] = 0x02;
+            File.WriteAllBytes(Path.Combine(folder, $"Figure {n:000}.bin"), tag);
+        }
+    }
+
     static void ThreeSlots(LauncherService service) => FakeSave(Saves.ImportTarget(service.SaveEnv), "slot_00", "slot_01", "slot_03");
 
     /// The backups a player has after a while (made-up saves, as the copies make them): the versions' saves brought together

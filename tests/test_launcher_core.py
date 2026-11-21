@@ -12,7 +12,7 @@ makes the test refuse a checkout that is at another commit); a scheduled CI run 
 move the pin, see docs/ci.md.
 
 With no dotnet here the check is skipped (exit 0, saying why), unless --strict.
---strict also builds and runs the app-level settings check (which needs the launcher's Avalonia packages).
+--strict also builds and runs the app-level checks, the settings and the NFC page's Delete all (which need the launcher's Avalonia packages).
 """
 import argparse
 import ast

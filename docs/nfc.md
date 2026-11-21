@@ -108,9 +108,16 @@ tag.
 
 ## Deleting
 
-The bin on a row deletes that file; tick several rows and **Delete selected** deletes them together. Either asks first and
-lists the files. Only `.bin` and `.nfc` files directly in the NFC folder are ever deleted; the files you added them from
-are not touched.
+The bin on a row deletes that file; tick several rows and **Delete selected** deletes them together; **Delete all** deletes
+every file the list shows (off when the list is empty). Each asks first and lists the files; Delete all's question says how
+many go and that it can't be undone. Only `.bin` and `.nfc` files directly in the NFC folder are ever deleted, never a
+`key_` file, another kind of file, a folder under it or the folder itself; Delete all deletes the files listed when it asked,
+not one put there since. The files you added them from are not touched (adding copies them in), but a tag you scanned
+was saved only here.
+
+On Linux, close other programs using the files before confirming deletion. The launcher checks the isolated file's identity and
+contents, but cannot prevent writes through an already open handle: changes made while deleting may still be lost. A file that
+cannot be restored to its original name is kept at a recovery path, which is reported.
 
 ## Tests
 
@@ -118,6 +125,9 @@ are not touched.
 only the bytes above set. No real dump is in the repository, and none may be added (CONTRIBUTING.md). It covers the folder on
 both systems and with `LONGSHOT_NFC_DIR` (full or relative), the game started on Linux keeping `LONGSHOT_NFC_DIR`, the `.bin` sizes, the `.nfc` text (whole, too few pages, garbage), the two marks,
 `key_` files, a folder with links that loop back up to it (Linux), names that are taken, deleting, the order by name, and file names outside ASCII.
+`tests/launcher_app/Program.cs` checks the page's **Delete all** over fake tags too: asked first, unchanged listed files deleted
+on Windows and Linux, replacements and other files kept, the list, count and 256 note after deletion, and the button off with
+an empty list. It checks the Linux concurrent-write warning as well.
 
 `tests/launcher_core/NfcReaderChecks.cs` checks the scan with **no controller**: a fake one, scripted in the test, that
 answers as the real one does over a fake tag. It covers each command's bytes, the state and its UID, the buffer put together

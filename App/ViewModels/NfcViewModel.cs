@@ -60,6 +60,7 @@ public sealed class NfcViewModel : ViewModelBase, ILeavingPage
         AddCommand = new Command(() => _ = AddFilesAsync(), () => !Adding);
         AddFolderCommand = new Command(() => _ = AddFolderAsync(), () => !Adding);
         DeleteCommand = new Command(() => AskDelete(Rows.Where(r => r.IsPicked).ToList()), () => !Adding && Rows.Any(r => r.IsPicked));
+        DeleteAllCommand = new Command(() => AskDelete(Rows, all: true), () => !Adding && Rows.Count > 0);
         OpenCommand = new Command(Open);
         ScanCommand = new Command(() => _ = ScanAsync(), () => CanScan && !Scanning);
         CancelScanCommand = new Command(() => scanning?.Cancel());
@@ -88,6 +89,7 @@ public sealed class NfcViewModel : ViewModelBase, ILeavingPage
     public string TooManyText =>
         $"The game lists only {NfcTags.Most} of the {Rows.Count} .bin and .nfc files here, files that are not a dump included, and not " +
         "the first by name: whichever the folder gives it first. Delete some to choose which it lists.";
+    public string TooManyChip => $"The game lists {NfcTags.Most}";
     public string DeleteLabel => Rows.Count(r => r.IsPicked) is > 0 and var n ? $"Delete selected ({n})" : "Delete selected";
 
     /// What the last add did, a line for each file that was not simply copied in
@@ -106,6 +108,8 @@ public sealed class NfcViewModel : ViewModelBase, ILeavingPage
     public Command AddCommand { get; }
     public Command AddFolderCommand { get; }
     public Command DeleteCommand { get; }
+    /// Every file the list shows, asked first (off with an empty list, and while files are being added)
+    public Command DeleteAllCommand { get; }
     public Command OpenCommand { get; }
     /// Left by a title bar tab: a scan stops, the controller let go
     public void Left() => scanning?.Cancel();
@@ -114,7 +118,7 @@ public sealed class NfcViewModel : ViewModelBase, ILeavingPage
 
     /// (the controller is read through WinUSB: Windows only)
     public bool CanScan => Main.Platform == Platform.Windows && OperatingSystem.IsWindows();
-    public string ScanHint => CanScan ? "With a Switch 2 Pro Controller over USB" : "Windows only: it needs the controller over USB";
+    public string ScanHint => CanScan ? "With a Switch 2 Pro Controller over USB" : "Windows only, with a controller over USB";
     public bool Scanning => scanning != null;
     public bool NotScanning => scanning == null;
 
@@ -146,7 +150,8 @@ public sealed class NfcViewModel : ViewModelBase, ILeavingPage
             Report = new[] { $"{FolderShown} could not be read: {e.Message}" };
         }
         Rows = files.Select((f, i) => new NfcRowViewModel(this, f, picked.Contains(f.FileName), i == 0)).ToList();
-        RaiseAll(nameof(Rows), nameof(HasRows), nameof(NoRows), nameof(Count), nameof(TooMany), nameof(TooManyText));
+        RaiseAll(nameof(Rows), nameof(HasRows), nameof(NoRows), nameof(Count), nameof(TooMany), nameof(TooManyText), nameof(TooManyChip));
+        DeleteAllCommand.Changed();
         PickedChanged();
     }
 
@@ -248,6 +253,7 @@ public sealed class NfcViewModel : ViewModelBase, ILeavingPage
         AddCommand.Changed();
         AddFolderCommand.Changed();
         DeleteCommand.Changed();
+        DeleteAllCommand.Changed();
     }
 
     void Added(IReadOnlyList<NfcTagAdded> done)
@@ -340,24 +346,28 @@ public sealed class NfcViewModel : ViewModelBase, ILeavingPage
         Reload();
     }
 
-    public void AskDelete(IReadOnlyList<NfcRowViewModel> rows)
+    /// all: Delete all, the whole list (the files listed now: one added meanwhile by another program is not deleted)
+    public void AskDelete(IReadOnlyList<NfcRowViewModel> rows, bool all = false)
     {
-        if (rows.Count > 0) Main.Modal = new NfcDeleteViewModel(this, rows.Select(r => r.File).ToList());
+        if (rows.Count > 0) Main.Modal = new NfcDeleteViewModel(this, rows.Select(r => r.File).ToList(), all);
     }
 
     /// The files the player said yes to (NfcDeleteViewModel)
-    public void Delete(IReadOnlyList<NfcTagFile> files)
+    public void Delete(IReadOnlyList<NfcTagFile> files, IReadOnlyList<NfcTags.DeletionSnapshot?> snapshots)
     {
-        try
+        var gone = new List<string>();
+        var skipped = new List<string>();
+        for (var i = 0; i < files.Count; i++)
         {
-            var gone = NfcTags.Delete(Folder, files.Select(f => f.FileName));
-            Report = Array.Empty<string>();
-            Main.ShowToast(gone.Count == 1 ? $"Deleted {gone[0]}." : $"Deleted {gone.Count} files.");
+            var name = files[i].FileName;
+            if (NfcTags.DeleteSnapshot(Folder, name, snapshots[i], out var recovery)) gone.Add(name);
+            else skipped.Add(name + ": kept because it changed, disappeared, or could not be checked or deleted." +
+                (recovery != null ? $" The file was kept at {recovery}." : ""));
+            snapshots[i]?.Dispose();
         }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-            Report = new[] { $"Not everything was deleted: {e.Message}" };
-        }
+        Report = skipped;
+        Main.ShowToast((gone.Count == 1 ? $"Deleted {gone[0]}" : $"Deleted {gone.Count} files") +
+            (skipped.Count > 0 ? $", kept {skipped.Count}." : "."));
         Reload();
     }
 
@@ -377,29 +387,48 @@ public sealed class NfcViewModel : ViewModelBase, ILeavingPage
 }
 
 /// Deleting NFC tag dumps: which files go, asked before any does
-public sealed class NfcDeleteViewModel : ViewModelBase
+public sealed class NfcDeleteViewModel : ViewModelBase, IDisposable
 {
     const int Shown = 8;
+    readonly IReadOnlyList<NfcTags.DeletionSnapshot?> snapshots;
 
-    public NfcDeleteViewModel(NfcViewModel page, IReadOnlyList<NfcTagFile> files)
+    public NfcDeleteViewModel(NfcViewModel page, IReadOnlyList<NfcTagFile> files, bool all = false)
     {
         Files = files;
+        All = all && files.Count > 1;
+        DeleteAll = all;
+        snapshots = files.Select(f => NfcTags.DeleteSnapshot(page.Folder, f.FileName)).ToList();
         KeepCommand = new Command(() => page.Main.Modal = null);
         DeleteCommand = new Command(() =>
         {
-            page.Main.Modal = null;
-            page.Delete(files);
+            try { page.Delete(files, snapshots); }
+            finally { page.Main.Modal = null; }
         });
     }
 
+    public void Dispose()
+    {
+        foreach (var snapshot in snapshots) snapshot?.Dispose();
+    }
+
     public IReadOnlyList<NfcTagFile> Files { get; }
-    public string Title => Files.Count == 1 ? $"Delete {Files[0].Name}?" : $"Delete {Files.Count} files?";
-    public string Sub => (Files.Count == 1 ? "This deletes the file" : "This deletes the files") +
-                         " from the NFC folder. The files you added them from, and your figures, are not touched.";
+    /// Delete all: every file of the list, more than one
+    public bool All { get; }
+    bool DeleteAll { get; }
+    public string Title => All ? Files.All(f => f.Valid) ? $"Delete all {Files.Count} NFC tags?" : $"Delete all {Files.Count} files?"
+        : Files.Count == 1 ? $"Delete {Files[0].Name}?" : $"Delete {Files.Count} files?";
+    /// (a scanned tag was saved straight into the folder: deleting it there is deleting the only copy)
+    public string Sub => (DeleteAll
+        ? "This deletes every file in the list from the NFC folder, and it can't be undone. The files you added them from, and " +
+          "your figures, are not touched, but a tag you scanned with a controller is kept only here."
+        : (Files.Count == 1 ? "This deletes the file" : "This deletes the files") +
+          " from the NFC folder. The files you added them from, and your figures, are not touched.") +
+        (OperatingSystem.IsLinux() ? " Close other programs using these files first. On Linux, changes made while deleting may still be lost." : "");
     /// (the first few by name, then how many more)
     public IReadOnlyList<string> Names => Files.Take(Shown).Select(f => f.FileName)
         .Concat(Files.Count > Shown ? new[] { $"and {Files.Count - Shown} more" } : Array.Empty<string>()).ToList();
     public string KeepLabel => Files.Count == 1 ? "Keep it" : "Keep them";
+    public string DeleteLabel => All ? "Delete all" : "Delete";
     public Command KeepCommand { get; }
     public Command DeleteCommand { get; }
 }

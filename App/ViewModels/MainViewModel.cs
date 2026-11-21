@@ -167,7 +167,12 @@ public sealed class MainViewModel : ViewModelBase
         get => modal;
         set
         {
-            if (Set(ref modal, value)) Raise(nameof(HasModal));
+            var previous = modal;
+            if (Set(ref modal, value))
+            {
+                if (previous is NfcDeleteViewModel deleting) deleting.Dispose();
+                Raise(nameof(HasModal));
+            }
         }
     }
 
