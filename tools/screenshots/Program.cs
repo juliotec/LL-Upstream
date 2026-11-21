@@ -101,6 +101,10 @@ static class Program
             m => Settings(m), m => m.Modal = new LicenceViewModel(m, LicenceOf.Intel, false, () => { }, () => { })),
         new("build", "Step 3, a build reading the game files", Platform.Linux, null, m => Build(m, showLog: false)),
         new("build-log", "Step 3 with Show details, at Debug", Platform.Linux, null, m => Build(m, showLog: true)),
+        // (the Ready screen a finished build shows: the four ticks, with Steam found and a second
+        // build, so the Steam and "Play starts this version" ones are there too — the row wraps)
+        new("ready", "The Ready screen: the four ticks (Desktop, menu, Steam, Play starts this version)", Platform.Linux,
+            ReadySetup, m => Ready(m)),
         // (the failures with Copy for a bug report: the words are NetFailure's and the other screens' own)
         new("home-check-failed", "The home with no build, the update check failed, Copy for a bug report", Platform.Windows,
             s => s.SetNewest(s.DefaultChannel, null), _ => null,
@@ -763,6 +767,33 @@ static class Program
     /// A game file whose check stopped with make_game.py's @@error text: the status the launcher gives it (GameCheck.Of)
     static (string, GameCheck) NxCheck(string path, string error) => (path, new GameCheck(GameCheck.Of(error), error));
 
+    /// A Steam of the scene's own (its userdata, loginusers.vdf and steam.sh) and two builds, so the
+    /// Ready screen shows all four ticks: Steam is read from $XDG_DATA_HOME, and the shortcuts the
+    /// screen writes go to the scene's own HOME, both restored when the scene is done
+    static void ReadySetup(LauncherService s)
+    {
+        var home = s.Home.Root;
+        var steam = Path.Combine(home, "xdg", "Steam");
+        var config = Path.Combine(steam, "userdata", "33811576", "config");
+        Directory.CreateDirectory(config);
+        File.WriteAllBytes(Path.Combine(config, "shortcuts.vdf"), []);
+        Directory.CreateDirectory(Path.Combine(steam, "config"));
+        // (the account Steam says it used: the low 32 bits of the id are the userdata folder)
+        File.WriteAllText(Path.Combine(steam, "config", "loginusers.vdf"),
+            "\"users\"\n{\n\t\"76561197994077304\"\n\t{\n\t\t\"AccountName\"\t\t\"player\"\n\t\t\"MostRecent\"\t\t\"1\"\n\t}\n}\n");
+        File.WriteAllText(Path.Combine(steam, "steam.sh"), "#!/bin/bash\n");
+        Environment.SetEnvironmentVariable("XDG_DATA_HOME", Path.Combine(home, "xdg"));
+        Environment.SetEnvironmentVariable("HOME", Path.Combine(home, "home"));
+        // (the launcher's own home too: EnsureLogo and EnsureLogoIco write the logo there, and
+        // LauncherHome.Resolve puts LONGSHOT_LAUNCHER_HOME ahead of HOME)
+        Environment.SetEnvironmentVariable("LONGSHOT_LAUNCHER_HOME", home);
+        s.Registry.Add("/home/player/Games/Longshot/v3.0.0", "v3.0.0", Versions.Stable, makeDefault: true);
+        s.Registry.Add("/home/player/Games/Longshot/nightly-189-aa95d35f", "nightly-189-aa95d35f", Versions.Nightly);
+    }
+
+    static ReadyViewModel Ready(MainViewModel main) =>
+        new(main, main.Service.Registry.Builds.First(b => b.Default), JobKind.Build, null, TimeSpan.FromMinutes(24), null);
+
     static BuildJob Job(MainViewModel main) => new(main, JobKind.Build, "stable", "v3.0.0", null);
 
     /// Step 2 with room for the build: the free space is this PC's otherwise (its temporary folder's drive)
@@ -809,6 +840,10 @@ static class Program
     {
         // (each scene in a home of its own: its settings, builds and saves start empty, and nothing of this PC's is read)
         var home = Directory.CreateTempSubdirectory("longshot-shot-");
+        // (a scene may point the environment at its own Steam and home: restored when it is done)
+        var realHome = Environment.GetEnvironmentVariable("HOME");
+        var realData = Environment.GetEnvironmentVariable("XDG_DATA_HOME");
+        var realLauncherHome = Environment.GetEnvironmentVariable("LONGSHOT_LAUNCHER_HOME");
         try
         {
             var service = LauncherService.Open(scene.Platform, new LauncherHome(home.FullName));
@@ -902,6 +937,10 @@ static class Program
         }
         finally
         {
+            // (whatever a scene pointed these at: the run's own, so the next scene starts clean)
+            Environment.SetEnvironmentVariable("HOME", realHome);
+            Environment.SetEnvironmentVariable("XDG_DATA_HOME", realData);
+            Environment.SetEnvironmentVariable("LONGSHOT_LAUNCHER_HOME", realLauncherHome);
             try { home.Delete(recursive: true); }
             catch (IOException) { }
         }

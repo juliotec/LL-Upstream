@@ -36,5 +36,9 @@
     <AvaloniaResource Include="Assets/Fonts/Inter-*.ttf"/>
     <AvaloniaResource Include="Assets/longshot.png"/>
     <AvaloniaResource Include="Assets/longshot.ico"/>
+    <!-- (the tile's capsule artwork for Steam's grid/, under its own folder. The src_* originals
+         are build inputs for scripts/make_artwork.py only: they stay out of the shipped binary) -->
+    <AvaloniaResource Include="Assets/steam/*.png"/>
+    <AvaloniaResource Remove="Assets/steam/src_*.png"/>
   </ItemGroup>
 </Project>

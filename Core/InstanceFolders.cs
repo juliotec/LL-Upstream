@@ -134,8 +134,9 @@ public static class InstanceFolders
 
     /// An instance's folder moved as planned (the home's offer), or renamed to its new version's when an update or a go-back
     /// starts (BuildStepViewModel): the same folder, so everything in it stays as it is: the game, its settings
-    /// (longshot_options.ini), its shader caches, mods, and a save in its own user/save. The launcher's shortcuts start --play
-    /// (the default build, by its row), so they follow; a shortcut or a Steam entry made to the game's own program does not.
+    /// (longshot_options.ini), its shader caches, mods, and a save in its own user/save. The launcher's shortcuts open it and play
+    /// the default build by its row (Windows' shortcut names the game directly with --play), so they follow; a shortcut or a
+    /// Steam entry made to the game's own program does not.
     /// Refused (IOException, nothing changed) while Longshot runs (its files are open), when the folder is a link, holds the
     /// launcher's home or Longshot's shared saves, when its row changed since the plan, when the new name is taken, or when it
     /// would go inside another instance's folder. A file in it held open (a File Explorer window in it, a text editor, an

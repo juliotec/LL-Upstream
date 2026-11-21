@@ -787,7 +787,12 @@ public sealed class StopBuildViewModel(BuildStepViewModel build) : ViewModelBase
 /// The build finished: Play, Open folder, the shortcuts, whether Play starts this version
 public sealed class ReadyViewModel : ViewModelBase, IWizardPage
 {
-    bool desktop, menu;
+    // the three shortcuts start ticked: an install should leave something to press. The Steam
+    // one only shows where there is a Steam to add to (SteamShortcuts.Locate says so), and starts
+    // from the player's last answer when there is one (steam, in the constructor)
+    bool desktop = true, menu = true, steam;
+    bool steamAsked;                        // whether the user ever moved the Steam tick: only then may a Remove be written
+    SteamShortcuts.Placement? steamPlacement;   // the tile this screen can make (null: nothing to add to)
 
     public ReadyViewModel(MainViewModel main, BuildEntry entry, JobKind kind, string? from, TimeSpan took, string? problem, bool older = false)
     {
@@ -816,7 +821,16 @@ public sealed class ReadyViewModel : ViewModelBase, IWizardPage
         HomeCommand = new Command(Main.ShowHome);
         // (both ticked and made as it opens, by the launcher that owns the shortcuts; a portable one's ticks are the shortcuts that
         // start it, made or removed only when the player ticks, so it writes nothing of its own accord: Shortcuts.MadeAtReady, #161)
-        if (Shortcuts.MadeAtReady(Program.Layout))
+        var made = Shortcuts.MadeAtReady(Program.Layout);
+        // Steam is looked for whatever the launcher's kind, so the tick shows wherever there is a Steam to add to
+        LocateSteam();
+        // the Steam tick starts from the player's last answer when there is one: an untick that took
+        // the tile away is not undone by the next build (LauncherSettings.SteamTile). With no answer
+        // it starts ticked on a launcher that owns its shortcuts, and from what Steam's library
+        // already holds on a portable one, which writes nothing by itself
+        steam = Main.Service.Settings.SteamTile
+                ?? (made || (steamPlacement != null && SteamShortcuts.InLibrary(steamPlacement)));
+        if (made)
         {
             desktop = menu = true;
             WriteShortcuts();
@@ -863,6 +877,31 @@ public sealed class ReadyViewModel : ViewModelBase, IWizardPage
         }
     }
 
+    /// The Deck and any Linux desktop with Steam: the tile that makes the game playable in Gaming
+    /// mode. Found once, quietly: no Steam to add to means no tick and no fuss
+    public bool ShowSteamTick => steamPlacement != null;
+    public bool SteamTickVisible => ShowSteamTick;
+
+    public bool Steam
+    {
+        get => steam;
+        set
+        {
+            if (steamPlacement == null) return;
+            if (Set(ref steam, value)) { steamAsked = true; RememberSteamTile(value); WriteShortcuts(); }
+        }
+    }
+
+    /// The player moved the tick: that answer stands for every later Ready screen, so a tile
+    /// taken away does not come back on the next build (LauncherSettings.SteamTile)
+    void RememberSteamTile(bool ticked)
+    {
+        try { Main.Service.Settings.SteamTile = ticked; Main.Service.SaveSettings(); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+    }
+
+    public string SteamLabel => Tr.T("Steam shortcut (Gaming mode)");
+
     public bool IsDefault
     {
         get => Entry.Default;
@@ -895,16 +934,218 @@ public sealed class ReadyViewModel : ViewModelBase, IWizardPage
     void WriteShortcuts()
     {
         if (Main.Host == null) return;
+        // Linux shortcuts find their icon by path; the Windows .lnk takes it from the program's own
+        // resources. The .png feeds the desktop and menu files; the Steam tile names the .ico (Steam
+        // ignores .png in its icon field; both files sit in the launcher's home)
+        shortcutsFailed = false;
+        var logo = EnsureLogo();
+        steamLogoIco = EnsureLogoIco();
         try
         {
-            var left = Main.Linux ? Shortcuts.WriteLinux(LauncherService.LauncherPath, null, desktop, menu)
+            var left = Main.Linux ? Shortcuts.WriteLinux(LauncherService.LauncherPath, null, desktop, menu, logo)
                 : WindowsShortcuts.Write(LauncherService.LauncherPath, desktop, menu);
             if (left.Count > 0)
                 Main.ShowToast(Tr.F("{0} starts another Longshot Launcher, so it was left as it is.", string.Join(", ", left.Select(ShownPath.Of))));
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception or InvalidOperationException)
         {
+            shortcutsFailed = true;
             Main.ShowToast(Tr.F("The shortcuts could not be made: {0}", e.Message));
+        }
+        WriteSteamTile();
+    }
+
+    bool shortcutsFailed;       // a failed desktop/menu write this pass: it outranks the restart notice
+    string? steamLogoIco;       // the .ico the Steam tile names; null: the write failed, art stays as it is
+    static byte[]? logoBytes;
+    static byte[]? logoIcoBytes;
+
+    /// The logo the desktop and applications-menu shortcuts point at: the embedded Longshot.png
+    /// written into the launcher's own home, where the desktop and the menu can read it (KDE draws
+    /// a .png path correctly, checked on the Deck 2026-11-15). Null when there is nothing to write
+    /// to: a shortcut without a logo beats no shortcut. The file is rewritten whenever it differs
+    /// from the embedded logo, so a truncated file or a newer logo from a launcher update gets
+    /// repaired rather than kept forever
+    string? EnsureLogo()
+    {
+        if (!Main.Linux) return null;
+        byte[] png;
+        try { png = logoBytes ??= ReadEmbeddedLogo(); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return null; }
+        var path = SteamShortcuts.LogoPath();
+        try { if (File.Exists(path) && File.ReadAllBytes(path).SequenceEqual(png)) return path; }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return null; }
+        return SteamShortcuts.TryWriteLogo(png) ? path : null;
+    }
+
+    /// The logo the Steam Gaming-mode tile points at: the embedded longshot.ico. Steam ignores a
+    /// .png in the icon field — the tile naming longshot.png showed the blank default on the Deck
+    /// after a clean Steam restart (hardware, 2026-11-15) — while every tile in the Deck's own
+    /// library that draws art names a .ico. Same repair rule as EnsureLogo
+    string? EnsureLogoIco()
+    {
+        if (!Main.Linux) return null;
+        byte[] ico;
+        try { ico = logoIcoBytes ??= ReadEmbeddedLogoIco(); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return null; }
+        var path = SteamShortcuts.LogoIcoPath();
+        try { if (File.Exists(path) && File.ReadAllBytes(path).SequenceEqual(ico)) return path; }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return null; }
+        return SteamShortcuts.TryWriteLogoIco(ico) ? path : null;
+    }
+
+    static byte[] ReadEmbeddedLogo()
+    {
+        using var src = Avalonia.Platform.AssetLoader.Open(new Uri("avares://LongshotLauncher/Assets/longshot.png"));
+        using var ms = new MemoryStream();
+        src.CopyTo(ms);
+        return ms.ToArray();
+    }
+
+    static byte[] ReadEmbeddedLogoIco()
+    {
+        using var src = Avalonia.Platform.AssetLoader.Open(new Uri("avares://LongshotLauncher/Assets/longshot.ico"));
+        using var ms = new MemoryStream();
+        src.CopyTo(ms);
+        return ms.ToArray();
+    }
+
+    static byte[] ReadEmbeddedAsset(string name)
+    {
+        using var src = Avalonia.Platform.AssetLoader.Open(new Uri($"avares://LongshotLauncher/Assets/steam/{name}"));
+        using var ms = new MemoryStream();
+        src.CopyTo(ms);
+        return ms.ToArray();
+    }
+
+    // the tile's capsule artwork, read once from the program's own resources
+    static (string suffix, string ext, byte[] bytes)[]? capsuleBytes;
+    static (string suffix, string ext, byte[] bytes)[] Capsules() => capsuleBytes ??=
+    [
+        ("", "png", ReadEmbeddedAsset("capsule_920x430.png")),      // landscape: the recently-played row
+        ("p", "png", ReadEmbeddedAsset("capsulep_600x900.png")),    // portrait: the library tile
+        ("_hero", "png", ReadEmbeddedAsset("hero_1920x620.png")),   // the detail page's background
+        ("_logo", "png", ReadEmbeddedAsset("logo_998x323.png")),    // the detail page's logo
+    ];
+
+    /// The Steam tile, made or taken away with its tick. The core only ever touches the tile whose
+    /// appid its own launcher path computes (or the id its marker recorded): a tile the user made in
+    /// Steam's own dialog is another id and is never in reach, whatever it is called. Steam holds its
+    /// library in memory and writes the file back when it quits, so a caller that asked the user may
+    /// pass takeDown; this screen never stops Steam on its own (downloads and all). The placement is
+    /// looked up once: no Steam on this machine means the tick was never offered.
+    ///
+    /// The tick starts like the desktop and menu ticks: on, because on a Deck the tile is how the
+    /// game gets played from the couch, and the whole point is that installing leaves something to
+    /// press. It is the one shortcut on this screen whose file Steam also owns, so the write goes
+    /// through Steam's own id rule rather than "whatever is called Longshot".
+    bool TrySteamWrite(bool asked = false)
+    {
+        if (steamPlacement is not { } p) return false;
+        // Remove is only ever written when the user asked: a failed Add must not leave a later
+        // desktop-or-menu checkbox change taking a tile away that sits in the library right now
+        steamAsked |= asked;
+        try
+        {
+            var wrote = false;
+            if (steam)
+            {
+                // Add false with no tile of ours in the library means it refused: a tile called
+                // Longshot the user made themselves, which the launcher leaves exactly as it is.
+                // The tick goes back to the truth and says why
+                wrote = SteamShortcuts.Add(p);
+                if (!wrote && !SteamShortcuts.InLibrary(p))
+                {
+                    steam = false;
+                    Raise(nameof(Steam));
+                    Main.ShowToast(Tr.T("Steam already has a shortcut called Longshot that this launcher did not make, so it stays exactly as you made it."));
+                }
+            }
+            else if (steamAsked)
+            {
+                wrote = SteamShortcuts.Remove(p);    // false: there was never ours to take away
+            }
+            // the tile's capsule artwork: only missing files are written, a capsule the user
+            // chose in Steam stays; runs whether the tile was just made or already sat there
+            if (steam) WriteTileArt(p);
+            // Steam reads its library when it starts, checked on the Deck 2026-11-15: while Steam
+            // runs, Gaming mode shows what it loaded at its own start, and a change made here waits
+            // for a Steam restart to show. The launcher never restarts Steam itself (downloads and
+            // all), so the notice says what to do rather than doing it. It never talks over a
+            // failure it should have seen instead: one toast shows at a time, and an error about
+            // shortcuts that could not be written outranks a note about restarting
+            if (wrote && SteamShortcuts.SteamUp() && !shortcutsFailed)
+                Main.ShowToast(Tr.T("Restart the console to see Steam shortcut changes in Gaming mode."));
+            return true;
+        }
+        catch (Exception e) when (e is InvalidOperationException or IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            // the tick goes back to what the library actually holds, whatever the write did or did not do
+            steam = steamPlacement != null && SteamShortcuts.InLibrary(steamPlacement);
+            Raise(nameof(Steam));
+            Main.ShowToast(Tr.F("The Steam shortcut could not be changed: {0}", e.Message));
+            return false;
+        }
+    }
+
+    /// The tile's capsule artwork beside its shortcuts.vdf, in Steam's grid/ folder keyed by the
+    /// tile's appid read unsigned. Only files that are not there get written: a capsule the user
+    /// chose in Steam's own UI, or one a previous run put down, is left exactly as it is. A fault
+    /// is silent — a tile without art beats no tile, and the tile itself is the thing that matters
+    void WriteTileArt(SteamShortcuts.Placement p)
+    {
+        try
+        {
+            SteamShortcuts.WriteArtwork(p.Vdf, SteamShortcuts.TileAppId(p), Capsules());
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+    }
+
+    /// The tile this launcher can make, found once, quietly: no Steam to add to means no tick and
+    /// no fuss. Locate touches the folders Steam owns and can fault for ordinary reasons, so a
+    /// fault here hides the tick rather than taking the Ready screen down
+    void LocateSteam()
+    {
+        if (!Main.Linux || steamPlacement != null) return;
+        try
+        {
+            // the icon path is offered only when the .ico really landed: naming a file that was
+            // never written would point the tile at nothing, and an iconless tile beats a broken one
+            steamPlacement = steamLogoIco is { } ico
+                ? SteamShortcuts.Locate(LauncherService.LauncherPath, ico)
+                : SteamShortcuts.Locate(LauncherService.LauncherPath);
+        }
+        catch (Exception e) when (e is InvalidOperationException or IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            steamPlacement = null;
+        }
+    }
+
+    void WriteSteamTile()
+    {
+        if (!Main.Linux) return;
+        // Locate and the first InLibrary read run outside the write's catch: they touch the same
+        // folders Steam owns and can fault for the same ordinary reasons, and a fault here would
+        // take the whole Ready screen down instead of just hiding the tick
+        try
+        {
+            LocateSteam();
+            if (steamPlacement is not { } offered) return;
+            // the cached placement can predate this screen's .ico: EnsureLogoIco failing once and
+            // succeeding now must retarget the offered tile at the file that actually landed —
+            // naming an .ico that was never written is the broken tile the line above exists to
+            // avoid. An .ico offered by an earlier attempt stays offered: that write put its file
+            // on disk, and the tile names that path
+            if (steamLogoIco is { } now && offered.Entry.Icon != now)
+                steamPlacement = offered with { Entry = offered.Entry with { Icon = now } };
+            Raise(nameof(ShowSteamTick));
+            TrySteamWrite();
+        }
+        catch (Exception e) when (e is InvalidOperationException or IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            steamPlacement = null;      // no tick offered; the desktop and menu shortcuts stand alone
+            Raise(nameof(ShowSteamTick));
+            Main.ShowToast(Tr.F("The Steam shortcut could not be made: {0}", e.Message));
         }
     }
 

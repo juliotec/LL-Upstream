@@ -3,9 +3,9 @@ using System.Text;
 namespace LongshotLauncher.Core;
 
 /// The shortcuts a build's Ready screen makes: on the desktop and in the Start menu (Windows) or the applications menu (Linux).
-/// They start the launcher with --play (the default build's game, so they follow "Play starts this version" and an update's
-/// new folder), or --play &lt;folder&gt; for one build. Linux writes freedesktop .desktop files here; Windows' .lnk files are
-/// written by the window (the shell makes them)
+/// On Linux they start the launcher itself (no arguments: the window, which checks for updates and then plays the default
+/// build), or --launch &lt;folder&gt; for one build. Windows writes --play: that platform's shortcuts start the game. Linux
+/// writes freedesktop .desktop files here; Windows' .lnk files are written by the window (the shell makes them)
 public static class Shortcuts
 {
     public const string Name = "Longshot";
@@ -13,14 +13,14 @@ public static class Shortcuts
     /// start the launcher's Play. Told apart, the Start menu lists both; without them it listed only the game's (ShellLinks)
     public const string LauncherAppId = "MagicBean.LongshotLauncher", GameAppId = "MagicBean.Longshot";
 
-    /// A .desktop entry that starts launcher --play [folder]
+    /// A .desktop entry that starts the launcher (its window), or the window on a folder (--launch)
     public static string DesktopEntry(string launcher, string? folder, string? icon)
     {
         var sb = new StringBuilder();
         sb.Append("[Desktop Entry]\nType=Application\nName=").Append(Name).Append('\n');
         sb.Append("Comment=Longshot\n");
-        sb.Append("Exec=").Append(Quote(launcher)).Append(" --play");
-        if (folder != null) sb.Append(' ').Append(Quote(folder));
+        sb.Append("Exec=").Append(Quote(launcher));
+        if (folder != null) sb.Append(" --launch ").Append(Quote(folder));
         sb.Append('\n');
         if (folder != null) sb.Append("Path=").Append(folder).Append('\n');
         if (icon != null) sb.Append("Icon=").Append(icon).Append('\n');

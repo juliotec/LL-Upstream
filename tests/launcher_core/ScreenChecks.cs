@@ -1090,12 +1090,12 @@ static partial class Program
         var (d, m) = Shortcuts.LinuxPaths(env);
         Require(m == Path.Combine(root, "data", "applications", "longshot.desktop") && File.Exists(d) && File.Exists(m), "Both shortcuts made.");
         var text = File.ReadAllText(m);
-        Require(text.Contains("Exec=\"/apps/Longshot.AppImage\" --play " + Shortcuts.Quote(game)) && text.StartsWith("[Desktop Entry]\n"),
-                "The entry starts the launcher's Play of that folder: " + text);
+        Require(text.Contains("Exec=\"/apps/Longshot.AppImage\" --launch " + Shortcuts.Quote(game)) && text.StartsWith("[Desktop Entry]\n"),
+                "The entry opens the launcher on that folder: " + text);
         Shortcuts.WriteLinux("/apps/Longshot.AppImage", null, desktop: false, menu: true, icon: "/i.png", getenv: env);
         Require(!File.Exists(d) && File.Exists(m), "Unticked: removed.");
-        Require(File.ReadAllText(m).Contains("Exec=\"/apps/Longshot.AppImage\" --play\n") && File.ReadAllText(m).Contains("Icon=/i.png\n")
-                && !File.ReadAllText(m).Contains("Path="), "With no folder: Play of the default build.");
+        Require(File.ReadAllText(m).Contains("Exec=\"/apps/Longshot.AppImage\"\n") && File.ReadAllText(m).Contains("Icon=/i.png\n")
+                && !File.ReadAllText(m).Contains("Path="), "With no folder: the launcher's window (it plays the default build).");
         PortableShortcutChecks();
 
         // (SystemInfo: the GPU makers from /sys/class/drm)

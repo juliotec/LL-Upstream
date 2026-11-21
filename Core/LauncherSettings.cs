@@ -66,6 +66,10 @@ public sealed class LauncherSettings
     public string? BuildsFolder { get; set; }
     /// Ask git.magicbean.dev for each channel's newest version when the launcher starts
     public bool CheckUpdates { get; set; } = true;
+    /// The player's answer for the Steam tile's tick: true (ticked), false (unticked), null (never
+    /// asked). A false one keeps a tile the player took away from coming back on the next build:
+    /// the Ready screen starts the tick from this answer, not from "on"
+    public bool? SteamTile { get; set; }
     /// Download an update's build tools as soon as the update check finds it, before the player starts the update (ToolsPrefetch):
     /// ~500 MB a version, so off unless chosen. A first build's tools always start early (LONGSHOT_LAUNCHER_NO_PREFETCH=1 stops both)
     public bool DownloadUpdatesEarly { get; set; }

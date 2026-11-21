@@ -1159,7 +1159,7 @@ public static class Saves
     /// How long a gather waits for another one to finish (GatherAlone)
     internal static TimeSpan GatherWait { get; set; } = TimeSpan.FromSeconds(10);
 
-    /// Gather, one at a time on this PC: the launcher's start, Play, Delete and a desktop shortcut's --play (a launcher process of
+    /// Gather, one at a time on this PC: the launcher's start, Play, Delete and a Windows shortcut's --play (a launcher process of
     /// its own) may each run one, and they share the folders beside the shared save (Beside). Each holds the gather lock
     /// (HoldGatherLock) while it runs; one that cannot get it within GatherWait is refused (SaveFailure), changing nothing
     public static SaveGathered? GatherAlone(SaveEnvironment env, IReadOnlyList<string> oldUsers, Func<IReadOnlyList<string>>? running = null,

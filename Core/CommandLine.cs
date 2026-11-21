@@ -2,7 +2,8 @@ namespace LongshotLauncher.Core;
 
 public enum StartKind { Window, Launch, Play }
 
-/// How the launcher was started: the shortcuts --play, and a folder's own launcher script --launch &lt;folder&gt;.
+/// How the launcher was started: a shortcut's --play (Windows' Start menu entry), and a folder's own launcher script
+/// --launch &lt;folder&gt; (the Linux shortcuts open the window with no arguments).
 ///   (nothing)                                    the window
 ///   --launch &lt;folder&gt;                            the window, on that build
 ///   --play [&lt;folder&gt;]                           start that build's game (else the default build's), with no window

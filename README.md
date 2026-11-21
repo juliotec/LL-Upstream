@@ -311,7 +311,7 @@ screen adds or updates the scene that shows it.
 | `LONGSHOT_LAUNCHER_TV=1` | The TV view (full screen, scaled up, square corners) anywhere; `=0` never, even in Steam's Gaming Mode or Big Picture ([docs/controller.md](docs/controller.md)) |
 | `LONGSHOT_LAUNCHER_TRUST=<public key .pem>` | Trust one more release key, for a release signed with a test key |
 | `--launch <folder>` | Opens on that build |
-| `--play [<folder>]` | Starts the game with no window (the shortcuts use it) |
+| `--play [<folder>]` | Starts the game with no window (a direct start; the shortcuts open the launcher) |
 | `--self-check` | Prints `LongshotLauncher <version>` (a new launcher answers it before it is put in place) |
 | `--rollback` | Puts back the launcher the last update replaced |
 | `--install` | Windows: installs this launcher without asking ([Installing](#installing)), then starts the installed copy |
@@ -359,7 +359,7 @@ catalog is welcome as a pull request. Logs and *Copy for a bug report* stay in E
   settings in `~/Games/Longshot/profiles`. Until then, new builds go to `~/Games/Longshot/<channel>`, and Delete refuses
   a folder that holds another build.
 - **Authenticode** for the Windows program.
-- An update check before `--play` (the shortcuts start the game without one).
+- An update check before `--play` (a windowless start checks nothing: the shortcuts open the launcher instead).
 
 ## Design decisions
 
@@ -408,7 +408,7 @@ Calls made here, most of them the design mockup's; each can be changed:
   `nightly/nightly-171-…` becomes `nightly/nightly-175-…`. A rename, not a copy: the game, its settings, mods, shader
   caches and a save in its own `user/save` go with it, and no folder of the version before is left on the disk. The row
   takes the new folder at once (saved), then the new version when the build finishes (`BuildRegistry.Replace`). Step 2
-  says it: *`<old>` becomes `<new>` when the build starts*. The launcher's own shortcuts start `--play` and keep working;
+  says it: *`<old>` becomes `<new>` when the build starts*. The launcher's own shortcuts open the launcher and keep working;
   **a shortcut or a Steam entry made to the game's own program (`bin/longshot.exe`) points at the old path and has to be
   made again after an update** (the price of a folder that names its version). A rename is refused, and nothing changes
   or starts, while Longshot runs, onto a path that is there, and on Windows while a file in the folder is held open (a
@@ -513,7 +513,8 @@ Calls made here, most of them the design mockup's; each can be changed:
   while Longshot runs; saves, settings
   and mods stay. The bug report's settings line says `cold build`.
 - **The shortcuts** Ready makes (desktop, Start menu / applications menu), ticked by default and made as Ready shows,
-  start `--play`, the default build, so they follow "Play starts this version" and updates. A portable launcher's ticks
+  open the launcher's window, whose start checks for updates and whose Play starts the default build, so they follow
+  "Play starts this version" and updates (Windows' start `--play`: that Start menu entry starts the game). A portable launcher's ticks
   start as the shortcuts that start it already are, and it makes or removes them only when ticked; it never writes over
   or removes a shortcut that starts another launcher, nor does a Windows launcher that is not installed
   (`Shortcuts.MadeAtReady`, `TakesOver`). On Windows they and the

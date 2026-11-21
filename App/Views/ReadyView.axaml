@@ -22,11 +22,14 @@
       </Button>
       <Button Classes="tall" Content="{c:T 'Open folder'}" Command="{Binding FolderCommand}"/>
     </StackPanel>
-    <StackPanel Orientation="Horizontal" Spacing="22" HorizontalAlignment="Center" Margin="0,24,0,0">
-      <CheckBox Classes="tick" Content="{c:T 'Desktop shortcut'}" IsChecked="{Binding Desktop}"/>
-      <CheckBox Classes="tick" Content="{Binding MenuLabel}" IsChecked="{Binding Menu}"/>
-      <CheckBox Classes="tick" Content="{c:T 'Play starts this version'}" IsChecked="{Binding IsDefault}" IsVisible="{Binding ShowDefaultTick}"/>
-    </StackPanel>
+    <!-- (the ticks wrap: four of them, in a long language, do not fit one line at the window's width.
+         Two rows are centred as a whole; the labels are never cut off) -->
+    <WrapPanel Orientation="Horizontal" HorizontalAlignment="Center" MaxWidth="920" Margin="0,24,0,0">
+      <CheckBox Classes="tick" Content="{c:T 'Desktop shortcut'}" IsChecked="{Binding Desktop}" Margin="11,4"/>
+      <CheckBox Classes="tick" Content="{Binding MenuLabel}" IsChecked="{Binding Menu}" Margin="11,4"/>
+      <CheckBox Classes="tick" Content="{Binding SteamLabel}" IsChecked="{Binding Steam}" IsVisible="{Binding ShowSteamTick}" Margin="11,4"/>
+      <CheckBox Classes="tick" Content="{c:T 'Play starts this version'}" IsChecked="{Binding IsDefault}" IsVisible="{Binding ShowDefaultTick}" Margin="11,4"/>
+    </WrapPanel>
     <Button Classes="link soft" Content="{c:T 'Back to your versions'}" Command="{Binding HomeCommand}" c:Pad.Back="True" HorizontalAlignment="Center" Margin="0,22,0,0"/>
   </StackPanel>
 </UserControl>

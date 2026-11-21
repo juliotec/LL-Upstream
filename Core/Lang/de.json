@@ -660,6 +660,10 @@
   "You have {0}.": "Du hast {0}.",
   "This version's page has no notes.": "Die Seite dieser Version hat keine Notizen.",
   "Open the release page": "Versionsseite öffnen",
+  "Steam shortcut (Gaming mode)": "Steam-Verknüpfung (Spielmodus)",
+  "Restart the console to see Steam shortcut changes in Gaming mode.": "Starte die Konsole neu, um Änderungen an Steam-Verknüpfungen im Spielmodus zu sehen.",
+  "The Steam shortcut could not be changed: {0}": "Die Steam-Verknüpfung konnte nicht geändert werden: {0}",
+  "The Steam shortcut could not be made: {0}": "Die Steam-Verknüpfung konnte nicht angelegt werden: {0}",
   "TRACK": "KANAL",
   "VERSION": "VERSION",
   "Installed": "Installiert",
@@ -683,10 +687,7 @@
   "Replaced: Longshot's whole save folder ({0}) and every file in it, its game settings (option.sav) too.": "Ersetzt: der ganze Spielstand-Ordner von Longshot ({0}) und jede Datei darin, auch seine Spieleinstellungen (option.sav).",
   "Left out, being links: {0}.": "Ausgelassen, weil es Verknüpfungen sind: {0}.",
   "Nothing in your saves was changed.": "An deinen Spielständen wurde nichts geändert.",
-  "{0} versions were found in their own folders and are listed again: {1}.": {
-    "one": "{0} Version wurde in ihrem eigenen Ordner gefunden und ist wieder aufgeführt: {1}.",
-    "other": "{0} Versionen wurden in ihren eigenen Ordnern gefunden und sind wieder aufgeführt: {1}."
-  },
+  "{0} versions were found in their own folders and are listed again: {1}.": {"one": "{0} Version wurde in ihrem eigenen Ordner gefunden und ist wieder aufgeführt: {1}.", "other": "{0} Versionen wurden in ihren eigenen Ordnern gefunden und sind wieder aufgeführt: {1}."},
   "None yet: every copy makes one first": "Noch keine: Jede Übertragung legt zuerst eine an",
   "{0} backups, the newest {1}": {"one": "1 Sicherung, angelegt {1}", "other": "{0} Sicherungen, die neueste {1}"},
   "Restore": "Wiederherstellen",
@@ -755,17 +756,8 @@
   "This launcher has saves of its own already, so the ones in {0} were not copied over them: Manage saves imports them, after a backup.": "Dieser Launcher hat schon eigene Spielstände, daher wurden die aus {0} nicht darüber kopiert: Spielstände verwalten importiert sie, nach einer Sicherung.",
   "Longshot is running, so the saves in {0} were not copied: close it, then import them from Manage saves.": "Longshot läuft, daher wurden die Spielstände aus {0} nicht kopiert: Schließe es und importiere sie dann über Spielstände verwalten.",
   "The saves in {0} could not be copied: {1}": "Die Spielstände aus {0} konnten nicht kopiert werden: {1}",
-  "{0} builds": {
-    "one": "{0} Build",
-    "other": "{0} Builds"
-  },
-  "{0} builds listed.": {
-    "one": "{0} Build aufgeführt.",
-    "other": "{0} Builds aufgeführt."
-  },
-  "{0} builds listed, and their saves copied.": {
-    "one": "{0} Build aufgeführt und seine Spielstände kopiert.",
-    "other": "{0} Builds aufgeführt und ihre Spielstände kopiert."
-  },
+  "{0} builds": {"one": "{0} Build", "other": "{0} Builds"},
+  "{0} builds listed.": {"one": "{0} Build aufgeführt.", "other": "{0} Builds aufgeführt."},
+  "{0} builds listed, and their saves copied.": {"one": "{0} Build aufgeführt und seine Spielstände kopiert.", "other": "{0} Builds aufgeführt und ihre Spielstände kopiert."},
   "Everything in {0} is listed already.": "Alles in {0} ist schon aufgeführt."
 }

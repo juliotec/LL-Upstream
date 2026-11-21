@@ -100,6 +100,7 @@ static partial class Program
         NfcReaderChecks();
         PadChecks(Path.GetFullPath(Path.Combine(fixtures, "..", "..")));
         Utf8Checks();
+        SteamChecks(Path.GetFullPath(Path.Combine(fixtures)));
         await ScreenChecks();
         await BusyChecks(Path.GetFullPath(Path.Combine(fixtures, "..", "..")));
         IconChecks(Path.GetFullPath(Path.Combine(fixtures, "..", "..")));
