@@ -200,7 +200,8 @@ public static class SelfUpdate
     /// copied aside and the new one renamed over it, one rename, so there is never a moment without it (the running AppImage keeps
     /// its own, unlinked file). Windows does not let a running program be overwritten, only renamed: it goes aside first, and comes
     /// back if the new one cannot take its place.
-    public static void Swap(string current, string staged, Platform platform)
+    /// wait: how a retry waits (Thread.Sleep; a test's own)
+    public static void Swap(string current, string staged, Platform platform, Action<TimeSpan>? wait = null)
     {
         var backup = Backup(current);
         if (platform == Platform.Linux)
@@ -212,7 +213,7 @@ public static class SelfUpdate
             return;
         }
         File.Move(current, backup, overwrite: true);
-        try { File.Move(staged, current); }
+        try { WhileHeld(() => File.Move(staged, current), wait); }
         catch (Exception e) when (!File.Exists(current))
         {
             File.Move(backup, current);
@@ -222,6 +223,49 @@ public static class SelfUpdate
         Swapped();
 
         void Swapped() => LauncherLog.Add($"launcher update: the new launcher put in place at {current}, the one before kept as {backup}");
+    }
+
+    /// A program just written and started is often held a moment after its process has ended, on Windows: an antivirus scanning
+    /// it, Windows checking a program it has not seen run, opening it without letting it be renamed or deleted. The --self-check
+    /// has ended, nothing of the launcher's holds it, but the swap right after it answered "being used by another process"
+    /// (#223). action is tried again while the file is held, waiting a little longer each time, for about 10 seconds in all; any
+    /// other failure, or one held longer, is thrown
+    public static void WhileHeld(Action action, Action<TimeSpan>? wait = null)
+    {
+        wait ??= Thread.Sleep;
+        for (var attempt = 0; ; attempt++)
+        {
+            try
+            {
+                action();
+                return;
+            }
+            catch (IOException e) when (attempt < HeldWaits.Length && IsHeld(e)) { wait(HeldWaits[attempt]); }
+        }
+    }
+
+    public static readonly TimeSpan[] HeldWaits =
+        [.. new[] { 100, 250, 500, 1000, 2000, 2000, 2000, 2000 }.Select(ms => TimeSpan.FromMilliseconds(ms))];
+
+    /// A Windows failure of a file another process has open: ERROR_SHARING_VIOLATION, ERROR_LOCK_VIOLATION, or the
+    /// ERROR_ACCESS_DENIED File.Move answers for a file an antivirus holds (as an IOException; a file the player may not change
+    /// is an UnauthorizedAccessException, never retried)
+    public static bool IsHeld(IOException e) => unchecked((uint)e.HResult) is 0x80070020 or 0x80070021 or 0x80070005;
+
+    /// The staged launcher deleted after an update, put in place or not; when it cannot be (still held, #223), it is left for the
+    /// next start's Recover, and the update's own outcome stands: this never throws. True when it is gone
+    public static bool Discard(string staged)
+    {
+        try
+        {
+            File.Delete(staged);
+            return true;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            LauncherLog.Add($"launcher update: {staged} could not be deleted yet ({e.GetType().Name}: {e.Message}); the next start removes it");
+            return false;
+        }
     }
 
     /// The launcher kept by the last update back in place (--rollback); false when none was kept

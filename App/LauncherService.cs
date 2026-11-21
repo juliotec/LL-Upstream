@@ -278,11 +278,13 @@ public sealed class LauncherService
                 throw new InvalidDataException(Tr.F("The new launcher ({0}) did not start on this PC, so it was not put in place.", release.Version));
             }
             step?.Invoke(Tr.T("Putting the new launcher in place…"));
-            SelfUpdate.Swap(current, staged, Platform);
+            // (off the window's thread: the swap may wait a few seconds for a new launcher still held after its check, #223)
+            await Task.Run(() => SelfUpdate.Swap(current, staged, Platform));
         }
         finally
         {
-            File.Delete(staged);
+            // (never throws: a failure here would hide the reason the update stopped)
+            SelfUpdate.Discard(staged);
         }
         // (this one lets go of the home first: the new one takes it as it starts)
         step?.Invoke(Tr.T("Starting the new launcher…"));

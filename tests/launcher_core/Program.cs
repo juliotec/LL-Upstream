@@ -477,6 +477,43 @@ static partial class Program
             Require(SelfUpdate.Rollback(current, platform) && File.ReadAllText(current) == "old", $"{platform}: --rollback.");
             Require(!SelfUpdate.Rollback(current, platform), $"{platform}: nothing more to roll back to.");
         }
+        // (#223: the new launcher still held a moment after its --self-check, by an antivirus: the move is tried again; Windows' errors
+        // as File.Move throws them, so the test runs the same on Linux)
+        IOException Held(uint hr) => new("held", unchecked((int)hr));
+        var waited = new List<TimeSpan>();
+        var tries = 0;
+        SelfUpdate.WhileHeld(() => { if (++tries < 4) throw Held(0x80070020); }, waited.Add);
+        Require(tries == 4 && waited.SequenceEqual(SelfUpdate.HeldWaits.Take(3)), "A file held a moment: moved once it is let go.");
+        waited.Clear();
+        tries = 0;
+        IOException? still = null;
+        try { SelfUpdate.WhileHeld(() => { tries++; throw Held(0x80070021); }, waited.Add); }
+        catch (IOException e) { still = e; }
+        Require(tries == SelfUpdate.HeldWaits.Length + 1 && waited.Count == SelfUpdate.HeldWaits.Length
+                && waited.Aggregate(TimeSpan.Zero, (a, b) => a + b) is { TotalSeconds: >= 5 and <= 15 } && still?.HResult == unchecked((int)0x80070021),
+                "A file held for good: tried for some seconds, then its own error.");
+        tries = 0;
+        Throws<IOException>(() => SelfUpdate.WhileHeld(() => { tries++; throw new IOException("disk full", unchecked((int)0x80070070)); }, waited.Add),
+                            "Another failure was hidden.");
+        Throws<UnauthorizedAccessException>(() => SelfUpdate.WhileHeld(() => { tries++; throw new UnauthorizedAccessException(); }, waited.Add),
+                                            "A file the player may not change was hidden.");
+        Require(tries == 2 && SelfUpdate.IsHeld(Held(0x80070005)) && !SelfUpdate.IsHeld(new IOException("x")), "Any other failure is thrown at once.");
+        File.WriteAllText(current, "old");
+        File.WriteAllBytes(staged, newBytes);
+        SelfUpdate.Swap(current, staged, Platform.Windows, _ => throw new InvalidOperationException("waited for a file nothing holds"));
+        Require(File.ReadAllText(current) == "new launcher" && !File.Exists(staged), "Windows: a swap with nothing held does not wait.");
+        Require(SelfUpdate.Rollback(current, Platform.Windows), "...and rolls back.");
+        File.WriteAllBytes(staged, newBytes);
+        Require(SelfUpdate.Discard(staged) && !File.Exists(staged) && SelfUpdate.Discard(staged), "The staged launcher discarded (and nothing to discard).");
+        if (!OperatingSystem.IsWindows() && Environment.UserName != "root")
+        {
+            // (one that cannot be deleted yet is left for the next start's Recover: never an error that hides why the update stopped)
+            File.WriteAllBytes(staged, newBytes);
+            File.SetUnixFileMode(root, UnixFileMode.UserRead | UnixFileMode.UserExecute);
+            try { Require(!SelfUpdate.Discard(staged) && File.Exists(staged), "A staged launcher that cannot be deleted: left, not thrown."); }
+            finally { File.SetUnixFileMode(root, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute); }
+            File.Delete(staged);
+        }
         if (!OperatingSystem.IsWindows())
         {
             var script = Path.Combine(root, "launcher.sh");
