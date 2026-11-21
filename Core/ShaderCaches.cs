@@ -36,7 +36,7 @@ public static class ShaderCaches
     /// The free room a copy of bytes needs: the copy, then the build it is made before (Disk.BuildBytes), and the margin
     public static long Room(long bytes) => bytes + Disk.BuildBytes + Margin;
 
-    // (Longshot's scripts/dev_packs.py CACHES, which names them all for the same copy: tests/test_launcher_core.py --longshot)
+    // (Longshot's scripts/devtools/packs.py CACHES, which names them all for the same copy: tests/test_launcher_core.py --longshot)
     public static readonly IReadOnlyList<string> Names = new[]
     {
         "longshot_programs.bin", "longshot_programs.idx", "longshot_programs.zst.bin", "longshot_programs.zst.idx",
@@ -44,11 +44,11 @@ public static class ShaderCaches
         "longshot_pipelines.bin.built",
         "longshot_computes.bin", "longshot_compute_variants.bin", "longshot_pipeline_states.bin",
         "longshot_pipeline_states_v1.bin", "longshot_prepared.bin", "longshot_vk_pipelines.bin", "longshot_vk_pipelines.stamp",
+        // (the size of the cache's one translator's pipelines, which bounds what another translator carries: gpu/vk/pcache_stamp.h)
+        "longshot_vk_pipelines.base",
+        // (the textures a draw has sampled, for RX_VK_TEX_AHEAD: gpu/vk/texture_ahead.h)
+        "longshot_textures_drawn.bin",
     };
-
-    // (caches of a newer Longshot than tests/longshot.ref pins, which Names is checked against: the pipeline cache's base,
-    // longshot_vk_pipelines.base, gpu/vk/pcache_stamp.h. Into Names once the pin has them)
-    static readonly string[] Newer = { "longshot_vk_pipelines.base" };
 
     // (the pipeline side: what the game keeps across a translator change, as it is about the game's draws and the driver's
     // pipelines, not about the translation: the driver's pipeline cache with its stamp, base and play files (pcache_stamp.h:
@@ -59,7 +59,7 @@ public static class ShaderCaches
     static bool IsPipelineSide(string name) => Pipelines.Contains(name) || IsPlayFile(name);
     const string PipelineCache = "longshot_vk_pipelines.bin";
 
-    // (what play adds to the pipeline cache: longshot_vk_pipelines_play_<n>.bin, dev_packs.py PLAY_FILES)
+    // (what play adds to the pipeline cache: longshot_vk_pipelines_play_<n>.bin, scripts/devtools/packs.py PLAY_FILES)
     const string PlayPrefix = "longshot_vk_pipelines_play_";
     const string PlaySuffix = ".bin";
 
@@ -90,7 +90,7 @@ public static class ShaderCaches
     public static readonly IReadOnlyList<string> LinuxCompiler = new[] { "usr/lib/longshot/emsdk", "usr/lib/longshot/sysroot", "usr/share/longshot/cpm" };
     const string Part = ".part";
 
-    public static bool IsCache(string name) => Names.Contains(name) || Newer.Contains(name) || IsPlayFile(name);
+    public static bool IsCache(string name) => Names.Contains(name) || IsPlayFile(name);
 
     static bool IsPlayFile(string name)
     {

@@ -151,7 +151,7 @@ def check_save_user(longshot):
 
 
 def check_shader_caches(longshot):
-    """Core/ShaderCaches.cs names the caches Longshot's scripts/dev_packs.py copies (CACHES, PLAY_FILES) and stamps the
+    """Core/ShaderCaches.cs names the caches Longshot's scripts/devtools/packs.py copies (CACHES, PLAY_FILES) and stamps the
     translator with the folders and files of nx2/translator_files.py (DIRS, FILES), in its order, and its compiler with parts
     tools.lock unpacks, each system's cpm among them"""
     def literal(script, name):
@@ -163,14 +163,14 @@ def check_shader_caches(longshot):
     def listed(name):
         at = source.index(name + " = new[]")
         return re.findall(r'"([^"]+)"', source[at:source.index("};", at)])
-    for name, script, theirs in (("Names", "scripts/dev_packs.py", "CACHES"), ("TranslatorDirs", "nx2/translator_files.py", "DIRS"),
+    for name, script, theirs in (("Names", "scripts/devtools/packs.py", "CACHES"), ("TranslatorDirs", "nx2/translator_files.py", "DIRS"),
                                  ("TranslatorFiles", "nx2/translator_files.py", "FILES")):
         want = list(ast.literal_eval(literal(script, theirs)))
         if listed(name) != want:
             raise SystemExit("Core/ShaderCaches.cs's %s differs from %s's %s:\n%s\n%s" % (name, script, theirs, listed(name), want))
-    play = ast.literal_eval(literal("scripts/dev_packs.py", "PLAY_FILES").args[0])
+    play = ast.literal_eval(literal("scripts/devtools/packs.py", "PLAY_FILES").args[0])
     if play != r"longshot_vk_pipelines_play_[0-9]+\.bin" or 'PlayPrefix = "longshot_vk_pipelines_play_"' not in source:
-        raise SystemExit("scripts/dev_packs.py's PLAY_FILES changed: review Core/ShaderCaches.cs's IsCache (%s)" % play)
+        raise SystemExit("scripts/devtools/packs.py's PLAY_FILES changed: review Core/ShaderCaches.cs's IsCache (%s)" % play)
     # (the compiler's parts, by the folder tools.lock unpacks them to: each a dest of its system's lines, and its cpm among
     # them, where nx2/build.py's header_package takes the Vulkan and SPIR-V headers from, RX_CPM)
     dests, cpm = {}, {}
