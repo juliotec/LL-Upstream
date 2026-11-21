@@ -7,6 +7,12 @@
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <BuiltInComInteropSupport>false</BuiltInComInteropSupport>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- (not marked compatible with Windows' hardware-enforced stack protection, CET, which .NET 9 and later mark a program by default:
+         with it on, Windows ends the launcher outright, no log, no message, when a DLL another program put in it (an overlay, a
+         capture or screen recorder) or an early Windows 10 build's own code sets a thread's context outside the shadow stack while
+         an exception unwinds: FAST_FAIL_SET_CONTEXT_DENIED (0xC0000409, subcode 0x30), #116, and possibly the "Unknown Hard Error"
+         at the start, #152. The launcher runs no code of its own that needs it, and the game is a program of its own) -->
+    <CETCompat>false</CETCompat>
     <!-- (the Windows program's icon: the Longshot logo, Assets/longshot.ico, made from Assets/longshot.png by scripts/make_icon.py) -->
     <ApplicationIcon>Assets/longshot.ico</ApplicationIcon>
     <!-- (the Windows program's details, as Properties > Details and the antivirus programs show them: a program with only its file

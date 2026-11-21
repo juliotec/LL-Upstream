@@ -199,6 +199,16 @@ def check_running_excludes_own_runtime():
                          "(IsOwnRuntime(argv0, ownImage)) — pid-only self-exclusion misses the AppImage runtime (#118)")
 
 
+def check_cet_compat_off():
+    """(#116, #152) The launcher's program must not be marked CET compatible: .NET 9 and later mark it by default, and Windows
+    then ends the process with FAST_FAIL_SET_CONTEXT_DENIED, before any log line, when an injected DLL (an overlay, a capture
+    tool) sets a thread's context outside the shadow stack while an exception unwinds"""
+    proj = (ROOT / "App" / "LongshotLauncher.csproj").read_text(encoding="utf-8")
+    if not re.search(r"<CETCompat>\s*false\s*</CETCompat>", proj, re.IGNORECASE):
+        raise SystemExit("App/LongshotLauncher.csproj must keep <CETCompat>false</CETCompat>: a CET-marked launcher is ended "
+                         "outright, with no log, when an overlay's DLL in it sets a thread's context while an exception unwinds (#116)")
+
+
 def check_package_desktop_name():
     """(#118) The AppImage's own menu entry must not call the launcher just "Longshot": Gear Lever names and dedupes
     shortcuts after the app's name, and renamed the launcher's file to longshot[-2].appimage, a name the launcher's
@@ -252,6 +262,7 @@ def main():
         raise SystemExit("--pinned needs --longshot <checkout of MagicBeanDev/Longshot>")
     check_translations()
     check_package_desktop_name()
+    check_cet_compat_off()
     check_running_excludes_own_runtime()
     if args.longshot:
         if args.pinned:
