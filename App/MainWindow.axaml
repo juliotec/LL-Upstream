@@ -5,7 +5,7 @@
         xmlns:c="using:LongshotLauncher.Controls"
         x:Class="LongshotLauncher.MainWindow"
         x:DataType="vm:MainViewModel"
-        Title="Longshot"
+        Title="Longshot Launcher"
         Icon="avares://LongshotLauncher/Assets/longshot.png"
         Width="1040" Height="680" CanResize="False"
         WindowDecorations="None" Background="Transparent" TransparencyLevelHint="Transparent"
