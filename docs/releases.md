@@ -89,7 +89,8 @@ updates back, not undo them.
 
 ## Signing
 
-One release key signs every release of both products, in CI, from the organization secret `RELEASE_SIGNING_KEY`.
+One release key signs every release of both products, in CI, from the organization secret `RELEASE_SIGNING_KEY_SEALED`, which only the
+server's runner (label `deploy`) can open (Longshot's docs/dev/reference/ci.md, Secrets only our runners can open).
 
 1. CI writes `SHA256SUMS` over the release's files, signs it (`scripts/release.py sign`), then checks the signature with
    the key the launcher is built with (`verify`, from `Core/ReleaseTrust.cs` or Longshot's `scripts/release_keys.json`):

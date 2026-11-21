@@ -19,8 +19,10 @@
 #
 # The release is made with the job's own token (forgejo.token, passed to Tooling's scripts/release.py as RELEASE_TOKEN): no bot account,
 # no token secret. Only the publish job may write (contents: write: this repository's releases and tags); the others read.
-# Secret (RELEASING.md, One-time setup; an organization secret, shared with Longshot): RELEASE_SIGNING_KEY (the release key's
-# private PEM). Variable: RELEASE_UPLOAD_API (passed to release.py as FORGEJO_UPLOAD_API; Forgejo reserves the FORGEJO_ prefix for variables), the API's address without Cloudflare in front, when a file is larger than its
+# Secret (RELEASING.md, One-time setup; an organization secret, shared with Longshot): RELEASE_SIGNING_KEY_SEALED (the
+# release key's private PEM, sealed with Longshot's scripts/ci_secret.sh). version and publish run only on the runner kept
+# for them (runs-on: deploy), which alone has the seal.key that opens it (Longshot's docs/dev/reference/ci.md, Secrets only
+# our runners can open). Variable: RELEASE_UPLOAD_API (passed to release.py as FORGEJO_UPLOAD_API; Forgejo reserves the FORGEJO_ prefix for variables), the API's address without Cloudflare in front, when a file is larger than its
 # 100 MB upload limit.
 # release.py is Tooling's (MagicBeanDev/Tooling, scripts/release.py), cloned at the commit .tooling-rev names: a change to the
 # release is a Tooling pull request, then a pull request here that moves .tooling-rev to it.
@@ -44,7 +46,7 @@ permissions:
 jobs:
   version:
     name: The version
-    runs-on: quick  # (a quick job: the runner kept free for these takes it, or any runner with room)
+    runs-on: deploy  # (only the runner kept for deploys and releases: the version and commit it names are what is built and signed)
     timeout-minutes: 10
     outputs:
       tag: ${{ steps.name.outputs.tag }}
@@ -174,7 +176,10 @@ jobs:
     name: Sign and publish
     needs: [version, build]
     if: needs.version.outputs.tag != ''
-    runs-on: quick  # (a short job: it starts as the builds end, never behind them; the same machine and secrets)
+    runs-on: deploy  # (only the runner kept for deploys and releases: it alone has seal.key)
+    container:
+      image: ghcr.io/catthehacker/ubuntu:act-24.04
+      volumes: ['/magicbean-secrets:/run/magicbean-secrets:ro']   # (seal.key; a runner that doesn't allow it mounts nothing)
     timeout-minutes: 30
     permissions:
       contents: write
@@ -223,12 +228,15 @@ jobs:
             && test -f "files/LongshotLauncher-$TAG-x86_64.AppImage"
       - name: SHA256SUMS, signed
         env:
-          KEY: ${{ secrets.RELEASE_SIGNING_KEY }}
+          SEALED: ${{ secrets.RELEASE_SIGNING_KEY_SEALED }}
+          SEAL_KEY: /run/magicbean-secrets/seal.key
         run: |
-          [[ -n $KEY ]] || { echo "::error::no RELEASE_SIGNING_KEY secret (RELEASING.md, One-time setup)"; exit 1; }
+          [[ -n $SEALED ]] || { echo "::error::no RELEASE_SIGNING_KEY_SEALED secret (RELEASING.md, One-time setup)"; exit 1; }
+          [[ -r $SEAL_KEY ]] || { echo "::error::no $SEAL_KEY: this job runs only on the runner kept for deploys and releases (label deploy)"; exit 1; }
           python3 -I "$RELEASE_PY" sums files/* --out files/SHA256SUMS
           umask 077
-          printf '%s\n' "$KEY" > "$RUNNER_TEMP/key.pem"
+          # (the key is sealed: only this runner's seal.key opens it; the same as Longshot's scripts/ci_secret.sh unseal)
+          printf '%s\n' "$SEALED" | openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -md sha256 -a -A -pass "file:$SEAL_KEY" > "$RUNNER_TEMP/key.pem"
           python3 -I "$RELEASE_PY" sign files/SHA256SUMS --key "$RUNNER_TEMP/key.pem" --out files/SHA256SUMS.sig
           rm -f "$RUNNER_TEMP/key.pem"
           # (checked with the key this launcher is built with, not the one just used: a key it does not trust stops here)

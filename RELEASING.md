@@ -223,7 +223,7 @@ When the key may have leaked, or on a schedule:
    the same base64 to Longshot's `scripts/release_keys.json`. Release the launcher **signed with the old
    key**. Launchers update to it and then trust both keys.
 3. **Then switch.** Wait until most players have that launcher (the stable for a few weeks). Replace the secret
-   `RELEASE_SIGNING_KEY` with the new `release.pem`. Remove the old key from both files in a pull request, and release the
+   `RELEASE_SIGNING_KEY_SEALED` with the new `release.pem`, sealed (Longshot's `scripts/ci_secret.sh seal --key seal.key < release.pem`). Remove the old key from both files in a pull request, and release the
    launcher with the new key.
 4. A launcher older than step 2 cannot check releases signed with the new key: it says the release is not signed by a
    key it trusts, and the player downloads the new launcher by hand.
@@ -238,7 +238,7 @@ None of this is done yet. In order (the org secret is shared by both repositorie
 1. **The key.** On a PC you trust: `python -I ../Tooling/scripts/release.py keygen <safe folder>`. Put the printed line in the launcher's
    `Core/ReleaseTrust.cs` and in Longshot's `scripts/release_keys.json` (a pull request to each). Keep `release.pem` backed
    up offline. Losing it means a launcher with a new key that every player downloads by hand.
-2. **The secret** (MagicBeanDev > *Settings* > *Actions* > *Secrets*): `RELEASE_SIGNING_KEY`, the text of `release.pem`.
+2. **The secret** (MagicBeanDev > *Settings* > *Actions* > *Secrets*): `RELEASE_SIGNING_KEY_SEALED`, `release.pem` sealed with the server's `seal.key` (Longshot's `scripts/ci_secret.sh seal --key seal.key < release.pem`; only the runner with label `deploy` has `seal.key`, Longshot's docs/dev/reference/ci.md, Secrets only our runners can open).
    No token secret and no bot account: `release.yml` makes the release with the job's own token (`forgejo.token`, given
    to `release.py` as `RELEASE_TOKEN`), which Forgejo gives write access to its own repository on a push or a tag (never
    on a pull request from a fork). It needs no fallback. Don't protect `nightly-*` tags (*Settings* > *Tags*): that token
@@ -267,7 +267,8 @@ None of this is done yet. In order (the org secret is shared by both repositorie
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `release.yml` fails at *SHA256SUMS, signed*: "no RELEASE_SIGNING_KEY" | the secret is not set or not visible to the repository | One-time setup, step 2 |
+| `release.yml` fails at *SHA256SUMS, signed*: "no RELEASE_SIGNING_KEY_SEALED" | the secret is not set or not visible to the repository | One-time setup, step 2 |
+| `release.yml` fails at *SHA256SUMS, signed*: "no /run/magicbean-secrets/seal.key" | the job ran on a runner without `seal.key`: only the server's quick runner should carry `deploy` | Longshot's docs/dev/reference/ci.md |
 | ... "not signed by a trusted key" at `verify` | the secret's key is not the one in `ReleaseTrust.cs` / `release_keys.json` | put the matching key in the secret, or rotate (above) |
 | *Publish* fails with HTTP 413 or a cut connection | an upload over Cloudflare's 100 MB limit | set `RELEASE_UPLOAD_API` (One-time setup, step 3) |
 | *Publish* fails with HTTP 400/422 on an upload | the attachment size or type limits | One-time setup, step 4 |
