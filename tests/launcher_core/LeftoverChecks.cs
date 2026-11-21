@@ -34,24 +34,24 @@ static partial class Program
         Write(Path.Combine(builds, "rc", ".longshot_romfs", "x"));         // (a first build that stopped: no stamp, no game folder)
         Directory.CreateDirectory(Path.Combine(builds, "photos"));          // (not a game folder)
         Write(Path.Combine(builds, "photos", "a.png"));
-        Game("v3.0.0-rc.2");                                                // (kept by the player)
+        Game("v3.0.1");                                                // (kept by the player; #208: no release candidates any more)
         Write(Path.Combine(builds, "loose-file.txt"));
 
-        var found = Leftovers.Find(builds, new[] { nightly }, p, kept: new[] { Path.Combine(builds, "v3.0.0-rc.2") });
+        var found = Leftovers.Find(builds, new[] { nightly }, p, kept: new[] { Path.Combine(builds, "v3.0.1") });
         Require(Names(found) == "nightly-130-0caf0618 nightly-161-33333333",
                 "Leftovers: the unlisted game folders with nothing of the player's (got: " + Names(found) + ").");
         Require(found[0].Version == "nightly-130-0caf0618" && found[0].Shown == "Nightly 130 · 0caf0618",
                 "A leftover's version from its stamp, shown as players see it.");
-        Require(Names(Leftovers.Find(builds, new[] { nightly }, p)).Contains("v3.0.0-rc.2", StringComparison.Ordinal),
+        Require(Names(Leftovers.Find(builds, new[] { nightly }, p)).Contains("v3.0.1", StringComparison.Ordinal),
                 "A kept folder is offered again only when it is no longer kept.");
         // (the Storage page: every unlisted game folder, the kept one and the ones with the player's things in them too)
         var all = Leftovers.All(builds, new[] { nightly }, p);
-        Require(Names(all) == "nightly-130-0caf0618 nightly-150-11111111 nightly-160-22222222 nightly-161-33333333 v3.0.0-rc.2"
+        Require(Names(all) == "nightly-130-0caf0618 nightly-150-11111111 nightly-160-22222222 nightly-161-33333333 v3.0.1"
                 && all.Where(l => l.HoldsYours).Select(l => Path.GetFileName(l.Folder)).SequenceEqual(new[] { "nightly-160-22222222" }),
                 "Leftovers.All: every game folder no row lists, the one with mods marked as holding the player's (got: " + Names(all) + ").");
 
         // (a build's folder inside another game folder, as a 2.x install's ~/Games/Longshot holds the builds; and the reverse)
-        var outer = Game("outer");
+        var outer = Game("outer", "v3.0.2");
         var inner = Game(Path.Combine("outer", "stable"), "v3.0.0");
         Require(!Leftovers.Find(builds, new[] { nightly, inner }, p).Any(l => l.Folder == outer),
                 "A game folder that holds a build's folder is not a leftover.");
@@ -76,12 +76,19 @@ static partial class Program
         catch (IOException) { refused = true; }
         Require(!measured.HoldsYours && refused && Directory.Exists(later), "A mod added after measurement prevents deletion.");
 
-        var userMod = Game("user-mod");
+        var userMod = Game("user-mod", "v3.0.3");
         Write(Path.Combine(userMod, "user", "mods", "pack", "file"));
         Require(Leftovers.All(builds, new[] { nightly }, p).Single(l => l.Folder == userMod).HoldsYours
                 && !Leftovers.Find(builds, new[] { nightly }, p).Any(l => l.Folder == userMod),
                 "Mods under user are protected in discovery.");
         Throws<IOException>(() => Leftovers.Delete(userMod, p, keepAll, null), "Mods under user must prevent deletion.");
+
+        // (#208: an old release candidate is on no channel: the home offers it to nothing, while the
+        // Storage page still lists it, since it takes space)
+        var oldRc = Game("v3.0.0-rc.9");
+        Require(!Leftovers.Find(builds, new[] { nightly }, p).Any(l => l.Folder == oldRc)
+                && Leftovers.All(builds, new[] { nightly }, p).Any(l => l.Folder == oldRc),
+                "An old release candidate is offered by nothing, and still listed by Storage.");
 
         // (a stamp with no version: shown by its folder's name)
         var noVersion = Path.Combine(builds, "old build");

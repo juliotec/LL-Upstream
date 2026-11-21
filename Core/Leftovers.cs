@@ -29,7 +29,11 @@ public static class Leftovers
     {
         var listed = builds.ToList();
         return Unlisted(buildsFolder, listed, (keep ?? Array.Empty<string>()).ToList(), platform, (kept ?? Array.Empty<string>()).ToList(),
+                        // (a stamp naming something that is not a version — an old release candidate, "dev" —
+                        // is on no channel: not offered here, like #208's "never offered" for an old rc. No
+                        // stamp at all is a build that stopped before its first finish, offered by its name)
                         dir => GameFolder.IsGameFolder(dir, platform) && PlayerLeftNothing(dir, saves)
+                               && OnAChannel(GameFolder.Version(dir))
                                && !NewestOfItsChannel(dir, GameFolder.Version(dir), listed, platform))
                .Select(f => new Leftover(f.Dir, f.Version)).ToList();
     }
@@ -98,6 +102,12 @@ public static class Leftovers
     /// A game no listed build matches: it plays, and no listed build that plays has its channel's version as new as it. Not an
     /// old version an update left but the newest game of its channel, which an older launcher's update built in a new folder and
     /// whose row did not follow it (LostUpdate), or whose row went: never offered for deletion
+    /// Whether a stamp's version puts a folder on a channel: one that is a version (a release, or a
+    /// nightly), or no stamp at all (a build that stopped before its first finish, which the home
+    /// offers by its folder's name). Anything else — an old release candidate, "dev" — is on no
+    /// channel and offered by nothing (#208)
+    static bool OnAChannel(string? version) => version == null || Versions.IsVersion(version);
+
     static bool NewestOfItsChannel(string dir, string? version, IEnumerable<string> listed, Platform platform)
     {
         if (version == null || !GameFolder.IsBuilt(dir, platform)) return false;

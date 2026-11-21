@@ -42,9 +42,10 @@ static partial class Program
         Require(reg.Default?.Folder == st, "The first one listed again is the default, a release before a nightly: " + reg.Default?.Folder);
         Require(Leftovers.Relist(reg, builds, p, keep: new[] { home }).Count == 0, "Listed once: nothing more at the next start.");
         var offered = Names(Leftovers.Find(builds, reg.Builds.Select(b => b.Folder), p, keep: new[] { home }).Select(l => l.Folder));
-        Require(offered == "stable (2) v3.0.0-rc.4 v3.0.3",
-                "The older v3.0.3 and an old release candidate are old versions now, offered (from a portable launcher's builds folder too), "
-                + "with the game folder that has nothing to play; the one with no version is neither listed nor offered (got: " + offered + ").");
+        Require(offered == "stable (2) v3.0.3",
+                "The older v3.0.3 is an old version now, offered (from a portable launcher's builds folder too), with the game folder that has "
+                + "nothing to play; a folder whose stamp names no version — an old release candidate, dev — is on no channel and offered by "
+                + "nothing (#208), and the game folder that has nothing to play is (got: " + offered + ").");
 
         // (never: a game folder that holds the launcher's home; one the player kept when it was offered for deletion. A folder named
         // after a channel its version is not on goes on its version's)

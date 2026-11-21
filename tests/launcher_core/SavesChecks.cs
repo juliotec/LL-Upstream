@@ -155,8 +155,9 @@ static class SavesChecks
         var moved = P(linuxRoot, "user", "save", Uid);
         Require(u.Linux.LongshotUser == P(linuxRoot, "user") && u.Linux.LongshotRoot == linuxRoot && u.Linux.SaveFolder == P(linuxRoot, "user", "save")
                 && Saves.Shared(u.Linux).Profiles.Single().Path == moved && Saves.ShownProfile(u.Linux) == moved
-                && Saves.ImportTarget(u.Linux) == moved && Saves.Locate(Saves.Longshot, null, u.Linux).Profiles.Single().Path == moved,
-                "Linux, after the game moved its files into user/: the save found, shown and imported into there.");
+                && Saves.ImportTarget(u.Linux) == P(linuxRoot, "user", "save", Saves.UserId)
+                && Saves.Locate(Saves.Longshot, null, u.Linux).Profiles.Single().Path == moved,
+                "Linux, after the game moved its files into user/: the save found and shown in user/, and an import lands in the game's own profile folder there.");
         Require(GamePlay.UserFolder(u.Linux, P(u.Tmp, "game")) == linuxRoot && GamePlay.UserFolder(u.Windows, P(u.Tmp, "game")) == P(u.AppData, "Longshot")
                 && u.Windows.LongshotUser == P(u.AppData, "Longshot"),
                 "Every build is still started with --user longshot (an old one keeps its files there, a newer one in its user/); Windows unchanged.");

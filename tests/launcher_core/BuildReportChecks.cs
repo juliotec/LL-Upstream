@@ -54,7 +54,9 @@ static partial class Program
         Require(BuildReports.Cut("ab\U0001F600", 3) == "ab" && BuildReports.Cut("ab\U0001F600c", 4) == "ab\U0001F600",
             "A cut never leaves half of a surrogate pair.");
         var longText = new string('x', 5000);
-        var homeLine = new string('x', 290) + home + sep + "x.bars";
+        // (a path starts where the home does: #164's rule leaves a home inside a longer word alone, and a
+        // real line names the home after a space or a quote, "reading /home/ana/x")
+        var homeLine = "reading " + new string('x', 285) + " " + home + sep + "x.bars";
         var wide = new BuildReports.Failure(new string('1', 100), new string('2', 100), new string('3', 100), new string('k', 100),
             new string('o', 1000), new string('p', 1000), new string('s', 1000), longText, longText,
             Enumerable.Repeat(longText, BuildReports.LogLines - 1).Append(homeLine).ToList(), Cpu: new string('c', 1000));
@@ -68,7 +70,7 @@ static partial class Program
         var cutLog = cut["log"]!.AsArray().Select(l => l!.GetValue<string>()).ToList();
         Require(cutLog.Count == BuildReports.LogLines && cutLog.Take(BuildReports.LogLines - 1).All(l => l.Length == 300),
             "Each log line cut to 300, all 200 kept when they fit.");
-        Require(cutLog[^1] == BuildReports.Cut(new string('x', 290) + homeAs + sep + "x.bars", BuildReports.LogLineLength) &&!wideJson.Contains("Ana", StringComparison.Ordinal),
+        Require(cutLog[^1] == BuildReports.Cut("reading " + new string('x', 285) + " " + homeAs + sep + "x.bars", BuildReports.LogLineLength) && !wideJson.Contains("Ana", StringComparison.Ordinal),
             "The home folder taken out before a line is cut: no cut leaves part of the user's name.");
         Require(System.Text.Encoding.UTF8.GetByteCount(wideJson) <= BuildReports.MaxBytes, "A report of long lines fits in 128 KiB.");
         var script = Enumerable.Range(0, BuildReports.LogLines).Select(i => i + new string('字', 400)).ToList();
