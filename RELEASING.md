@@ -273,7 +273,7 @@ None of this is done yet. In order (the org secret is shared by both repositorie
 | *Publish* fails with HTTP 413 or a cut connection | an upload over Cloudflare's 100 MB limit | set `RELEASE_UPLOAD_API` (One-time setup, step 3) |
 | *Publish* fails with HTTP 400/422 on an upload | the attachment size or type limits | One-time setup, step 4 |
 | *Publish* fails with HTTP 401/403 | the job's token is read-only: the run is not a push to this repository (a pull request from a fork, or another repository's workflow) | release from a push or a tag here only |
-| "is already published" | a run for a version that is out (a re-run of an old run) | nothing: a version's files never change |
+| *The version* fails: "not above every release there is: <tag>", the tag's own | a run for a version that is out (a re-run of an old tag's run): `check-tag` refuses a tag whose release is published (Tooling#27) | nothing: a version's files never change |
 | *The version* fails: "tools.lock is missing: …" or "not in Longshot's store …" | `tools.lock` lacks a tool a builder needs, or names a package file that was not uploaded | Bump a tool (`tools.py add` or `mirror`) |
 | A draft is left after a failed run | the run stopped before *Publish* | re-run it (the draft is reused), or delete the draft |
 | The launcher: "not signed by a key this launcher trusts" | a release signed with a key the launcher does not have (a new key, or a test key) | release the launcher with the key first (Rotate the key) |
