@@ -114,6 +114,8 @@ static class Program
         new("home-notice", "The home with a notice, Copy for a bug report", Platform.Windows, null, _ => null,
             m => m.Home.Notice = "The launcher could not update itself: The connection to git-cdn.magicbean.dev was cut. A firewall, antivirus or VPN " +
                                  "may be blocking the site. (Connection reset by peer)"),
+        new("home-nvidia-cache", "The home offering to raise NVIDIA's shader cache to 10 GB (the driver wants an administrator)",
+            Platform.Windows, null, _ => null, m => m.Home.OfferNvidiaCache(1024)),
         // (the old versions' folders updates left before they stayed in their build's folder: Keep or Delete)
         new("home-leftovers", "The home offering to delete the old versions' folders updates left on the disk", Platform.Windows,
             s => s.Registry.Add(@"C:\Users\Player\Games\Longshot\nightly-189-aa95d35f", "nightly-189-aa95d35f", Versions.Nightly, makeDefault: true),

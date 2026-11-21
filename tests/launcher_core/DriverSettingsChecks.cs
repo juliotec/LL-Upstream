@@ -16,6 +16,40 @@ static partial class Program
         }
     }
 
+    /// NVIDIA's shader cache size as a value: On, Mb as the driver gives them; Set what was written
+    sealed class FakeCache(bool on, uint? mb) : INvidiaShaderCache
+    {
+        public uint? Set;
+        public (bool On, uint? Mb) ShaderCache() => (on, Set ?? mb);
+        public void SetShaderCacheMb(uint value) => Set = value;
+    }
+
+    /// NVIDIA's shader cache size raised to 10 GB when it is under 4 GB, and left alone otherwise (DriverSettings.RaiseShaderCache)
+    static void NvidiaCacheChecks()
+    {
+        var small = new FakeCache(true, 1024);
+        Require(DriverSettings.RaiseShaderCache(small) == 1024 && small.Set == DriverSettings.ShaderCacheRoomMb,
+                "A 1 GB shader cache (the default players' logs show) is raised to 10 GB.");
+        Require(DriverSettings.RaiseShaderCache(small) == null && small.Set == DriverSettings.ShaderCacheRoomMb,
+                "A raised cache is not raised again.");
+        foreach (var (on, mb, why) in new (bool, uint?, string)[]
+                 {
+                     (true, 4096, "4 GB holds Longshot's pipelines"), (true, 102400, "100 GB is more"), (true, 0xFFFFFFFF, "Unlimited"),
+                     (true, 0, "Disabled is the player's"), (false, 1024, "the shader cache turned off is the player's"),
+                     (true, null, "a driver that does not know the setting"),
+                 })
+        {
+            var cache = new FakeCache(on, mb);
+            Require(DriverSettings.RaiseShaderCache(cache) == null && cache.Set == null, "Left alone: " + why + ".");
+        }
+        Require(DriverSettings.Size(1024) == "1 GB" && DriverSettings.Size(10240) == "10 GB" && DriverSettings.Size(512) == "512 MB",
+                "Cache sizes read as the control panel gives them.");
+        // (the real driver, read only: a size it knows, or a driver without the setting)
+        if (OperatingSystem.IsWindows() && NvApiProfiles.Open() is { } real)
+            Require(real.ShaderCache().Mb is null or > 0 || !real.ShaderCache().On,
+                    "NVIDIA's shader cache size read through NVAPI (NVDRS_SETTING_V1).");
+    }
+
     /// (Windows) Windows' graphics preference and an NVIDIA program profile, kept by the program's path, given to a new build's
     /// program (DriverSettings); and, where an NVIDIA driver is, its profiles read for real (nothing written)
     static void DriverSettingsChecks()

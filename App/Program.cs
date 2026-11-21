@@ -33,6 +33,9 @@ static class Program
             Console.WriteLine(SelfUpdate.CheckLine(SelfUpdate.OwnTag()));
             return 0;
         }
+        // (started as an administrator by the launcher itself, to raise NVIDIA's shader cache and nothing else: LauncherService)
+        if (args is [LauncherService.RaiseNvidiaCacheArgument])
+            return OperatingSystem.IsWindows() ? LauncherService.RaiseNvidiaCacheHere() : 1;
         // (an exception nothing catches, on any thread: in the log file before the process ends (LauncherLog.Crash), so a launcher
         // that closes at its start (#152) leaves why; before the home is held, appended to its log file. A task's exception nobody
         // looked at ends nothing: logged, the launcher carries on)

@@ -232,6 +232,8 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
                 Ui.Post(StoppedIfRequested);
                 return;
             }
+            // (Windows: room in NVIDIA's shader cache before the build prepares the shaders into it, LauncherService.RoomInNvidiaCache)
+            if (OperatingSystem.IsWindows() && job.Service.RoomInNvidiaCache() is { } room) Ui.Post(() => log.Add(room));
             int code;
             try
             {

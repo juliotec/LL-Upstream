@@ -96,6 +96,7 @@ static partial class Program
         SettingsCarryChecks();
         ShownProfileChecks();
         DriverSettingsChecks();
+        NvidiaCacheChecks();
         EditBackupsChecks();
         NfcChecks();
         NfcReaderChecks();

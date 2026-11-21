@@ -381,7 +381,10 @@ public sealed class LauncherService
         }
         if (CarrySettings(folder) is { } carried) said = said == null ? carried : said + " " + carried;
         if (OperatingSystem.IsWindows())
+        {
             foreach (var line in CarryDriverSettings(folder)) said = said == null ? line : said + " " + line;
+            if (RoomInNvidiaCache() is { } room) said = said == null ? room : said + " " + room;
+        }
         // (the performance statistics: the folder's tick made the player's answer, and what the last sessions left sent)
         PerfReports.BeforePlay(folder, Settings.SendPerformanceStatistics, Settings.KeepSentPerformanceStatistics, Tools);
         // (the crash reports: the folder's file made the player's answer, for the crash helper to read after a crash)
@@ -420,6 +423,66 @@ public sealed class LauncherService
         }
         catch (NvidiaProblem) { }
         return said;
+    }
+
+    /// The argument that starts the launcher as an administrator to raise NVIDIA's shader cache, and only that (Program.Main,
+    /// RaiseNvidiaCacheAsAdmin)
+    public const string RaiseNvidiaCacheArgument = "--raise-nvidia-shader-cache";
+
+    /// (Windows) NVIDIA's shader cache size when the driver refused to raise it for want of an administrator (NVAPI -137): Home
+    /// offers to raise it as one (RaiseNvidiaCacheAsAdmin). Null: raised, nothing to do, or not NVIDIA
+    public uint? NvidiaCacheNeedsAdmin { get; private set; }
+
+    /// (Windows) NVIDIA's shader cache given room for Longshot's pipelines before a build prepares them and before the game
+    /// starts (DriverSettings.RaiseShaderCache: under 4 GB raised to 10 GB, for every program, as the control panel's Shader
+    /// Cache Size). What the window says, null when nothing was done; a driver that needs an administrator to save leaves
+    /// NvidiaCacheNeedsAdmin, any other refusal nothing, and the game starts as before
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    public string? RoomInNvidiaCache()
+    {
+        NvidiaCacheNeedsAdmin = null;
+        if (NvApiProfiles.Open() is not { } nvidia) return null;
+        uint? short_ = null;
+        try
+        {
+            if ((short_ = DriverSettings.ShaderCacheShort(nvidia)) is not { } was) return null;
+            nvidia.SetShaderCacheMb(DriverSettings.ShaderCacheRoomMb);
+            LauncherLog.Add($"NVIDIA shader cache size raised from {was} MB to {DriverSettings.ShaderCacheRoomMb} MB");
+            return Tr.F("NVIDIA's shader cache was raised from {0} to {1}, so Longshot's shaders stop compiling again at every start.",
+                        DriverSettings.Size(was), DriverSettings.Size(DriverSettings.ShaderCacheRoomMb));
+        }
+        catch (NvidiaProblem e)
+        {
+            LauncherLog.Add("NVIDIA shader cache size not raised: " + e.Message);
+            if (e.Status == -137 && short_ is { } mb) NvidiaCacheNeedsAdmin = mb;   // (NVAPI_INVALID_USER_PRIVILEGE)
+            return null;
+        }
+    }
+
+    /// (Windows) This launcher started again as an administrator (Windows asks the player) to raise NVIDIA's shader cache, and
+    /// waited for: true when it was raised. False: the player said no, or the driver refused again
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    public bool RaiseNvidiaCacheAsAdmin()
+    {
+        try
+        {
+            using var p = Process.Start(new ProcessStartInfo(LauncherPath, RaiseNvidiaCacheArgument) { UseShellExecute = true, Verb = "runas" });
+            if (p == null) return false;
+            p.WaitForExit();
+            if (p.ExitCode != 0) return false;
+            NvidiaCacheNeedsAdmin = null;
+            return true;
+        }
+        catch (System.ComponentModel.Win32Exception) { return false; }   // (1223: the player said no)
+    }
+
+    /// (Windows) What the launcher started with RaiseNvidiaCacheArgument does, as an administrator: 0 raised (or nothing to
+    /// raise), 1 the driver refused or is not there
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    public static int RaiseNvidiaCacheHere()
+    {
+        try { return NvApiProfiles.Open() is { } nvidia ? (DriverSettings.RaiseShaderCache(nvidia), 0).Item2 : 1; }
+        catch (NvidiaProblem) { return 1; }
     }
 
     /// The player's game settings brought to the build in folder when its own file has none (SettingsCarry.Fill): the newest of

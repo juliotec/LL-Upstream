@@ -409,6 +409,13 @@ Calls made here, most of them the design mockup's; each can be changed:
   runs on), and the NVIDIA program profile that names the old program by its path (the NVIDIA app's or Control Panel's
   program settings, such as Smooth Motion), which the new program joins through NVAPI. Nothing is taken away; a refusal
   leaves things as they were.
+- **NVIDIA's shader cache gets room for Longshot's shaders** (Windows). A start builds about 2 GB of pipelines into the
+  driver's own cache, and many players' caches are held at 1 GB (the control panel's Shader Cache Size): the driver throws
+  pipelines out as it fills, and they are compiled again in play. Before a build and before Play, a size under 4 GB is
+  raised to 10 GB through NVAPI (`DriverSettings.RaiseShaderCache`: the global profile's `PS_SHADERDISKCACHE_MAX_SIZE`,
+  for every program, as the control panel sets it), and Home says so. It is never lowered, and Disabled, Unlimited and a
+  cache turned off are left alone. When the driver saves only for an administrator (NVAPI -137), Home offers **Raise it
+  to 10 GB**, which starts the launcher again as one (`--raise-nvidia-shader-cache`, Windows asks) for that alone.
 - **Instances live in `<builds>/<track>/<version>`**: `<builds>/nightly/nightly-2029-c544828f`, `<builds>/stable/v3.0.1`
   (`LauncherSettings.FolderFor`; the version's own name, safe for a folder on Windows and Linux; `Longshot` for a track
   or a version with no such name). A second instance of the same version is `<version> (2)`, the only time a suffix

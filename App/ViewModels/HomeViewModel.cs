@@ -541,6 +541,66 @@ public sealed class HomeViewModel : ViewModelBase
     }
 
     public bool HasNotice => notice != null;
+
+    // ---- NVIDIA's shader cache, too small for Longshot ----
+
+    /// (Windows) NVIDIA's shader cache under 4 GB, which the driver would raise only for an administrator
+    /// (LauncherService.NvidiaCacheNeedsAdmin): offered once a launcher start, as a card over the versions; its button asks
+    /// Windows for an administrator (RaiseNvidiaCacheAsAdmin). Null: no card
+    public string? NvidiaCacheOffer
+    {
+        get => nvidiaCacheOffer;
+        private set { if (Set(ref nvidiaCacheOffer, value)) Raise(nameof(HasNvidiaCacheOffer)); }
+    }
+    string? nvidiaCacheOffer;
+    public bool HasNvidiaCacheOffer => nvidiaCacheOffer != null;
+    /// The card's quieter second line
+    public string NvidiaCacheNote { get => nvidiaCacheNote; private set => Set(ref nvidiaCacheNote, value); }
+    string nvidiaCacheNote = "";
+    /// Its button: Raise to 10 GB, or Try again after Windows' question was answered no
+    public string NvidiaCacheButton { get => nvidiaCacheButton; private set => Set(ref nvidiaCacheButton, value); }
+    string nvidiaCacheButton = "";
+    /// While Windows asks and the launcher it started raises it
+    public bool RaisingNvidiaCache { get => raisingNvidiaCache; private set => Set(ref raisingNvidiaCache, value); }
+    bool raisingNvidiaCache;
+    bool nvidiaCacheOffered;
+
+    public void OfferNvidiaCache(uint mb)
+    {
+        nvidiaCacheOffered = true;
+        var room = DriverSettings.Size(DriverSettings.ShaderCacheRoomMb);
+        NvidiaCacheOffer = Tr.F("NVIDIA's shader cache holds {0}, and Longshot needs about 2 GB.", DriverSettings.Size(mb));
+        NvidiaCacheNote = Tr.T("For every game on this PC. Windows asks for permission first.");
+        NvidiaCacheButton = Tr.F("Raise to {0}", room);
+    }
+
+    public Command RaiseNvidiaCacheCommand => raiseNvidiaCacheCommand ??= new Command(() =>
+    {
+        if (RaisingNvidiaCache) return;
+        RaisingNvidiaCache = true;
+        var room = DriverSettings.Size(DriverSettings.ShaderCacheRoomMb);
+        // (off the window's thread: Windows' question waits for the player)
+        Task.Run(() =>
+        {
+            var raised = OperatingSystem.IsWindows() && Service.RaiseNvidiaCacheAsAdmin();
+            Ui.Post(() =>
+            {
+                RaisingNvidiaCache = false;
+                if (raised)
+                {
+                    NvidiaCacheOffer = null;
+                    Main.ShowToast(Tr.F("NVIDIA's shader cache now holds {0}.", room));
+                    return;
+                }
+                NvidiaCacheOffer = Tr.T("It was not raised.");
+                NvidiaCacheNote = Tr.F("To do it yourself: NVIDIA Control Panel › Manage 3D settings › Shader Cache Size › {0} or Unlimited.", room);
+                NvidiaCacheButton = Tr.T("Try again");
+            });
+        });
+    });
+    Command? raiseNvidiaCacheCommand;
+    public Command NotNowNvidiaCacheCommand => notNowNvidiaCacheCommand ??= new Command(() => NvidiaCacheOffer = null);
+    Command? notNowNvidiaCacheCommand;
     public bool ShowLeftPanel => HasBuilds;
 
     /// The quiet answer of the update check
@@ -1119,6 +1179,7 @@ public sealed class HomeViewModel : ViewModelBase
                 Notice = said;
                 Refresh();
             }
+            if (OperatingSystem.IsWindows() && !nvidiaCacheOffered && Service.NvidiaCacheNeedsAdmin is { } mb) OfferNvidiaCache(mb);
             Main.ShowToast(Tr.F("Starting Longshot, {0}…", b.Version));
         }
         catch (Exception e) when (e is System.ComponentModel.Win32Exception or IOException or InvalidOperationException)

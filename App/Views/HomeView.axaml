@@ -81,6 +81,28 @@
         </StackPanel>
       </Grid>
     </Border>
+    <!-- (Windows) NVIDIA's shader cache under 4 GB, which only an administrator can raise: offered once a launcher start. The
+         whole text shows (what is wrong, then a quieter note; no Details), the raise is the card's one strong button -->
+    <Border DockPanel.Dock="Top" IsVisible="{Binding HasNvidiaCacheOffer}" Margin="0,0,0,8" Padding="18,14,16,14" CornerRadius="12"
+            Background="{StaticResource BrandSoft}" BorderBrush="#553D63E6" BorderThickness="1">
+      <Grid ColumnDefinitions="36,*,Auto" ColumnSpacing="14">
+        <Border Width="36" Height="36" CornerRadius="18" Background="#403D63E6" VerticalAlignment="Center">
+          <c:Icon Kind="refresh" Width="18" Height="18" Foreground="{StaticResource InfoInk}"/>
+        </Border>
+        <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
+          <TextBlock Text="{c:T 'Stop shaders compiling again at every start'}" FontWeight="SemiBold" FontSize="14"/>
+          <TextBlock Classes="note" Text="{Binding NvidiaCacheOffer}" TextWrapping="Wrap"/>
+          <TextBlock Classes="note" Text="{Binding NvidiaCacheNote}" TextWrapping="Wrap" Opacity="0.7"/>
+        </StackPanel>
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="14" VerticalAlignment="Center">
+          <Button Classes="link soft" Content="{c:T 'Not now'}" Command="{Binding NotNowNvidiaCacheCommand}"/>
+          <Button Classes="small primary" Command="{Binding RaiseNvidiaCacheCommand}">
+            <c:BusyContent Content="{Binding NvidiaCacheButton}" IsBusy="{Binding RaisingNvidiaCache}" BusyText="{c:T 'Waiting for Windows…'}"/>
+          </Button>
+        </StackPanel>
+      </Grid>
+    </Border>
+
     <!-- Hookshot's saves found, offered once -->
     <Border DockPanel.Dock="Top" IsVisible="{Binding HasHookshotOffer}" Margin="0,0,0,6" Padding="16,12,14,12" CornerRadius="10"
             BorderBrush="#4D5FB08A" BorderThickness="1">
