@@ -1281,7 +1281,7 @@ public sealed class ProblemViewModel : ViewModelBase, IWizardPage
     /// What became of Send, under it ("" before it is pressed)
     public string SendSaid => answer switch
     {
-        null => Tr.T("Posts the report below publicly on Longshot's build-failures issue at git.magicbean.dev, for the team. Nothing is sent until you press it."),
+        null => Tr.T("Sends the report below to the Longshot team. Only the team can read it. Nothing is sent until you press it."),
         { Outcome: BuildReports.Outcome.Sent } => Tr.T("Sent. Thank you: the team sees how often this happens and on which PCs."),
         { Outcome: BuildReports.Outcome.Busy } => Tr.T("The server has had many new reports this hour. Try again later."),
         { Outcome: BuildReports.Outcome.Refused } a => Tr.F("The server refused the report: {0}", a.Detail ?? ""),

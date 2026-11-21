@@ -63,6 +63,7 @@ public sealed class SettingsViewModel : ViewModelBase, ILeavingPage
             Main.ShowStorage();
         });
         ReleaseNotesCommand = new Command(() => Main.Host?.Open(Releases.Repo + "/releases"));
+        PrivacyCommand = new Command(() => Main.Host?.Open(PrivacyUrl));
         AddToMenuCommand = new Command(AddToMenu, () => Program.Layout.File != null);
         RemoveFromMenuCommand = new Command(RemoveFromMenu);
         Languages = new[] { new UiLanguageChoice(null, Tr.T("System language")) }
@@ -141,6 +142,9 @@ public sealed class SettingsViewModel : ViewModelBase, ILeavingPage
     }
 
     public MainViewModel Main { get; }
+    /// (what is sent, who reads it, how long it is kept, and how to have it removed: the website's privacy page)
+    public const string PrivacyUrl = "https://longshot.magicbean.dev/privacy/";
+    public Command PrivacyCommand { get; }
     public IReadOnlyList<ChannelOption> Channels { get; }
     public IReadOnlyList<LauncherChannelOption> LauncherChannels { get; }
 

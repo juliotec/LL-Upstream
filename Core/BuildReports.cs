@@ -9,7 +9,7 @@ namespace LongshotLauncher.Core;
 /// A build reported to the Longshot team, at Longshot-api's /telemetry/build (Address), two ways:
 ///
 /// - Send on the problem page (only when the player presses it): the failed build in full, which the server writes as one comment
-///   per failure on the build issue at git.magicbean.dev, counting its repeats there. The page shows what is sent before it is
+///   per failure on the build issue, counting its repeats there: an issue only the team can read. The page shows what is sent before it is
 ///   (Json): the launcher's and the game's versions, the channel, what the build was, the system, this PC's CPU, memory, threads
 ///   and graphics cards, the build's settings, how it ended, why it stopped and its last error line, each stage's progress and
 ///   time, and the build log's last LogLines lines, with no user name (Privacy.Scrub: the home folder as %USERPROFILE% or ~). No game file, no
@@ -31,7 +31,8 @@ public static partial class BuildReports
     public const string Client = "Longshot";
     /// The build log's lines a report carries (the server keeps as many)
     public const int LogLines = 200;
-    /// Where a sent report's comment may be: a link the answer gives elsewhere is not offered
+    /// Where a sent report's comment may be: a link the answer gives elsewhere is not offered (the reports' issue is the team's
+    /// own now, so a player could not open it: its links never start with this)
     public const string IssuePrefix = "https://git.magicbean.dev/MagicBeanDev/Longshot/issues/";
 
     /// How a build ended (Failure.Outcome): it finished; make_game.py stopped on an error; the player pressed Stop; make_game.py or
