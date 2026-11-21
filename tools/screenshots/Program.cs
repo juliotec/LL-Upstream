@@ -320,6 +320,29 @@ static class Program
                 step.Cold = true;
                 return step;
             }, ScrollToEnd: true),
+        // (#148, #163: Build workers' Automatic keeps threads free at low priority; Every thread is the opt-in for speed)
+        new("settings-workers", "Step 2's Advanced: Build workers on Automatic, some threads left free so the PC stays usable", Platform.Windows, null,
+            m =>
+            {
+                var step = Settings(m);
+                step.AdvancedOpen = true;
+                return step;
+            }, ScrollToEnd: true),
+        new("settings-workers-choices", "Step 2's Build workers dropdown: Automatic, Every thread (fastest), then a number", Platform.Windows, null,
+            m =>
+            {
+                var step = Settings(m);
+                step.AdvancedOpen = true;
+                return step;
+            }, ScrollToEnd: true, OpenDropdown: 4),
+        new("settings-workers-every", "Step 2's Build workers on Every thread: the fastest build, at normal priority", Platform.Windows,
+            s => s.Settings.BuildWorkers = LauncherSettings.EveryThread,
+            m =>
+            {
+                var step = Settings(m);
+                step.AdvancedOpen = true;
+                return step;
+            }, ScrollToEnd: true),
         // (the Saves page: Longshot's save, made here from made-up files, three slots saved at different times)
         new("saves", "The Saves page: the slots every build shares, and the ways in and out", Platform.Windows, ThreeSlots,
             m => new SavesViewModel(m)),

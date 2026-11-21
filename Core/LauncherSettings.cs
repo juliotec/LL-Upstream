@@ -46,8 +46,12 @@ public sealed class LauncherSettings
     public string? GamescopeOptions { get; set; }
     /// Build memory in GB (LONGSHOT_MEM_LIMIT_GB); null: Automatic
     public int? MemoryGb { get; set; }
-    /// Build workers (LONGSHOT_JOBS / --jobs); null: Automatic
+    /// Build workers (LONGSHOT_JOBS / --jobs); null: Automatic, some threads kept free (SystemInfo.KeptFree) at low priority;
+    /// EveryThread: all of them at normal priority, the fastest build; a number: that many, at low priority (SystemInfo.Workers)
     public int? BuildWorkers { get; set; }
+
+    /// BuildWorkers' Every thread (0: a launcher before it reads it as Automatic)
+    public const int EveryThread = 0;
     /// make_game.py's --work; null: the launcher's own (LauncherHome.Work)
     public string? Work { get; set; }
     /// The channel new builds start on, as the player picked it in Settings; null: not picked, so it follows the launcher (BuildChannel)
@@ -184,7 +188,7 @@ public sealed class LauncherSettings
         if (LauncherChannel != null && !Versions.IsChannel(LauncherChannel)) LauncherChannel = null;
         UiLanguage = Tr.Pick(UiLanguage);
         if (MemoryGb is <= 0) MemoryGb = null;
-        if (BuildWorkers is <= 0) BuildWorkers = null;
+        if (BuildWorkers is < EveryThread) BuildWorkers = null;
         if (!DlssLicense) Dlss = false;   // (a tick saved before its license was accepted is not one)
         if (!FsrLicense && !FsrLinuxNotice) Fsr = false;
         if (!XessLicense) Xess = false;

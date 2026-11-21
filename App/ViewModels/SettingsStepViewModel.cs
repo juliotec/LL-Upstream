@@ -26,7 +26,8 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
         // (the 2.x Builder's choices: Automatic, then every 4 GB of the PC's, every CPU thread)
         MemoryChoices = new[] { new Choice(null, Tr.T("Automatic")) }
             .Concat(Enumerable.Range(1, Math.Max(1, (memory + 3) / 4)).Select(i => new Choice(i * 4, Tr.F("{0} GB", i * 4)))).ToList();
-        WorkerChoices = new[] { new Choice(null, Tr.T("Automatic")) }
+        // (Workers: Automatic keeps some threads free, at low priority; Every thread takes them all at normal priority, the fastest)
+        WorkerChoices = new[] { new Choice(null, Tr.T("Automatic")), new Choice(LauncherSettings.EveryThread, Tr.T("Every thread, fastest")) }
             .Concat(Enumerable.Range(1, Math.Max(1, threads)).Select(i => new Choice(i, Tr.F("{0} at once", i)))).ToList();
         LanguageChoices = Languages.All.Select(l => new LanguageChoice(l.Code, Tr.T(l.Name))).ToList();
         BackCommand = new Command(() => job.Main.Navigate(job.Files ?? new FilesStepViewModel(job)));
@@ -400,11 +401,18 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
         }
     }
 
-    // (Automatic: the compilers take what memory is free (nx2/build.py MemoryGate); every CPU thread but one (SystemInfo.AutomaticWorkers), as it allows)
+    // (Automatic: the compilers take what memory is free (nx2/build.py MemoryGate); every CPU thread but those kept free
+    // (SystemInfo.AutomaticWorkers), as it allows. Every setting but Every thread runs the build at low priority)
     public string MemoryDesc => s.MemoryGb == null ? Tr.F("Whatever is free of {0} GB, leaving room for your other programs.", MemoryGb)
         : Tr.T("The compilers may use this much, even if other programs need it.");
-    public string WorkersDesc => s.BuildWorkers == null ? Tr.F("{0} of {1} at once, as the memory allows.", SystemInfo.AutomaticWorkers(), Threads)
-        : Tr.T("Compilers running at once. Each needs about 2 GB.");
+    public string WorkersDesc => s.BuildWorkers switch
+    {
+        null when SystemInfo.KeptFree(Threads) is int kept and > 0 =>
+            Tr.F("{0} of {1} at once, as the memory allows. {2} left free, so your PC stays usable.", SystemInfo.AutomaticWorkers(Threads), Threads, kept),
+        null => Tr.F("{0} of {1} at once, as the memory allows.", SystemInfo.AutomaticWorkers(Threads), Threads),
+        LauncherSettings.EveryThread => Tr.F("All {0} at normal priority: the fastest build, but your PC may be slow to use until it ends.", Threads),
+        _ => Tr.T("Compilers running at once. Each needs about 2 GB."),
+    };
     public string Work => ShownPath.Of(Job.Service.Work);
     public string WorkFull => Job.Service.Work;
 
@@ -412,7 +420,8 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
         : Job.Cold ? Tr.T("A completely cold build: nothing kept from earlier builds")
         : Tr.F("Memory {0}, {1}, build files on {2}",
                s.MemoryGb is int m ? Tr.F("{0} GB", m) : Tr.F("automatic of {0} GB", MemoryGb),
-               s.BuildWorkers is int w ? Tr.P(w, "1 worker", "{0} workers") : Tr.F("{0} of {1} workers (automatic)", SystemInfo.AutomaticWorkers(), Threads),
+               s.BuildWorkers is int w ? Tr.P(SystemInfo.Workers(w, Threads), "1 worker", "{0} workers")
+                   : Tr.F("{0} of {1} workers (automatic)", SystemInfo.AutomaticWorkers(Threads), Threads),
                Disk.DriveName(WorkFull));
 
     /// A completely cold build, for this build only (BuildJob.Cold)
@@ -449,9 +458,8 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
     public string Estimate => Tr.F("{0} on this PC, shaders included",
                                    Durations.About(BuildForecast.Total(download: true, true, BuildThreads(s))));
 
-    /// The threads a build may use: the Build workers setting, else Automatic's (all but one)
-    public static int BuildThreads(LauncherSettings settings) =>
-        settings.BuildWorkers is int w and > 0 ? Math.Min(w, SystemInfo.Threads()) : SystemInfo.AutomaticWorkers();
+    /// The threads a build may use: the Build workers setting's (SystemInfo.Workers: Automatic keeps some free)
+    public static int BuildThreads(LauncherSettings settings) => SystemInfo.Workers(settings.BuildWorkers);
     public string StartText => Job.StartText;
     /// The start button's arrow: up for an update, not for going back to an older version
     public bool IsUpdate => Job.Kind == JobKind.Update && !Job.Older;

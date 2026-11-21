@@ -15,17 +15,20 @@ public abstract record BuildSource
 /// RomfsFrom: another game folder built from the same .nup (BuildRegistry.SameGameFiles), whose game files make_game links in
 /// instead of reading the .nup again (LONGSHOT_ROMFS_FROM). IntelCompiles: Intel shader compiles (GamePlay.IntelCompilesAuto,
 /// SideBySide, OneAtATime); IntelLongerLimits: Shader time limit on Longer (LauncherSettings, where they apply). Xess: Intel's XeSS library fetched
-/// under Intel's licence (XessLicense), Windows only
+/// under Intel's licence (XessLicense), Windows only. LowPriority: make_game.py and everything it starts run below normal priority
+/// (MakeGameRun.RunAsync), so the PC stays usable while it builds; off for Build workers' Every thread (SystemInfo.LowPriority)
 public sealed record BuildRequest(
     BuildSource Source, string? Out, string? Language = null, string? Work = null, int? Jobs = null, int? MemoryGb = null,
     bool PrepareShaders = true, bool Dlss = false, bool DlssLicense = false, bool Fsr = false, bool FsrLicense = false,
     string? RomfsFrom = null, int IntelCompiles = GamePlay.IntelCompilesAuto, bool IntelLongerLimits = false, bool Xess = false,
-    bool XessLicense = false);
+    bool XessLicense = false, bool LowPriority = true);
 
 /// make_game.py as the 2.x Builders start it (Runner.Info and MainWindow.Run on Windows; builder/linux/AppRun and
-/// longshot_builder.py on Linux): the program, its arguments, its folder and the environment changes (null: removed)
+/// longshot_builder.py on Linux): the program, its arguments, its folder and the environment changes (null: removed).
+/// LowPriority: run below normal priority, the compilers it starts with it (BuildRequest.LowPriority, MakeGameRun.RunAsync)
 public sealed record MakeGameCommand(
-    string FileName, IReadOnlyList<string> Arguments, string WorkingDirectory, IReadOnlyDictionary<string, string?> Environment)
+    string FileName, IReadOnlyList<string> Arguments, string WorkingDirectory, IReadOnlyDictionary<string, string?> Environment,
+    bool LowPriority = false)
 {
     /// launcher: this launcher's own path, written into the game folder's stamp (builder=) so the game's update offer starts it
     /// (host/hos_update.c). directoryExists, fileExists: the tests' stand-ins for the disk
@@ -126,7 +129,7 @@ public sealed record MakeGameCommand(
             var prebuilt = Path.Combine(lib, "longshot_vk.so");
             env["LONGSHOT_VK_PREBUILT"] = dlss || fsr || !fileExists(prebuilt) ? null : prebuilt;
         }
-        return new MakeGameCommand(tools.Python, args, tools.ToolsRoot, env);
+        return new MakeGameCommand(tools.Python, args, tools.ToolsRoot, env, r.LowPriority);
     }
 
     /// Whether these tools build AMD FSR 4: on Windows always; on Linux when they carry AMD's FSR API headers, which the Vulkan

@@ -198,6 +198,17 @@ static partial class Program
                 if (!gone) await Task.Delay(100);
             }
             Require(gone, "The child process (a compiler) was stopped with the run.");
+            // (#148, #163: a run at low priority is below normal, and so is what it starts, a compiler; one at full speed is not)
+            static int Nice(string line) => int.Parse(line.Trim(), System.Globalization.CultureInfo.InvariantCulture);
+            var nices = new List<string>();
+            Require(await MakeGameRun.RunAsync(Shell("sleep 0.2; nice; sh -c nice"), l => { lock (nices) nices.Add(l); }, _ => { }, lowPriority: true) == 0
+                    && nices.Count == 2 && nices.All(n => Nice(n) >= 10), "A run at low priority, and its child: nice 10. " + string.Join(" | ", nices));
+            var own = new List<string>();
+            await MakeGameRun.RunAsync(Shell("nice"), l => { lock (own) own.Add(l); }, _ => { });
+            // (this process's nice: /proc/self/stat's 19th field, the 17th after the name's closing bracket)
+            var self = File.ReadAllText("/proc/self/stat");
+            var selfNice = Nice(self[(self.LastIndexOf(')') + 2)..].Split(' ')[16]);
+            Require(own.Count == 1 && Nice(own[0]) == selfNice, $"A run at full speed keeps the launcher's priority: {string.Join(" | ", own)}, not {selfNice}.");
             var check = await MakeGameRun.CheckAsync(new MakeGameCommand("/bin/sh", new[] { "-c", "echo '@@check ok Supported.'" }, "/",
                                                                           new Dictionary<string, string?>()), windows: false);
             Require(check.Ok && check.Text == "Supported.", "A check run's answer.");
@@ -1117,7 +1128,20 @@ static partial class Program
                 && SystemInfo.GpuVendors(Platform.Windows, drm).Count == 0 && SystemInfo.GpuVendors(Platform.Linux, Path.Combine(drm, "none")).Count == 0,
                 "The GPU makers, by card; outputs and other devices left out.");
         Require(SystemInfo.MemoryGb() > 0 && SystemInfo.Threads() > 0, "Memory and threads.");
-        Require(SystemInfo.AutomaticWorkers() == Math.Max(1, SystemInfo.Threads() - 1), "Automatic build workers: every CPU thread but one.");
+        // (#148, #163: Automatic keeps threads free of compilers, one on a small CPU, a quarter on a big one; Every thread takes
+        // them all, at normal priority; a number picked is at most the PC's threads, at low priority)
+        Require(new[] { 1, 2, 4, 6, 8, 12, 16, 24, 32, 64 }.Select(t => SystemInfo.KeptFree(t)).SequenceEqual(new[] { 0, 1, 1, 2, 2, 3, 4, 6, 8, 16 }),
+                "Threads kept free: none on one, one up to 4, two up to 8, then a quarter.");
+        Require(SystemInfo.AutomaticWorkers(1) == 1 && SystemInfo.AutomaticWorkers(4) == 3 && SystemInfo.AutomaticWorkers(8) == 6
+                && SystemInfo.AutomaticWorkers(16) == 12 && SystemInfo.AutomaticWorkers(24) == 18
+                && SystemInfo.AutomaticWorkers() == SystemInfo.AutomaticWorkers(SystemInfo.Threads()), "Automatic build workers: the threads not kept free.");
+        Require(SystemInfo.Workers(null, 16) == 12 && SystemInfo.Workers(LauncherSettings.EveryThread, 16) == 16 && SystemInfo.Workers(6, 16) == 6
+                && SystemInfo.Workers(40, 16) == 16 && SystemInfo.Workers(null) == SystemInfo.AutomaticWorkers(), "Build workers for each setting.");
+        Require(SystemInfo.LowPriority(null) && SystemInfo.LowPriority(6) && !SystemInfo.LowPriority(LauncherSettings.EveryThread),
+                "Low priority for every setting but Every thread.");
+        // (the time a build is forecast: fewer threads, a longer forecast, as BuildThreads gives the clock)
+        Require(BuildForecast.Total(true, true, SystemInfo.Workers(null, 16)) > BuildForecast.Total(true, true, SystemInfo.Workers(LauncherSettings.EveryThread, 16)),
+                "Automatic's forecast takes the threads it keeps free into account.");
 
         // (the build settings' DLSS and FSR 4 switches: on offer only where a card runs them, or where no card was found)
         Require(SystemInfo.VendorOfDeviceId(@"pci\ven_10de&dev_2782") == SystemInfo.Nvidia && SystemInfo.VendorOfDeviceId("PCI\\VEN_1002&DEV_744C") == SystemInfo.Amd

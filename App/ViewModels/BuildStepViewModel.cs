@@ -90,7 +90,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
         var snapshot = probe.IsCompletedSuccessfully ? probe.Result : null;
         var cards = SystemInfo.GameCards(job.Service.GpuCards, snapshot);
         var auto = SystemInfo.EstimatedGpu(snapshot) != null;
-        log.Add($"settings: memory {(s.MemoryGb is int m ? m + " GB" : "automatic")}, workers {(s.BuildWorkers is int w ? w : "automatic")}, " +
+        log.Add($"settings: memory {(s.MemoryGb is int m ? m + " GB" : "automatic")}, workers {Workers(s)}, " +
                 $"{Languages.NameOf(s.Language)}{Upscaler(s.Dlss, "DLSS", SystemInfo.DlssRuns, cards, auto, pending)}{Upscaler(s.Fsr, "FSR 4", SystemInfo.FsrRuns, cards, auto, pending)}" +
                 $"{(s.Xess && !job.Main.Linux ? ", XeSS" : "")}");
         if (start)
@@ -180,8 +180,8 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
         var romfsFrom = !job.Cold && file.Source is BuildSource.Nup nup ? job.Service.Registry.SameGameFiles(nup.Path, job.InstallDir)?.Folder : null;
         // (DLSS, FSR 4 and XeSS as the player chose them, whatever this PC's cards: Upscalers.Chosen)
         var request = Upscalers.Chosen(
-            new BuildRequest(file.Source, job.InstallDir, s.Language, job.Service.Work, s.BuildWorkers ?? SystemInfo.AutomaticWorkers(), s.MemoryGb, true,
-                             RomfsFrom: romfsFrom, IntelCompiles: job.Service.IntelCompilesApply ? s.IntelCompiles : GamePlay.IntelCompilesAuto,
+            new BuildRequest(file.Source, job.InstallDir, s.Language, job.Service.Work, SystemInfo.Workers(s.BuildWorkers), s.MemoryGb, true,
+                             RomfsFrom: romfsFrom, LowPriority: SystemInfo.LowPriority(s.BuildWorkers), IntelCompiles: job.Service.IntelCompilesApply ? s.IntelCompiles : GamePlay.IntelCompilesAuto,
                              IntelLongerLimits: s.IntelLongerLimits && job.Service.IntelCompilesApply),
             s, job.Service.Platform);
         buildWork = job.Service.Work;
@@ -237,7 +237,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
             {
                 cancel.Token.ThrowIfCancellationRequested();   // (stopped as the caches were taken: no build to start)
                 code = await MakeGameRun.RunAsync(command.StartInfo(), line => Ui.Post(() => Line(line)),
-                                                  line => Ui.Post(() => ErrorLine(line)), cancel.Token);
+                                                  line => Ui.Post(() => ErrorLine(line)), cancel.Token, command.LowPriority);
             }
             catch (OperationCanceledException)
             {
@@ -765,6 +765,11 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
         if (!Finalizing) Stop();
     }
 
+    /// The Build workers setting, for the log and the report: "automatic (12, low priority)", "every thread (16, normal priority)", "6 (low priority)"
+    static string Workers(LauncherSettings s) =>
+        (s.BuildWorkers switch { null => "automatic ", LauncherSettings.EveryThread => "every thread ", _ => "" }) +
+        $"({SystemInfo.Workers(s.BuildWorkers)}, {(SystemInfo.LowPriority(s.BuildWorkers) ? "low" : "normal")} priority)";
+
     /// This PC's memory, threads and graphics cards
     string PcLine() =>
         $"{SystemInfo.MemoryGb()} GB, {SystemInfo.Threads()} threads" +
@@ -774,7 +779,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
     string SettingsLine()
     {
         var s = Job.Service.Settings;
-        return $"memory {(s.MemoryGb is int m ? m + " GB" : "automatic")}, workers {(s.BuildWorkers is int w ? w : "automatic")}, " +
+        return $"memory {(s.MemoryGb is int m ? m + " GB" : "automatic")}, workers {Workers(s)}, " +
                $"DLSS {(dlss ? "on" : "off")}, FSR 4 {(fsr ? "on" : s.Fsr ? "asked, not built" : "off")}, " +
                $"XeSS {(xess ? "on" : s.Xess ? "asked, not fetched" : "off")}" + (Job.Cold ? ", cold build" : "");
     }

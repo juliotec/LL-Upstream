@@ -33,9 +33,42 @@ public static class SystemInfo
         return null;
     }
 
-    /// Build workers when the setting is Automatic: every CPU thread but one, so the PC stays usable while it builds (make_game's
-    /// own automatic takes them all)
-    public static int AutomaticWorkers() => Math.Max(1, Threads() - 1);
+    /// The CPU threads Automatic keeps free of compilers, so the PC stays usable while it builds (#148, #163): one on 2 to 4
+    /// threads, two on 5 to 8, a quarter from 9 (16 threads keep 4 and build with 12, which players with a 5700X3D found the
+    /// PC usable at; 24 keep 6). A thread kept free costs a build little: past the cores the threads add less (BuildForecast),
+    /// and the compilers wait on memory and the disk as well. One thread keeps nothing back
+    public static int KeptFree(int threads) => threads switch
+    {
+        <= 1 => 0,
+        <= 4 => 1,
+        <= 8 => 2,
+        _ => threads / 4,
+    };
+
+    /// Build workers when the setting is Automatic: every CPU thread but those KeptFree keeps for the desktop, a browser and
+    /// the launcher's own window (make_game's own automatic keeps one)
+    public static int AutomaticWorkers(int? threads = null)
+    {
+        var t = Math.Max(1, threads ?? Threads());
+        return Math.Max(1, t - KeptFree(t));
+    }
+
+    /// The compilers a build runs at once for the Build workers setting (LauncherSettings.BuildWorkers): null Automatic,
+    /// LauncherSettings.EveryThread all of them, else the number picked, at most the PC's threads
+    public static int Workers(int? setting, int? threads = null)
+    {
+        var t = Math.Max(1, threads ?? Threads());
+        return setting switch
+        {
+            null => AutomaticWorkers(t),
+            LauncherSettings.EveryThread => t,
+            int w => Math.Clamp(w, 1, t),
+        };
+    }
+
+    /// Whether a build runs below normal priority (BuildRequest.LowPriority): every setting but Every thread, the one picked
+    /// for speed over a usable PC. Low priority costs an idle PC nothing; it lets the desktop and the other programs go first
+    public static bool LowPriority(int? setting) => setting != LauncherSettings.EveryThread;
 
     /// The PCI vendor id's maker: 0x10de NVIDIA, 0x1002 AMD, 0x8086 Intel; null for another
     public static string? VendorOf(string pciVendor) => pciVendor.Trim().ToLowerInvariant() switch

@@ -950,6 +950,11 @@ static partial class Program
         Require(!LauncherSettings.Load(path).Fsr, "FSR 4 with neither AMD's licence nor the Linux notice: off.");
         new LauncherSettings { Xess = true }.Save(path);
         Require(!LauncherSettings.Load(path).Xess, "Intel XeSS without Intel's licence: off.");
+        // (Build workers' Every thread is 0, kept; a number below it is no setting: Automatic)
+        new LauncherSettings { BuildWorkers = LauncherSettings.EveryThread }.Save(path);
+        Require(LauncherSettings.Load(path).BuildWorkers == LauncherSettings.EveryThread, "Build workers' Every thread is kept.");
+        new LauncherSettings { BuildWorkers = -3 }.Save(path);
+        Require(LauncherSettings.Load(path).BuildWorkers == null, "Build workers below zero: Automatic.");
         File.WriteAllText(path, """{"dlss":true,"dlssLicense":false,"defaultChannel":"beta","memoryGb":0}""");
         var u = LauncherSettings.Load(path);
         Require(!u.Dlss && u.DefaultChannel == null && u.MemoryGb == null, "Saved values outside their range are not taken.");
@@ -1229,6 +1234,12 @@ static partial class Program
         Require(u.Arguments.SequenceEqual(new[] { "-I", lin.MakeGame, "--update", "/g", "--work", home.Work })
                 && u.Environment["LONGSHOT_VK_PREBUILT"] == prebuilt, "An update: the folder, no --out or --language.");
         Throws<ArgumentOutOfRangeException>(() => MakeGameCommand.For(lin, request with { Jobs = 0 }, Platform.Linux, home, "/L"), "Zero workers.");
+        // (#148, #163: a build runs below normal priority unless its request says otherwise, Build workers' Every thread; the check too)
+        Require(w.LowPriority && l.LowPriority && u.LowPriority
+                && !MakeGameCommand.For(win, request with { LowPriority = false }, Platform.Windows, home, "L", _ => false).LowPriority
+                && !MakeGameCommand.For(lin, request with { LowPriority = false }, Platform.Linux, home, "/L").LowPriority
+                && MakeGameCommand.ForCheck(lin, new BuildSource.Nup("/g/game.nup"), Platform.Linux, home, "/L").LowPriority,
+                "Builds and checks run at low priority; a request at full speed does not.");
         // (another game folder of the same .nup gives a new build its game files: the variable for --nup only, and never one from the PC)
         Require(w.Environment.ContainsKey("LONGSHOT_ROMFS_FROM") && w.Environment["LONGSHOT_ROMFS_FROM"] == null
                 && MakeGameCommand.For(win, request with { RomfsFrom = "C:/Games/Longshot/v3.0.0" }, Platform.Windows, home, "L", _ => false)

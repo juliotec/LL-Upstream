@@ -93,8 +93,10 @@ public sealed record GameCheck(GameCheckStatus Status, string Text, bool ThisPc 
 public static class MakeGameRun
 {
     /// The program run to its end; each line handed over as it comes (from a pool thread). Cancelling kills the process and
-    /// everything it started (the compilers), then throws OperationCanceledException
-    public static async Task<int> RunAsync(ProcessStartInfo start, Action<string> stdout, Action<string> stderr, CancellationToken cancel = default)
+    /// everything it started (the compilers), then throws OperationCanceledException. lowPriority: the process runs below normal
+    /// priority (Lower), and so does everything it starts
+    public static async Task<int> RunAsync(ProcessStartInfo start, Action<string> stdout, Action<string> stderr, CancellationToken cancel = default,
+                                           bool lowPriority = false)
     {
         start.RedirectStandardOutput = true;
         start.RedirectStandardError = true;
@@ -113,6 +115,7 @@ public static class MakeGameRun
             else stderr(e.Data);
         };
         p.Start();
+        if (lowPriority) Lower(p);
         p.BeginOutputReadLine();
         p.BeginErrorReadLine();
         using (cancel.Register(() =>
@@ -127,6 +130,21 @@ public static class MakeGameRun
         }
         cancel.ThrowIfCancellationRequested();
         return p.ExitCode;
+    }
+
+    /// The process below normal priority, as soon as it has started, before make_game.py has started a compiler (Python takes
+    /// a good part of a second to get there): Windows' BELOW_NORMAL_PRIORITY_CLASS, which the processes it starts inherit (a
+    /// process started by one below normal is below normal too); Linux's nice 10 (.NET's BelowNormal), which every process
+    /// and thread it starts inherits. The PC's other programs then go first and the build takes what they leave, which on an
+    /// idle PC is all of it. False when it could not be lowered (it ended already, or the system refused): the build runs as before
+    public static bool Lower(Process p)
+    {
+        try
+        {
+            p.PriorityClass = ProcessPriorityClass.BelowNormal;
+            return true;
+        }
+        catch (Exception e) when (e is InvalidOperationException or System.ComponentModel.Win32Exception or NotSupportedException) { return false; }
     }
 
     /// (Longshot#1010) Why the build tools can't start on Windows, said before they are run: they are under a folder Windows lets
@@ -172,7 +190,7 @@ public static class MakeGameRun
         try
         {
             var code = await RunAsync(command.StartInfo(), l => { lock (lines) lines.Add(l); },
-                                      l => { if (!string.IsNullOrWhiteSpace(l)) lastError = l; }, cancel).ConfigureAwait(false);
+                                      l => { if (!string.IsNullOrWhiteSpace(l)) lastError = l; }, cancel, command.LowPriority).ConfigureAwait(false);
             GameCheck answer;
             lock (lines) answer = GameCheck.Read(lines.ToList(), lastError, code);
             return code != 0 && TooDeep(command, answer.Text, windows) is { } deep ? new GameCheck(GameCheckStatus.CheckFailed, deep, ThisPc: true) : answer;
