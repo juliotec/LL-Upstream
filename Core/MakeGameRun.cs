@@ -23,9 +23,14 @@ public sealed record GameCheck(GameCheckStatus Status, string Text, bool ThisPc 
         "is not a game executable", "is not a game module", "Your drive could not read",
     ];
 
+    /// Failures that are this PC's even when nup.py says them: Python could not load one of its own parts, a .pyd (#205: a folder
+    /// too deep for Windows, MakeGameRun.TooDeep), which says nothing of the file it was about to read
+    static readonly string[] PcFailures = ["DLL load failed", Problems.LongFolderWords];
+
     /// What an @@error of the check says of the file: Unreadable when it is the file's, CheckFailed otherwise
     public static GameCheckStatus Of(string error) =>
-        FileFailures.Any(f => error.Contains(f, StringComparison.OrdinalIgnoreCase)) ? GameCheckStatus.Unreadable : GameCheckStatus.CheckFailed;
+        !PcFailures.Any(f => error.Contains(f, StringComparison.OrdinalIgnoreCase))
+        && FileFailures.Any(f => error.Contains(f, StringComparison.OrdinalIgnoreCase)) ? GameCheckStatus.Unreadable : GameCheckStatus.CheckFailed;
 
     /// The answer in the player's words, shown under the file (Text stays in the tooltip and the report): what is wrong and what to
     /// do. Null for a supported file
@@ -34,6 +39,10 @@ public sealed record GameCheck(GameCheckStatus Status, string Text, bool ThisPc 
         GameCheckStatus.Supported => null,
         // (the words the build's own stop says for it: the version Longshot needs, and what to do)
         GameCheckStatus.OtherVersion => Problems.FromBuild(Text) is { Kind: ProblemKind.WrongGameVersion } p ? Tr.T(p.Detail) : Text,
+        // (#205: a .nx archive, NXAR, read by nup.py: build tools that read .nup files only, as every Longshot release's until
+        // Longshot#685. The file may well be sound)
+        GameCheckStatus.Unreadable when Has("not a NUP package") && Has("NXAR") =>
+            Tr.T("This is a .nx archive, which this version of Longshot can't read: its build tools read .nup files only. Pick the .nup file of your dump instead."),
         // (a .nx whose first bytes are not NXAR goes to nup.py too: make_game.py tells the two apart by them, not by the name)
         GameCheckStatus.Unreadable when Has("not a NUP package") || Has("not a .nx archive") =>
             Tr.T("This file is not a .nup or .nx package, or its beginning is damaged. Pick the .nup or .nx file of your dump, or copy it again."),
@@ -47,6 +56,7 @@ public sealed record GameCheck(GameCheckStatus Status, string Text, bool ThisPc 
         GameCheckStatus.Unreadable when Has("Your drive could not read") => Text,
         GameCheckStatus.Unreadable =>
             Tr.T("This file is damaged and could not be read. Copy or download it again, or try another dump of the game."),
+        _ when ThisPc && Problems.FromBuild(Text) is { Kind: ProblemKind.LongFolder } deep => Tr.T(deep.Detail),
         _ when ThisPc => Tr.F("The file could not be checked, because of this PC rather than the file: {0}", Text),
         // (an error the builder did not expect, or one it did not say: neither the file's nor this PC's, as far as is known)
         _ => Tr.F("The check stopped before it could tell anything about this file: {0}", Text),
@@ -129,7 +139,31 @@ public static class MakeGameRun
                             @"Longshot's folder out of it (for example to C:\Longshot) and start Longshot from there.", Problems.BlockedFolderWords, folder)
             : null;
 
-    /// make_game.py --check run, and its answer. windows: the build tools are Windows' (Blocked)
+    /// Windows loads no part of a program (a DLL, a Python extension's .pyd) from a path of MAX_PATH (260) characters or more,
+    /// whatever its long-paths setting
+    public const int MaxPath = 260;
+
+    /// (#205) Why the build tools' Python could not load one of its own parts on Windows ("ImportError: DLL load failed while
+    /// importing backend_c: The filename or extension is too long", in the PC's language): Longshot's folder is so deep that a file
+    /// in that Python's folder is MaxPath characters or more. Said after the failure, measured on the disk: the longest path
+    /// there and how long it is, in English as make_game.py's words, and Problems matches them (LongFolder). Null for another
+    /// error, a Python whose paths are all shorter, and always on Linux. files: every file under a folder (the disk's, by default)
+    public static string? TooDeep(MakeGameCommand command, string error, bool windows, Func<string, IEnumerable<string>>? files = null)
+    {
+        if (!windows || !error.Contains("DLL load failed", StringComparison.OrdinalIgnoreCase)) return null;
+        if (Path.GetDirectoryName(command.FileName) is not { Length: > 0 } python) return null;
+        files ??= d => Directory.EnumerateFiles(d, "*", new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true, AttributesToSkip = 0 });
+        string? longest;
+        try { longest = files(python).MaxBy(f => f.Length); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return null; }
+        return longest is { Length: >= MaxPath }
+            ? string.Format(CultureInfo.InvariantCulture, "{0} the build tools' Python has files there whose path is {1} characters long ({2}), " +
+                            "and Windows loads no program part from a path of {3} or more. Move Longshot's folder closer to the top of the " +
+                            @"drive (for example to C:\Longshot) and start Longshot from there.", Problems.LongFolderWords, longest.Length, longest, MaxPath)
+            : null;
+    }
+
+    /// make_game.py --check run, and its answer. windows: the build tools are Windows' (Blocked, TooDeep)
     public static async Task<GameCheck> CheckAsync(MakeGameCommand command, bool windows, CancellationToken cancel = default)
     {
         if (Blocked(command, windows) is { } blocked) return new GameCheck(GameCheckStatus.CheckFailed, blocked, ThisPc: true);
@@ -139,7 +173,9 @@ public static class MakeGameRun
         {
             var code = await RunAsync(command.StartInfo(), l => { lock (lines) lines.Add(l); },
                                       l => { if (!string.IsNullOrWhiteSpace(l)) lastError = l; }, cancel).ConfigureAwait(false);
-            lock (lines) return GameCheck.Read(lines.ToList(), lastError, code);
+            GameCheck answer;
+            lock (lines) answer = GameCheck.Read(lines.ToList(), lastError, code);
+            return code != 0 && TooDeep(command, answer.Text, windows) is { } deep ? new GameCheck(GameCheckStatus.CheckFailed, deep, ThisPc: true) : answer;
         }
         catch (Exception e) when (e is System.ComponentModel.Win32Exception or IOException or InvalidOperationException)
         {

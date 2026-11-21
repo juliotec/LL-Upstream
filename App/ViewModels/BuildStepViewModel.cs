@@ -166,6 +166,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
     public Command CancelCommand { get; }
 
     string? buildWork;
+    MakeGameCommand? started;   // (the build's make_game.py, for what its failure says of its folder: MakeGameRun.TooDeep)
 
     void Run()
     {
@@ -203,6 +204,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
                 Fail(blocked);
                 return;
             }
+            started = command;
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException)
         {
@@ -424,6 +426,8 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
         var terminated = code == 128 + 15;
         // (the page says why in the player's language; the summary in English, so one failure is one signature in every language)
         var told = progress.Error ?? lastError;
+        // (#205: Python could not load its own parts, a folder too deep for Windows: said as such, with the path measured)
+        if (told != null && started != null && MakeGameRun.TooDeep(started, told, Job.Service.Platform == Platform.Windows) is { } deep) told = deep;
         var why = told ?? (terminated
             ? Tr.T("make_game.py was stopped by a signal (SIGTERM) from outside the launcher.")
             : Tr.F("make_game.py stopped with exit code {0} without saying why.", code));

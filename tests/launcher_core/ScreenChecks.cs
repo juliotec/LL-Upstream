@@ -112,6 +112,15 @@ static partial class Program
                       GameCheckStatus.Unreadable, "This .nx file holds the game as NCA files"),
                      ("nxar.py stopped (exit status 1): D:\\oot.nx: not a .nx archive (magic b'\\x00\\x00\\x00\\x00')", GameCheckStatus.Unreadable, "This file is not a .nup or .nx package"),
                      ("nup.py stopped (exit status 1): ValueError: TOC SHA-256 mismatch", GameCheckStatus.Unreadable, "This file is damaged"),
+                     // (#205: a .nx archive given to build tools that read .nup files only: not damaged, another kind of file)
+                     ("nup.py stopped (exit status 1): C:\\x.nx: not a NUP package (magic b'NXAR')", GameCheckStatus.Unreadable, "This is a .nx archive"),
+                     // (#205: Python could not load its own .pyd, a folder too deep for Windows: this PC's, not the file's)
+                     ("nup.py stopped (exit status 1): ImportError: DLL load failed while importing backend_c: The filename or extension is too long.",
+                      GameCheckStatus.CheckFailed, "Windows can't load a program's parts from a path of 260 characters"),
+                     ("nup.py stopped (exit status 1): ImportError: DLL load failed while importing backend_c: Der Dateiname oder die Erweiterung ist zu lang.",
+                      GameCheckStatus.CheckFailed, "The file could not be checked, because of this PC"),
+                     (Problems.LongFolderWords + " the build tools' Python has files there whose path is 270 characters long (x)",
+                      GameCheckStatus.CheckFailed, "Windows can't load a program's parts"),
                      ("The file main in this dump is not a game module (it starts 00000000). Try another dump", GameCheckStatus.Unreadable, "This dump's game code"),
                      ("Your drive could not read D:\\x.nup: the drive reported an I/O error.", GameCheckStatus.Unreadable, "Your drive could not read"),
                      ("The builder's own compiler (tools/llvm-mingw) could not build a test program: x", GameCheckStatus.CheckFailed, "The file could not be checked, because of this PC"),

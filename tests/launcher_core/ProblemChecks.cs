@@ -38,6 +38,24 @@ static partial class Program
         Require(MakeGameRun.Blocked(command, windows: true, _ => true) == null, "every folder listable: nothing in the way");
         Require(Problems.FromBuild(Problems.BlockedFolderWords + @" C:\x. Unpack the zip again into a folder your antivirus allows.").Kind
                 == ProblemKind.BlockedFolder, "the builder's own words for it: BlockedFolder, not Antivirus");
+        // (#205: Python's .pyd under a folder too deep for Windows. Measured after the failure, on Windows only, naming the longest path)
+        const string dll = "nup.py stopped (exit status 1): ImportError: DLL load failed while importing backend_c: Der Dateiname ist zu lang.";
+        var python = Path.Combine(tools, "python");
+        var py = new MakeGameCommand(Path.Combine(python, "python.exe"), [], tools, new Dictionary<string, string?>());
+        var deepFile = Path.Combine(python, "Lib", "site-packages", "zstandard", new string('b', 300) + ".pyd");
+        IEnumerable<string> Deep(string d) => d == python ? [Path.Combine(python, "python.exe"), deepFile] : [];
+        IEnumerable<string> Shallow(string d) => [Path.Combine(python, "python.exe")];
+        var deep = MakeGameRun.TooDeep(py, dll, windows: true, Deep);
+        Require(deep != null && deep.StartsWith(Problems.LongFolderWords, StringComparison.Ordinal) && deep.Contains(deepFile, StringComparison.Ordinal)
+                && deep.Contains(deepFile.Length + " characters", StringComparison.Ordinal) && Problems.FromBuild(deep).Kind == ProblemKind.LongFolder,
+                "a .pyd past 260 characters: LongFolder, naming the path and its length: " + deep);
+        Require(MakeGameRun.TooDeep(py, dll, windows: false, Deep) == null, "Linux: no path check");
+        Require(MakeGameRun.TooDeep(py, dll, windows: true, Shallow) == null, "every path short: not the folder's depth");
+        Require(MakeGameRun.TooDeep(py, "nup.py stopped (exit status 1): ValueError: TOC SHA-256 mismatch", windows: true, Deep) == null,
+                "another error: not measured");
+        Require(Problems.FromBuild("ImportError: DLL load failed while importing backend_c: The filename or extension is too long.").Kind
+                == ProblemKind.LongFolder, "Python's own words, in English: LongFolder");
+        Require(Problems.FromBuild(dll).Kind == ProblemKind.Unknown, "Python's words in another language, unmeasured: as said");
         // (messages that name an antivirus, a free space or "not supported" among causes of their own: as make_game.py said them)
         Require(Problems.FromBuild(@"Could not clear C:\Longshot\work\gen ([WinError 32] in use). A file in it is in use: close any window " +
                                    "showing that folder, wait for your antivirus to finish, then try again.").Kind == ProblemKind.Unknown,

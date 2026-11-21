@@ -20,6 +20,7 @@ public enum ProblemKind
     GameCrashed,        // the game closed with a crash report in its log
     GameRunning,        // the build was done, but Longshot ran from its folder at the swap (Windows)
     BlockedFolder,      // the build tools are under a folder Windows lets no program list (Longshot#1010)
+    LongFolder,         // the build tools are so deep in their folder that Windows loads none of Python's own parts (#205)
 }
 
 /// What a fix button does (the screen decides how)
@@ -39,6 +40,10 @@ public static partial class Problems
     /// The words that start the message of build tools under a folder Windows lets no program list (MakeGameRun.Blocked, and
     /// make_game.py check_mingw's in Longshot): BlockedFolder
     public const string BlockedFolderWords = "Windows doesn't let programs look inside";
+
+    /// The words that start the message of build tools too deep for Windows to load their Python's parts (MakeGameRun.TooDeep):
+    /// LongFolder
+    public const string LongFolderWords = "Longshot's folder is too deep for Windows:";
 
     /// The driver download page for a maker (SystemInfo's names); null for another
     public static string? DriverPage(string? vendor) => vendor switch
@@ -68,6 +73,13 @@ public static partial class Problems
                 Tr.N("Windows doesn't let programs look inside one of the folders Longshot is in (such as C:\\Users\\<you>\\Cookies), " +
                 "so its build tools can't start. Move Longshot's folder somewhere else, for example C:\\Longshot, start Longshot " +
                 "from there and build again."), [BuildAgain]);
+        // (#205: MakeGameRun.TooDeep, or Python's own words when the launcher could not measure the path: its extension modules (a
+        // .pyd) are loaded by Windows, which takes no path of 260 characters or more from them. Before Antivirus too)
+        if (Has(LongFolderWords) || Has("DLL load failed") && Has("filename or extension is too long"))
+            return new Problem(ProblemKind.LongFolder, Tr.N("Longshot's folder is too deep"),
+                Tr.N("Windows can't load a program's parts from a path of 260 characters or more, and Longshot's folder is so deep " +
+                "that some of its build tools' own files are past that. Move Longshot's folder closer to the top of the drive, for " +
+                "example to C:\\Longshot, start Longshot from there and build again."), [BuildAgain]);
         // (make_game.py check_cpu: the compiler's files are gone; check_mingw: the compiler is not there or can't build)
         if (Has("antivirus most likely removed") || Has("a folder your antivirus allows"))
             return new Problem(ProblemKind.Antivirus, Tr.N("Your antivirus removed some of Longshot's files"),
