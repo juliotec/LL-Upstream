@@ -290,6 +290,7 @@ a pull request that changes a screen:
 ```sh
 dotnet run --project tools/screenshots -- work/screenshots            # every scene
 dotnet run --project tools/screenshots -- work/screenshots build-log  # only these
+dotnet run --project tools/screenshots -- --lang de --size 960x560 work/screenshots home-update  # in German, the window at its smallest
 ```
 
 Each scene is one PNG of the 960x600 window, named after it; the scenes are in `tools/screenshots/Program.cs` (the home,

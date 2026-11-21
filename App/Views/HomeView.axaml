@@ -387,8 +387,9 @@
             </StackPanel>
           </StackPanel>
           <!-- the pick's button: Play when it is installed, else Update to, Go back to or Build; Update beside Play, the same size
-               and with its icon, when the build has a newer version (it takes the room left, its words cut rather than the row) -->
-          <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12" Margin="0,14,0,0">
+               and with its icon, when the build has a newer version, or under it when its words are too long for the row (German's
+               Aktualisieren): the whole word, never cut -->
+          <WrapPanel ItemSpacing="12" LineSpacing="10" Margin="0,14,0,0">
             <Button Classes="go" Command="{Binding GoCommand}" IsVisible="{Binding GoIsPlay}">
               <StackPanel Orientation="Horizontal" Spacing="8">
                 <c:Icon Kind="play" Width="18" Height="18"/>
@@ -398,14 +399,13 @@
             <Button Classes="primary tall" Command="{Binding GoCommand}" IsVisible="{Binding GoIsBuild}">
               <TextBlock Text="{Binding GoText}" TextTrimming="CharacterEllipsis" MaxWidth="260"/>
             </Button>
-            <Button Grid.Column="1" Classes="primary tall hero" HorizontalAlignment="Left" Command="{Binding UpdateDefaultCommand}"
-                    IsVisible="{Binding HeroHasUpdate}">
+            <Button Classes="primary tall hero" Command="{Binding UpdateDefaultCommand}" IsVisible="{Binding HeroHasUpdate}">
               <StackPanel Orientation="Horizontal" Spacing="8">
                 <c:Icon Kind="arrowUp" Width="18" Height="18"/>
                 <TextBlock Text="{c:T 'Update'}" TextTrimming="CharacterEllipsis"/>
               </StackPanel>
             </Button>
-          </Grid>
+          </WrapPanel>
           <!-- what it does: the installed version's line, the build a version replaces in its folder, or a new build's -->
           <TextBlock Classes="note" Text="{Binding HeroNote}" TextWrapping="Wrap" Margin="0,8,0,0"/>
           <!-- Remove: the row's Delete -->
@@ -420,9 +420,10 @@
         </StackPanel>
 
         <StackPanel Grid.Row="1" Grid.Column="1" VerticalAlignment="Top" Margin="0,8,0,0">
-          <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,12">
+          <!-- (the links under each other, right, when a narrower window or a longer translation leaves them no room side by side) -->
+          <Grid ColumnDefinitions="Auto,*" ColumnSpacing="18" Margin="0,0,0,12">
             <TextBlock Classes="label" Text="{c:T 'YOUR INSTANCES'}" Margin="0" VerticalAlignment="Center"/>
-            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="18">
+            <WrapPanel Grid.Column="1" ItemSpacing="18" LineSpacing="4" HorizontalAlignment="Right" VerticalAlignment="Center">
               <Button Classes="link" Command="{Binding AddFolderCommand}" ToolTip.Tip="{c:T 'A game folder, a folder of them, or a portable launcher\'s LongshotLauncher-data: listed where it is'}">
                 <StackPanel Orientation="Horizontal" Spacing="6">
                   <c:Icon Kind="folder" Width="14" Height="14"/>
@@ -435,7 +436,7 @@
                   <TextBlock Text="{c:T 'Build another version'}"/>
                 </StackPanel>
               </Button>
-            </StackPanel>
+            </WrapPanel>
           </Grid>
           <Border Classes="card">
             <ScrollViewer MaxHeight="370" VerticalScrollBarVisibility="Auto">

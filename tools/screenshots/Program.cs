@@ -3,9 +3,10 @@ using Avalonia.VisualTree;
 // The launcher's screens drawn without a display, into PNGs: each scene sets up a launcher of its own (a home in a temporary
 // folder, no game files, no network) and the page it shows, and the window is rendered by Skia through Avalonia.Headless.
 //
-//   dotnet run --project tools/screenshots -- [out folder] [scene ...]
+//   dotnet run --project tools/screenshots -- [--lang <code>] [--size <width>x<height>] [out folder] [scene ...]
 //
-// Out folder: default work/screenshots. No scene named: every scene. The scenes are below (Scenes); a pull request that changes
+// --lang: the launcher's language (Tr.All's codes, de for German): long translations are where a screen runs out of room.
+// --size: the window resized to that (its smallest is MainWindow's MinWidth and MinHeight). Out folder: default work/screenshots. No scene named: every scene. The scenes are below (Scenes); a pull request that changes
 // a screen adds or updates the scene that shows it.
 using Avalonia;
 using Avalonia.Headless;
@@ -813,10 +814,25 @@ static class Program
         return page;
     }
 
+    /// --size: the window's, for every scene that is not the TV view
+    static (double Width, double Height)? size;
+
     [STAThread]
     static int Main(string[] args)
     {
         if (args.Length == 1 && args[0] == "--check-vulkan") return VulkanChecks.Run();
+        var lang = Tr.English;
+        while (args.Length >= 2 && args[0] is "--lang" or "--size")
+        {
+            if (args[0] == "--lang") lang = Tr.Pick(args[1]) ?? throw new ArgumentException("no language " + args[1]);
+            else
+            {
+                var wh = args[1].Split('x');
+                size = (double.Parse(wh[0], System.Globalization.CultureInfo.InvariantCulture),
+                        double.Parse(wh[1], System.Globalization.CultureInfo.InvariantCulture));
+            }
+            args = args[2..];
+        }
         var outDir = Path.GetFullPath(args.Length > 0 ? args[0] : Path.Combine("work", "screenshots"));
         var wanted = args.Skip(1).ToHashSet(StringComparer.Ordinal);
         var unknown = wanted.Where(w => Scenes.All(s => s.Name != w)).ToList();
@@ -828,7 +844,7 @@ static class Program
         Directory.CreateDirectory(outDir);
         MainWindow.Headless = true;
         AppBuilder.Configure<App>().UseSkia().With(App.Fonts()).UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false }).SetupWithoutStarting();
-        Tr.Use(Tr.English);
+        Tr.Use(lang);
         foreach (var scene in Scenes.Where(s => wanted.Count == 0 || wanted.Contains(s.Name)))
         {
             var path = Path.Combine(outDir, scene.Name + ".png");
@@ -880,6 +896,11 @@ static class Program
             {
                 window.Width = 1920;
                 window.Height = 1080;
+            }
+            else if (size is { } resized)
+            {
+                window.Width = resized.Width;
+                window.Height = resized.Height;
             }
             window.Show();
             if (scene.Page(main) is { } page) main.Navigate(page);

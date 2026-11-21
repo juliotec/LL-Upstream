@@ -65,6 +65,10 @@ static partial class Program
         Require(System.Text.RegularExpressions.Regex.IsMatch(view, "Classes=\"primary tall hero\"[^>]*Command=\"\\{Binding UpdateDefaultCommand\\}\"[^>]*>\\s*<StackPanel Orientation=\"Horizontal\" Spacing=\"8\">\\s*<c:Icon Kind=\"arrowUp\" Width=\"18\" Height=\"18\"/>")
                 && System.Text.RegularExpressions.Regex.IsMatch(app, "<Style Selector=\"Button.hero\">\\s*<Setter Property=\"Height\" Value=\"50\"/>\\s*<Setter Property=\"Padding\" Value=\"34,0\"/>"),
                 "Update beside Play has its arrow and Play's height and padding.");
+        Require(System.Text.RegularExpressions.Regex.IsMatch(view, "<WrapPanel ItemSpacing=\"12\"[^>]*>\\s*<Button Classes=\"go\" Command=\"\\{Binding GoCommand\\}\"")
+                && System.Text.RegularExpressions.Regex.IsMatch(view, "Classes=\"primary tall hero\"[^>]*>(?:(?!</Button>).)*</Button>\\s*</WrapPanel>",
+                                                                System.Text.RegularExpressions.RegexOptions.Singleline),
+                "Update goes under Play when its words do not fit beside it (#226: German's Aktualisieren was cut, not the row).");
         Require(view.Contains("IsVisible=\"{Binding HasTrackUpdate}\"") && view.Contains("Text=\"{Binding TrackUpdate}\"")
                 && view.Contains("Command=\"{Binding NotesDefaultCommand}\" VerticalAlignment=\"Center\"")
                 && view.Contains("IsVisible=\"{Binding !TrackUpdateIsPullRequest}\"/>")

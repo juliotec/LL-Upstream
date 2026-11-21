@@ -4,6 +4,7 @@ using Avalonia.Animation;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Input.Platform;
+using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Platform;
 using Avalonia.Platform.Storage;
@@ -41,10 +42,11 @@ public sealed partial class MainWindow : Window, IWindowHost
         InitializeComponent();
         if (tv)
         {
-            CanResize = true;
             WindowState = WindowState.FullScreen;
             MinimizeButton.IsVisible = false;
         }
+        else FitScreen();
+        AddGrips();
         Shape();
         // (Windows: the .ico, so the title bar, taskbar and Alt-Tab each take their size, not the 512 pixel logo scaled down)
         if (OperatingSystem.IsWindows()) Icon = new WindowIcon(AssetLoader.Open(new Uri("avares://LongshotLauncher/Assets/longshot.ico")));
@@ -59,10 +61,7 @@ public sealed partial class MainWindow : Window, IWindowHost
         KeyDown += (_, e) =>
         {
             if (e.Key != Key.F11 || e.KeyModifiers != KeyModifiers.None) return;
-            var full = WindowState != WindowState.FullScreen;
-            if (full) CanResize = true;
-            WindowState = full ? WindowState.FullScreen : WindowState.Normal;
-            if (!full && !tv) CanResize = false;
+            WindowState = WindowState != WindowState.FullScreen ? WindowState.FullScreen : WindowState.Normal;
             e.Handled = true;
         };
         Opened += (_, _) => pad ??= new PadInput(this, read: !Design.IsDesignMode && !Headless);
@@ -125,9 +124,55 @@ public sealed partial class MainWindow : Window, IWindowHost
             ActualTransparencyLevel != WindowTransparencyLevel.None);
         Frame.CornerRadius = new CornerRadius(radius);
         Frame.BorderThickness = new Thickness(fills ? 0 : 1);
+        Grips.IsVisible = !fills;
         var scale = fills && ClientSize.Width > 0 && ClientSize.Height > 0
             ? Math.Min(ClientSize.Width / DesignWidth, ClientSize.Height / DesignHeight) : 1;
         Scaler.LayoutTransform = Math.Abs(scale - 1) < 0.01 ? null : new ScaleTransform(scale, scale);
+    }
+
+    /// A screen smaller than the window (a laptop's, scaled up): the window opens within its work area, no smaller than its
+    /// minimum; the pages lay out in the room they have, and scroll
+    void FitScreen()
+    {
+        if (Screens.Primary is not { } screen) return;
+        var area = screen.WorkingArea.Size.ToSize(screen.Scaling);
+        Width = Math.Max(MinWidth, Math.Min(Width, area.Width));
+        Height = Math.Max(MinHeight, Math.Min(Height, area.Height));
+    }
+
+    /// The window's edges and corners, each a strip a press on which resizes the window from there (the window draws its own
+    /// frame, WindowDecorations None, so the system gives it none to hold); the corners over the edges' ends
+    void AddGrips()
+    {
+        const double edge = 5, corner = 12;
+        (WindowEdge Edge, HorizontalAlignment H, VerticalAlignment V, StandardCursorType Cursor)[] grips =
+        [
+            (WindowEdge.West, HorizontalAlignment.Left, VerticalAlignment.Stretch, StandardCursorType.LeftSide),
+            (WindowEdge.East, HorizontalAlignment.Right, VerticalAlignment.Stretch, StandardCursorType.RightSide),
+            (WindowEdge.North, HorizontalAlignment.Stretch, VerticalAlignment.Top, StandardCursorType.TopSide),
+            (WindowEdge.South, HorizontalAlignment.Stretch, VerticalAlignment.Bottom, StandardCursorType.BottomSide),
+            (WindowEdge.NorthWest, HorizontalAlignment.Left, VerticalAlignment.Top, StandardCursorType.TopLeftCorner),
+            (WindowEdge.NorthEast, HorizontalAlignment.Right, VerticalAlignment.Top, StandardCursorType.TopRightCorner),
+            (WindowEdge.SouthWest, HorizontalAlignment.Left, VerticalAlignment.Bottom, StandardCursorType.BottomLeftCorner),
+            (WindowEdge.SouthEast, HorizontalAlignment.Right, VerticalAlignment.Bottom, StandardCursorType.BottomRightCorner),
+        ];
+        foreach (var (side, h, v, cursor) in grips)
+        {
+            var isCorner = h != HorizontalAlignment.Stretch && v != VerticalAlignment.Stretch;
+            var grip = new Border
+            {
+                Background = Brushes.Transparent, HorizontalAlignment = h, VerticalAlignment = v, Cursor = new Cursor(cursor),
+                Width = h == HorizontalAlignment.Stretch ? double.NaN : isCorner ? corner : edge,
+                Height = v == VerticalAlignment.Stretch ? double.NaN : isCorner ? corner : edge,
+            };
+            grip.PointerPressed += (_, e) =>
+            {
+                if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed || WindowState != WindowState.Normal) return;
+                BeginResizeDrag(side, e);
+                e.Handled = true;
+            };
+            Grips.Children.Add(grip);
+        }
     }
 
     void Drag(DragEventArgs e, bool over)

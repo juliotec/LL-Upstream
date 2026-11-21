@@ -113,7 +113,7 @@
               <c:Icon Kind="download" Width="18" Height="18" VerticalAlignment="Center"/>
               <StackPanel Grid.Column="1" Spacing="3">
                 <TextBlock Classes="transferTitle" Text="{c:T 'From Hookshot…'}"/>
-                <TextBlock Classes="faint" FontSize="11.5" Text="{c:T 'Bring over your Hookshot progress'}"/>
+                <TextBlock Classes="faint" FontSize="11.5" Text="{c:T 'Bring over your Hookshot progress'}" TextWrapping="Wrap"/>
               </StackPanel>
             </Grid>
           </Button>

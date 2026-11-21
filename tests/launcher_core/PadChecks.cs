@@ -105,5 +105,12 @@ static partial class Program
         var window = File.ReadAllText(Path.Combine(repo, "App", "MainWindow.axaml"));
         Require(Regex.IsMatch(window, "Command=\"\\{Binding GoHomeCommand\\}\"[^>]*c:Pad\\.Back=\"True\""),
                 "The title bar's Home tab is not a controller's B on the pages the tabs move between (c:Pad.Back).");
+        // (#113: a window too narrow for a longer translation, or too tall for a laptop's screen, can be resized; it has no system
+        // frame to hold, so its own edges are the grips, off while it fills the screen, where the pages are scaled instead)
+        var code = File.ReadAllText(Path.Combine(repo, "App", "MainWindow.axaml.cs"));
+        Require(window.Contains("CanResize=\"True\"") && Regex.IsMatch(window, "MinWidth=\"\\d+\" MinHeight=\"\\d+\"")
+                && window.Contains("<Panel Name=\"Grips\"/>") && !code.Contains("CanResize = false")
+                && code.Contains("BeginResizeDrag(side, e)") && code.Contains("Grips.IsVisible = !fills;") && code.Contains("FitScreen();"),
+                "The window cannot be resized by its edges, or has no minimum size, or does not open within a smaller screen.");
     }
 }

@@ -7,7 +7,7 @@
         x:DataType="vm:MainViewModel"
         Title="Longshot Launcher"
         Icon="avares://LongshotLauncher/Assets/longshot.png"
-        Width="1040" Height="680" CanResize="False"
+        Width="1040" Height="680" MinWidth="960" MinHeight="560" CanResize="True"
         WindowDecorations="None" Background="Transparent" TransparencyLevelHint="Transparent"
         DragDrop.AllowDrop="True"
         WindowStartupLocation="CenterScreen">
@@ -94,6 +94,7 @@
         <GradientStop Offset="1" Color="#121418"/>
       </LinearGradientBrush>
     </Border.Background>
+    <Panel>
     <LayoutTransformControl Name="Scaler">
     <Panel>
       <Grid RowDefinitions="64,*">
@@ -236,5 +237,8 @@
       </Border>
     </Panel>
     </LayoutTransformControl>
+    <!-- the window's edges and corners, to resize it by (it has no system frame): MainWindow.Grips; not while it fills the screen -->
+    <Panel Name="Grips"/>
+    </Panel>
   </Border>
 </Window>
