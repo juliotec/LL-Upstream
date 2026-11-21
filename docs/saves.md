@@ -265,8 +265,9 @@ which also runs from the command line): the launcher does not read the game or a
 default build's own tools with that version's Python, asks it for JSON (`--json`), and shows what it answers
 (`Core/SaveEditor.cs`, following how `PerfReports` runs `perf_report.py`). The rules about what a save can have, and where, are the editor's alone.
 
-**What it needs.** A build the launcher made, whose version's tools are still on this PC and have the editor (a version from
-before it has none: Progress is off, and the page says so), and the game's files in the build's folder (`romfs`, which the editor
+**What it needs.** A build the launcher made, whose version's tools are still on this PC and have the editor (no Longshot
+release has it yet, up to 3.0.0: it comes with [Longshot#1401](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/1401); until then Progress is off, and the page says
+so and to update Longshot once a version brings it), and the game's files in the build's folder (`romfs`, which the editor
 reads the game's own lists from: its names, chests, Gold Skulltulas, dungeons, quests). Nothing of the game is kept by the
 launcher or leaves the PC. The page edits the save the Saves page lists (the profile the game opens, even when a stray one beside it sorts first); a save written by another game version is shown and not
 edited (edit it with the build that wrote it).

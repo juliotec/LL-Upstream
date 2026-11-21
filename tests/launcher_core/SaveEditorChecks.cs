@@ -166,7 +166,7 @@ static partial class Program
         var own = PerfTools(Path.Combine(root, "tools"), "v3.4.0");
         Require(SaveEditing.Find(build, toolchains).Why == SaveEditorWhy.NoTools, "The version's tools without their Python: none.");
         Touch(own.Python);
-        Require(SaveEditing.Find(build, toolchains).Why == SaveEditorWhy.NoEditor, "A version whose tools have no save editor: a newer one has it.");
+        Require(SaveEditing.Find(build, toolchains).Why == SaveEditorWhy.NoEditor, "A version whose tools have no save editor.");
         Touch(SaveEditing.ScriptOf(own));
         Require(SaveEditing.Find(build, toolchains).Why == SaveEditorWhy.NoEditor, "The script without the save file code beside it: no editor.");
         Touch(Path.Combine(own.ToolsRoot, "scripts", "oot_savefile.py"));
@@ -179,6 +179,8 @@ static partial class Program
         Require(SaveEditing.Find(new BuildEntry { Folder = plain }, toolchains).Why == SaveEditorWhy.NoTools, "A folder the launcher did not build (no version stamp): no tools to use.");
         foreach (var w in new[] { SaveEditorWhy.NoSave, SaveEditorWhy.NoBuild, SaveEditorWhy.NoGameFiles, SaveEditorWhy.NoTools, SaveEditorWhy.NoEditor })
             Require(SaveEditing.Say(w).Length > 20, "Each reason is said: " + w);
+        Require(SaveEditing.Say(SaveEditorWhy.NoEditor) is var noEditor && !noEditor.Contains("A newer version has it") && noEditor.Contains("3.0.0")
+                && noEditor.Contains("update Longshot"), "No editor: no released version has it yet (#217), so it says up to which version none has, and to update once one does, not that a newer one has it.");
 
         // ---- the command ----
         var save = Path.Combine(root, "data", "save", "5a3c9e1f0b7d24680000000000000001");

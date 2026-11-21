@@ -172,7 +172,10 @@ public sealed class SaveEditing
         SaveEditorWhy.NoBuild => Tr.T("Build Longshot first: the save editor reads the game's own files."),
         SaveEditorWhy.NoGameFiles => Tr.T("This build's game files are not in its folder, and the save editor reads them. Build it again."),
         SaveEditorWhy.NoTools => Tr.T("This build's tools are not on this PC, and the save editor runs from them. Update or build it again."),
-        SaveEditorWhy.NoEditor => Tr.T("This version has no save editor yet. A newer version has it."),
+        // (no Longshot release has the editor yet: it is Longshot#1401, not merged. Say so, and what to do, rather than "a newer
+        // version has it", which sent players who were up to date looking for one: issue #217. Move the version on when a release
+        // without it follows 3.0.0, and say which one has it once one does)
+        SaveEditorWhy.NoEditor => Tr.T("Progress needs Longshot's save editor, and this Longshot version has none: no version up to 3.0.0 has it. Once a Longshot update brings it, update Longshot and Progress turns on by itself."),
         _ => "",
     };
 
