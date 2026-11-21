@@ -77,7 +77,7 @@ static partial class Program
         DeleteSaveChecks();
         SettingsChecks(Path.GetFullPath(Path.Combine(fixtures, "..", "..")));
         ProgressChecks();
-        LogChecks();
+        LogChecks(Path.GetFullPath(Path.Combine(fixtures, "..", "..")));
         DataLogChecks();
         LogFileChecks();
         CommandChecks();

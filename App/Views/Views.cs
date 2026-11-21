@@ -50,6 +50,7 @@ public sealed partial class BuildStepView : UserControl
             if (vm != null) vm.PropertyChanged -= Changed;   // (the page's view is reused for the next build: the last one let go)
             vm = DataContext as ViewModels.BuildStepViewModel;
             if (vm != null) vm.PropertyChanged += Changed;
+            written = null;
             WriteLog();
         };
     }
@@ -61,34 +62,47 @@ public sealed partial class BuildStepView : UserControl
         Avalonia.Threading.Dispatcher.UIThread.Post(() => { if (vm?.Following == true) LogScroll.ScrollToEnd(); },
                                                     Avalonia.Threading.DispatcherPriority.Background);
 
-    /// The details' lines, each after its level's prefix in its colour (LogColors)
+    IReadOnlyList<(Core.LogLevel Level, string Text)>? written;
+    Avalonia.Threading.DispatcherTimer? writeSoon;
+
+    /// The details' lines, each after its level's prefix in its colour (LogColors). Not again when they are the ones shown already
+    /// (a new line the level or search leaves out, the build's tick)
     void WriteLog()
     {
         if (vm is not { ShowLog: true } m) return;
-        var inlines = new Avalonia.Controls.Documents.InlineCollection();
-        var first = true;
-        foreach (var (level, text) in m.LogLines)
-        {
-            if (!first) inlines.Add(new Avalonia.Controls.Documents.LineBreak());
-            first = false;
-            inlines.Add(new Avalonia.Controls.Documents.Run(Core.LogLevels.Prefix(level) + "  ")
-                { Foreground = Controls.LogColors.Of(level), FontWeight = Avalonia.Media.FontWeight.SemiBold });
-            inlines.Add(new Avalonia.Controls.Documents.Run(text));
-        }
-        LogBlock.Inlines = inlines;
+        var lines = m.LogLines;
+        if (written is { } w && w.Count == lines.Count
+            && (w.Count == 0 || (ReferenceEquals(w[0].Text, lines[0].Text) && ReferenceEquals(w[^1].Text, lines[^1].Text))))
+            return;
+        written = lines;
+        LogBlock.ItemsSource = lines.Select(l => new LogRow(Core.LogLevels.Prefix(l.Level) + "  ", Controls.LogColors.Of(l.Level), l.Text)).ToList();
+    }
+
+    /// WriteLog at most every fifth of a second: a build at Trace adds thousands of lines a second, each raising LogText
+    void WriteLogSoon()
+    {
+        writeSoon ??= new Avalonia.Threading.DispatcherTimer(TimeSpan.FromMilliseconds(200), Avalonia.Threading.DispatcherPriority.Normal,
+                                                             (_, _) => { writeSoon!.Stop(); WriteLog(); });
+        if (!writeSoon.IsEnabled) writeSoon.Start();
     }
 
     void Changed(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (vm is not { } m) return;
-        if (e.PropertyName == nameof(m.LogText)) WriteLog();
+        if (e.PropertyName == nameof(m.LogText)) WriteLogSoon();
         if ((e.PropertyName == nameof(m.ShowLog) && m.ShowLog) || e.PropertyName is nameof(m.Level) or nameof(m.Search))
         {
+            // (another level or search, or the details opened: written now, from the bottom)
+            written = null;
+            WriteLog();
             m.Following = true;
             FollowLater();
         }
     }
 }
+
+/// A line of the build's details, as BuildStepView shows it
+public sealed record LogRow(string Prefix, Avalonia.Media.IBrush Colour, string Text);
 
 public sealed partial class ReadyView : UserControl { public ReadyView() => InitializeComponent(); }
 public sealed partial class ProblemView : UserControl { public ProblemView() => InitializeComponent(); }

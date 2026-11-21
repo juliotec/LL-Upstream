@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:LongshotLauncher.ViewModels"
              xmlns:c="using:LongshotLauncher.Controls"
+             xmlns:v="using:LongshotLauncher.Views"
              x:Class="LongshotLauncher.Views.BuildStepView"
              x:DataType="vm:BuildStepViewModel">
   <UserControl.Styles>
@@ -100,9 +101,22 @@
         <Border CornerRadius="10" BorderBrush="{StaticResource GlassLine}" BorderThickness="1" Background="#33000000">
           <!-- (follows the log's new lines while it is scrolled to the bottom; scrolled up, it stays put: BuildStepView in Views.cs) -->
           <ScrollViewer Name="LogScroll" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Padding="12,10">
-            <!-- (each line with its level's coloured prefix, written by BuildStepView in Views.cs as LogText changes) -->
-            <SelectableTextBlock Name="LogBlock" FontFamily="{StaticResource Mono}" FontSize="11" LineHeight="17.6"
-                                 Foreground="{StaticResource InkSoft}"/>
+            <!-- (each line with its level's coloured prefix, given by BuildStepView in Views.cs as LogText changes. Only the lines
+                 in view are laid out (VirtualizingStackPanel): one text of the 2000 lines took half a second to lay out again at
+                 each of a build's lines, and the window stopped answering, #201) -->
+            <ItemsControl Name="LogBlock">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate><VirtualizingStackPanel/></ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="v:LogRow">
+                  <SelectableTextBlock FontFamily="{StaticResource Mono}" FontSize="11" LineHeight="17.6" Height="17.6"
+                                       Foreground="{StaticResource InkSoft}">
+                    <Run Text="{Binding Prefix}" Foreground="{Binding Colour}" FontWeight="SemiBold"/><Run Text="{Binding Text}"/>
+                  </SelectableTextBlock>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
           </ScrollViewer>
         </Border>
       </DockPanel>

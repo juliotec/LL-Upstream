@@ -4,7 +4,7 @@ using LongshotLauncher.Core;
 /// info (a game from before the levels), a build's "error: " is an error; and the details' tail, by level and search
 static partial class Program
 {
-    static void LogChecks()
+    static void LogChecks(string repo)
     {
         foreach (var (line, want) in new (string, LogLevel)[]
         {
@@ -46,5 +46,16 @@ static partial class Program
         Require(log.Tail(LogLevel.Trace, "network", 100).Count == 51, "search over trace lines");
         Require(log.Tail(LogLevel.Info, "   ", 10).Count == 3, "a blank search is no search");
         Require(log.Last(2).SequenceEqual(["error: Stopped", "[hos host] Last NETWORK line"]), "the report's lines: every level");
+
+        // (the details during a build (#201): the lines shown are only those in view, and written again at most every fifth of a
+        // second and only when they changed, not at each of a build's thousands of lines a second)
+        var stepView = File.ReadAllText(Path.Combine(repo, "App", "Views", "BuildStepView.axaml"));
+        Require(System.Text.RegularExpressions.Regex.IsMatch(stepView, @"<ItemsControl Name=""LogBlock"">\s*<ItemsControl.ItemsPanel>\s*<ItemsPanelTemplate><VirtualizingStackPanel/>"),
+                "The details' lines are a VirtualizingStackPanel's: one text of 2000 lines laid out again froze the window (#201).");
+        var views = File.ReadAllText(Path.Combine(repo, "App", "Views", "Views.cs"));
+        Require(views.Contains("if (e.PropertyName == nameof(m.LogText)) WriteLogSoon();")
+                && views.Contains("new Avalonia.Threading.DispatcherTimer(TimeSpan.FromMilliseconds(200)")
+                && views.Contains("ReferenceEquals(w[0].Text, lines[0].Text) && ReferenceEquals(w[^1].Text, lines[^1].Text)"),
+                "A new line writes the details at most every 200 ms, and not when the lines shown are the same (#201).");
     }
 }
