@@ -386,7 +386,9 @@ public sealed class LauncherService
         CrashReports.BeforePlay(folder, Settings.SendCrashReportsAutomatically);
         using var _ = Process.Start(GamePlay.StartInfo(folder, Platform, user: user,
                                                        intelCompiles: IntelCompilesApply ? Settings.IntelCompiles : GamePlay.IntelCompilesAuto,
-                                                       intelLongerLimits: Settings.IntelLongerLimits && IntelCompilesApply));
+                                                       intelLongerLimits: Settings.IntelLongerLimits && IntelCompilesApply,
+                                                       gamescope: Platform == Platform.Linux && Settings.Gamescope,
+                                                       gamescopeOptions: Settings.GamescopeOptions));
         return said;
     }
 

@@ -38,6 +38,12 @@ public sealed class LauncherSettings
     /// (Windows, Intel graphics) Shader time limit, Longer: the waits on a driver that seems stuck made longer, for the build's
     /// shader preparation and in play (GamePlay.IntelLongerLimits); false: Normal, Longshot's own
     public bool IntelLongerLimits { get; set; }
+    /// (Linux) Start the game through gamescope instead of on the desktop: the micro-compositor that can scale the picture,
+    /// cap the frame rate, enable HDR and run the game full screen. Off: the game starts as it always has
+    public bool Gamescope { get; set; }
+    /// (Linux) The gamescope options, as the player would type them after gamescope (GamePlay.SplitOptions splits them):
+    /// -W 3840 -H 2160 -r 164 -f --hdr-enabled. Empty: gamescope's own defaults
+    public string? GamescopeOptions { get; set; }
     /// Build memory in GB (LONGSHOT_MEM_LIMIT_GB); null: Automatic
     public int? MemoryGb { get; set; }
     /// Build workers (LONGSHOT_JOBS / --jobs); null: Automatic

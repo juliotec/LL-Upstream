@@ -102,6 +102,14 @@
           <Button Content="{c:T 'Manage storage'}" Command="{Binding StorageCommand}" VerticalAlignment="Center"/>
           <TextBlock Grid.Column="1" Classes="hint" Margin="0" Text="{Binding StorageHint}" TextWrapping="Wrap" VerticalAlignment="Center"/>
         </Grid>
+        <StackPanel IsVisible="{Binding ShowGamescope}" Spacing="4" Margin="0,0,0,12">
+          <TextBlock Classes="label" Text="{c:T 'GAMESCOPE'}"/>
+          <CheckBox Classes="tick" Content="{c:T 'Start the game through gamescope'}" IsChecked="{Binding Gamescope}"/>
+          <TextBox Classes="path" Text="{Binding GamescopeOptions}" IsEnabled="{Binding Gamescope}"
+                   PlaceholderText="-W 3840 -H 2160 -r 164 -f --hdr-enabled"
+                   AutomationProperties.Name="{c:T 'Gamescope options'}"/>
+          <TextBlock Classes="hint" Text="{Binding GamescopeHint}" TextWrapping="Wrap"/>
+        </StackPanel>
         <CheckBox Classes="tick" Content="{c:T 'Check for updates when the launcher starts'}" IsChecked="{Binding CheckUpdates}"/>
         <CheckBox Classes="tick" Content="{c:T 'Download the build tools of an update as soon as it is out (about 500 MB). Nothing updates until you choose to.'}"
                   IsChecked="{Binding DownloadUpdatesEarly}" IsEnabled="{Binding CheckUpdates}"/>

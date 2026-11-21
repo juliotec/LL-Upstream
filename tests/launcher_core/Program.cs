@@ -81,6 +81,7 @@ static partial class Program
         DataLogChecks();
         LogFileChecks();
         CommandChecks();
+        GamescopeChecks();
         ShaderCacheChecks();
         StorageChecks();
         UpdatePolicyChecks();

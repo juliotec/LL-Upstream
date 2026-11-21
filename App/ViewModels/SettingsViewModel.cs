@@ -253,6 +253,34 @@ public sealed class SettingsViewModel : ViewModelBase, ILeavingPage
         }
     }
 
+    /// (Linux) Start the game through gamescope, with the options below (LauncherSettings.Gamescope)
+    public bool ShowGamescope => Main.Linux;
+
+    public bool Gamescope
+    {
+        get => s.Gamescope;
+        set
+        {
+            s.Gamescope = value;
+            Save();
+            Raise();
+        }
+    }
+
+    /// The gamescope options, as typed (LauncherSettings.GamescopeOptions); split when the game starts (GamePlay.SplitOptions)
+    public string GamescopeOptions
+    {
+        get => s.GamescopeOptions ?? "";
+        set
+        {
+            s.GamescopeOptions = value;
+            Save();
+            Raise();
+        }
+    }
+
+    public string GamescopeHint => Tr.T("Any gamescope option, typed as you would after gamescope: -W 3840 -H 2160 -r 164 -f --hdr-enabled. The options go before the game; what you leave out takes gamescope's own defaults.");
+
     /// The player's answer for every build; each folder takes it before its game next starts (PerfReports.BeforePlay)
     public bool SendPerformanceStatistics
     {

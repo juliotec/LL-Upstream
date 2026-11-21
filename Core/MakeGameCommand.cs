@@ -249,18 +249,66 @@ public static class GamePlay
         return env.LongshotRoot;
     }
 
+    /// The options the player typed for gamescope (LauncherSettings.GamescopeOptions), split as a shell would: spaces separate
+    /// them, '...' and "..." group them (quotes of the other kind stay in the word), and a backslash escapes the next character
+    /// outside quotes. In double quotes it escapes only $, `, ", backslash and newline. Nothing for null or blank
+    public static IReadOnlyList<string> SplitOptions(string? options)
+    {
+        var words = new List<string>();
+        if (string.IsNullOrWhiteSpace(options)) return words;
+        var word = new System.Text.StringBuilder();
+        var quoted = '\0';
+        var started = false;
+        for (var i = 0; i < options.Length; i++)
+        {
+            var c = options[i];
+            if (quoted != '\0')
+            {
+                if (c == quoted) quoted = '\0';
+                else if (c == '\\' && quoted == '"' && i + 1 < options.Length && options[i + 1] is '$' or '`' or '"' or '\\' or '\n')
+                {
+                    if (options[++i] != '\n') word.Append(options[i]);
+                }
+                else word.Append(c);
+            }
+            else if (c is '\'' or '"') { quoted = c; started = true; }
+            else if (c == '\\' && i + 1 < options.Length) { word.Append(options[++i]); started = true; }
+            else if (char.IsWhiteSpace(c)) { if (started) { words.Add(word.ToString()); word.Clear(); started = false; } }
+            else { word.Append(c); started = true; }
+        }
+        if (started) words.Add(word.ToString());
+        return words;
+    }
+
     /// user: Longshot's user folder, which every build shares (UserFolder), given to the game as --user. Every build takes --user,
-    /// the ones from before the launcher too; without it the game keeps its saves in its own folder's user\ on Windows
+    /// the ones from before the launcher too; without it the game keeps its saves in its own folder's user\ on Windows.
+    /// gamescope: (Linux) start the game through gamescope, with gamescopeOptions before the game (SplitOptions)
     public static ProcessStartInfo StartInfo(string folder, Platform platform, IReadOnlyDictionary<string, string>? current = null, string? user = null,
-                                             int intelCompiles = IntelCompilesAuto, bool intelLongerLimits = false)
+                                             int intelCompiles = IntelCompilesAuto, bool intelLongerLimits = false,
+                                             bool gamescope = false, string? gamescopeOptions = null)
     {
         current ??= System.Environment.GetEnvironmentVariables().Cast<System.Collections.DictionaryEntry>()
             .ToDictionary(e => (string)e.Key, e => (string?)e.Value ?? "");
-        var si = new ProcessStartInfo(GameFolder.ExePath(folder, platform)) { UseShellExecute = false, WorkingDirectory = folder };
+        var exe = GameFolder.ExePath(folder, platform);
+        var game = new List<string>();
         if (user != null)
         {
-            si.ArgumentList.Add("--user");
-            si.ArgumentList.Add(user);
+            game.Add("--user");
+            game.Add(user);
+        }
+        ProcessStartInfo si;
+        if (gamescope && platform == Platform.Linux)
+        {
+            si = new ProcessStartInfo("gamescope") { UseShellExecute = false, WorkingDirectory = folder };
+            foreach (var option in SplitOptions(gamescopeOptions)) si.ArgumentList.Add(option);
+            si.ArgumentList.Add("--");
+            si.ArgumentList.Add(exe);
+            foreach (var argument in game) si.ArgumentList.Add(argument);
+        }
+        else
+        {
+            si = new ProcessStartInfo(exe) { UseShellExecute = false, WorkingDirectory = folder };
+            foreach (var argument in game) si.ArgumentList.Add(argument);
         }
         si.Environment.Clear();
         foreach (var (k, v) in Environment(platform, current, intelCompiles, intelLongerLimits)) si.Environment[k] = v;

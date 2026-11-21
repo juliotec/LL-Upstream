@@ -12,6 +12,7 @@ makes the test refuse a checkout that is at another commit); a scheduled CI run 
 move the pin, see docs/ci.md.
 
 With no dotnet here the check is skipped (exit 0, saying why), unless --strict.
+--strict also builds and runs the app-level settings check (which needs the launcher's Avalonia packages).
 """
 import argparse
 import ast
@@ -276,6 +277,13 @@ def main():
     with tempfile.TemporaryDirectory(prefix="launcher-core-") as folder:
         root = Path(folder)
         (root / "vectors.json").write_text(json.dumps(vectors(), ensure_ascii=False), encoding="utf-8")
+        if args.strict:
+            app_out = root / "app-build"
+            subprocess.run([dotnet, "build", str(ROOT / "tests" / "launcher_app" / "LauncherAppTests.csproj"),
+                            "--configuration", "Release", "--artifacts-path", str(app_out), "--disable-build-servers", "-nologo", "-v:q"],
+                           cwd=root, env=env, check=True)
+            app_dll = next((app_out / "bin" / "LauncherAppTests").rglob("LauncherAppTests.dll"))
+            subprocess.run([dotnet, str(app_dll)], cwd=root, env=env, check=True, timeout=300)
         out = root / "build"
         subprocess.run([dotnet, "build", str(ROOT / "tests" / "launcher_core" / "LauncherCoreTests.csproj"), "--configuration", "Release",
                         "--artifacts-path", str(out), "--disable-build-servers", "-nologo", "-v:q"], cwd=root, env=env, check=True)
