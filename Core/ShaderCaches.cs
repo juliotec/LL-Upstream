@@ -48,6 +48,8 @@ public static class ShaderCaches
         "longshot_vk_pipelines.base",
         // (the textures a draw has sampled, for RX_VK_TEX_AHEAD: gpu/vk/texture_ahead.h)
         "longshot_textures_drawn.bin",
+        // (AMD FSR 4's unrolled layers' own pipeline cache: gpu/vk/vk_fsr4.cpp own_cache)
+        "longshot_fsr4_pipelines.bin",
     };
 
     // (the pipeline side: what the game keeps across a translator change, as it is about the game's draws and the driver's
