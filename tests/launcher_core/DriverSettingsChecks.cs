@@ -44,6 +44,19 @@ static partial class Program
         }
         Require(DriverSettings.Size(1024) == "1 GB" && DriverSettings.Size(10240) == "10 GB" && DriverSettings.Size(512) == "512 MB",
                 "Cache sizes read as the control panel gives them.");
+
+        // (a player who never changed Shader Cache Size: the global profile holds no such setting, NVAPI_SETTING_NOT_FOUND, and the
+        // driver's default holds 1 GB. Read as no setting at all, it was never raised nor offered: an RTX 4050 Laptop's cache stayed
+        // at 1025 MB and Longshot built its 40,000 pipelines again before the title)
+        const int found = 0, notFound = DriverSettings.SettingNotFound;
+        Require(DriverSettings.SettingOrDefault(found, 4096, known: true, 1024) == 4096, "A size set is read as it is.");
+        Require(DriverSettings.SettingOrDefault(notFound, 0, known: true, DriverSettings.DriverDefaultCacheMb) == DriverSettings.DriverDefaultCacheMb,
+                "Driver Default (no setting in the profile, one the driver knows) is its default's size.");
+        Require(DriverSettings.SettingOrDefault(notFound, 0, known: false, 1024) == null, "A setting the driver does not know: none.");
+        var byDefault = new FakeCache(true, DriverSettings.SettingOrDefault(notFound, 0, known: true, DriverSettings.DriverDefaultCacheMb));
+        Require(DriverSettings.ShaderCacheShort(byDefault) == 1024 && DriverSettings.RaiseShaderCache(byDefault) == 1024
+                && byDefault.Set == DriverSettings.ShaderCacheRoomMb,
+                "Driver Default's 1 GB is offered and raised to 10 GB, as a 1 GB set by hand.");
         // (the real driver, read only: a size it knows, or a driver without the setting)
         if (OperatingSystem.IsWindows() && NvApiProfiles.Open() is { } real)
             Require(real.ShaderCache().Mb is null or > 0 || !real.ShaderCache().On,

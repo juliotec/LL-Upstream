@@ -71,9 +71,9 @@ public static class DriverSettings
         return mb;
     }
 
-    /// NVIDIA's shader cache size in MB when it is under ShaderCacheNeededMb, so RaiseShaderCache would raise it; null when
-    /// the driver does not know the setting, the cache is off (Disabled, 0, or the shader cache itself off: the player's
-    /// choice) or it already holds ShaderCacheNeededMb (Unlimited is 0xFFFFFFFF)
+    /// NVIDIA's shader cache size in MB when it is under ShaderCacheNeededMb, so RaiseShaderCache would raise it (Driver
+    /// Default too: DriverDefaultCacheMb); null when the driver does not know the setting, the cache is off (Disabled, 0, or
+    /// the shader cache itself off: the player's choice) or it already holds ShaderCacheNeededMb (Unlimited is 0xFFFFFFFF)
     public static uint? ShaderCacheShort(INvidiaShaderCache nvidia)
     {
         var (on, mb) = nvidia.ShaderCache();
@@ -82,6 +82,20 @@ public static class DriverSettings
 
     /// "1 GB", "512 MB": a cache size for the window
     public static string Size(uint mb) => mb % 1024 == 0 ? $"{mb / 1024} GB" : $"{mb} MB";
+
+    /// The size Shader Cache Size's Driver Default holds, in MB: what a player who never changed it has. NVAPI gives no value for
+    /// it (the global profile has no such setting: NvAPI_DRS_GetSetting answers NVAPI_SETTING_NOT_FOUND), and players' logs show
+    /// those caches held at 1 GB (1025 MB, Longshot's "driver shader cache at the start"), as on an RTX 4050 Laptop's driver
+    public const uint DriverDefaultCacheMb = 1024;
+
+    /// A DWORD setting of the driver's global profile as NvAPI_DRS_GetSetting gave it: its value when found (status 0); when not
+    /// found (-160, NVAPI_SETTING_NOT_FOUND) but the driver knows the setting (known), it is on its Driver Default, driverDefault;
+    /// null when the driver does not know it. Any other status is the caller's NvidiaProblem
+    public static uint? SettingOrDefault(int status, uint value, bool known, uint driverDefault) =>
+        status == 0 ? value : status == SettingNotFound && known ? driverDefault : null;
+
+    /// NVAPI_SETTING_NOT_FOUND
+    public const int SettingNotFound = -160;
 }
 
 /// Why the NVIDIA driver refused (its NVAPI status, e.g. -137 NVAPI_INVALID_USER_PRIVILEGE)
@@ -203,8 +217,18 @@ public sealed class NvApiProfiles : INvidiaProfiles, INvidiaShaderCache
 
     // ---- the shader cache's size: NVDRS_SETTING_V1 (pack 4, 12320 bytes) as bytes, its fields at their offsets ----
     const int SettingBytes = 12320, SettingIdAt = 4100, SettingTypeAt = 4104, CurrentAt = 8220;
-    const int SettingNotFound = -160;   // (NVAPI_SETTING_NOT_FOUND: a driver that does not know the setting)
     const uint CacheMaxSizeId = 0x00AC8497, CacheId = 0x00198FFF;   // (PS_SHADERDISKCACHE_MAX_SIZE_ID, PS_SHADERDISKCACHE_ID)
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)] delegate int NameFromId(uint id, IntPtr name);
+
+    /// The driver knows the setting id: it has a name for it (NvAPI_DRS_GetSettingNameFromId), as every id of
+    /// NvAPI_DRS_EnumAvailableSettingIds. A setting it knows that the global profile does not hold is on its Driver Default
+    static bool Known(uint id)
+    {
+        var name = Marshal.AllocHGlobal(UnicodeMax * 2);
+        try { return Fn<NameFromId>(0xD61CBE6E)(id, name) == 0; }
+        finally { Marshal.FreeHGlobal(name); }
+    }
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)] delegate int GlobalProfile(IntPtr session, out IntPtr profile);
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)] delegate int GetSetting(IntPtr session, IntPtr profile, uint id, IntPtr setting);
@@ -228,16 +252,19 @@ public sealed class NvApiProfiles : INvidiaProfiles, INvidiaShaderCache
         finally { Marshal.FreeHGlobal(p); }
     }
 
-    /// A DWORD setting of the global profile: its value (set, or the driver's default), null when the driver does not know it
-    static uint? Dword(IntPtr session, uint id) => WithSetting<uint?>(p =>
+    /// A DWORD setting of the global profile: its value, driverDefault when the profile does not hold it (the control panel's
+    /// Driver Default: no value NVAPI gives), null when the driver does not know it (DriverSettings.SettingOrDefault)
+    static uint? Dword(IntPtr session, uint id, uint driverDefault) => WithSetting<uint?>(p =>
     {
         var status = Fn<GetSetting>(0x73BF8338)(session, Global(session), id, p);   // (NvAPI_DRS_GetSetting)
-        if (status == SettingNotFound) return null;
-        Check(status, "reading a setting");
-        return (uint)Marshal.ReadInt32(p, CurrentAt);
+        if (status != 0 && status != DriverSettings.SettingNotFound) Check(status, "reading a setting");
+        return DriverSettings.SettingOrDefault(status, status == 0 ? (uint)Marshal.ReadInt32(p, CurrentAt) : 0,
+                                               status == DriverSettings.SettingNotFound && Known(id), driverDefault);
     });
 
-    public (bool On, uint? Mb) ShaderCache() => WithSession(s => (Dword(s, CacheId) != 0, Dword(s, CacheMaxSizeId)));
+    // (the shader cache's Driver Default is on; its size's, DriverDefaultCacheMb)
+    public (bool On, uint? Mb) ShaderCache() =>
+        WithSession(s => (Dword(s, CacheId, 1) != 0, Dword(s, CacheMaxSizeId, DriverSettings.DriverDefaultCacheMb)));
 
     public void SetShaderCacheMb(uint mb) => WithSession(s => WithSetting(p =>
     {
