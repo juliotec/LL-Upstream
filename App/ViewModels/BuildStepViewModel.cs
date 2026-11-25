@@ -1109,9 +1109,9 @@ public sealed class ReadyViewModel : ViewModelBase, IWizardPage
     {
         try
         {
-            var folder = SteamShortcuts.GameHero(Job.InstallDir);
+            var folder = SteamShortcuts.GameHero(Entry.Folder);
             SteamShortcuts.WriteArtwork(p.Vdf, SteamShortcuts.TileAppId(p),
-                                        SteamShortcuts.WithGameHero(Capsules(), Job.InstallDir));
+                                        SteamShortcuts.WithGameHero(Capsules(), Entry.Folder));
             // an install from before the marked hero kept this launcher's generated logo in the
             // grid, and WriteArtwork never overwrites: beside a folder hero that file is a second
             // mark over the first, so retire our own copy of it (and only our own: a capsule the
