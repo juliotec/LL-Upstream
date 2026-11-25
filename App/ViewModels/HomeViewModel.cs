@@ -125,8 +125,15 @@ public sealed class VersionChoice(string tag) : ViewModelBase
     public string Note
     {
         get => note;
-        set => Set(ref note, value);
+        set
+        {
+            if (Set(ref note, value)) Raise(nameof(FieldNote));
+        }
     }
+    /// The note in the collapsed Version field: not "Needs the nightly launcher", which would squeeze the version's name (the list
+    /// and the dialog say it)
+    public string FieldNote => needsNightly ? "" : note;
+    bool needsNightly;
     /// Its build has a newer version on its channel: "Update available" in place of the note
     public bool HasUpdate
     {
@@ -137,7 +144,8 @@ public sealed class VersionChoice(string tag) : ViewModelBase
     public void Show(TrackVersion version, bool isDefault, bool hasUpdate)
     {
         Installed = version.Installed;
-        Note = isDefault ? Tr.T("default") : version.Newest ? Tr.T("newest") : "";
+        needsNightly = version.NeedsNightly;
+        Note = version.NeedsNightly ? Tr.T("Needs the nightly launcher") : isDefault ? Tr.T("default") : version.Newest ? Tr.T("newest") : "";
         HasUpdate = hasUpdate;
     }
 }
@@ -328,8 +336,30 @@ public sealed class HomeViewModel : ViewModelBase
         _ => false,
     };
 
+    bool needsNightlyDismissed;
+
+    /// The home's card: the newest versions are built with the new builder and need the nightly launcher (until dismissed, for
+    /// this start)
+    public bool ShowNeedsNightly => !needsNightlyDismissed && Service.NewerNeedsNightly;
+
+    public Command NeedsNightlyCommand => new(() => Main.Modal = new NeedsNightlyLauncherViewModel(Main));
+    public Command DismissNeedsNightlyCommand => new(() =>
+    {
+        needsNightlyDismissed = true;
+        Raise(nameof(ShowNeedsNightly));
+    });
+
+    /// A version built with the new builder is refused, with the way out (NeedsNightlyLauncherViewModel); true when it was
+    bool Refused(string version)
+    {
+        if (!Service.NeedsNightlyLauncher(version)) return false;
+        Main.Modal = new NeedsNightlyLauncherViewModel(Main);
+        return true;
+    }
+
     void Go()
     {
+        if (Plan is { Action: not PickAction.Play } picked && Refused(picked.Version)) return;
         switch (Plan)
         {
             case { Action: PickAction.Play }:
@@ -1038,7 +1068,8 @@ public sealed class HomeViewModel : ViewModelBase
         if (start.Problem != null) notes.Add(start.Problem);
         if (start.Folder != null && start.Kind == StartKind.Launch)
         {
-            Service.Ensure(start.Folder);
+            try { Service.Ensure(start.Folder); }
+            catch (InvalidDataException e) when (NeedsNightlyLauncher.Is(e)) { notes.Add(e.Message); }
         }
         Notice = notes.Count > 0 ? string.Join("\n", notes) : null;
         // (before the leftovers: the game a row takes back, or a game whose row went (#141), is no leftover)
@@ -1136,6 +1167,7 @@ public sealed class HomeViewModel : ViewModelBase
                         (Service.Releases.Unreachable ?? Service.Releases.Problem ?? checkProblem ?? "no version listed"));
         Refresh();
         Raise(nameof(ShowStatusReport));
+        Raise(nameof(ShowNeedsNightly));
         // (a check someone asked for answers even when nothing is new; an update shows itself: the banner, the Update buttons)
         if (wasAsked && any && !HasLauncherUpdate && !Builds.Any(b => b.HasUpdate))
             Status = Tr.F("Everything is up to date, the launcher too. Checked at {0}.", DateTime.Now.ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture));
@@ -1234,12 +1266,13 @@ public sealed class HomeViewModel : ViewModelBase
             AskPullRequest(to, JobKind.Update, b.Entry);
             return;
         }
+        if (Refused(to)) return;
         Main.StartWizard(JobKind.Update, b.Channel, to, b.Entry);
     }
 
     public void StartBuild(string channel)
     {
-        if (Service.NewestOf(channel) is not { } version) return;
+        if (Service.NewestOf(channel) is not { } version || Refused(version)) return;
         var same = Service.Registry.Builds.FirstOrDefault(b => b.Version == version);
         Main.StartWizard(same != null ? JobKind.Rebuild : JobKind.Build, channel, version, same);
     }

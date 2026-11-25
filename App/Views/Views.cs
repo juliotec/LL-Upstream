@@ -121,6 +121,7 @@ public sealed partial class DeleteView : UserControl { public DeleteView() => In
 public sealed partial class BuildFilesView : UserControl { public BuildFilesView() => InitializeComponent(); }
 public sealed partial class LicenceView : UserControl { public LicenceView() => InitializeComponent(); }
 public sealed partial class StopBuildView : UserControl { public StopBuildView() => InitializeComponent(); }
+public sealed partial class NeedsNightlyLauncherView : UserControl { public NeedsNightlyLauncherView() => InitializeComponent(); }
 public sealed partial class SavePickView : UserControl { public SavePickView() => InitializeComponent(); }
 public sealed partial class HookshotImportView : UserControl { public HookshotImportView() => InitializeComponent(); }
 public sealed partial class HookshotSettingsView : UserControl { public HookshotSettingsView() => InitializeComponent(); }

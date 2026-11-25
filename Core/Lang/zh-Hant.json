@@ -747,5 +747,12 @@
   "This launcher cannot write its handoff folder, so the game started directly: a routed start it cannot track is one it cannot keep from happening twice.": "此啟動器無法寫入其交接資料夾，因此遊戲已直接啟動：無法追蹤的轉送啟動也就無法防止發生兩次。",
   "Nothing on this system answers a steam:// link, so the game started directly.": "此系統上沒有任何程式回應 steam:// 連結，因此遊戲已直接啟動。",
   "Steam refused the tile launch (the refusal said no outright), so the game started directly.": "Steam 拒絕了透過捷徑啟動（明確拒絕），因此遊戲已直接啟動。",
-  "A game launched through Steam's tile from an earlier Play is already arriving; this Play did not start a second copy.": "先前遊戲透過 Steam 捷徑啟動的遊戲已在途中；本次啟動沒有開啟第二個副本。"
+  "A game launched through Steam's tile from an earlier Play is already arriving; this Play did not start a second copy.": "先前遊戲透過 Steam 捷徑啟動的遊戲已在途中；本次啟動沒有開啟第二個副本。",
+  "This version of Longshot is built with the new builder, which this launcher doesn't support. Switch the Longshot Launcher to its nightly channel to play it.": "此版本的 Longshot 使用新的建置器建置，本啟動器不支援。請將 Longshot Launcher 切換到 nightly 頻道後再遊玩。",
+  "Needs the nightly launcher": "需要 nightly 啟動器",
+  "Switch to nightly and update": "切換到 nightly 並更新",
+  "The launcher is on its nightly channel, but no newer launcher is out there yet.": "啟動器已在 nightly 頻道，但那裡還沒有更新的啟動器。",
+  "Newer versions of Longshot need the nightly launcher.": "較新版本的 Longshot 需要 nightly 啟動器。",
+  "They are built with the new builder, which this launcher does not support. Your versions keep working.": "它們由新的建置器建置，本啟動器不支援。你現有的版本仍可使用。",
+  "Switch to nightly…": "切換到 nightly…"
 }

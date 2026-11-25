@@ -807,5 +807,12 @@
   "This launcher cannot write its handoff folder, so the game started directly: a routed start it cannot track is one it cannot keep from happening twice.": "Этот лаунчер не может записать свою папку передачи, поэтому игра была запущена напрямую: направленный запуск, который он не может отследить, он не может уберечь от повторения.",
   "Nothing on this system answers a steam:// link, so the game started directly.": "Ничто в этой системе не отвечает на ссылку steam://, поэтому игра была запущена напрямую.",
   "Steam refused the tile launch (the refusal said no outright), so the game started directly.": "Steam отклонил запуск через ярлык (отказ был однозначным), поэтому игра была запущена напрямую.",
-  "A game launched through Steam's tile from an earlier Play is already arriving; this Play did not start a second copy.": "Игра из предыдущего запуска уже идёт через ярлык Steam; этот запуск не открыл вторую копию."
+  "A game launched through Steam's tile from an earlier Play is already arriving; this Play did not start a second copy.": "Игра из предыдущего запуска уже идёт через ярлык Steam; этот запуск не открыл вторую копию.",
+  "This version of Longshot is built with the new builder, which this launcher doesn't support. Switch the Longshot Launcher to its nightly channel to play it.": "Эта версия Longshot собрана новым билдером, который этот лаунчер не поддерживает. Переключите Longshot Launcher на канал nightly, чтобы играть в неё.",
+  "Needs the nightly launcher": "Нужен лаунчер nightly",
+  "Switch to nightly and update": "Перейти на nightly и обновить",
+  "The launcher is on its nightly channel, but no newer launcher is out there yet.": "Лаунчер уже на канале nightly, но более нового лаунчера там пока нет.",
+  "Newer versions of Longshot need the nightly launcher.": "Новым версиям Longshot нужен nightly-лаунчер.",
+  "They are built with the new builder, which this launcher does not support. Your versions keep working.": "Они собираются новым сборщиком, который этот лаунчер не поддерживает. Ваши версии продолжают работать.",
+  "Switch to nightly…": "Перейти на nightly…"
 }

@@ -227,6 +227,22 @@
         </StackPanel>
       </Grid>
     </Border>
+    <!-- the newest versions need the nightly launcher (Longshot's new builder): said once, with the way there -->
+    <Border DockPanel.Dock="Top" Classes="offer" IsVisible="{Binding ShowNeedsNightly}">
+      <Grid ColumnDefinitions="36,*,Auto" ColumnSpacing="14">
+        <Border Classes="offericon">
+          <c:Icon Kind="alert" Width="18" Height="18"/>
+        </Border>
+        <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+          <TextBlock Text="{c:T 'Newer versions of Longshot need the nightly launcher.'}" TextWrapping="Wrap"/>
+          <TextBlock Classes="offerfine" Text="{c:T 'They are built with the new builder, which this launcher does not support. Your versions keep working.'}" TextWrapping="Wrap"/>
+        </StackPanel>
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="14" VerticalAlignment="Center">
+          <Button Classes="link soft" Content="{c:T 'Dismiss'}" Command="{Binding DismissNeedsNightlyCommand}"/>
+          <Button Classes="small primary" Content="{c:T 'Switch to nightly…'}" Command="{Binding NeedsNightlyCommand}"/>
+        </StackPanel>
+      </Grid>
+    </Border>
     <!-- a problem to read: the same card in the warning's colour, its whole text -->
     <Border DockPanel.Dock="Top" Classes="offer warn" IsVisible="{Binding HasNotice}">
       <Grid ColumnDefinitions="36,*,Auto" ColumnSpacing="14">
@@ -354,7 +370,7 @@
                   <c:Icon Kind="check" Width="14" Height="14" Foreground="{StaticResource Go}" VerticalAlignment="Center"
                           IsVisible="{Binding Installed}" ToolTip.Tip="{c:T 'Installed'}"/>
                   <TextBlock Grid.Column="1" Text="{Binding Shown}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
-                  <TextBlock Grid.Column="2" Classes="faint" Text="{Binding Note}" VerticalAlignment="Center" IsVisible="{Binding !HasUpdate}"/>
+                  <TextBlock Grid.Column="2" Classes="faint" Text="{Binding FieldNote}" VerticalAlignment="Center" IsVisible="{Binding !HasUpdate}"/>
                 </Grid>
               </DataTemplate>
             </ComboBox.SelectionBoxItemTemplate>

@@ -747,5 +747,12 @@
   "This launcher cannot write its handoff folder, so the game started directly: a routed start it cannot track is one it cannot keep from happening twice.": "이 런처는 인계 폴더에 쓸 수 없어 게임이 직접 시작되었습니다: 추적할 수 없는 전달 시작은 두 번 실행되는 것을 막을 수 없습니다.",
   "Nothing on this system answers a steam:// link, so the game started directly.": "이 시스템에는 steam:// 링크에 응답하는 것이 없어 게임이 직접 시작되었습니다.",
   "Steam refused the tile launch (the refusal said no outright), so the game started directly.": "Steam이 바로 가기를 통한 시작을 거부하여(명확한 거부) 게임이 직접 시작되었습니다.",
-  "A game launched through Steam's tile from an earlier Play is already arriving; this Play did not start a second copy.": "이전 플레이에서 Steam 바로 가기로 시작한 게임이 이미 진행 중입니다. 이번 플레이는 두 번째 사본을 시작하지 않았습니다."
+  "A game launched through Steam's tile from an earlier Play is already arriving; this Play did not start a second copy.": "이전 플레이에서 Steam 바로 가기로 시작한 게임이 이미 진행 중입니다. 이번 플레이는 두 번째 사본을 시작하지 않았습니다.",
+  "This version of Longshot is built with the new builder, which this launcher doesn't support. Switch the Longshot Launcher to its nightly channel to play it.": "이 Longshot 버전은 이 런처가 지원하지 않는 새 빌더로 빌드됩니다. 플레이하려면 Longshot Launcher를 나이틀리 채널로 전환하세요.",
+  "Needs the nightly launcher": "나이틀리 런처가 필요합니다",
+  "Switch to nightly and update": "나이틀리로 전환하고 업데이트",
+  "The launcher is on its nightly channel, but no newer launcher is out there yet.": "런처가 나이틀리 채널을 사용 중이지만 아직 더 새로운 런처가 없습니다.",
+  "Newer versions of Longshot need the nightly launcher.": "최신 버전의 Longshot에는 nightly 런처가 필요합니다.",
+  "They are built with the new builder, which this launcher does not support. Your versions keep working.": "새 빌더로 빌드되어 이 런처는 지원하지 않습니다. 기존 버전은 계속 작동합니다.",
+  "Switch to nightly…": "nightly로 전환…"
 }

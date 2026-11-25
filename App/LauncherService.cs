@@ -188,6 +188,11 @@ public sealed class LauncherService
         foreach (var dir in OtherLauncher.GamesIn(picked, Platform))
         {
             if (Registry.FindByFolder(dir) != null) continue;
+            if (NeedsNightly(dir))
+            {
+                LauncherLog.Add($"{dir} not added: built with the new builder, which needs the nightly launcher");
+                continue;
+            }
             var version = GameFolder.Version(dir);
             var b = Registry.Add(dir, version, OtherLauncher.ChannelNamed(dir, version));
             LauncherLog.Add($"build {b.Version} in {b.Folder} added by the player");
@@ -205,11 +210,15 @@ public sealed class LauncherService
     public bool Finds(string picked) =>
         OtherLauncher.At(picked, Platform, Environment.GetEnvironmentVariable) is { HasAnything: true } || OtherLauncher.GamesIn(picked, Platform).Count > 0;
 
+    /// Whether a game folder was built by the new builder (its build record, longshot_build.json), which this launcher doesn't run
+    static bool NeedsNightly(string gameFolder) => File.Exists(Path.Combine(gameFolder, Core.NeedsNightlyLauncher.BuildRecord));
+
     /// A folder the command line named (--launch), listed if it is not yet
     public BuildEntry Ensure(string folder)
     {
         var full = Path.GetFullPath(folder);
         if (Registry.FindByFolder(full) is { } known) return known;
+        if (NeedsNightly(full)) throw Core.NeedsNightlyLauncher.Refusal();
         var version = GameFolder.Version(full);
         var entry = Registry.Add(full, version, Versions.TrackOf(version));
         Registry.Save();
@@ -338,6 +347,12 @@ public sealed class LauncherService
         (await PullRequestsAsync(cancel: cancel).ConfigureAwait(false))?.FirstOrDefault(p => p.Number == number);
 
     /// The pull requests the update check reads (the screenshots' stand-in for Beanstalk)
+    /// Whether the newest release on the builds' default track is built with the new builder: the versions after it need the
+    /// nightly launcher, which the home says once (from the list the update check read; false before it answered)
+    public bool NewerNeedsNightly =>
+        Releases.Listed is { } list && ReleaseManifest.OnChannel(list, DefaultChannel, Product.Longshot).FirstOrDefault() is { } newest
+        && ReleaseManifest.ListsNewBuilder(newest, Platform);
+
     public void SetPullRequests(IReadOnlyList<PullRequest>? list)
     {
         pulls = list;
@@ -348,7 +363,18 @@ public sealed class LauncherService
     /// installed ones before it answered
     public IReadOnlyList<TrackVersion> VersionsOn(string track) =>
         track == Versions.PullRequest ? VersionPick.OfPullRequests(Registry.Builds, pulls, Platform, foundPulls)
-        : VersionPick.Of(track, Registry.Builds, Releases.Listed, Product.Longshot);
+        : VersionPick.Of(track, Registry.Builds, Releases.Listed, Product.Longshot, Platform);
+
+    /// Whether the release list shows a version built with the new builder, which this launcher refuses (NeedsNightlyLauncher)
+    public bool NeedsNightlyLauncher(string tag) =>
+        Releases.Listed?.FirstOrDefault(r => r.Tag == tag) is { } r && ReleaseManifest.ListsNewBuilder(r, Platform);
+
+    /// The launcher's own update channel set to nightly and saved; its update is then looked for by the update check (CheckReleasesAsync:
+    /// LauncherUpdate) and made by the launcher's own self-update (UpdateLauncherAsync)
+    public void SwitchLauncherToNightly()
+    {
+        if (Settings.SwitchLauncherToNightly(OwnTag)) SaveSettings();
+    }
 
     /// The pull requests the player found by their number (Find a pull request): listed on the track with the trusted ones
     readonly HashSet<int> foundPulls = new();

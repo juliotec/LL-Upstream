@@ -21,10 +21,18 @@ public sealed record Product(string Name, string Display, string Repo, int First
 
 /// One version's release, its files checked against its signed SHA256SUMS: for each system ("windows-x64", "linux-x64"),
 /// Longshot's builder (Builder: LongshotBuilder-&lt;v&gt;-windows-x64.zip, Longshot-&lt;v&gt;-x86_64.AppImage) and the Windows builder's
-/// tools.lock (Tools), or the launcher's own program (Launcher: also "windows-x64-portable", the portable zip). Notes: the release's page
+/// tools.lock (Tools), or the launcher's own program (Launcher: also "windows-x64-portable", the portable zip). Notes: the release's page.
+/// BuilderManifests: a release of longshot-builder's kind, by system, its manifest signed in SHA256SUMS; such a release has no
+/// Builder, and this launcher refuses it (NeedsNightlyLauncher)
 public sealed record ReleaseInfo(string Product, string Version, string Commit, DateTimeOffset? Published, string? Notes,
                                  IReadOnlyDictionary<string, FileRef> Launcher, IReadOnlyDictionary<string, FileRef> Tools,
-                                 IReadOnlyDictionary<string, FileRef> Builder);
+                                 IReadOnlyDictionary<string, FileRef> Builder,
+                                 IReadOnlyDictionary<string, FileRef>? BuilderManifests = null)
+{
+    /// Whether this version is built with the new builder (longshot-builder) on this system: its signed SHA256SUMS lists that
+    /// builder's manifest for it. This launcher only knows make_game.py's builds (NeedsNightlyLauncher)
+    public bool HasNewBuilder(Platform platform) => BuilderManifests?.ContainsKey(ReleaseManifest.PlatformKey(platform)) == true;
+}
 
 /// A release as Forgejo's API lists it (GET /repos/{repo}/releases): its tag, whether it is a draft or a pre-release, its
 /// files (name, download link, size), its page, its commit, and its page's text (Body: the markdown the release workflow and
@@ -58,6 +66,14 @@ public static class ReleaseManifest
         WindowsPortable => $"LongshotLauncher-{version}-windows-x64-portable.zip",
         _ => $"LongshotLauncher-{version}-x86_64.AppImage",
     };
+
+    /// The manifest a release of longshot-builder's kind has for a system (the new builder, which this launcher does not run)
+    public static string BuilderManifestName(string version, string platform) => $"longshot-builder-{version}-{platform}.json";
+
+    /// Whether the release list shows a longshot-builder manifest for this system: a hint for the Version list, which has no signed
+    /// SHA256SUMS yet; what refuses a version is ReleaseInfo.HasNewBuilder, from the signed one
+    public static bool ListsNewBuilder(ListedRelease release, Platform platform) =>
+        release.Assets.Any(a => a.Name == BuilderManifestName(release.Tag, PlatformKey(platform)));
 
     public static string BuilderFile(string version, string platform) =>
         platform == "windows-x64" ? $"LongshotBuilder-{version}-windows-x64.zip" : $"Longshot-{version}-x86_64.AppImage";
@@ -154,7 +170,9 @@ public static class ReleaseManifest
         var tools = new Dictionary<string, FileRef>(StringComparer.Ordinal);
         if (assets.TryGetValue(ToolsLock, out var lockFile) && sums.TryGetValue(ToolsLock, out var lockSha))
             tools["windows-x64"] = new FileRef(lockFile.Url, lockSha, lockFile.Size);
-        return new ReleaseInfo(product.Name, r.Tag, r.Commit, r.Published, r.Page, empty, tools, Pick(p => BuilderFile(r.Tag, p)));
+        return new ReleaseInfo(product.Name, r.Tag, r.Commit, r.Published, r.Page, empty, tools, Pick(p => BuilderFile(r.Tag, p)),
+                               // (by the manifest's exact name, never by a name holding "Builder": the old Windows app is LongshotBuilder)
+                               Pick(p => BuilderManifestName(r.Tag, p)));
     }
 
     /// A small file a release has, into memory, checked for its size and SHA-256

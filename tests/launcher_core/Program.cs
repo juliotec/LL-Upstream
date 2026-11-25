@@ -86,6 +86,7 @@ static partial class Program
         StorageChecks(Path.GetFullPath(Path.Combine(fixtures, "..", "..")));
         UpdatePolicyChecks();
         await PullRequestChecks(Path.GetFullPath(Path.Combine(fixtures, "..", "..")));
+        await NewBuilderChecks();
         CommandLineChecks();
         SavesChecks.Run(Folder("saves"));
         SaveArchiveChecks.Run(Folder("save-archive"));

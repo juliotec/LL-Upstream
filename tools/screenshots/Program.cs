@@ -212,6 +212,11 @@ static class Program
             _ => null, m => m.Home.Select(m.Home.Builds.First(b => !b.IsDefault))),
         new("home-versions", "The Version dropdown open: the nightly track's versions, a check beside the installed one",
             Platform.Windows, NightliesListed, _ => null, OpenDropdown: 1),
+        // (a stable launcher and the newest nightlies built with the new builder: marked, and picking one opens the dialog)
+        new("home-versions-needs-nightly", "The Version dropdown open: the newest nightlies are built with the new builder, marked Needs the nightly launcher",
+            Platform.Linux, NewBuilderListed, _ => null, OpenDropdown: 1),
+        new("needs-nightly-launcher", "A version built with the new builder picked: the dialog with the way out", Platform.Linux, NewBuilderListed,
+            _ => null, m => m.Modal = new NeedsNightlyLauncherViewModel(m)),
         new("home-tracks", "The Track dropdown open: the tracks by name", Platform.Windows,
             s =>
             {
@@ -786,6 +791,26 @@ static class Program
             Nightly("nightly-182-5274fb72", "2026-11-14T08:07:00Z"),
             Nightly("nightly-179-70087604", "2026-11-13T07:01:00Z"),
         ];
+    }
+
+    /// The nightly releases NightliesListed has, two of them built with the new builder (their manifest in the list)
+    static void NewBuilderListed(LauncherService service)
+    {
+        // (a folder that exists, or the home drops the build as deleted outside the launcher)
+        var folder = Path.Combine(Path.GetTempPath(), "needs-nightly-shot", "nightly-189-aa95d35f");
+        Directory.CreateDirectory(folder);
+        service.Registry.Add(folder, "nightly-189-aa95d35f", Versions.Nightly, makeDefault: true);
+        service.SetNewest(Versions.Nightly, "nightly-189-aa95d35f");
+        ListedRelease Nightly(string tag, string at) =>
+            new(tag, false, true, DateTimeOffset.Parse(at, System.Globalization.CultureInfo.InvariantCulture), ReleaseNotes.PageOf(Product.Longshot, tag), "", []);
+        service.Releases.Listed =
+        [
+            Nightly("nightly-189-aa95d35f", "2026-11-15T11:10:00Z"),
+            Nightly("nightly-188-a00c485c", "2026-11-15T10:10:00Z"),
+            Nightly("nightly-187-9e6f231d", "2026-11-15T09:22:00Z"),
+        ];
+        service.Releases.Listed = service.Releases.Listed!.Select(r => r.Tag is "nightly-189-aa95d35f" or "nightly-188-a00c485c"
+            ? r with { Assets = [(ReleaseManifest.BuilderManifestName(r.Tag, "linux-x64"), "https://git.magicbean.dev/x.json", 10)] } : r).ToList();
     }
 
     /// The nightly releases NightliesListed has, with the build two nightlies behind: its track's newest is out

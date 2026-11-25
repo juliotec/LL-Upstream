@@ -105,6 +105,18 @@ public sealed class LauncherSettings
     /// LauncherChannel when set, else its own version's track)
     public string BuildChannel(string ownTag) => DefaultChannel ?? SelfUpdate.ChannelOf(ownTag, LauncherChannel);
 
+    /// The launcher's own update channel set to nightly (a stable launcher refuses the versions built with the new builder, which
+    /// only the nightly launcher builds); true when that changed it. The builds' default track is pinned first to what it was
+    /// (ownTag: this launcher's version), so the switch moves only the launcher: a player who stays on this launcher (no nightly
+    /// launcher out yet, or its update failed) still builds the versions it can
+    public bool SwitchLauncherToNightly(string ownTag)
+    {
+        if (LauncherChannel == Versions.Nightly) return false;
+        DefaultChannel ??= BuildChannel(ownTag);
+        LauncherChannel = Versions.Nightly;
+        return true;
+    }
+
     /// The folder builds go in when none was chosen: make_game.py's own default game folder's parent, ~/Games/Longshot
     /// (%USERPROFILE%\Games\Longshot on Windows)
     public static string DefaultBuildsFolder(Func<string, string?>? getenv = null) =>

@@ -1,0 +1,17 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:c="using:LongshotLauncher.Controls"
+             xmlns:vm="using:LongshotLauncher.ViewModels"
+             x:Class="LongshotLauncher.Views.NeedsNightlyLauncherView"
+             x:DataType="vm:NeedsNightlyLauncherViewModel">
+  <Border Classes="dialog">
+    <StackPanel>
+      <TextBlock Classes="modaltitle" Text="{c:T 'Needs the nightly launcher'}"/>
+      <TextBlock Classes="sub" Text="{Binding Sub}" TextWrapping="Wrap"/>
+      <StackPanel Classes="buttons">
+        <Button Content="{c:T 'Close'}" Command="{Binding CloseCommand}" c:Pad.Back="True"/>
+        <Button Classes="primary" Content="{c:T 'Switch to nightly and update'}" Command="{Binding SwitchCommand}"/>
+      </StackPanel>
+    </StackPanel>
+  </Border>
+</UserControl>

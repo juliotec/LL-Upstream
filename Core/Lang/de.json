@@ -767,5 +767,12 @@
   "This launcher cannot write its handoff folder, so the game started directly: a routed start it cannot track is one it cannot keep from happening twice.": "Dieser Launcher kann seinen Übergabeordner nicht schreiben, deshalb wurde das Spiel direkt gestartet: Einen gerouteten Start, den er nicht verfolgen kann, kann er nicht vor einer zweiten Ausführung bewahren.",
   "Nothing on this system answers a steam:// link, so the game started directly.": "Nichts auf diesem System beantwortet einen steam://-Link, deshalb wurde das Spiel direkt gestartet.",
   "Steam refused the tile launch (the refusal said no outright), so the game started directly.": "Steam hat den Start über die Verknüpfung abgelehnt (die Ablehnung war ein klares Nein), deshalb wurde das Spiel direkt gestartet.",
-  "A game launched through Steam's tile from an earlier Play is already arriving; this Play did not start a second copy.": "Ein Spiel aus einem früheren Start ist über die Steam-Verknüpfung bereits unterwegs; dieser Start hat keine zweite Kopie gestartet."
+  "A game launched through Steam's tile from an earlier Play is already arriving; this Play did not start a second copy.": "Ein Spiel aus einem früheren Start ist über die Steam-Verknüpfung bereits unterwegs; dieser Start hat keine zweite Kopie gestartet.",
+  "This version of Longshot is built with the new builder, which this launcher doesn't support. Switch the Longshot Launcher to its nightly channel to play it.": "Diese Version von Longshot wird mit dem neuen Builder gebaut, den dieser Launcher nicht unterstützt. Stelle den Longshot Launcher auf seinen Nightly-Kanal um, um sie zu spielen.",
+  "Needs the nightly launcher": "Braucht den Nightly-Launcher",
+  "Switch to nightly and update": "Auf Nightly umstellen und aktualisieren",
+  "The launcher is on its nightly channel, but no newer launcher is out there yet.": "Der Launcher ist auf seinem Nightly-Kanal, aber dort ist noch kein neuerer Launcher erschienen.",
+  "Newer versions of Longshot need the nightly launcher.": "Neuere Versionen von Longshot brauchen den Nightly-Launcher.",
+  "They are built with the new builder, which this launcher does not support. Your versions keep working.": "Sie werden mit dem neuen Builder gebaut, den dieser Launcher nicht unterstützt. Deine Versionen laufen weiter.",
+  "Switch to nightly…": "Zu Nightly wechseln…"
 }

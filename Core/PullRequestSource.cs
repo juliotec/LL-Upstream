@@ -47,6 +47,7 @@ public static class PullRequestSource
         progress?.Invoke(new ToolsDownloadProgress(0.9, total));
         var archive = await ReleaseManifest.FetchUncheckedAsync(chains.Fetcher, ArchiveUrl(pr.Head), MaxArchive, cancel).ConfigureAwait(false);
         var files = Files(archive, pr.Head);
+        if (IsNewBuilder(files)) throw NeedsNightlyLauncher.Refusal();
         var made = await Task.Run(() => chains.InstallPullRequest(tag, tools, files, releases.Platform, cancel), cancel).ConfigureAwait(false);
         progress?.Invoke(new ToolsDownloadProgress(1, total + archive.Length));
         return made;
@@ -55,6 +56,10 @@ public static class PullRequestSource
     /// The archive's files: each path without the archive's top folder, '/' separated, with its bytes and whether it is executable.
     /// commit: the full hash its pax header must name (git archive's "comment"). InvalidDataException for another commit or none,
     /// anything else than plain files and folders (a link), a path that leaves the folder, or an archive that cannot be read
+    /// Whether a pull request's source is built with the new builder (longshot-builder): it has no make_game.py, which this launcher
+    /// builds with. Such a pull request needs the nightly launcher
+    public static bool IsNewBuilder(IReadOnlyList<SourceFile> files) => !files.Any(f => f.Path == "nx2/make_game.py");
+
     public static IReadOnlyList<SourceFile> Files(byte[] tarGz, string commit)
     {
         var files = new List<SourceFile>();

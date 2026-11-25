@@ -1,8 +1,10 @@
 namespace LongshotLauncher.Core;
 
 /// One version on a track, as the home's Version list shows it (VersionPick.Of): its tag, when it was published (null: not on
-/// the server's list), whether it is the track's newest, and the build of it on this track (null: not installed)
-public sealed record TrackVersion(string Tag, DateTimeOffset? Published, bool Newest, BuildEntry? Build)
+/// the server's list), whether it is the track's newest, and the build of it on this track (null: not installed).
+/// NeedsNightly: the release list shows it is built with the new builder, which this launcher does not run
+/// (NeedsNightlyLauncher)
+public sealed record TrackVersion(string Tag, DateTimeOffset? Published, bool Newest, BuildEntry? Build, bool NeedsNightly = false)
 {
     public bool Installed => Build != null;
 }
@@ -43,11 +45,12 @@ public static class VersionPick
     /// listed ones). listed: the release list the update check read (Releases.Listed), null before it answered: then only the
     /// installed versions
     public static IReadOnlyList<TrackVersion> Of(string track, IEnumerable<BuildEntry> builds, IEnumerable<ListedRelease>? listed,
-                                                 Product product)
+                                                 Product product, Platform? platform = null)
     {
         var mine = On(track, builds);
         var on = listed != null && Versions.IsChannel(track) ? ReleaseManifest.OnChannel(listed, track, product) : Array.Empty<ListedRelease>();
-        var rows = on.Select((r, i) => new TrackVersion(r.Tag, r.Published, i == 0, BuildOf(r.Tag, mine))).ToList();
+        var rows = on.Select((r, i) => new TrackVersion(r.Tag, r.Published, i == 0, BuildOf(r.Tag, mine),
+                                                      platform is { } p && ReleaseManifest.ListsNewBuilder(r, p))).ToList();
         foreach (var tag in mine.Select(b => b.Version).OfType<string>().Distinct(StringComparer.Ordinal))
             if (rows.All(r => r.Tag != tag)) rows.Add(new TrackVersion(tag, null, false, BuildOf(tag, mine)));
         // (OrderByDescending is stable: versions the order does not rank keep their place, after the ones it does)

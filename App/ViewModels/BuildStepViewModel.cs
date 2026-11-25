@@ -1327,3 +1327,28 @@ public sealed record LogLevelChoice(LogLevel Level, string Name)
     public static LogLevelChoice Of(LogLevel level) => All.First(c => c.Level == level);
     public override string ToString() => Name;
 }
+
+/// "Needs the nightly launcher": a version built with the new builder was picked, built or updated to. Its button switches the
+/// launcher's own update channel to nightly and starts the launcher's update (LauncherService.SwitchLauncherToNightlyAsync, then
+/// the home's own Update the launcher command)
+public sealed class NeedsNightlyLauncherViewModel(MainViewModel main) : ViewModelBase
+{
+    public string Sub => NeedsNightlyLauncher.Text;
+    public Command CloseCommand { get; } = new(() => main.Modal = null);
+    public Command SwitchCommand { get; } = new(() => _ = Switch(main));
+
+    static async Task Switch(MainViewModel main)
+    {
+        main.Modal = null;
+        main.ShowHome();
+        try { main.Service.SwitchLauncherToNightly(); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            main.ShowToast(Tr.F("The settings could not be saved: {0}", e.Message));
+            return;
+        }
+        await main.Home.CheckReleasesAsync();
+        if (main.Home.HasLauncherUpdate) main.Home.UpdateLauncherCommand.Execute(null);
+        else main.ShowToast(Tr.T("The launcher is on its nightly channel, but no newer launcher is out there yet."));
+    }
+}

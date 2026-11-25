@@ -209,6 +209,7 @@
             <DataTemplate DataType="vm:BuildFilesViewModel"><views:BuildFilesView/></DataTemplate>
             <DataTemplate DataType="vm:LicenceViewModel"><views:LicenceView/></DataTemplate>
             <DataTemplate DataType="vm:StopBuildViewModel"><views:StopBuildView/></DataTemplate>
+            <DataTemplate DataType="vm:NeedsNightlyLauncherViewModel"><views:NeedsNightlyLauncherView/></DataTemplate>
             <DataTemplate DataType="vm:SavePickViewModel"><views:SavePickView/></DataTemplate>
             <DataTemplate DataType="vm:HookshotImportViewModel"><views:HookshotImportView/></DataTemplate>
             <DataTemplate DataType="vm:HookshotSettingsViewModel"><views:HookshotSettingsView/></DataTemplate>

@@ -148,6 +148,9 @@ static partial class Program
                     && Fails(() => PullRequestSource.Files(Archive(HeadA, files: new Dictionary<string, string> { ["../x"] = "x" }), HeadA))
                     && Fails(() => PullRequestSource.Files(new byte[] { 1, 2, 3 }, HeadA)),
                     "A link, a path out of its folder, or no archive at all is refused.");
+            Require(!PullRequestSource.IsNewBuilder(files)
+                    && PullRequestSource.IsNewBuilder(PullRequestSource.Files(Archive(HeadA, files: new Dictionary<string, string> { ["builder/Cargo.toml"] = "" }), HeadA)),
+                    "A pull request with no make_game.py is built with the new builder: it needs the nightly launcher.");
             Require(PullRequestSource.ArchiveUrl(HeadA) == "https://git.magicbean.dev/api/v1/repos/MagicBeanDev/Longshot/archive/" + HeadA + ".tar.gz",
                     "The source is the archive of the exact commit, by its full hash.");
 

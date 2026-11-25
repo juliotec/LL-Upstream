@@ -789,5 +789,12 @@
   "This launcher cannot write its handoff folder, so the game started directly: a routed start it cannot track is one it cannot keep from happening twice.": "Este lanzador no puede escribir su carpeta de traspaso, así que el juego se inició directamente: un inicio enrutado que no puede seguir es uno que no puede impedir que ocurra dos veces.",
   "Nothing on this system answers a steam:// link, so the game started directly.": "Nada en este sistema responde a un enlace steam://, así que el juego se inició directamente.",
   "Steam refused the tile launch (the refusal said no outright), so the game started directly.": "Steam rechazó el inicio mediante el acceso directo (la negativa fue rotunda), así que el juego se inició directamente.",
-  "A game launched through Steam's tile from an earlier Play is already arriving; this Play did not start a second copy.": "Un juego lanzado mediante el acceso directo de Steam de una partida anterior ya está en camino; este inicio no ha abierto una segunda copia."
+  "A game launched through Steam's tile from an earlier Play is already arriving; this Play did not start a second copy.": "Un juego lanzado mediante el acceso directo de Steam de una partida anterior ya está en camino; este inicio no ha abierto una segunda copia.",
+  "This version of Longshot is built with the new builder, which this launcher doesn't support. Switch the Longshot Launcher to its nightly channel to play it.": "Esta versión de Longshot se compila con el nuevo builder, que este launcher no admite. Cambia el Longshot Launcher a su canal nightly para jugarla.",
+  "Needs the nightly launcher": "Necesita el launcher nightly",
+  "Switch to nightly and update": "Cambiar a nightly y actualizar",
+  "The launcher is on its nightly channel, but no newer launcher is out there yet.": "El launcher está en su canal nightly, pero todavía no hay un launcher más reciente.",
+  "Newer versions of Longshot need the nightly launcher.": "Las versiones más nuevas de Longshot necesitan el launcher nightly.",
+  "They are built with the new builder, which this launcher does not support. Your versions keep working.": "Se compilan con el nuevo compilador, que este launcher no admite. Tus versiones siguen funcionando.",
+  "Switch to nightly…": "Cambiar a nightly…"
 }

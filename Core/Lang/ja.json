@@ -747,5 +747,12 @@
   "This launcher cannot write its handoff folder, so the game started directly: a routed start it cannot track is one it cannot keep from happening twice.": "このランチャーは引き継ぎフォルダーに書き込めないため、ゲームは直接起動しました: 追跡できない転送起動は、二重起動を防げない起動です。",
   "Nothing on this system answers a steam:// link, so the game started directly.": "このシステムには steam:// リンクに応答するものがないため、ゲームは直接起動しました。",
   "Steam refused the tile launch (the refusal said no outright), so the game started directly.": "Steam がショートカット経由の起動を拒否したため（明確な拒否）、ゲームは直接起動しました。",
-  "A game launched through Steam's tile from an earlier Play is already arriving; this Play did not start a second copy.": "前回のプレイで Steam ショートカットから起動したゲームがすでに進行中です。このプレイは二つ目のコピーを起動していません。"
+  "A game launched through Steam's tile from an earlier Play is already arriving; this Play did not start a second copy.": "前回のプレイで Steam ショートカットから起動したゲームがすでに進行中です。このプレイは二つ目のコピーを起動していません。",
+  "This version of Longshot is built with the new builder, which this launcher doesn't support. Switch the Longshot Launcher to its nightly channel to play it.": "この Longshot のバージョンは新しいビルダーでビルドされており、このランチャーは対応していません。プレイするには、Longshot Launcher をナイトリーチャンネルに切り替えてください。",
+  "Needs the nightly launcher": "ナイトリー版ランチャーが必要です",
+  "Switch to nightly and update": "ナイトリーに切り替えて更新",
+  "The launcher is on its nightly channel, but no newer launcher is out there yet.": "ランチャーはナイトリーチャンネルですが、より新しいランチャーはまだ公開されていません。",
+  "Newer versions of Longshot need the nightly launcher.": "新しいバージョンの Longshot には nightly ランチャーが必要です。",
+  "They are built with the new builder, which this launcher does not support. Your versions keep working.": "新しいビルダーでビルドされており、このランチャーは対応していません。お使いのバージョンはそのまま動きます。",
+  "Switch to nightly…": "nightly に切り替え…"
 }

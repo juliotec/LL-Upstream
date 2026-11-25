@@ -23,6 +23,8 @@ public static class ToolsSource
         if (Versions.IsPullRequest(tag))
             return await PullRequestSource.EnsureAsync(chains, releases, tag, pullRequest ?? ((_, _) => Task.FromResult<PullRequest?>(null)),
                                                        progress, cancel, extract).ConfigureAwait(false);
+        // (a version built with the new builder: refused before anything of it is downloaded, with the way out)
+        await releases.OldBuilderAsync(tag, cancel).ConfigureAwait(false);
         if (releases.Platform != Platform.Windows)   // (Linux: the release's AppImage, then the tools its tools.lock names)
         {
             var image = await releases.BuilderAsync(tag, cancel).ConfigureAwait(false);
