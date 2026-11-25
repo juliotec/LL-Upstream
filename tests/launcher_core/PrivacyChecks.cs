@@ -76,7 +76,11 @@ static partial class Program
                 LauncherLog.Clear();
                 LauncherLog.Add($"open {mine}{sep}Longshot failed, then {other}");
                 var kept = LauncherLog.Tail(1).Single();
-                Require(!kept.Contains(user, by) && kept.Contains($"{homeAs}{sep}Longshot failed") && kept.Contains(Privacy.User),
+                // (the literal Users folder and the two placeholders hold the name too when the account is called user: compare
+                // the whole scrubbed line, and only the clock before it, not the string)
+                var expected = $"{homeAs}{sep}Longshot failed, then {other.Replace(user, Privacy.User)}";
+                var before = kept.Length >= expected.Length ? kept[..^expected.Length] : kept;
+                Require(kept.EndsWith(expected, by) && !before.Contains(user, by),
                         "The launcher's log keeps its lines with no user name: " + kept.Replace(user, "<the user>", by));
             }
             finally
