@@ -736,5 +736,16 @@
   "{0} builds": {"other": "{0} 個のビルド"},
   "{0} builds listed.": {"other": "{0} 個のビルドを一覧に追加しました。"},
   "{0} builds listed, and their saves copied.": {"other": "{0} 個のビルドを一覧に追加し、セーブデータをコピーしました。"},
-  "Everything in {0} is listed already.": "{0} の中身はすべて一覧にあります。"
+  "Everything in {0} is listed already.": "{0} の中身はすべて一覧にあります。",
+  "Steam is starting this build through its tile, so its controller mapping applies.": "Steam がこのビルドをショートカット経由で起動しているため、Steam のコントローラー割り当てが適用されます。",
+  "Steam has not loaded the new Longshot tile yet, so this game was started directly; restart Steam and later Plays go through it.": "Steam が新しい Longshot ショートカットをまだ読み込んでいないため、このゲームは直接起動しました。Steam を再起動すると、以降のプレイはショートカット経由になります。",
+  "The Longshot tile in Steam points at a different launcher file than this one, so this game started directly: the tile's launcher is the one Steam would start, not this one.": "Steam の Longshot ショートカットがこのファイルとは別のランチャーファイルを指しているため、このゲームは直接起動しました: Steam が起動するのはショートカットのランチャーであり、こちらではありません。",
+  "Steam is running but has no Longshot tile yet: the game was started directly, so the controller keeps Steam's desktop mapping. Add the tile from the launcher's ready screen, then Play goes through Steam.": "Steam は実行中ですが Longshot ショートカットがまだありません: ゲームは直接起動したため、コントローラーは Steam のデスクトップ割り当てのままです。ランチャーの準備完了画面からショートカットを追加すると、プレイは Steam 経由になります。",
+  "The launcher this tile would start keeps its games somewhere else, so this one started directly: the routed start would have gone to the wrong place.": "このショートカットが起動するランチャーはゲームを別の場所に保管しているため、こちらは直接起動しました: 転送された起動は誤った場所へ向かっていたでしょう。",
+  "A game launched through Steam's tile is still on its way from an earlier Play; this one started directly.": "Steam ショートカット経由で起動したゲームが前回のプレイからまだ到着していないため、こちらは直接起動しました。",
+  "Your settings could not be saved just now, so this game started directly: a launch through Steam's tile would use the saved settings instead of the ones you just changed.": "設定を今保存できなかったため、このゲームは直接起動しました: Steam ショートカット経由の起動では、いま変更した設定ではなく保存済みの設定が使われます。",
+  "This launcher cannot write its handoff folder, so the game started directly: a routed start it cannot track is one it cannot keep from happening twice.": "このランチャーは引き継ぎフォルダーに書き込めないため、ゲームは直接起動しました: 追跡できない転送起動は、二重起動を防げない起動です。",
+  "Nothing on this system answers a steam:// link, so the game started directly.": "このシステムには steam:// リンクに応答するものがないため、ゲームは直接起動しました。",
+  "Steam refused the tile launch (the refusal said no outright), so the game started directly.": "Steam がショートカット経由の起動を拒否したため（明確な拒否）、ゲームは直接起動しました。",
+  "A game launched through Steam's tile from an earlier Play is already arriving; this Play did not start a second copy.": "前回のプレイで Steam ショートカットから起動したゲームがすでに進行中です。このプレイは二つ目のコピーを起動していません。"
 }

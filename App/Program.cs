@@ -68,6 +68,21 @@ static class Program
         CrashLogs = Home.Logs;
         Start = StartRequest.Parse(args);
         if (Start.Kind == StartKind.Play) return PlayWithoutWindow(Start);
+        // (a launch with no arguments on Linux may be Steam bringing back a Play this launcher just
+        // routed to its own tile: the arm says so, and it is claimed HERE, before the lock below.
+        // The sender's window still holds that lock while its routed launch arrives, so a launch
+        // that took the lock first answered "the launcher is already open", exited, and left the
+        // arm to expire while the player saw Steam say "Starting game" and nothing start (Deck,
+        // 2026-11-21). With no arm this is the tile pressed from the couch, and the window below,
+        // with the release check at its start, is exactly what that launch should get.
+        // (round-five L4: only a launch Steam itself started can be that arrival — TakeArrival asks
+        // the environment, which is where Steam marks what it launched (measured on a Deck LCD,
+        // 2026-11-22: SteamGameId + SteamAppId at the tile's Exe; a desktop icon, a menu entry or a
+        // terminal run carries neither). Without that gate, clicking the desktop icon while a routed
+        // Play was pending claimed its arm: the icon's launch played the game headless where its
+        // user expected a window, and the routed arrival then found nothing)
+        if (args.Length == 0 && SteamLaunchRoute.TakeArrival(Home.Root, platform, Environment.GetEnvironmentVariable) is { } arrival)
+            return PlayWithoutWindow(Start, arrival);
         Uninstalling = platform == Platform.Windows && Start.Ignored.Contains(Installer.UninstallArgument);
 
         // (one launcher per home: a second start brings the first one's window forward and ends)
@@ -286,21 +301,59 @@ static class Program
         }
     }
 
-    /// --play [folder]: that build's game, else the default build's, with no window
-    static int PlayWithoutWindow(StartRequest start)
+    /// --play [folder]: that build's game, else the default build's, with no window. Also the way a
+    /// routed arrival plays: Main has already claimed its handoff (TakeArrival) and passes it in, so
+    /// the arm is read exactly once, by whoever won the claim
+    /// Whether Longshot itself is running here (Saves.Running also names emulators and Hookshot, and
+    /// the audit's fourth report proved a Count>0 test can suppress a legitimate press because an
+    /// unrelated Eden process exists)
+    static bool LongshotRunning() =>
+        Saves.Running(Platform.Linux).Any(n => n.Contains("Longshot", StringComparison.OrdinalIgnoreCase));
+
+    static int PlayWithoutWindow(StartRequest start, SteamLaunchRoute.Handoff? claimed = null)
     {
         // (the home is the window launcher's, which may be open: play.log, appended to, holds what this start did to the saves)
         OpenLog(file: LauncherLog.PlayName);
         try
         {
             var service = LauncherService.Open();
-            var folder = start.Folder ?? service.Registry.Default?.Folder;
+            // (SteamLaunchRoute: a desktop-mode Play that routed armed a one-shot naming the build
+            // that Play asked for — carried in here by Main (a bare arrival) or claimed here (a bare
+            // --play) — and without it a routed Play of a non-default row would launch the default
+            // build instead (the review's P1). An explicit --play <folder> on this command line IS
+            // the user's own request, not our routing artifact, so it never consumes a handoff
+            // another Play is still waiting on (the review's probe: an unrelated explicit Play took
+            // a pending handoff and the intended launch came up with the wrong build).
+            // (round-five L4, the same rule for the bare form: an unquoted `--play` typed in a
+            // terminal, or left on a shortcut by an old tile, carries no build and could claim a
+            // routed Play's arm — only a launch Steam itself started (SteamGameId/SteamAppId in
+            // its environment) may consume one. A bare --play from anywhere else starts the
+            // default build, which is exactly what the no-handoff branch below does)
+            var handoff = claimed ?? (start.Folder == null && SteamLaunchRoute.FromSteamLaunch(Environment.GetEnvironmentVariable)
+                ? SteamLaunchRoute.TakeHandoff(SteamLaunchRoute.HandoffPath(Home.Root)) : null);
+            // (round-five L3, the legacy-tile hole from the audit: a tile whose persisted launch
+            // options are `--play` arrives HERE, and after a refused routed Play the arm it was
+            // meant to consume is abandoned. Finding no handoff it used to fall back to the
+            // default build — a second game beside the one the refusal already started direct.
+            // The audit's third report: a bare timer suppressed a legitimate new press too. So the
+            // guard requires EVIDENCE — a cancellation this recent AND a Longshot game actually
+            // running now (the sender's direct fallback). No running game: the press starts its
+            // build like any other. The message states only what was checked)
+            if (handoff == null && start.Folder == null && claimed == null
+                && SteamLaunchRoute.FromSteamLaunch(Environment.GetEnvironmentVariable)
+                && (SteamLaunchRoute.DirectStartCommitted(Home.Root)
+                    || (SteamLaunchRoute.RecentCancellation(Home.Root) && LongshotRunning())))
+            {
+                Console.Error.WriteLine("Longshot: no second game was started: a Play of this launcher just went direct, and its game is starting or already running.");
+                return 0;
+            }
+            var folder = start.Folder ?? handoff?.Folder ?? service.Registry.Default?.Folder;
             if (folder == null || !GameFolder.IsBuilt(folder, service.Platform))
             {
                 Console.Error.WriteLine("Longshot: no built game to start. Open the launcher and build one, or pass its folder.");
                 return 1;
             }
-            service.PlayFolder(Path.GetFullPath(folder));
+            service.PlayFolder(Path.GetFullPath(folder), handoff, arrived: true);
             return 0;
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception)

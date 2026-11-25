@@ -606,8 +606,58 @@ public static class SteamShortcuts
         catch (Exception e) when (e is InvalidDataException or IOException or UnauthorizedAccessException) { return false; }
     }
 
+    /// The launcher FILE the tile in the library would start, unquoted — read from the entry that
+    /// carries this tile's id (the id is identity, so the entry under it IS the tile), not from what
+    /// this launcher's path computes. A tile launch runs that file with that file's environment:
+    /// Steam's, not whoever pressed Play (SteamLaunchRoute asks it where the launch would land)
+    public static string? TileLauncherPath(Placement p)
+    {
+        if (!File.Exists(p.Vdf)) return null;
+        try
+        {
+            var id = TileAppId(p);
+            var exe = Tiles(p.Vdf).FirstOrDefault(t => t.AppId == id)?.Exe ?? "";
+            if (exe.Length == 0) return null;
+            return exe.Length >= 2 && exe[0] == '"' && exe[^1] == '"' ? exe[1..^1] : exe;   // (Quote's shape)
+        }
+        // no path on an unreadable library: the caller's answer is "cannot tell, do not route"
+        catch (Exception e) when (e is InvalidDataException or IOException or UnauthorizedAccessException) { return null; }
+    }
 
-    record Claim(string Vdf, string Exe, string Origin);
+
+    record Claim(string Vdf, string Exe, string Origin, long? FirstSeen = null, long? ChangedAt = null);
+
+    /// The first-seen time from this vdf's marker, whatever launcher wrote it (LibraryLoaded asks a
+    /// question about the file and the running Steam, not about who owns the tile — its caller has
+    /// already proven ownership through InLibrary, and a marker written by a DIFFERENT copy of this
+    /// launcher is still a true record of when a Longshot tile entered this library). Null when
+    /// there is no marker, no fifth field, or the field is not a number
+    static long? MarkerFirstSeen(string vdf) => MarkerField(vdf, 4);
+
+    // (round-five L6: the SIXTH marker field is when this tile's LAUNCH-RELEVANT fields last
+    // changed — Exe, StartDir, launch options, name. A running Steam holds the library it read at
+    // its own start, so an entry whose Exe was repointed after that start is still the OLD file to
+    // the running client: routing there would hand the arm to a stale launcher's arrival. The
+    // stamp is compared like first-seen (a Steam must have started at or after it to be trusted),
+    // which is what makes an update's repoint require a Steam restart before routing resumes)
+    static long? MarkerChangedAt(string vdf) => MarkerField(vdf, 5);
+
+    static long? MarkerField(string vdf, int index)
+    {
+        try
+        {
+            if (!File.Exists(Sidecar(vdf))) return null;
+            var parts = File.ReadAllText(Sidecar(vdf)).Split('\t');
+            // (a marker written by a damaged or meddled launcher could carry a nonsense stamp;
+            // FromUnixTimeSeconds throws past the year-9999 edge (round-three P3: long.MaxValue
+            // parsed fine and crashed the read). Anything outside our own plausible window —
+            // later than next year — is not our evidence; fall back to mtime instead)
+            if (parts.Length <= index || !long.TryParse(parts[index], out var f)) return null;
+            var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            return f >= 0 && f <= 4102444800 && f <= now + 31_536_000 ? f : null;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return null; }
+    }
 
     /// The marker beside the file, if it is readable and shaped right. A marker from a half-finished
     /// write is no claim at all, and a marker we cannot read is not a reason to fault the shortcut.
@@ -632,7 +682,12 @@ public static class SteamShortcuts
         if (parts.Length < 3 || !int.TryParse(parts[2], out var id)) return null;
         var origin = parts.Length >= 4 ? parts[3] : parts[1];
         var claimed = SignedId(parts[1], p.Entry.AppName) == id || SignedId(origin, p.Entry.AppName) == id;
-        return claimed ? new Claim(parts[0], parts[1], origin) : null;
+        // (a fifth field, when present: the unix time this tile FIRST entered the library — see
+        // TileAdded. Markers written before it exist have none, and that is fine: null)
+        var first = parts.Length >= 5 && long.TryParse(parts[4], out var f) ? f : (long?)null;
+        // (a sixth, when present: when the entry's launch-relevant fields last changed — see Add)
+        var changed = parts.Length >= 6 && long.TryParse(parts[5], out var c) ? c : (long?)null;
+        return claimed ? new Claim(parts[0], parts[1], origin, first, changed) : null;
     }
 
     /// Add the tile. With Steam running the file is right but the tile shows only when Steam next
@@ -657,7 +712,16 @@ public static class SteamShortcuts
         RequireLibrary(root, bytes);
         var shortcuts = ShortcutsOf(root);
         var existing = FindOurs(shortcuts, p);
-        if (existing != null && Same(existing, p.Entry)) return false;
+        // idempotent against the tile's CARRIED id, not the freshly computed one: once an update
+        // repoints the Exe the entry keeps the old id, and Same comparing the new one made every
+        // later Add look changed (identical bytes rewritten, the restart notice re-fired forever —
+        // review P2). The carried id is what the entry holds and what Add would write again
+        if (existing != null && Same(existing, p.Entry, Num(existing, "appid"))) return false;
+        // (round-five L6: whether this write is launch-relevant must be judged BEFORE Update
+        // mutates the entry — comparing afterwards sees our own write and always answers "same",
+        // which is exactly the bug the L6 check caught on its first run. Icon-only changes are not
+        // launch-relevant: grid art does not change what Steam would start)
+        var launchChanged = existing == null || !SameLaunch(existing, p.Entry, Num(existing, "appid"));
         // a tile the user named Longshot themselves, pointed at their own script: another id, and
         // their business. Refusing beats a second tile of the same name in their grid; the caller
         // says so, and the tick goes back to what the library holds
@@ -686,7 +750,29 @@ public static class SteamShortcuts
         // the library as it was before we ever rewrote it, once: the player's way back from a
         // launcher's change (Steam's own backup only covers Steam's)
         KeepFirstBackup(file);
-        AtomicFile.Write(Sidecar(file), $"{file}\t{p.Entry.Exe}\t{carried}\t{origin}");
+        // (when our tile FIRST entered the library: kept from the marker across rewrites, stamped
+        // now for a fresh tile. LibraryLoaded asks "did a running Steam start after our tile got
+        // here" — and the file's mtime cannot answer that, because Steam itself rewrites the file
+        // (play time, properties) and bumps its own file's mtime past its own start. Measured in
+        // review: one no-op rewrite flipped the answer from loaded to not-loaded, which would break
+        // routing on any Deck that has ever PLAYED the tile. The marker's time is ours and survives
+        // — but ONLY for our own standing tile: a marker left behind when Steam overwrote the entry
+        // away must not vouch for a re-added one as if it had been loaded all along (round-three
+        // P2 probe: remove the entry, keep the marker, re-add, and LibraryLoaded said loaded while
+        // Steam never reloaded. A genuinely new entry starts its clock fresh)
+        var fresh = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        var firstSeen = existing != null ? prior?.FirstSeen ?? fresh : fresh;
+        // (round-five L6: a REPOINT is not the same moment as an arrival. The running Steam holds
+        // the library it read at its own start, so an entry whose Exe, StartDir or launch options
+        // changed after that start is still the OLD launch to the running client — routing to it
+        // would arm a launch of the file that tile USED to name. The sixth marker field is when
+        // those launch-relevant fields last changed: LibraryLoaded requires a Steam started at or
+        // after it, so a repoint suspends routing until Steam has restarted and re-read — the
+        // disk-correct/library-stale case, made honest. An icon-only change (grid art) is not
+        // launch-relevant and leaves the stamp where it was; markers written before this field
+        // exist have none, and the first-seen comparison stands alone)
+        var changedAt = launchChanged ? fresh : prior?.ChangedAt ?? firstSeen;
+        AtomicFile.Write(Sidecar(file), $"{file}\t{p.Entry.Exe}\t{carried}\t{origin}\t{firstSeen}\t{changedAt}");
         AtomicFile.Write(file, Dump(root));
         return true;
     }
@@ -751,11 +837,22 @@ public static class SteamShortcuts
         if (p.Icon.Length > 0) SetStr(entry, "icon", p.Icon);
     }
 
-    static bool Same(Vdf entry, Entry p) =>
-        Num(entry, "appid") == p.AppId && Str(entry, "Exe") == p.Exe &&
+    static bool Same(Vdf entry, Entry p, int carried) =>
+        // the CARRIED id, not the freshly computed one: Add never moves the id (it is the tile's
+        // identity), so after a launcher update the entry keeps the old id while p.AppId is new —
+        // comparing the fresh one (which this did) made every later Add look like a change,
+        // rewriting identical bytes and re-firing the restart notice forever (review P2)
+        Num(entry, "appid") == carried && Str(entry, "Exe") == p.Exe &&
         Str(entry, "StartDir") == p.StartDir && Str(entry, "LaunchOptions") == p.LaunchOptions &&
         // an empty icon claims nothing: it matches whatever art the tile already holds
         (p.Icon.Length == 0 || Str(entry, "icon") == p.Icon);
+
+    // (the launch-relevant half of Same, for the changed-at stamp: Exe, StartDir and launch
+    // options are what a running Steam would start wrong after a repoint. The icon is grid art and
+    // the id is identity Add never moves — neither resets the clock)
+    static bool SameLaunch(Vdf entry, Entry p, int carried) =>
+        Num(entry, "appid") == carried && Str(entry, "Exe") == p.Exe &&
+        Str(entry, "StartDir") == p.StartDir && Str(entry, "LaunchOptions") == p.LaunchOptions;
 
     // ---- Steam up/down, for a caller that wants the file quiescent before writing: the Deck's own
     // signs in /proc, and Steam's documented stop (steam.sh -shutdown, the way ChimeraOS stops it) ----
@@ -779,6 +876,97 @@ public static class SteamShortcuts
         }
         catch (IOException) { }
         return false;
+    }
+
+    /// Whether a running Steam has our tile in the library it loaded: Steam reads shortcuts.vdf when
+    /// it starts and keeps the library in memory (measured on the Deck 2026-11-15), so a tile written
+    /// while Steam runs is not in the running Steam's library until Steam restarts, and a
+    /// rungameid URI for a tile Steam never loaded is accepted by xdg-open and goes nowhere. The
+    /// comparison wants the moment OUR TILE ENTERED the library, which is the marker's first-seen
+    /// time (Add stamps it once and keeps it across rewrites). The file's mtime cannot answer this:
+    /// Steam rewrites its own library file (play time, properties), and one such rewrite bumps the
+    /// mtime past Steam's own start — a review probe flipped the answer to not-loaded that way, on a
+    /// library where the tile was loaded the whole time. A marker with no first-seen field (written
+    /// before it existed), or no marker at all (a tile the user made), falls back to the file's
+    /// mtime: still the right comparison, just wrong in the conservative direction when Steam's own
+    /// writes have moved it. /proc gives the newest start time among the Steam-ish processes (2 s of
+    /// slack for clock slop). A file that has never been written counts as loaded (there is no tile
+    /// there; the InLibrary check upstream already says so). When the start time cannot be read (a
+    /// bare /proc in tests, a locked-down kernel), answer optimistically: this guard steers a choice
+    /// between two working paths, it never decides safety
+    public static bool LibraryLoaded(string vdf, string proc = "/proc")
+    {
+        DateTime written;
+        try { written = File.GetLastWriteTimeUtc(vdf); }
+        catch (Exception e) when (e is FileNotFoundException or IOException or UnauthorizedAccessException) { return true; }
+        // (the marker's own record beats the file's mtime; see above)
+        var entered = MarkerFirstSeen(vdf);
+        if (entered is long seenAt) written = DateTimeOffset.FromUnixTimeSeconds(seenAt).UtcDateTime;
+        var changed = MarkerChangedAt(vdf);
+        try
+        {
+            // (round-five L7, reordered after the audit: the library-owning clients are found FIRST,
+            // so "no client at all" answers not-loaded on its own evidence — the old order read
+            // /proc/uptime first and an unreadable uptime returned optimistic true BEFORE any
+            // client was looked for, which made the gamescope-only case fail open on a bare or
+            // locked-down /proc. Only the TIMING paths stay optimistic once a client exists)
+            var clients = new List<string>();
+            foreach (var dir in Directory.EnumerateDirectories(proc))
+            {
+                if (!int.TryParse(Path.GetFileName(dir), out _)) continue;
+                string first;
+                try { first = File.ReadAllText(Path.Combine(dir, "cmdline")).Split('\0', 2)[0]; }
+                catch (IOException) { continue; }
+                catch (UnauthorizedAccessException) { continue; }
+                // (the library-owning client only — the review's P1: a gamescope that started after
+                // the tile write proves nothing about the library, it is the compositor; the runtime
+                // scripts count because the client execs out of them. A gamescope-session restart
+                // must not fake a library reload epoch, so gamescope is deliberately NOT here even
+                // though SteamUp counts it for up/down)
+                if (Path.GetFileName(first) is "steam" or "steamrt" or "steamrt64") clients.Add(dir);
+            }
+            // (round-five L7: NO library-owning client at all — a gamescope-session restart where
+            // only the compositor is up, a Steam mid-restart — answers NOT loaded. The old answer
+            // here was optimistic true, and the review's probe used it: SteamUp counts gamescope,
+            // so a cold-start Play routed a URI to a client that was not there yet, waited, and
+            // started nothing)
+            if (clients.Count == 0) return false;
+            // boot time: now minus uptime (the /proc/uptime first field, seconds). Unreadable with
+            // clients running is a bare/locked-down /proc: the timing cannot be judged, and the
+            // guard steers a choice between two working paths, so it stays optimistic
+            var up = File.ReadAllText(Path.Combine(proc, "uptime")).Split(' ', 2)[0];
+            if (!double.TryParse(up, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var secs))
+                return true;
+            var boot = DateTime.UtcNow.AddSeconds(-secs);
+            var hz = 100.0;                        // (Linux task clock: 100 Hz on every arch SteamOS runs)
+            var best = DateTime.MinValue;
+            foreach (var dir in clients)
+            {
+                // (stat: "pid (comm) state ..." — comm can hold spaces and parentheses, so count
+                // fields from the LAST ')'; starttime is the 20th field after it, in clock ticks)
+                string stat;
+                try { stat = File.ReadAllText(Path.Combine(dir, "stat")); }
+                catch (IOException) { continue; }
+                catch (UnauthorizedAccessException) { continue; }
+                var close = stat.LastIndexOf(')');
+                var rest = stat[(close + 1)..].Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                if (rest.Length < 20 || !long.TryParse(rest[19], out var start)) continue;
+                var started = boot.AddSeconds(start / hz);
+                if (started > best) best = started;
+            }
+            // (a client exists but none could be timed: same unjudgeable case, optimistic)
+            if (best == DateTime.MinValue) return true;
+            // (two comparisons, deliberately different. The tile's ARRIVAL epoch keeps its 2 s of
+            // clock slop: file mtimes and /proc start times come from different clocks, and this
+            // slack has been the calibrated tolerance since the first round. The REPOINT epoch
+            // (round-five L6) gets NO slack — "a Steam started at or after the repoint" is the
+            // claim, and the audit measured that -2 s let a client started before the repoint be
+            // trusted. A client inside that 2 s window afterwards briefly reads not-loaded, which
+            // is the safe direction: direct launch, with the note)
+            if (changed is long c && best < DateTimeOffset.FromUnixTimeSeconds(c).UtcDateTime) return false;
+            return best >= written.AddSeconds(-2);
+        }
+        catch (Exception e) when (e is FileNotFoundException or IOException or UnauthorizedAccessException) { return true; }
     }
 
     /// Ask Steam to quit and wait for it: -shutdown through its own script, up to half a minute, then

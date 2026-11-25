@@ -103,6 +103,7 @@ static partial class Program
         PadChecks(Path.GetFullPath(Path.Combine(fixtures, "..", "..")));
         Utf8Checks();
         SteamChecks(Path.GetFullPath(Path.Combine(fixtures)));
+        RouteChecks(fixtures);
         await ScreenChecks();
         await BusyChecks(Path.GetFullPath(Path.Combine(fixtures, "..", "..")));
         IconChecks(Path.GetFullPath(Path.Combine(fixtures, "..", "..")));

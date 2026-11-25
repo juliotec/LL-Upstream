@@ -736,5 +736,16 @@
   "{0} builds": {"other": "{0} 個建置"},
   "{0} builds listed.": {"other": "已列出 {0} 個建置。"},
   "{0} builds listed, and their saves copied.": {"other": "已列出 {0} 個建置，並複製了存檔。"},
-  "Everything in {0} is listed already.": "{0} 中的所有內容都已列出。"
+  "Everything in {0} is listed already.": "{0} 中的所有內容都已列出。",
+  "Steam is starting this build through its tile, so its controller mapping applies.": "Steam 正在透過其捷徑啟動此版本，因此套用 Steam 的控制器對應。",
+  "Steam has not loaded the new Longshot tile yet, so this game was started directly; restart Steam and later Plays go through it.": "Steam 尚未載入新的 Longshot 捷徑，因此此遊戲已直接啟動。重新啟動 Steam 後，之後的遊戲將經捷徑啟動。",
+  "The Longshot tile in Steam points at a different launcher file than this one, so this game started directly: the tile's launcher is the one Steam would start, not this one.": "Steam 中的 Longshot 捷徑指向與此檔案不同的啟動器檔案，因此此遊戲已直接啟動：Steam 將啟動該捷徑的啟動器，而不是這個。",
+  "Steam is running but has no Longshot tile yet: the game was started directly, so the controller keeps Steam's desktop mapping. Add the tile from the launcher's ready screen, then Play goes through Steam.": "Steam 正在執行但還沒有 Longshot 捷徑：遊戲已直接啟動，因此控制器保持 Steam 的桌面對應。請在啟動器的就緒畫面新增捷徑，之後開始遊戲將經 Steam 啟動。",
+  "The launcher this tile would start keeps its games somewhere else, so this one started directly: the routed start would have gone to the wrong place.": "此捷徑將啟動的啟動器將遊戲存放在別處，因此此程式已直接啟動：經轉送的啟動會前往錯誤的位置。",
+  "A game launched through Steam's tile is still on its way from an earlier Play; this one started directly.": "透過 Steam 捷徑啟動的遊戲仍在從之前的遊戲趕來的途中；此遊戲已直接啟動。",
+  "Your settings could not be saved just now, so this game started directly: a launch through Steam's tile would use the saved settings instead of the ones you just changed.": "您的設定剛才無法儲存，因此此遊戲已直接啟動：透過 Steam 捷徑啟動會使用已儲存的設定，而不是您剛剛變更的設定。",
+  "This launcher cannot write its handoff folder, so the game started directly: a routed start it cannot track is one it cannot keep from happening twice.": "此啟動器無法寫入其交接資料夾，因此遊戲已直接啟動：無法追蹤的轉送啟動也就無法防止發生兩次。",
+  "Nothing on this system answers a steam:// link, so the game started directly.": "此系統上沒有任何程式回應 steam:// 連結，因此遊戲已直接啟動。",
+  "Steam refused the tile launch (the refusal said no outright), so the game started directly.": "Steam 拒絕了透過捷徑啟動（明確拒絕），因此遊戲已直接啟動。",
+  "A game launched through Steam's tile from an earlier Play is already arriving; this Play did not start a second copy.": "先前遊戲透過 Steam 捷徑啟動的遊戲已在途中；本次啟動沒有開啟第二個副本。"
 }

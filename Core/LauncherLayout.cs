@@ -33,7 +33,16 @@ public sealed record LauncherLayout(Platform Platform, string? File, LauncherKin
     {
         if (file == null) return new LauncherLayout(platform, null, LauncherKind.Plain);
         if (platform == Platform.Linux)
-            return new LauncherLayout(platform, file, Directory.Exists(file + ".home") ? LauncherKind.Portable : LauncherKind.Plain);
+        {
+            // (the AppImage runtime resolves a symlink to its target BEFORE it sets APPIMAGE, and
+            //  the <name>.home it uses is the TARGET's — measured in review against the exact
+            //  runtime this repo pins: an alias in the library with real.AppImage.home beside the
+            //  target ran portable on the target's home while the old check (alias+".home") read
+            //  it plain, so routing armed where the arrival would never look. Follow the link
+            //  before deciding portable, and key the layout's file off the resolved name)
+            var real = RealPath(file);
+            return new LauncherLayout(platform, real, Directory.Exists(real + ".home") ? LauncherKind.Portable : LauncherKind.Plain);
+        }
         if (System.IO.File.Exists(Path.Combine(Path.GetDirectoryName(file)!, PortableMarker))) return new LauncherLayout(platform, file, LauncherKind.Portable);
         var installed = Path.GetFullPath(InstalledExe(getenv));
         return new LauncherLayout(platform, file, string.Equals(Path.GetFullPath(file), installed, StringComparison.OrdinalIgnoreCase)
@@ -44,6 +53,15 @@ public sealed record LauncherLayout(Platform Platform, string? File, LauncherKin
     /// null when it is not portable
     public string? PortableHome => Kind != LauncherKind.Portable || File == null ? null
         : Platform == Platform.Linux ? File + ".home" : Path.Combine(Path.GetDirectoryName(File)!, PortableData);
+
+    /// The file a Linux start actually RUNS: through a symlink the AppImage runtime resolves to the
+    /// target (its $APPIMAGE is the target's path), so portable detection and the layout's own name
+    /// must resolve too. Not a link (or an unreadable one): the path as given, unchanged
+    static string RealPath(string file)
+    {
+        try { return System.IO.File.ResolveLinkTarget(file, true) is { } t ? t.FullName : file; }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return file; }
+    }
 
     /// Whether the first start asks Install or Run portable: the Windows download, neither installed nor portable, a release's
     /// (a build from a checkout does not ask; --install installs it anyway), with no LONGSHOT_LAUNCHER_HOME set

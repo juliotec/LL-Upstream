@@ -142,6 +142,16 @@ public sealed class LauncherService
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { LauncherLog.Add($"settings: not saved after {from} moved: {e.Message}"); }
     }
 
+    /// The current settings written, or why they could not be: a Play asks immediately before it
+    /// routes through Steam (round-four P2 — the arrival instance reads the settings FILE, so a
+    /// Play whose save just failed must stay direct, where this window's in-memory values are
+    /// already the player's current ones). Quiet: the settings page has its own toast path
+    public bool TrySaveSettings()
+    {
+        try { Settings.Save(Home.Settings); return true; }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return false; }
+    }
+
     /// Where new builds go: the folder chosen, else ~/Games/Longshot, or a portable launcher's own builds folder
     public string BuildsFolder => string.IsNullOrWhiteSpace(Settings.BuildsFolder) && Home.Portable ? Home.PortableBuilds : Settings.BuildsFolderOrDefault();
     public string Work => string.IsNullOrWhiteSpace(Settings.Work) ? Home.Work : Settings.Work;
@@ -365,9 +375,14 @@ public sealed class LauncherService
 
     /// A game folder's game, with the saves and the settings every build shares: the old builds' saves brought in first
     /// (GatherSaves), the player's settings brought to a build that has none (CarrySettings), and the shared user folder given to
-    /// it (GamePlay.UserFolder, StartInfo). Returns what those did or why the gather could not (SaveText.Gathered), null when
-    /// there was nothing to do
-    public string? PlayFolder(string folder)
+    /// (GamePlay.UserFolder, StartInfo). Returns what those did or why the gather could not (SaveText.Gathered), null when
+    /// there was nothing to do. fromHandoff: this Play IS the launch a desktop-mode Play handed to
+    /// Steam (Program.PlayWithoutWindow consumed the one-shot, folder and all). arrived: this
+    /// instance arrived for a --play (the tile's launch option or a command line): its job is to
+    /// start the game, never to hand off again — the routing chain ends at an arrival by
+    /// construction, arm or no arm, handoff or no handoff (the review's loop probe: a receiver
+    /// that found no arm routed on and asked for a THIRD launch)
+    public string? PlayFolder(string folder, SteamLaunchRoute.Handoff? fromHandoff = null, bool arrived = false)
     {
         var said = GatherSaid(GatherSaves());
         // (a folder named by --play that no list holds: its user\save the shared save too)
@@ -385,15 +400,58 @@ public sealed class LauncherService
             foreach (var line in CarryDriverSettings(folder)) said = said == null ? line : said + " " + line;
             if (RoomInNvidiaCache() is { } room) said = said == null ? room : said + " " + room;
         }
-        // (the performance statistics: the folder's tick made the player's answer, and what the last sessions left sent)
-        PerfReports.BeforePlay(folder, Settings.SendPerformanceStatistics, Settings.KeepSentPerformanceStatistics, Tools);
-        // (the crash reports: the folder's file made the player's answer, for the crash helper to read after a crash)
-        CrashReports.BeforePlay(folder, Settings.SendCrashReportsAutomatically);
-        using var _ = Process.Start(GamePlay.StartInfo(folder, Platform, user: user,
-                                                       intelCompiles: IntelCompilesApply ? Settings.IntelCompiles : GamePlay.IntelCompilesAuto,
-                                                       intelLongerLimits: Settings.IntelLongerLimits && IntelCompilesApply,
-                                                       gamescope: Platform == Platform.Linux && Settings.Gamescope,
-                                                       gamescopeOptions: Settings.GamescopeOptions));
+        // (Steam Input, the Deck's controller: Play goes through the launcher's own Steam tile when
+        // one exists and Steam is up, so Steam brings its controller layer up for the game. The
+        // tile's --play arrives through PlayWithoutWindow, BEFORE the lock is taken, so it never
+        // fights this window's instance lock — nothing here releases it, and the window keeps its
+        // claim exactly as before routing existed. SteamGameId says a routed launch arrived, but
+        // an arrival (arrived: true) never routes at all and a one-shot handoff makes a second
+        // handoff impossible even if Steam lost that variable. SteamLaunchRoute holds the rule and
+        // the reasons; the fallback is exactly the launch that came before it. A Direct decision's
+        // note is part of the answer (review P2: every note was dropped, so the why never reached
+        // the player): the not-loaded, no-tile, outstanding-handoff, mismatched-home and unwritable-
+        // handoff explanations all ride the returned text, which the Play button's toast shows)
+        var route = SteamLaunchRoute.Decide(Platform, SteamShortcuts.Locate(LauncherPath),
+                                            k => Environment.GetEnvironmentVariable(k),
+                                            token: SteamLaunchRoute.HandoffPath(Home.Root),
+                                            handoff: fromHandoff, folder: folder, arrived: arrived,
+                                            persist: arrived ? null : TrySaveSettings);
+        if (route.Route == SteamLaunchRoute.Kind.RunGameId)
+            // (round-five L11: a routed Play used to return route.Note as the answer, and
+            // HomeViewModel shows the returned text in its NOTICE slot — so every successful
+            // routed Play also showed a notice. The toast already says the game is starting; a
+            // second line, in the slot reserved for "something needs reading", is noise. The
+            // saves/settings notice (said) still rides when there is one; the routing itself goes
+            // to the log, where the why is still findable after the fact)
+        {
+            // (an empty Uri is the race answer: an earlier Play's arrival claimed its arm instead
+            // of this Play dispatching anything — the note says so, and nothing new was launched)
+            LauncherLog.Add(route.Uri.Length > 0 ? "play: routed through the Steam tile" : "play: " + route.Note);
+            return said;
+        }
+        if (route.Note.Length > 0) said = said == null ? route.Note : said + " " + route.Note;
+        // (audit #4: the Direct commitment is recorded BEFORE the pre-spawn work below, so a late
+        // legacy --play delivery in this interval — no game visible in the process list yet — is
+        // still recognised as belonging beside a start already under way. audit #5: the marker is
+        // cleared once the spawn is over (success or failure), so it never outlives the interval
+        // and a legitimate press after a quick exit is not suppressed)
+        if (!arrived) SteamLaunchRoute.RecordDirectStart(Home.Root, folder);
+        try
+        {
+            // (the performance statistics: the folder's tick made the player's answer, and what the last sessions left sent)
+            PerfReports.BeforePlay(folder, Settings.SendPerformanceStatistics, Settings.KeepSentPerformanceStatistics, Tools);
+            // (the crash reports: the folder's file made the player's answer, for the crash helper to read after a crash)
+            CrashReports.BeforePlay(folder, Settings.SendCrashReportsAutomatically);
+            using var _ = Process.Start(GamePlay.StartInfo(folder, Platform, user: user,
+                                                           intelCompiles: IntelCompilesApply ? Settings.IntelCompiles : GamePlay.IntelCompilesAuto,
+                                                           intelLongerLimits: Settings.IntelLongerLimits && IntelCompilesApply,
+                                                           gamescope: Platform == Platform.Linux && Settings.Gamescope,
+                                                           gamescopeOptions: Settings.GamescopeOptions));
+        }
+        finally
+        {
+            if (!arrived) SteamLaunchRoute.ClearDirectStart(Home.Root);
+        }
         return said;
     }
 

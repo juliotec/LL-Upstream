@@ -736,5 +736,16 @@
   "{0} builds": {"other": "{0} 个构建"},
   "{0} builds listed.": {"other": "已列出 {0} 个构建。"},
   "{0} builds listed, and their saves copied.": {"other": "已列出 {0} 个构建，并复制了存档。"},
-  "Everything in {0} is listed already.": "{0} 中的所有内容都已列出。"
+  "Everything in {0} is listed already.": "{0} 中的所有内容都已列出。",
+  "Steam is starting this build through its tile, so its controller mapping applies.": "Steam 正在通过其快捷方式启动此版本，因此应用 Steam 的控制器映射。",
+  "Steam has not loaded the new Longshot tile yet, so this game was started directly; restart Steam and later Plays go through it.": "Steam 尚未加载新的 Longshot 快捷方式，因此此游戏已直接启动。重启 Steam 后，以后的游戏将经快捷方式启动。",
+  "The Longshot tile in Steam points at a different launcher file than this one, so this game started directly: the tile's launcher is the one Steam would start, not this one.": "Steam 中的 Longshot 快捷方式指向与此文件不同的启动器文件，因此此游戏已直接启动：Steam 将启动该快捷方式的启动器，而不是这个。",
+  "Steam is running but has no Longshot tile yet: the game was started directly, so the controller keeps Steam's desktop mapping. Add the tile from the launcher's ready screen, then Play goes through Steam.": "Steam 正在运行但还没有 Longshot 快捷方式：游戏已直接启动，因此控制器保持 Steam 的桌面映射。请在启动器的就绪屏幕添加快捷方式，之后开始游戏将经 Steam 启动。",
+  "The launcher this tile would start keeps its games somewhere else, so this one started directly: the routed start would have gone to the wrong place.": "此快捷方式将启动的启动器将游戏存放在别处，因此此程序已直接启动：经转发的启动会去往错误的位置。",
+  "A game launched through Steam's tile is still on its way from an earlier Play; this one started directly.": "通过 Steam 快捷方式启动的游戏仍在从之前的游戏赶来的途中；此游戏已直接启动。",
+  "Your settings could not be saved just now, so this game started directly: a launch through Steam's tile would use the saved settings instead of the ones you just changed.": "您的设置刚才无法保存，因此此游戏已直接启动：通过 Steam 快捷方式启动会使用已保存的设置，而不是您刚刚更改的设置。",
+  "This launcher cannot write its handoff folder, so the game started directly: a routed start it cannot track is one it cannot keep from happening twice.": "此启动器无法写入其交接文件夹，因此游戏已直接启动：无法跟踪的转发启动也就无法防止发生两次。",
+  "Nothing on this system answers a steam:// link, so the game started directly.": "此系统上没有任何程序响应 steam:// 链接，因此游戏已直接启动。",
+  "Steam refused the tile launch (the refusal said no outright), so the game started directly.": "Steam 拒绝了通过快捷方式启动（明确拒绝），因此游戏已直接启动。",
+  "A game launched through Steam's tile from an earlier Play is already arriving; this Play did not start a second copy.": "先前游戏通过 Steam 快捷方式启动的游戏已在途中；本次启动没有打开第二个副本。"
 }
