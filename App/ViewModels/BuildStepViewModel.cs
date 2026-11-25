@@ -1102,12 +1102,23 @@ public sealed class ReadyViewModel : ViewModelBase, IWizardPage
     /// The tile's capsule artwork beside its shortcuts.vdf, in Steam's grid/ folder keyed by the
     /// tile's appid read unsigned. Only files that are not there get written: a capsule the user
     /// chose in Steam's own UI, or one a previous run put down, is left exactly as it is. A fault
-    /// is silent — a tile without art beats no tile, and the tile itself is the thing that matters
+    /// is silent — a tile without art beats no tile, and the tile itself is the thing that matters.
+    /// The hero slot goes to the game folder's own banner (SteamShortcuts.GameHero) when that
+    /// build's folder has one: what nx2/game_hero.py made there from the player's own copy.
     void WriteTileArt(SteamShortcuts.Placement p)
     {
         try
         {
-            SteamShortcuts.WriteArtwork(p.Vdf, SteamShortcuts.TileAppId(p), Capsules());
+            var folder = SteamShortcuts.GameHero(Job.InstallDir);
+            SteamShortcuts.WriteArtwork(p.Vdf, SteamShortcuts.TileAppId(p),
+                                        SteamShortcuts.WithGameHero(Capsules(), Job.InstallDir));
+            // an install from before the marked hero kept this launcher's generated logo in the
+            // grid, and WriteArtwork never overwrites: beside a folder hero that file is a second
+            // mark over the first, so retire our own copy of it (and only our own: a capsule the
+            // user chose in Steam's UI stays, whosever bytes it is)
+            if (folder != null)
+                SteamShortcuts.RetireGeneratedLogo(p.Vdf, SteamShortcuts.TileAppId(p),
+                                                   Capsules().First(c => c.suffix == "_logo").bytes);
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
     }

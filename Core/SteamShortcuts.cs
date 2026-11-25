@@ -227,6 +227,102 @@ public static class SteamShortcuts
         return wrote;
     }
 
+    /// capsules with the hero slot taken by the game folder's own when it has one, and the logo
+    /// slot dropped beside it: the same slot under the same name, the player's own game's picture,
+    /// carrying the mark the builder drew. Nothing else moves. The input is never touched (the App
+    /// caches its capsule list: mutating it would strand one game's hero in the next game's tile),
+    /// and a missing, oversized or wrong-shaped hero leaves every capsule exactly as it was.
+    /// WriteArtwork's rules still apply over the top: a slot the user's Steam art already holds
+    /// stays held, whosever bytes were offered
+    public static (string suffix, string ext, byte[] bytes)[] WithGameHero(
+        (string suffix, string ext, byte[] bytes)[] capsules, string? gameFolder)
+    {
+        var own = GameHero(gameFolder);
+        if (own == null) return capsules;
+        // the hero slot takes the folder's bytes, and the logo slot goes away with it: the hero
+        // carries the mark now, and Steam's own logo would sit a second one on top of it. A slot
+        // offered nothing is simply never written (checked against the Deck's own client: no
+        // _logo file means no logo drawn over the hero, and no default placeholder), so this
+        // needs no blank art to ship. Everything else passes through, and the input is not touched
+        return [.. capsules
+                    .Where(c => c.suffix != "_logo")
+                    .Select(c => c.suffix == "_hero" ? ("_hero", "png", own) : c)];
+    }
+
+    /// A build whose folder hero carries the mark has no use for a logo capsule: Steam draws it
+    /// right over the hero and a second mark lands on a picture that already carries one.
+    /// WriteArtwork deliberately never overwrites, so an install from before this change still
+    /// holds the logo this launcher generated for it once: retire exactly that file. Under both
+    /// names, and only when the bytes are this launcher's own generated logo byte for byte — a
+    /// capsule the user chose in Steam's UI, any extension, any content, stays exactly as it is,
+    /// and so does anything we cannot prove is ours. Returns how many went
+    public static int RetireGeneratedLogo(string vdf, int appId, byte[] generated)
+    {
+        var dir = GridDir(vdf);
+        var gone = 0;
+        try
+        {
+            foreach (var stem in new[] { unchecked((uint)appId).ToString(), GridId64(appId).ToString() })
+            {
+                var f = Path.Combine(dir, stem + "_logo.png");    // (only the name this launcher
+                try                                               //  wrote: user art is never .png ours)
+                {
+                    if (generated.Length > 0 && new FileInfo(f).Length == generated.Length
+                            && File.ReadAllBytes(f).AsSpan().SequenceEqual(generated))
+                    { File.Delete(f); gone++; }
+                }
+                catch (IOException) { }       // (no file, or it is held: the ordinary answer is it stays)
+            }
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return gone; }
+        return gone;
+    }
+
+    // ---- the game's own banner: the builder (Longshot nx2/game_hero.py) keeps one still of the
+    // player's own game's own footage in their game folder, longshot_hero.png, beside the title
+    // and icon game_title.py keeps. Only that file's bytes fill the hero slot, and only when its
+    // header says the hero's exact shape: a damaged or foreign file is no art rather than a
+    // broken capsule, and the generated hero stands instead. It never ships anywhere: like the
+    // title and icon, it is the player's own game's and lives only in the player's folder ----
+
+    public const string HeroFile = "longshot_hero.png";
+    const int HeroMaxBytes = 8 << 20;           // (a hero PNG sits near 1 MB: over this reads as broken)
+
+    /// The game folder's banner bytes when it has a whole one, else null. Whole means whole,
+    /// the same way nx2/game_hero.py checks its own writing: signature, the IHDR chunk where a
+    /// PNG keeps it with its length and CRC right, and the IEND and its CRC at the very end. A
+    /// twenty-five-byte impostor that only draws the header is no art rather than a black
+    /// capsule with the logo slot dropped for it, and a file cut mid-write is no art either
+    public static byte[]? GameHero(string? gameFolder)
+    {
+        if (gameFolder is not { Length: > 0 }) return null;
+        try
+        {
+            var f = Path.Combine(gameFolder, HeroFile);
+            var size = new FileInfo(f).Length;  // (throws for no file: the ordinary answer is null)
+            if (size < 45 || size > HeroMaxBytes) return null;
+            var b = File.ReadAllBytes(f);
+            if (b.Length < 45 || b.Length > HeroMaxBytes) return null;    // (the size moved between the look and the read)
+            byte[] sig = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+            if (!b[..8].SequenceEqual(sig)) return null;
+            // IHDR: length 13, tag, then width, height, and its CRC over tag+data
+            if (Be32(b, 8) != 13 || b[12] != (byte)'I' || b[13] != (byte)'H' || b[14] != (byte)'D' || b[15] != (byte)'R')
+                return null;
+            if (Be32(b, 16) != 1920 || Be32(b, 20) != 620) return null;
+            if (Be32(b, 29) != Crc32([.. b[12..29]])) return null;
+            if (!System.Text.Encoding.ASCII.GetString(b, 33, b.Length - 45).Contains("IDAT"))
+                return null;                                  // (pixels between the header and
+                                                              //  the end, not a header for show)
+            // IEND: the last 12 bytes of any PNG, tag and CRC included
+            byte[] iend = [0x00, 0x00, 0x00, 0x00, (byte)'I', (byte)'E', (byte)'N', (byte)'D',
+                           0xAE, 0x42, 0x60, 0x82];
+            return b[^12..].SequenceEqual(iend) ? b : null;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return null; }
+    }
+
+    static uint Be32(byte[] b, int at) => ((uint)b[at] << 24) | ((uint)b[at + 1] << 16) | ((uint)b[at + 2] << 8) | b[at + 3];
+
     /// The appid the tile in the library actually carries — an updated launcher's tile keeps the
     /// id its marker recorded — or the one this launcher would give a tile it is about to make.
     /// Capsule art keys off this, not off the freshly computed id alone

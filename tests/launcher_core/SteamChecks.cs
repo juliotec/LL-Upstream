@@ -369,6 +369,141 @@ static partial class Program
         // sits at 2827843537.png and 12145495509653520384.png, which is exactly this formula
         Require(SteamShortcuts.GridId64(-1467123759) == 12145495509653520384UL,
             "GridId64 reproduces the id the Deck's working tile's art is keyed by");
+
+        // the game's own banner: the builder keeps one still of the player's own game's footage
+        // in their game folder (Longshot nx2/game_hero.py, longshot_hero.png); the hero slot
+        // takes its bytes when the folder has a whole one. Nothing game-derived ships in the
+        // launcher: only this reader of a file the player's own build wrote is here
+        byte[] Png(int w, int h)   // (a real PNG of w x h: what GameHero reads the header of)
+        {
+            var b = new List<byte> { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A };
+            byte[] Chunk(string tag, byte[] data)
+            {
+                var c = new List<byte>();
+                c.AddRange([(byte)(data.Length >> 24), (byte)(data.Length >> 16), (byte)(data.Length >> 8), (byte)data.Length]);
+                c.AddRange(tag.Select(ch => (byte)ch));
+                c.AddRange(data);
+                uint crc = 0xFFFFFFFFu;
+                foreach (var x in tag.Select(ch => (byte)ch).Concat(data))
+                {
+                    crc ^= x;
+                    for (var k = 0; k < 8; k++) crc = (crc & 1) != 0 ? (crc >> 1) ^ 0xEDB88320u : crc >> 1;
+                }
+                crc ^= 0xFFFFFFFFu;
+                c.AddRange([(byte)(crc >> 24), (byte)(crc >> 16), (byte)(crc >> 8), (byte)crc]);
+                return c.ToArray();
+            }
+            byte[] ihdr = [(byte)(w >> 24), (byte)(w >> 16), (byte)(w >> 8), (byte)w,
+                           (byte)(h >> 24), (byte)(h >> 16), (byte)(h >> 8), (byte)h,
+                           8, 0, 0, 0, 0];
+            b.AddRange(Chunk("IHDR", ihdr));
+            b.AddRange(Chunk("IDAT", [0x78, 0x01, 0x01, 0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01]));
+            b.AddRange(Chunk("IEND", []));
+            return b.ToArray();
+        }
+        var heroHome = Path.Combine(root, "hero-folder");
+        Directory.CreateDirectory(heroHome);
+        Require(SteamShortcuts.GameHero(null) == null && SteamShortcuts.GameHero("") == null
+                && SteamShortcuts.GameHero(heroHome) == null,
+            "no folder, no file: no hero, no fuss");
+        File.WriteAllBytes(Path.Combine(heroHome, SteamShortcuts.HeroFile), Png(1920, 620));
+        Require(SteamShortcuts.GameHero(heroHome)?.Length == new FileInfo(Path.Combine(heroHome, SteamShortcuts.HeroFile)).Length,
+            "a whole hero at the hero's exact shape reads");
+        File.WriteAllBytes(Path.Combine(heroHome, SteamShortcuts.HeroFile), Png(1920, 1080));
+        Require(SteamShortcuts.GameHero(heroHome) == null, "the whole frame is not a hero: the generated one stands");
+        File.WriteAllBytes(Path.Combine(heroHome, SteamShortcuts.HeroFile), "not a png"u8.ToArray());
+        Require(SteamShortcuts.GameHero(heroHome) == null, "foreign bytes are no hero rather than a broken capsule");
+        File.WriteAllBytes(Path.Combine(heroHome, SteamShortcuts.HeroFile), Array.Empty<byte>());
+        Require(SteamShortcuts.GameHero(heroHome) == null, "an empty file is no hero");
+        // a header drawn for show: signature, IHDR and IEND with their CRCs right, no IDAT
+        // between them. The old check read this as art and offered it to Steam, dropping the
+        // logo slot for a black capsule: whole means whole, both ends, same rules
+        byte[] head = Png(1920, 620);
+        byte[] impostor = [.. head[..33], .. head[^12..]];
+        File.WriteAllBytes(Path.Combine(heroHome, SteamShortcuts.HeroFile), impostor);
+        Require(SteamShortcuts.GameHero(heroHome) == null, "a PNG that only draws its header is no hero");
+        byte[] cut = Png(1920, 620);
+        File.WriteAllBytes(Path.Combine(heroHome, SteamShortcuts.HeroFile), cut[..(cut.Length - 6)]);
+        Require(SteamShortcuts.GameHero(heroHome) == null, "a hero cut mid-write is no hero");
+        // WithGameHero: one slot changed, the rest untouched, and the input array never mutated
+        // (the App caches its capsules: a mutated cache would strand this game's hero in the next)
+        (string suffix, string ext, byte[] bytes)[] gen =
+            [("", "png", new byte[] { 1 }), ("p", "png", new byte[] { 2 }),
+             ("_hero", "png", new byte[] { 3 }), ("_logo", "png", new byte[] { 4 })];
+        File.WriteAllBytes(Path.Combine(heroHome, SteamShortcuts.HeroFile), Png(1920, 620));
+        var own = SteamShortcuts.GameHero(heroHome)!;
+        var with = SteamShortcuts.WithGameHero(gen, heroHome);
+        // the hero takes its slot and the logo slot is dropped with it: the hero carries the mark
+        // now, and a second mark drawn over it is the look the whole change exists to stop
+        Require(with.Length == 3
+                && with[2].suffix == "_hero" && with[2].ext == "png" && with[2].bytes.SequenceEqual(own)
+                && with[0].suffix == "" && with[1].suffix == "p"
+                && !with.Any(c => c.suffix == "_logo")
+                && ReferenceEquals(with[0].bytes, gen[0].bytes) && ReferenceEquals(with[1].bytes, gen[1].bytes),
+            "the hero slot changes to the folder's bytes, the logo slot goes away, the rest pass through");
+        Require(gen[2].bytes.SequenceEqual(new byte[] { 3 }) && !ReferenceEquals(with, gen),
+            "the launcher's cached capsules are never mutated: no hero leaks between games");
+        Require(ReferenceEquals(SteamShortcuts.WithGameHero(gen, null), gen),
+            "a build with no hero file offers the generated capsules as before");
+        // end to end, in a Steam home of its own: a whole hero takes its slot under both names; a
+        // broken one never does (the generated capsule lands there instead); a whole hero offered
+        // again after its slot came free lands again
+        var heroXdg = Path.Combine(root, "hero-data");
+        Directory.CreateDirectory(Path.Combine(heroXdg, "Steam", "userdata", "7", "config"));
+        var heroProbe = SteamShortcuts.Locate("/opt/Longshot Launcher.AppImage", EnvFor(heroXdg))!;
+        Require(SteamShortcuts.Add(heroProbe), "add for the hero's own checks");
+        var hi = unchecked((uint)heroProbe.Entry.AppId).ToString();
+        var heroGrid = SteamShortcuts.GridDir(heroProbe.Vdf);
+        var heroWrote = SteamShortcuts.WriteArtwork(heroProbe.Vdf, heroProbe.Entry.AppId, SteamShortcuts.WithGameHero(gen, heroHome));
+        Require(heroWrote == 6                                        // (three slots, two names: no logo offered)
+                && File.ReadAllBytes(Path.Combine(heroGrid, $"{hi}_hero.png")).SequenceEqual(own)
+                && File.ReadAllBytes(Path.Combine(heroGrid, $"{SteamShortcuts.GridId64(heroProbe.Entry.AppId)}_hero.png")).SequenceEqual(own)
+                && !File.Exists(Path.Combine(heroGrid, $"{hi}_logo.png"))
+                && !File.Exists(Path.Combine(heroGrid, $"{SteamShortcuts.GridId64(heroProbe.Entry.AppId)}_logo.png")),
+            "the game's own hero fills its slot under both names, the logo slot stays unwritten beside it: "
+            + "the hero carries the mark, and the Deck's own client draws no logo and no placeholder for a slot with no file");
+        File.Delete(Path.Combine(heroGrid, $"{hi}_hero.png"));
+        File.Delete(Path.Combine(heroGrid, $"{SteamShortcuts.GridId64(heroProbe.Entry.AppId)}_hero.png"));
+        File.WriteAllBytes(Path.Combine(heroHome, SteamShortcuts.HeroFile), Png(1920, 630));   // (broken: wrong shape)
+        Require(SteamShortcuts.WriteArtwork(heroProbe.Vdf, heroProbe.Entry.AppId, SteamShortcuts.WithGameHero(gen, heroHome)) == 4
+                && File.ReadAllBytes(Path.Combine(heroGrid, $"{hi}_hero.png")).SequenceEqual(gen[2].bytes)
+                && File.ReadAllBytes(Path.Combine(heroGrid, $"{hi}_logo.png")).SequenceEqual(gen[3].bytes),
+            "a wrong-shape hero reaches no capsule: the generated set fills every open slot beside it, the logo back in with them");
+        File.Delete(Path.Combine(heroGrid, $"{hi}_hero.png"));
+        File.Delete(Path.Combine(heroGrid, $"{SteamShortcuts.GridId64(heroProbe.Entry.AppId)}_hero.png"));
+        File.WriteAllBytes(Path.Combine(heroHome, SteamShortcuts.HeroFile), Png(1920, 620));
+        Require(SteamShortcuts.WriteArtwork(heroProbe.Vdf, heroProbe.Entry.AppId, SteamShortcuts.WithGameHero(gen, heroHome)) == 2
+                && File.ReadAllBytes(Path.Combine(heroGrid, $"{hi}_hero.png")).SequenceEqual(own),
+            "a whole hero fills a slot that came free, and lands under both names again");
+        // the upgrade path: an install from before the marked hero holds this launcher's
+        // generated logo in the grid (the block above put it back), and WriteArtwork never
+        // overwrites: beside a folder hero that file is a second mark over the first. The
+        // launcher retires its own bytes under both names and changes nothing else
+        var g64 = SteamShortcuts.GridId64(heroProbe.Entry.AppId).ToString();
+        Require(SteamShortcuts.RetireGeneratedLogo(heroProbe.Vdf, heroProbe.Entry.AppId, gen[3].bytes) == 2
+                && !File.Exists(Path.Combine(heroGrid, $"{hi}_logo.png"))
+                && !File.Exists(Path.Combine(heroGrid, $"{g64}_logo.png"))
+                && File.ReadAllBytes(Path.Combine(heroGrid, $"{hi}_hero.png")).SequenceEqual(own),
+            "the launcher retires its own generated logo beside a folder hero, under both names, the hero standing");
+        Require(SteamShortcuts.WriteArtwork(heroProbe.Vdf, heroProbe.Entry.AppId, SteamShortcuts.WithGameHero(gen, heroHome)) == 0
+                && !File.Exists(Path.Combine(heroGrid, $"{hi}_logo.png")),
+            "the retired logo stays retired: a folder-hero build re-run offers no logo to put back");
+        // ours byte for byte or not at all: a capsule the user chose in Steam's UI survives, and
+        // so does anything a byte off our own
+        File.WriteAllBytes(Path.Combine(heroGrid, $"{hi}_logo.png"), [4, 4, 4]);
+        Require(SteamShortcuts.RetireGeneratedLogo(heroProbe.Vdf, heroProbe.Entry.AppId, gen[3].bytes) == 0
+                && File.ReadAllBytes(Path.Combine(heroGrid, $"{hi}_logo.png")).SequenceEqual(new byte[] { 4, 4, 4 }),
+            "art that is not the launcher's own logo byte for byte is never touched");
+        // and no folder hero, no retirement logic at all: the generated set fills everything,
+        // logo included, as it always did
+        File.Delete(Path.Combine(heroGrid, $"{hi}_logo.png"));
+        File.Delete(Path.Combine(heroGrid, $"{g64}_hero.png"));
+        File.Delete(Path.Combine(heroGrid, $"{hi}_hero.png"));
+        File.WriteAllBytes(Path.Combine(heroHome, SteamShortcuts.HeroFile), Png(1920, 630));   // (broken: no folder hero)
+        Require(SteamShortcuts.WriteArtwork(heroProbe.Vdf, heroProbe.Entry.AppId, SteamShortcuts.WithGameHero(gen, heroHome)) == 4
+                && File.ReadAllBytes(Path.Combine(heroGrid, $"{hi}_logo.png")).SequenceEqual(gen[3].bytes),
+            "with no whole hero in the folder the generated logo fills its slot as before");
+
         // a tile an updated launcher inherited keeps the id its marker recorded; the art keys off
         // the id the LIBRARY carries, not the freshly computed one
         Require(SteamShortcuts.TileAppId(ap) == signed, "TileAppId reports the id the tile in the library carries");
