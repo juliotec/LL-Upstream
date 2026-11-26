@@ -35,7 +35,7 @@ public sealed class StorageViewModel : ViewModelBase
     string? drive;
     IReadOnlyList<DriveOption> driveOptions = Array.Empty<DriveOption>();
     /// Whether Longshot runs and a download runs, as last looked (Watch): what turns the Remove buttons off, and their tips
-    bool seenRunning, seenDownloading, watching;
+    bool seenRunning, seenDownloading, seenBuilding, watching;
     readonly DispatcherTimer watch;
 
     /// What the page is doing (null: nothing), pinned under the legend for as long as it takes: removing, with how much of what
@@ -54,12 +54,13 @@ public sealed class StorageViewModel : ViewModelBase
         shownFree = free;
         if (show is { } g) selected = g;
         var s = main.Service;
-        places = new Storage.Places(s.Work, s.Tools.Root, s.Home.Logs, Array.Empty<string>(), Array.Empty<Storage.Game>(), Array.Empty<string>());
+        places = new Storage.Places(s.Work, s.Home.Toolchains, s.Home.Logs, Array.Empty<string>(), Array.Empty<Storage.Game>(), Array.Empty<string>());
         CancelCommand = new Command(() => { confirming = null; confirmingAll = false; RaiseItems(); });
         AskAllCommand = new Command(() => { confirmingAll = true; confirming = null; RaiseItems(); }, () => CanClearAll);
         RemoveAllCommand = new Command(() => _ = RemoveAsync(Clearable().ToList()), () => !IsBusy);
         seenRunning = running ?? true;
         seenDownloading = running.HasValue ? false : DownloadingNow;
+        seenBuilding = !running.HasValue && BuildingNow;
         // (a game or a download that ends while the page is open turns its buttons back on: looked at every 2 s, off the
         // window's thread, until the page is left)
         watch = new DispatcherTimer(TimeSpan.FromSeconds(2), DispatcherPriority.Background, (_, _) => Watch());
@@ -88,11 +89,11 @@ public sealed class StorageViewModel : ViewModelBase
         }
         if (watching) return;
         watching = true;
-        Task.Run(() => (RunningNow, DownloadingNow)).ContinueWith(t => Ui.Post(() =>
+        Task.Run(() => (RunningNow, DownloadingNow, BuildingNow)).ContinueWith(t => Ui.Post(() =>
         {
             watching = false;
-            if (!t.IsCompletedSuccessfully || t.Result == (seenRunning, seenDownloading)) return;
-            (seenRunning, seenDownloading) = t.Result;
+            if (!t.IsCompletedSuccessfully || t.Result == (seenRunning, seenDownloading, seenBuilding)) return;
+            (seenRunning, seenDownloading, seenBuilding) = t.Result;
             RaiseItems();
         }));
     }
@@ -103,9 +104,20 @@ public sealed class StorageViewModel : ViewModelBase
     static Storage.Places PlacesOf(MainViewModel main, IReadOnlyList<Storage.Game> games)
     {
         var s = main.Service;
-        return new Storage.Places(s.Work, s.Tools.Root, s.Home.Logs, new[] { s.Home.NgxSdk, s.Home.FfxSdk, s.Home.XessSdk }, games,
+        return new Storage.Places(s.Work, s.Home.Toolchains, s.Home.Logs, new[] { s.Home.NgxSdk, s.Home.FfxSdk, s.Home.XessSdk }, games,
                                   new[] { s.SaveEnv.SaveFolder }.Concat(s.SaveEnv.BackupRoots).Distinct().ToList(), s.SaveEnv.ShaderStore,
-                                  new[] { s.SaveEnv.LongshotRoot, s.SaveEnv.LongshotUser }.Distinct().ToList());
+                                  new[] { s.SaveEnv.LongshotRoot, s.SaveEnv.LongshotUser }.Distinct().ToList(),
+                                  s.Tools.Installed().Select(s.Tools.PathOf).ToList());
+    }
+
+    /// longshot-builder's cache, as the newest installed version's builder counts it (`storage --cache <the launcher's> --output
+    /// json`); null when none is installed or it gave no answer (an older builder): the page walks the cache's folders then.
+    /// Off the window's thread
+    static BuilderStorage? StorageOfBuilder(LauncherService s)
+    {
+        if (s.Tools.Fetcher() is not { } tools || s.Tools.Find(tools.Tag) == null) return null;
+        try { return BuilderStorage.AskAsync(s.BuilderOf(tools.Folder), Path.Combine(s.Work, Disk.LongshotBuildCache)).GetAwaiter().GetResult(); }
+        catch (Exception e) when (e is IOException or InvalidOperationException) { return null; }
     }
 
     /// A game folder no row lists: its id on the page (no row's id has it)
@@ -118,7 +130,7 @@ public sealed class StorageViewModel : ViewModelBase
 
     /// The places as one text: another version, a folder moved, and a kept measure is not theirs
     static string KeyOf(Storage.Places p, string buildsFolder) => string.Join("\n",
-        new[] { buildsFolder, p.Work, p.Toolchains, p.LauncherLogs, p.ShaderStore ?? "" }.Concat(p.Sdks).Concat(p.Games.Select(g => g.Id + "=" + g.Folder)).Concat(p.SaveFolders).Concat(p.SettingsFolders ?? Array.Empty<string>()));
+        new[] { buildsFolder, p.Work, p.Toolchains, p.LauncherLogs, p.ShaderStore ?? "" }.Concat(p.Sdks).Concat(p.Games.Select(g => g.Id + "=" + g.Folder)).Concat(p.SaveFolders).Concat(p.SettingsFolders ?? Array.Empty<string>()).Concat(p.VersionFolders ?? []));
 
     DateTimeOffset? measuredAt;
     bool partialMeasure;
@@ -167,7 +179,8 @@ public sealed class StorageViewModel : ViewModelBase
                     var games = at.Games.Where(g => GameFolder.IsGameFolder(g.Folder, platform, () => partial = true)).ToList();
                     games.AddRange(Leftovers.All(buildsFolder, at.Games.Select(g => g.Folder), platform, new[] { home }, saves, () => partial = true)
                         .Select(l => new Storage.Game(UnlistedId + l.Folder, l.Shown, l.Folder, Unlisted: true, l.HoldsYours || registryProblem)));
-                    discovered = at with { Games = games };
+                    // (longshot-builder's cache as the newest installed builder counts it, StorageOfBuilder)
+                    discovered = at with { Games = games, Builder = StorageOfBuilder(Main.Service) };
                     measured = Storage.Measure(discovered, () => partial = true);
                 }
             }
@@ -402,7 +415,11 @@ public sealed class StorageViewModel : ViewModelBase
     }
 
     public string KeepText => Tr.F("Keep build files and stores ({0})",
-                                   Durations.Size(View.Where(i => i.Kind is Storage.Kind.RecentCode or Storage.Kind.RecentTranslation or Storage.Kind.OlderCode or Storage.Kind.OlderTranslations).Sum(i => i.Bytes)));
+                                   Durations.Size(View.Where(i => Kept(i.Kind)).Sum(i => i.Bytes)));
+
+    /// The build files Keep build files keeps (Storage.AfterBuild removes the rest of the build files folder's parts with it off)
+    static bool Kept(Storage.Kind kind) => kind is Storage.Kind.RecentCode or Storage.Kind.RecentTranslation or Storage.Kind.OlderCode
+                                                 or Storage.Kind.OlderTranslations or Storage.Kind.BuilderFiles;
     public string KeepHint => Tr.T("The next update redoes only what changed. Capped stores also keep work for switching versions.");
 
     /// One item of the group shown: what it is, its size, whether it is kept, and its removal (asked first)
@@ -430,12 +447,12 @@ public sealed class StorageViewModel : ViewModelBase
         }
         if (selected == Storage.Group.FasterUpdates)
         {
-            var kept = KeepBuildFiles && i.Kind is Storage.Kind.RecentCode or Storage.Kind.RecentTranslation or Storage.Kind.OlderCode or Storage.Kind.OlderTranslations;
+            var kept = KeepBuildFiles && Kept(i.Kind);
             tag = kept ? Tr.T("Kept") : Tr.T("Goes after the next build");
             tagInk = Brush(kept ? "#5FB08A" : "#E2B86B");
             tagFill = Brush(kept ? "#265FB08A" : "#24E2B86B");
         }
-        var refusal = Storage.CanRemove(i, seenRunning, seenDownloading);
+        var refusal = Storage.CanRemove(i, seenRunning, seenDownloading, seenBuilding);
         var confirm = Tr.Sentences(Tr.F("Frees {0}.", Durations.Size(i.Frees)), info.Cost is { } c ? Tr.T(c) : "");
         // (a version's row says what else goes with it: its shader caches, in its folder)
         // (a folder no row lists: where it is, in the builds folder (Where it goes shows that one))
@@ -503,6 +520,7 @@ public sealed class StorageViewModel : ViewModelBase
             _ => Tr.T("Close Longshot first: it uses its shader caches while it runs."),
         },
         Storage.Refusal.Downloading => Tr.T("A download is running: its files stay until it ends."),
+        Storage.Refusal.Building => Tr.T("A build is running: its build files and shader caches stay until it ends."),
         Storage.Refusal.HoldsYours => Tr.T("It holds mods of yours (or a link you made): move them out of its folder first."),
         _ => null,
     };
@@ -512,13 +530,13 @@ public sealed class StorageViewModel : ViewModelBase
         .Where(i => i.Group == selected && (i.Bytes > 0 || i.HasClearableFiles) && i.Kind != Storage.Kind.Programs && i.Removable);
 
     /// What Remove all lets go now: the candidates nothing holds
-    IEnumerable<Storage.Item> Clearable() => Candidates().Where(i => Storage.CanRemove(i, seenRunning, seenDownloading) == Storage.Refusal.None);
+    IEnumerable<Storage.Item> Clearable() => Candidates().Where(i => Storage.CanRemove(i, seenRunning, seenDownloading, seenBuilding) == Storage.Refusal.None);
 
     /// Remove all: shown for a group with more than one thing to let go; off, with its tip, while what holds them runs
     public bool ShowClearAll => !confirmingAll && Candidates().Count() > 1;
     public bool CanClearAll => ShowClearAll && !IsBusy && Clearable().Any();
     public string? ClearAllTip => ShowClearAll && !Clearable().Any() && Candidates().FirstOrDefault() is { } held
-        ? WhyNot(held.Kind, Storage.CanRemove(held, seenRunning, seenDownloading)) : null;
+        ? WhyNot(held.Kind, Storage.CanRemove(held, seenRunning, seenDownloading, seenBuilding)) : null;
     /// (in Installed games only the folders no row lists go: never a version in the list)
     public string ClearAllText
     {
@@ -539,6 +557,10 @@ public sealed class StorageViewModel : ViewModelBase
     /// keeps seenRunning and seenDownloading)
     bool RunningNow => Saves.Running(Main.Platform).Contains(Saves.Longshot.Display);
     bool DownloadingNow => Main.Service.Prefetch.Busy;
+    /// A build runs: this launcher's, or longshot-builder building a listed version's folder (Saves.BuilderRunning: not its check
+    /// or perf-report), which writes the build files, the shader caches and the store
+    bool BuildingNow => BuildStepViewModel.Current != null
+                        || Saves.BuilderRunning(Main.Platform, Main.Service.Registry.Builds.Select(b => b.Folder).ToList());
     public string BusyNote => Tr.T("Nothing is removed while a build is running or Longshot is open.");
 
     /// Everything Longshot put on this PC, in one go (RemoveEverythingViewModel)
@@ -580,6 +602,7 @@ public sealed class StorageViewModel : ViewModelBase
              drives.Count == 1 ? drives[0] : null, parts.Sum(i => i.Frees));
         RaiseItems();
         var running = RunningNow;
+        var building = BuildingNow;
         var own = LauncherLog.FilePath;
         long freed = 0;
         var refused = Storage.Refusal.None;
@@ -605,7 +628,7 @@ public sealed class StorageViewModel : ViewModelBase
                 {
                     var r = Storage.Refusal.None;
                     var incomplete = false;
-                    void Remove() => r = Storage.Remove(i, capturedPlaces, running, false, own, deleteFolder: DeleteFolder,
+                    void Remove() => r = Storage.Remove(i, capturedPlaces, running, false, own, deleteFolder: DeleteFolder, building: building,
                         logOutcome: (removed, skipped, failed) => { logsRemoved += removed; logsSkipped += skipped; logsFailed += failed; incomplete = skipped > 0 || failed > 0 || removed == 0; },
                         folderOutcome: (removed, skipped, failed) => { foldersSkipped += skipped; foldersFailed += failed; incomplete = skipped > 0 || failed > 0 || removed == 0; });
                     if (i.Kind == Storage.Kind.UnfinishedDownloads)
@@ -630,6 +653,7 @@ public sealed class StorageViewModel : ViewModelBase
         Main.ShowToast(problem != null ? Tr.F("Not everything could be removed: {0}", problem)
             : refused == Storage.Refusal.Running ? Tr.T("Close Longshot first: it holds its shader caches and logs while it runs.")
             : refused == Storage.Refusal.Downloading ? Tr.T("A download is running: its files stay until it ends.")
+            : refused == Storage.Refusal.Building ? Tr.T("A build is running: its build files and shader caches stay until it ends.")
             : foldersFailed > 0 || foldersSkipped > 0 ? Tr.F("Some storage targets were missing or could not be removed ({0} skipped, {1} failed). Earlier estimate for other items: up to {2}.", foldersSkipped, foldersFailed, Durations.Size(freed))
             : logsFailed > 0 || logsSkipped > 0 ? Tr.F("Removed {0} logs; kept {1} and could not remove {2}. Earlier estimate: up to {3}.", logsRemoved, logsSkipped, logsFailed, Durations.Size(freed))
             : Tr.F("Removal finished. Earlier estimate: up to {0}.", Durations.Size(freed)));

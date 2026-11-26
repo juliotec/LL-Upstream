@@ -20,6 +20,7 @@ public static class Versions
 
     static readonly Regex NightlyName = new(@"^nightly-([0-9]{1,9})-([0-9a-f]{8})(-dirty)?$", RegexOptions.CultureInvariant);
     static readonly Regex PullRequestName = new(@"^pr-([1-9][0-9]{0,8})-([0-9a-f]{8})$", RegexOptions.CultureInvariant);
+    static readonly Regex MainName = new(@"^main-([0-9a-f]{8})$", RegexOptions.CultureInvariant);
     static readonly Regex ReleaseName = new(@"^v(\d+)\.(\d+)\.(\d+)$", RegexOptions.CultureInvariant);
     static readonly Regex TagName = new(@"^[0-9A-Za-z._+-]{1,128}$", RegexOptions.CultureInvariant);
 
@@ -37,7 +38,7 @@ public static class Versions
     public static string TrackOf(string? version) =>
         version == null ? Stable
         : NightlyKey(version) != null ? Nightly
-        : PullRequestOf(version) != null ? PullRequest
+        : PullRequestOf(version) != null || MainOf(version) != null ? PullRequest
         : Stable;
 
     /// A release tag, vX.Y.Z from v3.0.0 on (not a nightly's name)
@@ -58,6 +59,20 @@ public static class Versions
 
     public static bool IsPullRequest(string? version) => PullRequestOf(version) != null;
 
+    /// A build of main's source: main-&lt;the first 8 hex of the commit&gt;, its commit; null: not one. Kept on the pull requests'
+    /// track (TrackOf), as a build from source that no release is
+    public static string? MainOf(string? version) =>
+        version != null && MainName.Match(version) is { Success: true } m ? m.Groups[1].Value : null;
+
+    /// A build of main's newest commit: main-&lt;the first 8 hex of it&gt;
+    public static string MainTag(string commit) =>
+        commit.Length >= 8 && commit.All(char.IsAsciiHexDigit)
+            ? $"main-{commit[..8].ToLowerInvariant()}"
+            : throw new ArgumentException("Not a commit: " + commit, nameof(commit));
+
+    /// A version built from Longshot's source rather than a release: a pull request's or main's
+    public static bool IsSourceBuild(string? version) => IsPullRequest(version) || MainOf(version) != null;
+
     /// A pull request's build's name: its number and the first 8 hex of the commit it is built from
     public static string PullRequestTag(int number, string commit) =>
         number > 0 && commit.Length >= 8 && commit.All(char.IsAsciiHexDigit)
@@ -70,6 +85,7 @@ public static class Versions
         version != null && NightlyName.Match(version) is { Success: true } m
             ? $"Nightly {m.Groups[1].Value} \u00b7 {m.Groups[2].Value}{m.Groups[3].Value}"
             : PullRequestOf(version) is { } pr ? $"PR #{pr.Number.ToString(CultureInfo.InvariantCulture)} \u00b7 {pr.Commit}"
+            : MainOf(version) is { } main ? $"main \u00b7 {main}"
             : version ?? "";
 
     /// A nightly's place in the nightly order (null: no nightly): nightly-&lt;count&gt;-&lt;commit&gt; by its count, -dirty after the

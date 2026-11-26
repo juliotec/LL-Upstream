@@ -46,6 +46,11 @@ public sealed class LauncherHome
     public string Toolchains => Path.Combine(Root, "toolchains");
     /// The launcher's log files: launcher.log, this run's, and launcher.1.log, the run before (LauncherLog)
     public string Logs => Path.Combine(Root, "logs");
+    /// longshot-builder's data folder for the launcher's runs (LONGSHOT_DATA: LongshotBuilder.Environment): its notes of the
+    /// licences accepted per game folder (licenses/&lt;id&gt;.json, one per folder built, even with none accepted). In Root, not
+    /// Cache: the builder keeps them out of any cache a player empties. Apart from a developer's own builder runs (their default,
+    /// ~/.local/share/longshot-builder or %LOCALAPPDATA%\Longshot\Builder-data), so Remove everything takes it with Root
+    public string BuilderData => Path.Combine(Root, "builder-data");
     /// make_game.py's --work unless the player chose another: the build files, kept between builds for a faster rebuild (a build
     /// without them is slower, never wrong: a cache)
     public string Work => InCache(WorkName);

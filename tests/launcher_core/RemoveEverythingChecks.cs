@@ -35,6 +35,10 @@ static partial class Program
             Touch(Path.Combine(home.Root, "settings.json"), "{}");
             Touch(Path.Combine(home.Logs, "launcher.log"), "log");
             Touch(Path.Combine(home.Toolchains, "nightly-1-aaaaaaaa", "make_game.py"), "builder");
+            // (longshot-builder's licence notes: the launcher's runs', in its home (LONGSHOT_DATA), and a developer's own run's in
+            // the builder's default data folder, which is not the launcher's)
+            Touch(Path.Combine(home.BuilderData, "licenses", "0123456789abcdef0123.json"), """{"folder":"/games/L","accepted":[]}""");
+            Touch(Path.Combine(data, "longshot-builder", "licenses", "fedcba9876543210fedc.json"), """{"folder":"/dev/out","accepted":[]}""");
             Touch(Path.Combine(home.Root, "longshot.png"), "logo");
             Touch(Path.Combine(home.NgxSdk, "nvngx_dlss.so"), "dlss");
             var games = Path.Combine(root, "Games");
@@ -77,7 +81,7 @@ static partial class Program
                 ["listed"] = listed, ["unlisted"] = unlisted, ["mods"] = withMods, ["games"] = games, ["work"] = work, ["store"] = store,
                 ["save"] = Path.Combine(env.LinuxUserFiles, "save"), ["backups"] = env.BackupRoot, ["shared"] = env.OldLinuxBackups,
                 ["outside"] = outside, ["linked"] = linked ? "yes" : "", ["nfc"] = nfc, ["user"] = env.LinuxUserFiles,
-                ["track"] = Path.Combine(games, "nightly"),
+                ["track"] = Path.Combine(games, "nightly"), ["devData"] = Path.Combine(data, "longshot-builder"),
             });
         }
 
@@ -87,6 +91,9 @@ static partial class Program
         Throws<IOException>(() => RemoveEverything.Run(busy, saves: false, () => new[] { Saves.Longshot.Display }, () => when),
                             "Remove everything refuses while Longshot runs.");
         Require(Tree(busy.Home.Root) + Tree(busyAt["games"]) + Tree(busyAt["work"]) == before, "Remove everything refused touches nothing.");
+        Throws<IOException>(() => RemoveEverything.Run(busy, saves: false, () => Array.Empty<string>(), () => when, building: () => true),
+                            "Remove everything refuses while Longshot's builder runs.");
+        Require(Tree(busy.Home.Root) + Tree(busyAt["games"]) + Tree(busyAt["work"]) == before, "Refused for a build: nothing touched.");
 
         // (saves not ticked)
         var (p1, at) = Make("remove-everything");
@@ -109,6 +116,8 @@ static partial class Program
         Require(!Directory.Exists(p1.Home.Root) && !Directory.Exists(p1.Home.Cache) && !File.Exists(Path.Combine(at["store"], "spirv.pack"))
                 && !Directory.Exists(Path.Combine(at["user"], "cache")),
                 "Remove everything deletes the launcher's home and cache folders (its list, settings, builders, logs, SDKs), the shader store and the game's cache.");
+        Require(!Directory.Exists(p1.Home.BuilderData) && File.Exists(Path.Combine(at["devData"], "licenses", "fedcba9876543210fedc.json")),
+                "Remove everything deletes longshot-builder's licence notes of the launcher's runs (LONGSHOT_DATA, in its home), never a developer's own.");
         Require(Tree(at["save"]) == saveTree && Tree(at["backups"]) == backupTree && Tree(at["shared"]) == sharedTree && Tree(at["nfc"]) == nfcTree
                 && File.Exists(Path.Combine(at["user"], "longshot_options.ini")),
                 "Remove everything with the saves not ticked keeps the saves, their backups, the game's settings and the NFC tags.");

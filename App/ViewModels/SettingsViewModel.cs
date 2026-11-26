@@ -56,12 +56,20 @@ public sealed class SettingsViewModel : ViewModelBase, ILeavingPage
         ChangeBuildsCommand = new Command(() => _ = ChangeBuildsAsync());
         OpenBuildsCommand = new Command(() => Main.Host?.Open(Main.Service.BuildsFolder), () => Directory.Exists(Main.Service.BuildsFolder));
         ChangeWorkCommand = new Command(() => _ = ChangeWorkAsync());
-        DefaultWorkCommand = new Command(() => { s.Work = null; Save(); RaiseAll(nameof(Work)); MeasureWork(); });
+        workBefore = main.Service.Work;
+        DefaultWorkCommand = new Command(() =>
+        {
+            s.Work = null;
+            if (Save()) LeaveOldWork();
+            RaiseAll(nameof(Work));
+            MeasureWork();
+        });
         StorageCommand = new Command(() =>
         {
             Save();
             Main.ShowStorage();
         });
+        NfcCommand = new Command(() => { Save(); Main.ShowNfc(); });
         ReleaseNotesCommand = new Command(() => Main.Host?.Open(Releases.Repo + "/releases"));
         PrivacyCommand = new Command(() => Main.Host?.Open(PrivacyUrl));
         AddToMenuCommand = new Command(AddToMenu, () => Program.Layout.File != null);
@@ -148,13 +156,22 @@ public sealed class SettingsViewModel : ViewModelBase, ILeavingPage
     public IReadOnlyList<ChannelOption> Channels { get; }
     public IReadOnlyList<LauncherChannelOption> LauncherChannels { get; }
 
-    /// The channel the launcher updates itself from; a change is checked at once
+    /// The channel the launcher updates itself from; a change is checked at once. From nightly to stable it is the offer to replace
+    /// this launcher with the stable one instead (StableSwitch, StableLauncherViewModel), the channel left as it is until the
+    /// player says yes there
     public string LauncherChannel
     {
         get => Main.Service.LauncherChannel;
         set
         {
             if (value == Main.Service.LauncherChannel || !Versions.IsChannel(value)) return;
+            if (StableSwitch.Offers(Main.Service.LauncherChannel, value))
+            {
+                // (the radio the player pressed goes back to nightly once the press is done)
+                Ui.Post(() => { foreach (var c in LauncherChannels) c.Changed(); });
+                Main.Modal = new StableLauncherViewModel(Main);
+                return;
+            }
             s.LauncherChannel = value;
             Save();
             foreach (var c in LauncherChannels) c.Changed();
@@ -165,10 +182,31 @@ public sealed class SettingsViewModel : ViewModelBase, ILeavingPage
         }
     }
 
-    void Save()
+    bool Save()
     {
-        try { Main.Service.SaveSettings(); }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { Main.ShowToast(Tr.F("The settings could not be saved: {0}", e.Message)); }
+        try
+        {
+            Main.Service.SaveSettings();
+            return true;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            Main.ShowToast(Tr.F("The settings could not be saved: {0}", e.Message));
+            return false;
+        }
+    }
+
+    /// The build files folder the launcher's builds used before this page changed it: their work folders there are let go once
+    /// the change is saved (LauncherService.LeaveWork). A typed folder is taken when the page is left (Left), not at each key
+    string workBefore;
+    bool workSaved;
+
+    void LeaveOldWork()
+    {
+        var now = Main.Service.Work;
+        if (BuildRegistry.SameFolder(workBefore, now)) return;
+        Main.Service.LeaveWork(workBefore);
+        workBefore = now;
     }
 
     public string Channel
@@ -207,7 +245,7 @@ public sealed class SettingsViewModel : ViewModelBase, ILeavingPage
         set
         {
             s.Work = string.IsNullOrWhiteSpace(value) ? null : ShownPath.Typed(value.Trim());
-            Save();
+            workSaved = Save();
             Raise();
             MeasureWork();
         }
@@ -218,12 +256,11 @@ public sealed class SettingsViewModel : ViewModelBase, ILeavingPage
 
     /// What is kept and why, under the folder: the build files here, the shader caches in each version's folder
     /// The builds folder: what lives in it, with a path as it would be (nightly\nightly-171-…), in this system's separator
-    public string BuildsHint => Tr.F("Your instances live here, one folder per track and version ({0}). An update or a go-back renames its folder to its new version.",
+    public string BuildsHint => Tr.F("Your versions, one folder per track and version ({0}). An update or a go-back renames its folder.",
                                      Path.Combine(Versions.Nightly, "nightly-171-…"));
 
     public string WorkHint => Tr.Sentences(
-        Tr.T("Working files Longshot makes while building, reused by every build. Not the game: they can be on another drive."),
-        Tr.T("The most recent build keeps its compiled code and translation here, so the next update redoes only what changed."));
+        Tr.T("Working files every build reuses, so updates and rebuilds are quicker. Not the game: they can be on another drive."));
 
     /// Beside Manage storage: what the page shows, and the shader caches' size once measured
     public string StorageHint => Tr.Sentences(
@@ -335,6 +372,7 @@ public sealed class SettingsViewModel : ViewModelBase, ILeavingPage
     public Command DefaultWorkCommand { get; }
     /// The Storage page: what Longshot keeps on this PC, by what it is for, and freeing it one item at a time
     public Command StorageCommand { get; }
+    public Command NfcCommand { get; }
     public Command ReleaseNotesCommand { get; }
 
     /// The game folders of the builds listed, whose shader caches the hint counts: only folders make_game.py made
@@ -370,9 +408,14 @@ public sealed class SettingsViewModel : ViewModelBase, ILeavingPage
     async Task ChangeWorkAsync()
     {
         if (Main.Host is not { } host) return;
-        if (await host.PickFolderAsync(Tr.T("Where the build files go"), Main.Service.Work) is { } picked) Work = Path.GetFullPath(picked);
+        if (await host.PickFolderAsync(Tr.T("Where the build files go"), Main.Service.Work) is not { } picked) return;
+        Work = Path.GetFullPath(picked);
+        if (workSaved) LeaveOldWork();
     }
 
     /// Left by a title bar tab (no Done: the tabs move between the pages): what was chosen saved
-    public void Left() => Save();
+    public void Left()
+    {
+        if (Save()) LeaveOldWork();
+    }
 }

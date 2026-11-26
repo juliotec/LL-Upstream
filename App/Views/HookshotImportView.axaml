@@ -39,7 +39,7 @@
             <Border Classes="boxicon">
               <c:Icon Kind="alert" Width="13" Height="13" Foreground="{StaticResource Warn}"/>
             </Border>
-            <TextBlock Grid.Column="1" Text="{Binding AskText}" TextWrapping="Wrap"/>
+            <TextBlock Grid.Column="1" Text="{Binding AskText}" TextWrapping="Wrap" VerticalAlignment="Center"/>
           </Grid>
         </Border>
         <Border Classes="warnbox" IsVisible="{Binding HasProblem}">
@@ -47,7 +47,7 @@
             <Border Classes="boxicon">
               <c:Icon Kind="alert" Width="13" Height="13" Foreground="{StaticResource Warn}"/>
             </Border>
-            <StackPanel Grid.Column="1" Spacing="4">
+            <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
               <TextBlock Text="{Binding Problem}" TextWrapping="Wrap"/>
               <Button Classes="link soft" HorizontalAlignment="Left" Content="{c:T 'Copy for a bug report'}" Command="{Binding CopyCommand}"/>
             </StackPanel>

@@ -1,10 +1,10 @@
 namespace LongshotLauncher.Core;
 
 /// A completely cold build's start (BuildJob.Cold), for a build that keeps failing or a game that misbehaves after one: what
-/// earlier builds kept is deleted before make_game.py starts, so nothing of theirs is used. The build files and both stores
+/// earlier builds kept is deleted before the builder starts, so nothing of theirs is used. The build files and both stores
 /// (Disk.FreeWork, as Free up space), and the game folder's shader caches with their pipeline notes (ShaderCaches.Clear: the
-/// build writes the notes again). The caller also takes no caches from the build it replaces (ShaderCaches.Keep) and no game
-/// files from another build (LONGSHOT_ROMFS_FROM). Never saves, settings or mods: they are not among them
+/// build writes the notes again). The caller also takes no caches from the build it replaces (ShaderCaches.Keep). Never saves,
+/// settings or mods: they are not among them
 public static class ColdBuild
 {
     /// What was deleted: the build files' and stores' bytes, and the shader caches'

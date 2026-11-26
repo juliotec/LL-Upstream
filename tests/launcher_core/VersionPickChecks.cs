@@ -21,19 +21,37 @@ static partial class Program
             ("v3.0.0", false, false, ""),
             ("v3.0.0-rc.4", false, true, ""),
             ("nightly-188-a00c485c", false, true, "listed twice"),
-            ("v2.9.0", false, false, "2.x: no version of Longshot")));
+            ("v2.9.0", false, false, "2.x: no version of Longshot")))
+            .Select(r => r with { Assets = [(LongshotBuildRelease.ManifestName(r.Tag, "linux-x64"), "https://e/" + r.Tag, 10)] }).ToList();
         string Tags(IEnumerable<ListedRelease> rs) => string.Join(" ", rs.Select(r => r.Tag));
         var p = Product.Longshot;
+        const Platform L = Platform.Linux;
 
-        Require(Tags(ReleaseManifest.OnChannel(list, "nightly", p)) == "nightly-189-aa95d35f nightly-188-a00c485c nightly-182-5274fb72",
+        Require(Tags(ReleaseManifest.OnChannel(list, "nightly", p, L)) == "nightly-189-aa95d35f nightly-188-a00c485c nightly-182-5274fb72",
                 "A channel's releases, newest first: the nightlies, no draft, a tag listed twice once.");
-        Require(Tags(ReleaseManifest.OnChannel(list, "stable", p)) == "v3.1.0 v3.0.2 v3.0.1 v3.0.0",
+        Require(Tags(ReleaseManifest.OnChannel(list, "stable", p, L)) == "v3.1.0 v3.0.2 v3.0.1 v3.0.0",
                 "The stable channel: the stables only, in version order, not the server's; never an old release candidate.");
-        Throws<ArgumentException>(() => ReleaseManifest.OnChannel(list, "rc", p), "rc was taken for a channel.");
+        Throws<ArgumentException>(() => ReleaseManifest.OnChannel(list, "rc", p, L), "rc was taken for a channel.");
         foreach (var c in Versions.Channels)
-            Require(ReleaseManifest.Newest(list, c, p) == ReleaseManifest.OnChannel(list, c, p)[0].Tag, $"{c}'s newest is the first of its releases.");
-        Require(ReleaseManifest.OnChannel(Array.Empty<ListedRelease>(), "nightly", p).Count == 0
-                && ReleaseManifest.Newest(Array.Empty<ListedRelease>(), "nightly", p) == null, "No release: nothing on the channel.");
+            Require(ReleaseManifest.Newest(list, c, p, L) == ReleaseManifest.OnChannel(list, c, p, L)[0].Tag, $"{c}'s newest is the first of its releases.");
+        Require(ReleaseManifest.OnChannel(Array.Empty<ListedRelease>(), "nightly", p, L).Count == 0
+                && ReleaseManifest.Newest(Array.Empty<ListedRelease>(), "nightly", p, L) == null, "No release: nothing on the channel.");
+
+        // (only releases of longshot-builder's kind for this system: a channel whose newest is make_game.py's offers the one before;
+        // one with only make_game.py releases offers nothing)
+        var old = ReleaseManifest.ParseList(Json(("nightly-200-dddddddd", false, true, ""), ("v3.2.0", false, false, ""), ("v3.1.9", false, false, "")));
+        var windowsOnly = list[0] with { Tag = "nightly-201-eeeeeeee", Assets = [(LongshotBuildRelease.ManifestName("nightly-201-eeeeeeee", "windows-x64"), "https://e/w", 10)] };
+        var mixed = old.Concat(list).Append(windowsOnly).ToList();
+        Require(ReleaseManifest.Newest(old, "stable", p, L) == null && ReleaseManifest.OnChannel(old, "nightly", p, L).Count == 0,
+                "A channel of make_game.py releases only offers nothing.");
+        Require(Tags(ReleaseManifest.OnChannel(mixed, "nightly", p, L)) == "nightly-189-aa95d35f nightly-188-a00c485c nightly-182-5274fb72"
+                && Tags(ReleaseManifest.OnChannel(mixed, "stable", p, L)) == "v3.1.0 v3.0.2 v3.0.1 v3.0.0",
+                "Mixed releases: only longshot-builder's for this system are listed.");
+        Require(ReleaseManifest.Newest(mixed, "nightly", p, L) == "nightly-189-aa95d35f" && ReleaseManifest.Newest(mixed, "nightly", p, Platform.Windows) == "nightly-201-eeeeeeee",
+                "The newest is the newest supported on this system, past newer make_game.py releases.");
+        Require(Marks(VersionPick.Of("stable", Array.Empty<BuildEntry>(), mixed, p, L)) == "v3.1.0* v3.0.2 v3.0.1 v3.0.0",
+                "The Version list never offers a make_game.py release.");
+        Require(ReleaseManifest.Supported(old[0], Product.Launcher, L), "Every launcher release is supported.");
 
         var t0 = DateTimeOffset.Parse("2026-11-01T00:00:00Z", System.Globalization.CultureInfo.InvariantCulture);
         BuildEntry Build(string id, string? version, string channel, bool isDefault = false, int day = 0) =>
@@ -46,26 +64,26 @@ static partial class Program
         var builds = new[] { nightly, stable };
 
         // ---- the versions of a track ----
-        Require(Marks(VersionPick.Of("nightly", builds, list, p)) == "nightly-189-aa95d35f* nightly-188-a00c485c+ nightly-182-5274fb72",
+        Require(Marks(VersionPick.Of("nightly", builds, list, p, L)) == "nightly-189-aa95d35f* nightly-188-a00c485c+ nightly-182-5274fb72",
                 "A track's versions: the server's, newest first and marked, the installed one marked.");
-        Require(Marks(VersionPick.Of("stable", builds, list, p)) == "v3.1.0* v3.0.2 v3.0.1 v3.0.0+", "The stable track: the stables, v3.0.0 installed.");
-        Require(Marks(VersionPick.Of("nightly", builds, null, p)) == "nightly-188-a00c485c+",
+        Require(Marks(VersionPick.Of("stable", builds, list, p, L)) == "v3.1.0* v3.0.2 v3.0.1 v3.0.0+", "The stable track: the stables, v3.0.0 installed.");
+        Require(Marks(VersionPick.Of("nightly", builds, null, p, L)) == "nightly-188-a00c485c+",
                 "No answer from the server yet: the installed versions only, none called the newest.");
-        Require(Marks(VersionPick.Of("stable", new[] { nightly }, null, p)) == "", "No answer and nothing installed on the track: no versions.");
+        Require(Marks(VersionPick.Of("stable", new[] { nightly }, null, p, L)) == "", "No answer and nothing installed on the track: no versions.");
         var gone = Build("old", "nightly-150-0caf0618", "nightly", day: 2);
-        Require(Marks(VersionPick.Of("nightly", new[] { nightly, gone }, list, p))
+        Require(Marks(VersionPick.Of("nightly", new[] { nightly, gone }, list, p, L))
                 == "nightly-189-aa95d35f* nightly-188-a00c485c+ nightly-182-5274fb72 nightly-150-0caf0618+",
                 "An installed nightly the server no longer keeps is still listed, in its place in the order.");
         var dev = Build("d", "dev", "nightly");
-        Require(Marks(VersionPick.Of("nightly", new[] { dev }, list, p)) == "nightly-189-aa95d35f* nightly-188-a00c485c nightly-182-5274fb72 dev+",
+        Require(Marks(VersionPick.Of("nightly", new[] { dev }, list, p, L)) == "nightly-189-aa95d35f* nightly-188-a00c485c nightly-182-5274fb72 dev+",
                 "A version on no order (dev) comes after the ones the order ranks.");
-        Require(VersionPick.Of("stable", new[] { Build("r", "v3.0.1", "") }, list, p).Single(v => v.Installed).Tag == "v3.0.1",
+        Require(VersionPick.Of("stable", new[] { Build("r", "v3.0.1", "") }, list, p, L).Single(v => v.Installed).Tag == "v3.0.1",
                 "A build with no channel of its own is on its version's track (stable).");
-        Require(VersionPick.Of("stable", new[] { Build("r", "v3.1.0-rc.1", "rc") }, list, p).Single(v => v.Installed).Tag == "v3.1.0-rc.1",
+        Require(VersionPick.Of("stable", new[] { Build("r", "v3.1.0-rc.1", "rc") }, list, p, L).Single(v => v.Installed).Tag == "v3.1.0-rc.1",
                 "A build of an old release candidate, on rc, is on the stable track (rc is no channel now).");
         var twice = new[] { nightly, Build("n2", "nightly-188-a00c485c", "nightly", day: 5) };
-        Require(VersionPick.Of("nightly", twice, list, p).Count(v => v.Tag == "nightly-188-a00c485c") == 1
-                && VersionPick.Of("nightly", twice, list, p).Single(v => v.Installed).Build!.Id == "n",
+        Require(VersionPick.Of("nightly", twice, list, p, L).Count(v => v.Tag == "nightly-188-a00c485c") == 1
+                && VersionPick.Of("nightly", twice, list, p, L).Single(v => v.Installed).Build!.Id == "n",
                 "A version built twice is one row, and its build is the default one.");
 
         // ---- what the main button does ----

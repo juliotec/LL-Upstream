@@ -3,9 +3,28 @@
              xmlns:c="using:LongshotLauncher.Controls"
              x:Class="LongshotLauncher.App"
              RequestedThemeVariant="Dark">
-  <!-- The launcher in the 2.x Builder's "Slate, frosted" look: the mockup's tokens.css (launcher/mockup), under App.xaml's names -->
+  <!-- The launcher's cool dark look (the 2.x Builder's "Slate", flat: no glows, no gradients) with MagicBean's brand as accents
+       (MagicBeanDev/Brand): the four stripes once at the window's top, lime, gold, leaf green for Play, and Noto Sans Black for
+       the one big title of a page -->
   <Application.Resources>
     <ResourceDictionary>
+      <!-- the brand's colours, by their names there -->
+      <Color x:Key="NightColor">#21140D</Color>
+      <SolidColorBrush x:Key="Night" Color="#21140D"/>
+      <SolidColorBrush x:Key="Night2" Color="#2E1D13"/>
+      <SolidColorBrush x:Key="Rust" Color="#A8472B"/>
+      <SolidColorBrush x:Key="RustDark" Color="#7C3220"/>
+      <SolidColorBrush x:Key="Cream" Color="#FBF1DC"/>
+      <SolidColorBrush x:Key="CreamCard" Color="#FFF8E8"/>
+      <SolidColorBrush x:Key="CreamLine" Color="#E6D3AE"/>
+      <SolidColorBrush x:Key="CreamInk" Color="#2A1A10"/>
+      <SolidColorBrush x:Key="CreamMuted" Color="#6E5643"/>
+      <SolidColorBrush x:Key="Lime" Color="#C2ED83"/>
+      <SolidColorBrush x:Key="Leaf" Color="#7CC242"/>
+      <SolidColorBrush x:Key="Deep" Color="#3C651E"/>
+      <SolidColorBrush x:Key="Gold" Color="#F3C24F"/>
+      <SolidColorBrush x:Key="Tan" Color="#EFD3A6"/>
+      <SolidColorBrush x:Key="Orange" Color="#D9783A"/>
       <!-- the palette (builder/LongshotBuilder/App.xaml) -->
       <SolidColorBrush x:Key="Page" Color="#14161A"/>
       <SolidColorBrush x:Key="Raised" Color="#1C1F24"/>
@@ -18,9 +37,9 @@
       <SolidColorBrush x:Key="Brand" Color="#3D63E6"/>
       <SolidColorBrush x:Key="BrandHover" Color="#4B70F0"/>
       <SolidColorBrush x:Key="BrandInk" Color="#DFE6FF"/>
-      <SolidColorBrush x:Key="Go" Color="#5FB08A"/>
-      <SolidColorBrush x:Key="GoHover" Color="#70C09A"/>
-      <SolidColorBrush x:Key="GoInk" Color="#06150E"/>
+      <SolidColorBrush x:Key="Go" Color="#7CC242"/>
+      <SolidColorBrush x:Key="GoHover" Color="#8DD253"/>
+      <SolidColorBrush x:Key="GoInk" Color="#13210D"/>
       <SolidColorBrush x:Key="Warn" Color="#E2B86B"/>
       <SolidColorBrush x:Key="Bad" Color="#E2776B"/>
       <SolidColorBrush x:Key="Accent" Color="#5FB08A"/>
@@ -52,21 +71,26 @@
       <!-- pressed: a step darker than hover -->
       <SolidColorBrush x:Key="QuietPressed" Color="#05FFFFFF"/>
       <SolidColorBrush x:Key="BrandPressed" Color="#3357D0"/>
-      <SolidColorBrush x:Key="GoPressed" Color="#539C7A"/>
+      <SolidColorBrush x:Key="GoPressed" Color="#6AAE36"/>
       <SolidColorBrush x:Key="BadHover" Color="#EC8B80"/>
       <SolidColorBrush x:Key="BadPressed" Color="#D2685C"/>
       <!-- Windows' own close red -->
       <SolidColorBrush x:Key="CloseHover" Color="#C42B1C"/>
       <SolidColorBrush x:Key="ClosePressed" Color="#A8261A"/>
       <!-- the keyboard / controller focus ring: a light brand ring (8:1 on the page), 2 px clear of the control -->
-      <SolidColorBrush x:Key="FocusRing" Color="#93AAFF"/>
-      <BoxShadows x:Key="PrimaryGlow">0 6 22 0 #8C3D63E6</BoxShadows>
-      <BoxShadows x:Key="GoGlow">0 8 30 0 #805FB08A</BoxShadows>
+      <SolidColorBrush x:Key="FocusRing" Color="#F3C24F"/>
+      <BoxShadows x:Key="PrimaryGlow">0 0 0 0 Transparent</BoxShadows>
+      <BoxShadows x:Key="GoGlow">0 3 0 0 #66000000</BoxShadows>
+      <!-- the brand's accents (MagicBeanDev/Brand), over v8's cool dark palette: lime for the version and good states, gold
+           for focus and small kickers, leaf green for Play -->
+      <BoxShadows x:Key="PlayShadow">0 3 0 0 #66000000</BoxShadows>
       <!-- digits all one width, so versions, sizes, times and percentages do not jitter as they change -->
       <FontFeatureCollection x:Key="Tabular">
         <FontFeature>+tnum</FontFeature>
       </FontFeatureCollection>
       <FontFamily x:Key="Ui">avares://LongshotLauncher/Assets/Fonts#Inter</FontFamily>
+      <!-- the brand's headings: Noto Sans Black (the announcement's face where Segoe UI Black is not installed) -->
+      <FontFamily x:Key="Head">avares://LongshotLauncher/Assets/Fonts#Noto Sans</FontFamily>
       <FontFamily x:Key="Mono">Cascadia Mono, Consolas, JetBrains Mono, DejaVu Sans Mono, monospace</FontFamily>
     </ResourceDictionary>
   </Application.Resources>
@@ -80,17 +104,44 @@
       <Setter Property="Foreground" Value="{StaticResource Ink}"/>
     </Style>
 
-    <!-- type, one scale: 11 (small chips), 12 (faint, labels), 13 (notes), 14 (body), 16, 18 (dialog titles), 24 (headings),
+    <!-- type, one scale: 11 (small chips), 12 (faint), 13 (notes, section and field names), 14 (body), 16, 18 (dialog titles), 24 (headings),
          34 (the game's name), 40 (a build's percentage); weights Medium, SemiBold, Bold -->
     <Style Selector="TextBlock.heading">
-      <Setter Property="FontSize" Value="24"/>
-      <Setter Property="FontWeight" Value="Bold"/>
-      <Setter Property="LetterSpacing" Value="-0.24"/>
+      <Setter Property="FontFamily" Value="{StaticResource Head}"/>
+      <Setter Property="FontSize" Value="28"/>
+      <Setter Property="FontWeight" Value="Black"/>
+      <Setter Property="LetterSpacing" Value="-0.9"/>
     </Style>
     <Style Selector="TextBlock.title">
       <Setter Property="FontSize" Value="34"/>
       <Setter Property="FontWeight" Value="Bold"/>
       <Setter Property="LetterSpacing" Value="-0.5"/>
+    </Style>
+    <!-- the brand's kicker: a short line in capitals, gold, tracked wide, in a gold-outlined pill -->
+    <Style Selector="Border.kicker">
+      <Setter Property="BorderBrush" Value="#66F3C24F"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="CornerRadius" Value="999"/>
+      <Setter Property="Padding" Value="10,3"/>
+      <Setter Property="VerticalAlignment" Value="Center"/>
+      <Setter Property="HorizontalAlignment" Value="Left"/>
+    </Style>
+    <Style Selector="Border.kicker > TextBlock">
+      <Setter Property="FontWeight" Value="Bold"/>
+      <Setter Property="FontSize" Value="11"/>
+      <Setter Property="LetterSpacing" Value="1.2"/>
+      <Setter Property="Foreground" Value="{StaticResource Gold}"/>
+    </Style>
+    <Style Selector="Border.kicker.go">
+      <Setter Property="BorderBrush" Value="#66C2ED83"/>
+    </Style>
+    <Style Selector="Border.kicker.go > TextBlock">
+      <Setter Property="Foreground" Value="{StaticResource Lime}"/>
+    </Style>
+    <!-- the brand's four stripes: rust, orange, gold, leaf -->
+    <Style Selector="UniformGrid.stripes">
+      <Setter Property="Rows" Value="1"/>
+      <Setter Property="Height" Value="6"/>
     </Style>
     <Style Selector="TextBlock.sub">
       <Setter Property="Foreground" Value="{StaticResource InkSoft}"/>
@@ -109,11 +160,11 @@
       <Setter Property="TextWrapping" Value="Wrap"/>
       <Setter Property="Margin" Value="0,6,0,0"/>
     </Style>
+    <!-- a section's or a field's name, in sentence case: 13, SemiBold, a step softer than the text it names -->
     <Style Selector="TextBlock.label">
-      <Setter Property="FontSize" Value="12"/>
+      <Setter Property="FontSize" Value="13"/>
       <Setter Property="FontWeight" Value="SemiBold"/>
       <Setter Property="Foreground" Value="{StaticResource InkSoft}"/>
-      <Setter Property="LetterSpacing" Value="0.48"/>
       <Setter Property="Margin" Value="0,24,0,10"/>
     </Style>
     <Style Selector="TextBlock.strong">
@@ -146,8 +197,11 @@
       <Setter Property="Background" Value="{StaticResource Glass}"/>
       <Setter Property="BorderBrush" Value="{StaticResource GlassLine}"/>
       <Setter Property="BorderThickness" Value="1"/>
-      <Setter Property="CornerRadius" Value="10"/>
+      <Setter Property="CornerRadius" Value="14"/>
       <Setter Property="ClipToBounds" Value="True"/>
+    </Style>
+    <Style Selector="c|ScrollEdge">
+      <Setter Property="Background" Value="{StaticResource GlassLineStrong}"/>
     </Style>
     <Style Selector="Border.divider">
       <Setter Property="Height" Value="1"/>
@@ -184,17 +238,17 @@
     </Style>
     <Style Selector="Border.chip.go">
       <Setter Property="Background" Value="{StaticResource GoSoft}"/>
-      <Setter Property="BorderBrush" Value="#405FB08A"/>
+      <Setter Property="BorderBrush" Value="#407CC242"/>
       <Setter Property="TextElement.Foreground" Value="{StaticResource Go}"/>
     </Style>
     <Style Selector="Border.chip.warn">
       <Setter Property="Background" Value="{StaticResource WarnSoft}"/>
-      <Setter Property="BorderBrush" Value="#38E2B86B"/>
+      <Setter Property="BorderBrush" Value="#38F3C24F"/>
       <Setter Property="TextElement.Foreground" Value="{StaticResource Warn}"/>
     </Style>
     <Style Selector="Border.chip.bad">
       <Setter Property="Background" Value="{StaticResource BadSoft}"/>
-      <Setter Property="BorderBrush" Value="#40E2776B"/>
+      <Setter Property="BorderBrush" Value="#40EC7A5F"/>
       <Setter Property="TextElement.Foreground" Value="{StaticResource Bad}"/>
     </Style>
     <Style Selector="Border.chip.ink">
@@ -436,11 +490,11 @@
     </Style>
     <!-- a link that cannot be pressed now (its work, or another, runs: BusyCommand) reads as off, as the other buttons do -->
     <Style Selector="Button.link:disabled">
-      <Setter Property="Foreground" Value="{StaticResource InkFaint}"/>
+      <Setter Property="Foreground" Value="{StaticResource InkFaintText}"/>
       <Setter Property="Background" Value="Transparent"/>
     </Style>
-    <!-- the title bar's buttons: on Windows flush in the corner, 46 wide, close in Windows' red; on Linux round and inset, as
-         GNOME and KDE draw them (MainWindow's StackPanel.linux) -->
+    <!-- the title bar's buttons: round and inset, one style on every platform and page (MainWindow's StackPanel.captions);
+         Close turns red under the pointer, as Windows' does -->
     <Style Selector="Button.caption">
       <Setter Property="Width" Value="46"/>
       <Setter Property="Height" Value="40"/>
@@ -475,26 +529,26 @@
     <Style Selector="Button.caption.close:pressed">
       <Setter Property="Background" Value="{StaticResource ClosePressed}"/>
     </Style>
-    <Style Selector="StackPanel.linux">
+    <Style Selector="StackPanel.captions">
       <Setter Property="Spacing" Value="10"/>
       <Setter Property="Margin" Value="0,18,20,0"/>
     </Style>
-    <Style Selector="StackPanel.linux Button.caption">
+    <Style Selector="StackPanel.captions Button.caption">
       <Setter Property="Width" Value="28"/>
       <Setter Property="Height" Value="28"/>
       <Setter Property="CornerRadius" Value="14"/>
       <Setter Property="Background" Value="{StaticResource ChipFill}"/>
       <Setter Property="Foreground" Value="{StaticResource InkSoft}"/>
     </Style>
-    <Style Selector="StackPanel.linux Button.caption c|Icon">
+    <Style Selector="StackPanel.captions Button.caption c|Icon">
       <Setter Property="Width" Value="16"/>
       <Setter Property="Height" Value="16"/>
       <Setter Property="Weight" Value="1.6"/>
     </Style>
-    <Style Selector="StackPanel.linux Button.caption.gear">
+    <Style Selector="StackPanel.captions Button.caption.gear">
       <Setter Property="Background" Value="Transparent"/>
     </Style>
-    <Style Selector="StackPanel.linux Button.caption.gear c|Icon">
+    <Style Selector="StackPanel.captions Button.caption.gear c|Icon">
       <Setter Property="Weight" Value="1"/>
     </Style>
     <!-- the title bar's tabs: an icon over a small label (the size of the launcher's version beside its name), as wide as
@@ -520,38 +574,104 @@
       <Setter Property="FontWeight" Value="Normal"/>
       <Setter Property="HorizontalAlignment" Value="Center"/>
     </Style>
-    <Style Selector="StackPanel.linux Button.caption.nav">
+    <Style Selector="StackPanel.captions Button.caption.nav">
       <Setter Property="Width" Value="NaN"/>
       <Setter Property="MinWidth" Value="50"/>
       <Setter Property="Height" Value="40"/>
       <Setter Property="CornerRadius" Value="8"/>
       <Setter Property="Padding" Value="8,0"/>
     </Style>
-    <Style Selector="StackPanel.linux Button.caption.gear.nav c|Icon">
+    <Style Selector="StackPanel.captions Button.caption.gear.nav c|Icon">
       <Setter Property="Width" Value="16"/>
       <Setter Property="Height" Value="16"/>
     </Style>
-    <!-- the title bar's tab of the page shown: lit, with a line of the brand's colour at its foot (Windows) or filled (Linux) -->
+    <!-- the title bar's tab of the page shown: lit and filled, one style on every platform (StackPanel.captions) -->
     <Style Selector="Button.caption.nav.on">
       <Setter Property="Foreground" Value="{StaticResource Ink}"/>
       <Setter Property="Background" Value="{StaticResource Glass}"/>
       <Setter Property="BorderBrush" Value="{StaticResource Brand}"/>
       <Setter Property="BorderThickness" Value="0,0,0,2"/>
     </Style>
-    <Style Selector="StackPanel.linux StackPanel#NavBar">
+    <Style Selector="StackPanel.captions StackPanel#NavBar">
       <Setter Property="Spacing" Value="10"/>
     </Style>
-    <Style Selector="StackPanel.linux Button.caption.nav.on">
+    <Style Selector="StackPanel.captions Button.caption.nav.on">
       <Setter Property="Background" Value="{StaticResource ChipFill}"/>
       <Setter Property="BorderThickness" Value="0"/>
     </Style>
-    <Style Selector="StackPanel.linux Button.caption:pointerover, StackPanel.linux Button.caption.close:pointerover">
+    <Style Selector="StackPanel.captions Button.caption:pointerover, StackPanel.captions Button.caption.close:pointerover">
       <Setter Property="Background" Value="{StaticResource GlassLineStrong}"/>
       <Setter Property="Foreground" Value="{StaticResource Ink}"/>
     </Style>
-    <Style Selector="StackPanel.linux Button.caption:pressed, StackPanel.linux Button.caption.close:pressed">
+    <Style Selector="StackPanel.captions Button.caption.close:pointerover">
+      <Setter Property="Background" Value="{StaticResource CloseHover}"/>
+      <Setter Property="Foreground" Value="White"/>
+    </Style>
+    <Style Selector="StackPanel.captions Button.caption:pressed, StackPanel.captions Button.caption.close:pressed">
       <Setter Property="Background" Value="{StaticResource GlassHover}"/>
     </Style>
+    <!-- a page's Back, in its header: a round arrow left of the title, level with it (Panel.backslot; the title is 52 in), and
+         B's glyph on its corner while a controller is in use (Window.pad: the TV view, or once a controller was pressed) -->
+    <Style Selector="Panel.backslot">
+      <Setter Property="HorizontalAlignment" Value="Left"/>
+      <Setter Property="VerticalAlignment" Value="Top"/>
+      <Setter Property="Margin" Value="0,-1,0,0"/>
+    </Style>
+    <Style Selector="Button.back">
+      <Setter Property="Width" Value="36"/>
+      <Setter Property="Height" Value="36"/>
+      <Setter Property="Padding" Value="0"/>
+      <Setter Property="CornerRadius" Value="18"/>
+      <Setter Property="Background" Value="{StaticResource QuietFill}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource QuietLine}"/>
+      <Setter Property="Foreground" Value="{StaticResource InkSoft}"/>
+    </Style>
+    <Style Selector="Button.back:pointerover">
+      <Setter Property="Foreground" Value="{StaticResource Ink}"/>
+    </Style>
+    <Style Selector="Button.back c|Icon">
+      <Setter Property="Width" Value="18"/>
+      <Setter Property="Height" Value="18"/>
+    </Style>
+    <Style Selector="Border.bglyph">
+      <Setter Property="IsVisible" Value="False"/>
+      <Setter Property="Width" Value="17"/>
+      <Setter Property="Height" Value="17"/>
+      <Setter Property="CornerRadius" Value="9"/>
+      <Setter Property="Background" Value="{StaticResource Ink}"/>
+      <Setter Property="HorizontalAlignment" Value="Right"/>
+      <Setter Property="VerticalAlignment" Value="Bottom"/>
+      <Setter Property="Margin" Value="0,0,-5,-5"/>
+      <Setter Property="IsHitTestVisible" Value="False"/>
+      <Setter Property="TextElement.Foreground" Value="{StaticResource Page}"/>
+      <Setter Property="TextElement.FontSize" Value="10"/>
+      <Setter Property="TextElement.FontWeight" Value="Bold"/>
+    </Style>
+    <Style Selector="Border.bglyph TextBlock">
+      <Setter Property="HorizontalAlignment" Value="Center"/>
+      <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+    <Style Selector="Window.pad Border.bglyph">
+      <Setter Property="IsVisible" Value="True"/>
+    </Style>
+    <!-- a page's facts under its title: one small line, muted (a path, where its files stay) -->
+    <Style Selector="StackPanel.meta">
+      <Setter Property="Orientation" Value="Horizontal"/>
+      <Setter Property="Spacing" Value="7"/>
+      <Setter Property="Margin" Value="0,8,0,0"/>
+    </Style>
+    <Style Selector="StackPanel.meta c|Icon">
+      <Setter Property="Width" Value="13"/>
+      <Setter Property="Height" Value="13"/>
+      <Setter Property="Foreground" Value="{StaticResource InkFaintText}"/>
+      <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+    <Style Selector="StackPanel.meta TextBlock">
+      <Setter Property="FontSize" Value="12"/>
+      <Setter Property="Foreground" Value="{StaticResource InkFaintText}"/>
+      <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+
     <!-- a whole row that is a button (a version in the list, Advanced's head) -->
     <Style Selector="Button.row">
       <Setter Property="Height" Value="NaN"/>
@@ -756,12 +876,29 @@
       <Setter Property="FontSize" Value="13"/>
       <Setter Property="MinHeight" Value="32"/>
     </Style>
+    <!-- (a choice longer than its dropdown, as a translation can be: cut with an ellipsis, whole in the open list) -->
+    <Style Selector="ComboBox.dd TextBlock">
+      <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+    </Style>
     <Style Selector="ComboBox:pointerover /template/ Border#Background">
       <Setter Property="Background" Value="{StaticResource GlassHover}"/>
       <Setter Property="BorderBrush" Value="{StaticResource GlassLineStrong}"/>
     </Style>
     <Style Selector="ComboBoxItem">
       <Setter Property="FontSize" Value="13"/>
+    </Style>
+    <!-- a list's rows in the launcher's colours, not Fluent's accent: the picked one in the brand's soft fill -->
+    <Style Selector="ComboBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource GlassHover}"/>
+      <Setter Property="Foreground" Value="{StaticResource Ink}"/>
+    </Style>
+    <Style Selector="ComboBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource BrandSoft}"/>
+      <Setter Property="Foreground" Value="{StaticResource BrandInk}"/>
+    </Style>
+    <Style Selector="ComboBoxItem:selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#4D3D63E6"/>
+      <Setter Property="Foreground" Value="{StaticResource BrandInk}"/>
     </Style>
 
     <!-- a folder's path, in mono -->
@@ -776,6 +913,21 @@
       <Setter Property="Background" Value="{StaticResource Glass}"/>
       <Setter Property="BorderBrush" Value="{StaticResource GlassLine}"/>
       <Setter Property="Foreground" Value="{StaticResource InkSoft}"/>
+    </Style>
+    <!-- a path only shown (TextBox.path's look): cut in its middle when it does not fit (TextTrimming="PathSegmentEllipsis") -->
+    <Style Selector="Border.pathbox">
+      <Setter Property="Height" Value="40"/>
+      <Setter Property="Padding" Value="12,0"/>
+      <Setter Property="CornerRadius" Value="8"/>
+      <Setter Property="Background" Value="{StaticResource Glass}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource GlassLine}"/>
+      <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+    <Style Selector="Border.pathbox > TextBlock">
+      <Setter Property="FontFamily" Value="{StaticResource Mono}"/>
+      <Setter Property="FontSize" Value="12"/>
+      <Setter Property="Foreground" Value="{StaticResource InkSoft}"/>
+      <Setter Property="VerticalAlignment" Value="Center"/>
     </Style>
     <Style Selector="TextBox.path:pointerover /template/ Border#PART_BorderElement">
       <Setter Property="Background" Value="{StaticResource GlassHover}"/>
@@ -819,7 +971,7 @@
         </FocusAdornerTemplate>
       </Setter>
     </Style>
-    <Style Selector="Button.small, Button.icon">
+    <Style Selector="Button.small, Button.icon, Button.back">
       <Setter Property="FocusAdorner">
         <FocusAdornerTemplate>
           <Border AdornerLayer.IsClipEnabled="False" Margin="-4" CornerRadius="11" BorderThickness="2" BorderBrush="{StaticResource FocusRing}"/>
@@ -854,7 +1006,7 @@
         </FocusAdornerTemplate>
       </Setter>
     </Style>
-    <Style Selector="StackPanel.linux Button.caption.gear">
+    <Style Selector="StackPanel.captions Button.caption.gear">
       <Setter Property="FocusAdorner">
         <FocusAdornerTemplate>
           <Border AdornerLayer.IsClipEnabled="False" Margin="-3" CornerRadius="17" BorderThickness="2" BorderBrush="{StaticResource FocusRing}"/>
@@ -903,7 +1055,7 @@
     <!-- a stronger warning box: a pull request nobody approved -->
     <Style Selector="Border.badbox">
       <Setter Property="Background" Value="{StaticResource BadSoft}"/>
-      <Setter Property="BorderBrush" Value="#55E2776B"/>
+      <Setter Property="BorderBrush" Value="#55EC7A5F"/>
       <Setter Property="BorderThickness" Value="1"/>
       <Setter Property="CornerRadius" Value="10"/>
       <Setter Property="Padding" Value="14,12"/>
@@ -914,7 +1066,7 @@
     <!-- a warning box -->
     <Style Selector="Border.warnbox">
       <Setter Property="Background" Value="{StaticResource WarnSoft}"/>
-      <Setter Property="BorderBrush" Value="#55E2B86B"/>
+      <Setter Property="BorderBrush" Value="#55F3C24F"/>
       <Setter Property="BorderThickness" Value="1"/>
       <Setter Property="CornerRadius" Value="10"/>
       <Setter Property="Padding" Value="14,12"/>
@@ -927,7 +1079,7 @@
       <Setter Property="Width" Value="22"/>
       <Setter Property="Height" Value="22"/>
       <Setter Property="CornerRadius" Value="11"/>
-      <Setter Property="Background" Value="#33E2B86B"/>
+      <Setter Property="Background" Value="#33F3C24F"/>
       <Setter Property="VerticalAlignment" Value="Center"/>
     </Style>
     <!-- (a box's text beside its icon: centred on it, so one line sits level with the icon) -->
@@ -935,9 +1087,286 @@
       <Setter Property="VerticalAlignment" Value="Center"/>
     </Style>
     <Style Selector="Border.badbox Border.boxicon">
-      <Setter Property="Background" Value="#33E2776B"/>
+      <Setter Property="Background" Value="#33EC7A5F"/>
     </Style>
     <!-- a toast: a raised card with its icon in a circle -->
+    <!-- ==== the home family (HomeView, BuildCardView, VersionsView): a dark band with a faint rust tint (the game's name, its
+         version in lime, the logo tilted), the Version and Save pickers under it, and the one button ==== -->
+    <Style Selector="Border.heroband">
+      <Setter Property="Background" Value="#211D1E"/>
+      <Setter Property="BorderBrush" Value="#3A2B27"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="CornerRadius" Value="16"/>
+      <Setter Property="ClipToBounds" Value="True"/>
+    </Style>
+    <Style Selector="Image.bandlogo">
+      <Setter Property="Width" Value="150"/>
+      <Setter Property="Height" Value="150"/>
+      <Setter Property="Margin" Value="0,0,12,0"/>
+    </Style>
+    <!-- the logo, tilted as on the brand's announcement -->
+    <Style Selector="Image.tilted">
+      <Setter Property="RenderTransform" Value="rotate(8deg)"/>
+    </Style>
+    <!-- the page's one big title, in the brand's black face -->
+    <Style Selector="TextBlock.wordmark">
+      <Setter Property="FontFamily" Value="{StaticResource Head}"/>
+      <Setter Property="FontWeight" Value="Black"/>
+      <Setter Property="FontSize" Value="60"/>
+      <Setter Property="LetterSpacing" Value="-2.2"/>
+      <Setter Property="Margin" Value="0,-8,0,-4"/>
+    </Style>
+    <Style Selector="TextBlock.versionline">
+      <Setter Property="FontSize" Value="22"/>
+      <Setter Property="FontWeight" Value="Bold"/>
+      <Setter Property="LetterSpacing" Value="-0.4"/>
+    </Style>
+    <Style Selector="TextBlock.lime">
+      <Setter Property="Foreground" Value="{StaticResource Lime}"/>
+    </Style>
+    <Style Selector="Border.heroband TextBlock.soft">
+      <Setter Property="Foreground" Value="{StaticResource InkSoft}"/>
+      <Setter Property="FontSize" Value="14"/>
+    </Style>
+    <!-- the update, on the band -->
+    <Style Selector="Border.updatecard">
+      <Setter Property="Background" Value="{StaticResource BrandSoft}"/>
+      <Setter Property="BorderBrush" Value="#553D63E6"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="CornerRadius" Value="12"/>
+      <Setter Property="Padding" Value="14,10"/>
+    </Style>
+
+    <!-- a tile under the band: flat, its caption small, gold and in capitals -->
+    <Style Selector="Border.infotile">
+      <Setter Property="Background" Value="{StaticResource Glass}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource GlassLine}"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="CornerRadius" Value="12"/>
+      <Setter Property="Padding" Value="16,12"/>
+    </Style>
+    <Style Selector="TextBlock.tilecap">
+      <Setter Property="FontWeight" Value="Bold"/>
+      <Setter Property="FontSize" Value="11"/>
+      <Setter Property="LetterSpacing" Value="1"/>
+      <Setter Property="Foreground" Value="{StaticResource Gold}"/>
+    </Style>
+    <Style Selector="TextBlock.tilebig">
+      <Setter Property="FontWeight" Value="Bold"/>
+      <Setter Property="FontSize" Value="17"/>
+      <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+    </Style>
+    <!-- a save in Home's list: the whole row picks it; the one Play starts on lit -->
+    <Style Selector="Button.saverow">
+      <Setter Property="Height" Value="NaN"/>
+      <Setter Property="Padding" Value="12,8"/>
+      <Setter Property="CornerRadius" Value="10"/>
+      <Setter Property="HorizontalAlignment" Value="Stretch"/>
+      <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+      <Setter Property="FontWeight" Value="Normal"/>
+      <Setter Property="Background" Value="{StaticResource QuietFill}"/>
+      <Setter Property="BorderBrush" Value="Transparent"/>
+    </Style>
+    <Style Selector="Button.saverow.chosen">
+      <Setter Property="Background" Value="#14C2ED83"/>
+      <Setter Property="BorderBrush" Value="#40C2ED83"/>
+    </Style>
+    <!-- the card Play is on: flat, a step lighter than the page -->
+    <Style Selector="Border.playcard">
+      <Setter Property="Background" Value="{StaticResource Raised}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource GlassLine}"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="CornerRadius" Value="14"/>
+      <Setter Property="Padding" Value="18,14,18,16"/>
+    </Style>
+    <!-- a list's last entries that lead to a page or make something (Manage…, New…) -->
+    <Style Selector="StackPanel.manage TextBlock">
+      <Setter Property="Foreground" Value="{StaticResource BrandInk}"/>
+    </Style>
+    <Style Selector="StackPanel.manage c|Icon">
+      <Setter Property="Foreground" Value="{StaticResource BrandInk}"/>
+    </Style>
+
+    <Style Selector="TextBlock.pickercap">
+      <Setter Property="FontSize" Value="12"/>
+      <Setter Property="FontWeight" Value="Bold"/>
+      <Setter Property="Foreground" Value="{StaticResource InkFaintText}"/>
+      <Setter Property="Margin" Value="2,0,0,6"/>
+      <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+    </Style>
+    <Style Selector="ComboBox.picker">
+      <Setter Property="Width" Value="NaN"/>
+      <Setter Property="Height" Value="50"/>
+      <Setter Property="HorizontalAlignment" Value="Stretch"/>
+      <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+      <Setter Property="FontSize" Value="14"/>
+      <Setter Property="CornerRadius" Value="10"/>
+    </Style>
+    <Style Selector="ComboBox.picker TextBlock">
+      <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+    </Style>
+    <!-- (a name that must not be cut: it wraps instead) -->
+    <Style Selector="ComboBox.picker TextBlock.wrap">
+      <Setter Property="TextTrimming" Value="None"/>
+      <Setter Property="LineHeight" Value="17"/>
+    </Style>
+    <Style Selector="Border.fieldbox">
+      <Setter Property="Height" Value="46"/>
+      <Setter Property="Padding" Value="12,0"/>
+      <Setter Property="CornerRadius" Value="8"/>
+      <Setter Property="Background" Value="{StaticResource QuietFill}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource QuietLine}"/>
+      <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+    <Style Selector="Button.fieldbox">
+      <Setter Property="Height" Value="50"/>
+      <Setter Property="Padding" Value="12,0"/>
+      <Setter Property="CornerRadius" Value="10"/>
+      <Setter Property="Background" Value="{StaticResource QuietFill}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource QuietLine}"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="HorizontalAlignment" Value="Stretch"/>
+      <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+      <Setter Property="VerticalContentAlignment" Value="Center"/>
+      <Setter Property="FontSize" Value="14"/>
+      <Setter Property="FontWeight" Value="Normal"/>
+    </Style>
+    <Style Selector="Button.fieldbox:pointerover">
+      <Setter Property="Background" Value="{StaticResource GlassHover}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource GlassLineStrong}"/>
+    </Style>
+    <!-- Play on Home, the card's focus -->
+    <Style Selector="Button.bigplay">
+      <Setter Property="Height" Value="66"/>
+      <Setter Property="MinWidth" Value="210"/>
+      <Setter Property="Padding" Value="30,0"/>
+      <Setter Property="CornerRadius" Value="14"/>
+      <Setter Property="FontSize" Value="21"/>
+      <Setter Property="VerticalAlignment" Value="Bottom"/>
+    </Style>
+    <!-- a cell of the first build's bar: an icon in a circle, a line and a quieter one -->
+    <Style Selector="Border.need">
+      <Setter Property="Width" Value="28"/>
+      <Setter Property="Height" Value="28"/>
+      <Setter Property="CornerRadius" Value="14"/>
+      <Setter Property="Background" Value="{StaticResource GoSoft}"/>
+      <Setter Property="VerticalAlignment" Value="Top"/>
+    </Style>
+    <!-- a version's card on the Versions page: flat, the default's outlined in gold -->
+    <!-- a manager page's card (Profiles, Versions, Saves): one style -->
+    <Style Selector="Border.vcard">
+      <Setter Property="Padding" Value="18,16"/>
+      <Setter Property="CornerRadius" Value="12"/>
+      <Setter Property="Background" Value="{StaticResource Glass}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource GlassLine}"/>
+      <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+    <Style Selector="Border.vcard.default">
+      <Setter Property="BorderBrush" Value="#66F3C24F"/>
+    </Style>
+    <!-- the Profiles page's card of the current profile: outlined in the brand's colour -->
+    <Style Selector="Border.vcard.current">
+      <Setter Property="BorderBrush" Value="{StaticResource Brand}"/>
+    </Style>
+    <Style Selector="Border.vtile">
+      <Setter Property="Width" Value="46"/>
+      <Setter Property="Height" Value="46"/>
+      <Setter Property="CornerRadius" Value="12"/>
+      <Setter Property="Background" Value="{StaticResource SoftNum}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource GlassLine}"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="VerticalAlignment" Value="Top"/>
+    </Style>
+    <Style Selector="TextBlock.pagesection">
+      <Setter Property="FontSize" Value="16"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+    </Style>
+
+    <!-- a small menu (a popup under its button) -->
+    <Style Selector="Border.menu">
+      <Setter Property="Background" Value="{StaticResource Raised}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource LineStrong}"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="CornerRadius" Value="10"/>
+      <Setter Property="Padding" Value="6"/>
+      <Setter Property="BoxShadow" Value="0 14 34 0 #80000000"/>
+    </Style>
+    <!-- a profile's card on Who's playing? -->
+    <Style Selector="Button.whocard">
+      <Setter Property="Width" Value="190"/>
+      <Setter Property="Height" Value="196"/>
+      <Setter Property="CornerRadius" Value="16"/>
+      <Setter Property="Padding" Value="14"/>
+      <Setter Property="Background" Value="{StaticResource Glass}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource GlassLine}"/>
+      <Setter Property="FontWeight" Value="Normal"/>
+    </Style>
+    <!-- the profile chip in the title bar, and a profile's avatar: a circle in its colour with its letter -->
+    <Style Selector="Button.profilechip">
+      <Setter Property="Height" Value="38"/>
+      <Setter Property="Padding" Value="5,0,12,0"/>
+      <Setter Property="CornerRadius" Value="19"/>
+      <Setter Property="Background" Value="{StaticResource ChipFill}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource GlassLine}"/>
+    </Style>
+    <Style Selector="Border.avatar">
+      <Setter Property="Width" Value="28"/>
+      <Setter Property="Height" Value="28"/>
+      <Setter Property="CornerRadius" Value="14"/>
+    </Style>
+    <Style Selector="Border.avatar > TextBlock">
+      <Setter Property="Foreground" Value="#14161A"/>
+      <Setter Property="FontWeight" Value="Bold"/>
+      <Setter Property="FontSize" Value="13"/>
+      <Setter Property="HorizontalAlignment" Value="Center"/>
+      <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+    <Style Selector="Border.avatar.small">
+      <Setter Property="Width" Value="26"/>
+      <Setter Property="Height" Value="26"/>
+      <Setter Property="CornerRadius" Value="13"/>
+    </Style>
+    <Style Selector="Border.avatar.big">
+      <Setter Property="Width" Value="84"/>
+      <Setter Property="Height" Value="84"/>
+      <Setter Property="CornerRadius" Value="42"/>
+    </Style>
+    <Style Selector="Border.avatar.big > TextBlock">
+      <Setter Property="FontSize" Value="36"/>
+    </Style>
+    <Style Selector="Border.avatar.card">
+      <Setter Property="Width" Value="46"/>
+      <Setter Property="Height" Value="46"/>
+      <Setter Property="CornerRadius" Value="23"/>
+    </Style>
+    <Style Selector="Border.avatar.card > TextBlock">
+      <Setter Property="FontSize" Value="19"/>
+    </Style>
+    <!-- a small menu's entries (the profile chip's, a save's Copy or move) -->
+    <Style Selector="Button.menuitem">
+      <Setter Property="Height" Value="36"/>
+      <Setter Property="HorizontalAlignment" Value="Stretch"/>
+      <Setter Property="HorizontalContentAlignment" Value="Left"/>
+      <Setter Property="Padding" Value="12,0"/>
+      <Setter Property="CornerRadius" Value="7"/>
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="BorderBrush" Value="Transparent"/>
+      <Setter Property="FontSize" Value="13"/>
+      <Setter Property="FontWeight" Value="Medium"/>
+    </Style>
+    <Style Selector="Button.menuitem:pointerover">
+      <Setter Property="Background" Value="{StaticResource GlassHover}"/>
+      <Setter Property="BorderBrush" Value="Transparent"/>
+    </Style>
+    <Style Selector="Button.menuitem c|Icon">
+      <Setter Property="Width" Value="15"/>
+      <Setter Property="Height" Value="15"/>
+      <Setter Property="Foreground" Value="{StaticResource InkSoft}"/>
+      <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+    <Style Selector="Button.menuitem TextBlock">
+      <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
     <Style Selector="Border.toast">
       <Setter Property="Padding" Value="10,8,16,8"/>
       <Setter Property="CornerRadius" Value="12"/>

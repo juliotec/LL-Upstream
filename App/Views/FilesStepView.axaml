@@ -67,7 +67,7 @@
           </Grid>
         </Border>
 
-        <TextBlock Classes="label" Text="{c:T 'FOUND ON THIS PC'}" Margin="0,18,0,10"/>
+        <TextBlock Classes="label" Text="{c:T 'Found on this PC'}" Margin="0,18,0,10"/>
         <Border Classes="card">
           <Panel>
             <StackPanel Orientation="Horizontal" Spacing="10" Margin="16,14" IsVisible="{Binding Searching}">
@@ -127,7 +127,7 @@
         <WrapPanel Margin="0,10,0,0">
           <TextBlock Classes="note" Text="{c:T 'Not listed?'}" VerticalAlignment="Center" Margin="0,0,4,0"/>
           <Button Classes="link" Content="{c:T 'Browse…'}" Command="{Binding BrowseCommand}"/>
-          <TextBlock Classes="note" Text="{c:T ', drop the file on this window, or pick its'}" VerticalAlignment="Center" Margin="4,0"/>
+          <TextBlock Classes="note" Text="{c:T ', drop the file on this window, or pick its'}" VerticalAlignment="Center" Margin="0,0,4,0"/>
           <Button Classes="link soft" Content="{c:T 'romfs and exefs folders'}" Command="{Binding FoldersCommand}"/>
         </WrapPanel>
       </StackPanel>

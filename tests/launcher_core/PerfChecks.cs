@@ -1,7 +1,7 @@
 using LongshotLauncher.Core;
 
-/// The performance statistics' core (PerfReports): the folder's tick and its waiting summaries as the game leaves them, the tools
-/// that read them (the folder's own version's, with perf_report.py), what to do before a game starts, and the two commands
+/// The performance statistics' core (PerfReports): the folder's tick and its waiting summaries as the game leaves them, the builder
+/// that reads them (the folder's own version's longshot-builder), what to do before a game starts, and the two commands
 static partial class Program
 {
     static void PerfChecks()
@@ -24,16 +24,16 @@ static partial class Program
         Touch(Path.Combine(pending, "1794589941.json"), "{}");
         Require(PerfReports.Waiting(game), "A .json in perf_pending/: waiting.");
 
-        // (the folder's own version's tools, and only with perf_report.py: no other version's script reads its summaries)
+        // (the folder's own version's longshot-builder: no other version's reads its summaries)
         var root = Folder("perf-tools");
-        var toolchains = new Toolchains(root, new FakeFetcher());
+        var toolchains = new Toolchains(root, Platform.Linux);
+        var none = new Toolchains(Folder("perf-no-tools"), Platform.Linux);
         Require(PerfReports.ToolsFor(game, toolchains) == null, "No tools: nothing sends.");
-        var other = PerfTools(root, "v3.2.0");
-        Touch(PerfReports.Script(other), "# authored");
-        Require(PerfReports.ToolsFor(game, toolchains) == null, "Another version's tools don't send this folder's summaries.");
+        PerfTools(root, "v3.2.0");
+        Require(PerfReports.ToolsFor(game, toolchains) == null, "Another version's builder doesn't send this folder's summaries.");
         var own = PerfTools(root, "v3.1.0");
-        Require(PerfReports.ToolsFor(game, toolchains) == null, "The folder's version from before the statistics (no perf_report.py): left as it is.");
-        Require(PerfReports.ToolsFor(game, toolchains, p => p == PerfReports.Script(own))?.Tag == "v3.1.0", "Its own version's perf_report.py: those tools.");
+        Require(PerfReports.ToolsFor(game, toolchains, _ => false) == null, "The folder's version with its builder's file gone: left as it is.");
+        Require(PerfReports.ToolsFor(game, toolchains)?.Tag == "v3.1.0", "Its own version's longshot-builder sends them.");
         var noVersion = Folder("perf-no-version");
         Game(noVersion, null);
         Require(PerfReports.ToolsFor(noVersion, toolchains, _ => true) == null, "A folder with no version: none.");
@@ -49,20 +49,19 @@ static partial class Program
         Require(PerfReports.Plan(on: false, keep: false, ticked: false, kept: true, waiting: false) == (null, false), "Off: the copies setting waits for the tick.");
 
         var send = PerfReports.SendCommand(own, game);
-        Require(send.FileName == own.Python && send.ArgumentList.SequenceEqual(new[] { "-I", PerfReports.Script(own), game, "--send" }),
-                "--send: the tools' Python, isolated, the folder as one argument.");
+        Require(send.FileName == own.BuilderExe && send.ArgumentList.SequenceEqual(new[] { "perf-report", game, "--send", "--output", "json" }),
+                "--send: longshot-builder perf-report, the folder as one argument.");
         Require(!send.UseShellExecute && send.CreateNoWindow, "--send, with no window.");
-        Require(send.Environment["PYTHONIOENCODING"] == "utf-8"
-                && (Platforms.Current == Platform.Windows || !send.Environment.ContainsKey("LD_LIBRARY_PATH")),
-                "The tools run in the game's environment (GamePlay's rule: no LD_LIBRARY_PATH on Linux).");
+        Require(Platforms.Current == Platform.Windows || !send.Environment.ContainsKey("LD_LIBRARY_PATH"),
+                "The builder runs in the game's environment (GamePlay's rule: no LD_LIBRARY_PATH on Linux).");
 
-        // (the tick written by the launcher itself, as perf_report.py's set_sending writes it: no Python, nothing waited for)
+        // (the tick written by the launcher itself, as perf-report --tick writes it: nothing waited for)
         var ticking = Folder("perf-tick");
         var choice = Path.Combine(ticking, PerfReports.ChoiceName);
         var sentDir = Path.Combine(ticking, PerfReports.SentName);
         var pendingDir = Path.Combine(ticking, PerfReports.PendingName);
         PerfReports.SetSending(ticking, true);
-        Require(File.ReadAllText(choice) == "send=1\n" && PerfReports.Ticked(ticking) && PerfReports.KeptSent(ticking), "On: send=1, as perf_report.py writes it.");
+        Require(File.ReadAllText(choice) == "send=1\n" && PerfReports.Ticked(ticking) && PerfReports.KeptSent(ticking), "On: send=1, as perf-report writes it.");
         Touch(Path.Combine(sentDir, "1794589941-0.json"), "{}");
         PerfReports.SetSending(ticking, true, keep: false);
         Require(File.ReadAllText(choice) == "send=1\nkeep_sent=0\n" && !PerfReports.KeptSent(ticking) && !Directory.EnumerateFiles(sentDir).Any()
@@ -75,14 +74,14 @@ static partial class Program
         PerfReports.SetSending(ticking, false);
         Require(!File.Exists(choice) && !PerfReports.Ticked(ticking) && !PerfReports.Waiting(ticking) && !Directory.EnumerateFiles(sentDir).Any()
                 && Directory.EnumerateFiles(pendingDir).Select(f => Path.GetFileName(f)).SequenceEqual(new[] { "notes.txt" }),
-                "Off: longshot_perf.ini removed, perf_pending/ and perf_sent/ emptied (set_sending's off), other files left.");
+                "Off: longshot_perf.ini removed, perf_pending/ and perf_sent/ emptied, other files left.");
         var gone = Path.Combine(ticking, "gone");
         PerfReports.SetSending(gone, false);
         Require(!Directory.Exists(gone), "Off for a folder that isn't there: nothing thrown, nothing made.");
 
-        // (a version without perf_report.py: the game starts with nothing run, and nothing in the folder changed)
-        PerfReports.BeforePlay(game, on: true, keep: true, toolchains);
-        Require(!PerfReports.Ticked(game) && PerfReports.Waiting(game), "BeforePlay with tools that can't send: the folder as it was.");
+        // (a version whose builder is not installed: the game starts with nothing run, and nothing in the folder changed)
+        PerfReports.BeforePlay(game, on: true, keep: true, none);
+        Require(!PerfReports.Ticked(game) && PerfReports.Waiting(game), "BeforePlay with no builder to send: the folder as it was.");
 
         // (unticked, with the version's tools gone: the player's no honoured all the same, by the launcher)
         var noTools = Folder("perf-off-no-tools");
@@ -90,20 +89,19 @@ static partial class Program
         PerfReports.SetSending(noTools, true);
         Touch(Path.Combine(noTools, PerfReports.PendingName, "1794589941-0.json"), "{}");
         Touch(Path.Combine(noTools, PerfReports.SentName, "1794589940-0.json"), "{}");
-        Require(PerfReports.ToolsFor(noTools, toolchains) == null && PerfReports.Ticked(noTools) && PerfReports.Waiting(noTools),
-                "A ticked folder with summaries waiting, and no tools that send them.");
-        PerfReports.BeforePlay(noTools, on: false, keep: true, toolchains);
+        Require(PerfReports.ToolsFor(noTools, none) == null && PerfReports.Ticked(noTools) && PerfReports.Waiting(noTools),
+                "A ticked folder with summaries waiting, and no builder that sends them.");
+        PerfReports.BeforePlay(noTools, on: false, keep: true, none);
         Require(!File.Exists(Path.Combine(noTools, PerfReports.ChoiceName)) && !PerfReports.Waiting(noTools)
                 && !Directory.EnumerateFiles(Path.Combine(noTools, PerfReports.SentName)).Any(),
                 "Unticked with the version's tools gone: the folder's tick off all the same, nothing left to send and no copy kept.");
 
-        // (ticked, for a version with perf_report.py: the tick written by the launcher; nothing waits, so nothing is run)
+        // (ticked, for a version whose builder is installed: the tick written by the launcher; nothing waits, so nothing is run)
         var onFolder = Folder("perf-on");
         Game(onFolder, "v3.1.0");
-        Touch(PerfReports.Script(own), "# authored");
         PerfReports.BeforePlay(onFolder, on: true, keep: false, toolchains);
         Require(File.ReadAllText(Path.Combine(onFolder, PerfReports.ChoiceName)) == "send=1\nkeep_sent=0\n",
-                "BeforePlay ticked, for a version with perf_report.py: the folder's tick written, keep_sent=0 with it.");
+                "BeforePlay ticked, for a version whose builder is installed: the folder's tick written, keep_sent=0 with it.");
     }
 
     /// Send crash reports automatically (CrashReports): longshot_crash.ini as the game's crash helper reads it
@@ -130,11 +128,5 @@ static partial class Program
         }
     }
 
-    static Toolchain PerfTools(string root, string tag)
-    {
-        var folder = Path.Combine(root, tag);
-        Directory.CreateDirectory(folder);
-        File.WriteAllText(Path.Combine(folder, Toolchains.RecordName), $$"""{"format":1,"tag":"{{tag}}","kind":"Linux","parts":[]}""");
-        return new Toolchains(root, new FakeFetcher()).Find(tag) ?? throw new Exception("The authored tools were not found: " + tag);
-    }
+    static Toolchain PerfTools(string root, string tag) => InstalledVersion(root, tag);
 }

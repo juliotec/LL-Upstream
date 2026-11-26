@@ -148,7 +148,7 @@
 
     <Grid ColumnDefinitions="*,280" ColumnSpacing="20" Margin="0,16,0,0">
       <!-- the group shown: the only part that scrolls -->
-      <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,0,-8,0" Padding="0,0,8,4">
+      <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,0,-8,0" Padding="0,0,8,32">
         <Border Classes="card" Padding="20,18" VerticalAlignment="Top">
           <StackPanel Spacing="14">
             <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
@@ -171,8 +171,8 @@
                 </Border>
                 <Grid Grid.Column="1" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
                   <TextBlock Text="{Binding ConfirmAllText}" TextWrapping="Wrap" VerticalAlignment="Center"/>
-                  <Button Grid.Column="1" Classes="bad" Content="{c:T 'Remove'}" Command="{Binding RemoveAllCommand}"/>
-                  <Button Grid.Column="2" Content="{c:T 'Cancel'}" Command="{Binding CancelCommand}"/>
+                  <Button Grid.Column="1" Classes="bad" Content="{c:T 'Remove'}" Command="{Binding RemoveAllCommand}" VerticalAlignment="Center"/>
+                  <Button Grid.Column="2" Content="{c:T 'Cancel'}" Command="{Binding CancelCommand}" VerticalAlignment="Center"/>
                 </Grid>
               </Grid>
             </Border>
@@ -208,8 +208,8 @@
                           </Border>
                           <Grid Grid.Column="1" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
                             <TextBlock Text="{Binding ConfirmText}" FontSize="13" TextWrapping="Wrap" VerticalAlignment="Center"/>
-                            <Button Grid.Column="1" Classes="bad" Content="{c:T 'Remove'}" Command="{Binding Remove}"/>
-                            <Button Grid.Column="2" Content="{c:T 'Cancel'}" Command="{Binding Cancel}"/>
+                            <Button Grid.Column="1" Classes="bad" Content="{c:T 'Remove'}" Command="{Binding Remove}" VerticalAlignment="Center"/>
+                            <Button Grid.Column="2" Content="{c:T 'Cancel'}" Command="{Binding Cancel}" VerticalAlignment="Center"/>
                           </Grid>
                         </Grid>
                       </Border>
@@ -223,21 +223,27 @@
         </Border>
       </ScrollViewer>
 
-      <!-- pinned beside it: where it all goes -->
-      <StackPanel Grid.Column="1" Spacing="14">
+      <!-- pinned beside it: where it all goes (scrolled on its own when the window is too short for it) -->
+      <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="0,0,-12,0" Padding="0,0,12,32">
+      <StackPanel Spacing="14">
         <Border Classes="card" Padding="16,14">
           <StackPanel Spacing="6">
             <TextBlock Text="{c:T 'Where it goes'}" FontSize="16" FontWeight="Bold" Margin="0,0,0,4"/>
+            <!-- (each path read-only, shown whole when it fits, else cut in its middle with "…": the whole one is its tooltip) -->
             <TextBlock Classes="faint" Text="{c:T 'Builds folder'}"/>
-            <TextBox Classes="path" Text="{Binding BuildsFolder, Mode=OneWay}" IsReadOnly="True" AutomationProperties.Name="{c:T 'Builds folder'}"/>
+            <Border Classes="pathbox" ToolTip.Tip="{Binding BuildsFolder}" AutomationProperties.Name="{c:T 'Builds folder'}">
+              <TextBlock Text="{Binding BuildsFolder}" TextTrimming="PathSegmentEllipsis"/>
+            </Border>
             <TextBlock Classes="faint" Text="{c:T 'Build files'}" Margin="0,6,0,0"/>
-            <TextBox Classes="path" Text="{Binding Work, Mode=OneWay}" IsReadOnly="True" AutomationProperties.Name="{c:T 'Build files'}"/>
+            <Border Classes="pathbox" ToolTip.Tip="{Binding Work}" AutomationProperties.Name="{c:T 'Build files'}">
+              <TextBlock Text="{Binding Work}" TextTrimming="PathSegmentEllipsis"/>
+            </Border>
             <Border Classes="warnbox" IsVisible="{Binding WorkElsewhere}" Margin="0,6,0,0">
               <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
                 <Border Classes="boxicon">
                   <c:Icon Kind="alert" Width="13" Height="13" Foreground="{StaticResource Warn}"/>
                 </Border>
-                <TextBlock Grid.Column="1" Text="{Binding WorkElsewhereText}" FontSize="13" TextWrapping="Wrap"/>
+                <TextBlock Grid.Column="1" Text="{Binding WorkElsewhereText}" FontSize="13" TextWrapping="Wrap" VerticalAlignment="Center"/>
               </Grid>
             </Border>
           </StackPanel>
@@ -252,6 +258,7 @@
         </Border>
         <TextBlock Text="{Binding BusyNote}" FontSize="12" Foreground="{StaticResource InkFaintText}" TextWrapping="Wrap"/>
       </StackPanel>
+      </ScrollViewer>
     </Grid>
   </DockPanel>
 </UserControl>

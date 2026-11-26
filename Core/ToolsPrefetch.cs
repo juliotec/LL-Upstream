@@ -3,8 +3,8 @@ namespace LongshotLauncher.Core;
 /// A version's builder tools fetched once for whoever wants them. As soon as the update check answers, the launcher starts the
 /// tools of the version the player is most likely to build next (Likely: a first build's; an update's only when the player chose
 /// that in Settings), so the wizard's step 1 joins a download that is already under way, or done, instead of starting it
-/// (~500 MB on Windows: a minute or more of a first build). One install runs at a time: every install downloads into the tools'
-/// shared .downloads folder, each part named by its SHA-256, which two versions often share (Toolchains.InstallAsync)
+/// (~100 MB: a minute or more of a first build). One fetch runs at a time: each one's builder reads the others' version folders
+/// as its delta's bases (Toolchains.FetchAsync)
 public sealed class ToolsPrefetch
 {
     readonly Func<string, Action<ToolsDownloadProgress>, CancellationToken, Task<Toolchain>> fetch;
@@ -129,7 +129,7 @@ public sealed class ToolsPrefetch
         }
     }
 
-    /// Whether a fetch is still running: its staging folder (&lt;tag&gt;.part) and downloads must not be pruned meanwhile
+    /// Whether a fetch is still running: the version folders it reads and writes must not be pruned meanwhile
     public bool Busy
     {
         get { lock (gate) return running > 0; }

@@ -7,89 +7,33 @@ namespace LongshotLauncher.Core;
 /// did not get as far as the file (this PC's build tools, or an error the builder did not expect), so nothing is known of it
 public enum GameCheckStatus { Supported, OtherVersion, Unreadable, CheckFailed }
 
-/// make_game.py --check's answer, in plain words: the supported version, another version of the game, files it could not read,
-/// or a check that could not run. Text: make_game.py's own words (English), for the tooltip and a bug report. ThisPc: a check that
-/// could not run because of this PC (its build tools, compiler or Windows SDK), not an error nobody expected
-public sealed record GameCheck(GameCheckStatus Status, string Text, bool ThisPc = false)
+/// longshot-builder check's answer, in plain words: the supported version, another version of the game, files it could not read,
+/// or a check that could not run. Text: the builder's own words (English), for the tooltip and a bug report. ThisPc: a check that
+/// could not run because of this PC (its builder or the folders it is in), not an error nobody expected. Code: the builder's error
+/// code (LongshotBuilder.ReadCheck), whose words are the launcher's own (Problems.FromCode)
+public sealed record GameCheck(GameCheckStatus Status, string Text, bool ThisPc = false, string? Code = null)
 {
     public bool Ok => Status == GameCheckStatus.Supported;
-
-    /// make_game.py's failures that are the file's: nup.py's (it reads the .nup), nxar.py's (it reads a .nx: MagicBeanDev/Longshot#685),
-    /// the game modules' checks and the drive's. Its check tests this PC's compiler first (check_windows_sdk), and those failures, like
-    /// one it did not expect, are not the file's
-    static readonly string[] FileFailures =
-    [
-        "nup.py stopped", "not a NUP package", ".nup file", "nxar.py stopped", "not a .nx archive", ".nx file",
-        "is not a game executable", "is not a game module", "Your drive could not read",
-    ];
-
-    /// Failures that are this PC's even when nup.py says them: Python could not load one of its own parts, a .pyd (#205: a folder
-    /// too deep for Windows, MakeGameRun.TooDeep), which says nothing of the file it was about to read
-    static readonly string[] PcFailures = ["DLL load failed", Problems.LongFolderWords];
-
-    /// What an @@error of the check says of the file: Unreadable when it is the file's, CheckFailed otherwise
-    public static GameCheckStatus Of(string error) =>
-        !PcFailures.Any(f => error.Contains(f, StringComparison.OrdinalIgnoreCase))
-        && FileFailures.Any(f => error.Contains(f, StringComparison.OrdinalIgnoreCase)) ? GameCheckStatus.Unreadable : GameCheckStatus.CheckFailed;
 
     /// The answer in the player's words, shown under the file (Text stays in the tooltip and the report): what is wrong and what to
     /// do. Null for a supported file
     public string? Why => Status switch
     {
         GameCheckStatus.Supported => null,
+        // (longshot-builder's codes, in the launcher's words; one it has none for is said as below, in the builder's)
+        _ when Problems.FromCode(Code) is { } coded => Tr.T(coded.Detail),
+        _ when Code != null && Status is GameCheckStatus.Unreadable or GameCheckStatus.OtherVersion => Text,
         // (the words the build's own stop says for it: the version Longshot needs, and what to do)
         GameCheckStatus.OtherVersion => Problems.FromBuild(Text) is { Kind: ProblemKind.WrongGameVersion } p ? Tr.T(p.Detail) : Text,
-        // (#205: a .nx archive, NXAR, read by nup.py: build tools that read .nup files only, as every Longshot release's until
-        // Longshot#685. The file may well be sound)
-        GameCheckStatus.Unreadable when Has("not a NUP package") && Has("NXAR") =>
-            Tr.T("This is a .nx archive, which this version of Longshot can't read: its build tools read .nup files only. Pick the .nup file of your dump instead."),
-        // (a .nx whose first bytes are not NXAR goes to nup.py too: make_game.py tells the two apart by them, not by the name)
-        GameCheckStatus.Unreadable when Has("not a NUP package") || Has("not a .nx archive") =>
-            Tr.T("This file is not a .nup or .nx package, or its beginning is damaged. Pick the .nup or .nx file of your dump, or copy it again."),
-        // (a .nx made by nxconvert pack from a DNSP or DXCI: the game as NCA files, which make_game.py does not read)
-        GameCheckStatus.Unreadable when Has("as NCA files") =>
-            Tr.T("This .nx file holds the game as NCA files, which Longshot can't read. Make the .nx from your .nup with nxconvert pack-nup, or pick the .nup itself."),
-        GameCheckStatus.Unreadable when Has("incomplete") || Has("ends early") =>
-            Tr.T("This file is incomplete: it is smaller than it should be. Copy or download it again, then check it again."),
-        GameCheckStatus.Unreadable when Has("is not a game executable") || Has("is not a game module") =>
-            Tr.T("This dump's game code is not in a form Longshot can read. Try another dump of the game."),
-        GameCheckStatus.Unreadable when Has("Your drive could not read") => Text,
         GameCheckStatus.Unreadable =>
             Tr.T("This file is damaged and could not be read. Copy or download it again, or try another dump of the game."),
-        _ when ThisPc && Problems.FromBuild(Text) is { Kind: ProblemKind.LongFolder } deep => Tr.T(deep.Detail),
         _ when ThisPc => Tr.F("The file could not be checked, because of this PC rather than the file: {0}", Text),
         // (an error the builder did not expect, or one it did not say: neither the file's nor this PC's, as far as is known)
         _ => Tr.F("The check stopped before it could tell anything about this file: {0}", Text),
     };
-
-    bool Has(string words) => Text.Contains(words, StringComparison.OrdinalIgnoreCase);
-
-    /// The answer from the check's stdout lines, the last line it wrote to stderr and its exit code (the 2.x Builder's
-    /// Runner.Check): @@check ok, @@check bad (another version), @@error (the file could not be read, or the check could not
-    /// run: Of), or nothing said (the check could not run: the stderr line says why)
-    public static GameCheck Read(IEnumerable<string> stdout, string? lastError, int exitCode)
-    {
-        GameCheck? answer = null;
-        foreach (var line in stdout)
-            switch (MakeGameProtocol.Parse(line))
-            {
-                case MakeGameLine.Check { Ok: true } c:
-                    answer = new GameCheck(GameCheckStatus.Supported, c.Text);
-                    break;
-                case MakeGameLine.Check c:
-                    answer = new GameCheck(GameCheckStatus.OtherVersion, c.Text);
-                    break;
-                case MakeGameLine.Error e:
-                    // (make_game.py's own failures, other than the file's, are this PC's: its prerequisites; not one it did not expect)
-                    answer = new GameCheck(Of(e.Text), e.Text, ThisPc: !e.Text.Contains("did not expect", StringComparison.Ordinal));
-                    break;
-            }
-        return answer ?? new GameCheck(GameCheckStatus.CheckFailed,
-            string.IsNullOrWhiteSpace(lastError) ? Tr.F("The build tools stopped without saying why (exit code {0}).", exitCode) : lastError.Trim());
-    }
 }
 
-/// make_game.py run: its stdout and stderr line by line, and its whole process tree stopped when the run is cancelled
+/// The builder run: its stdout and stderr line by line, and its whole process tree stopped when the run is cancelled
 public static class MakeGameRun
 {
     /// The program run to its end; each line handed over as it comes (from a pool thread). Cancelling kills the process and
@@ -132,8 +76,7 @@ public static class MakeGameRun
         return p.ExitCode;
     }
 
-    /// The process below normal priority, as soon as it has started, before make_game.py has started a compiler (Python takes
-    /// a good part of a second to get there): Windows' BELOW_NORMAL_PRIORITY_CLASS, which the processes it starts inherit (a
+    /// The process below normal priority, as soon as it has started, before the builder has started a compiler: Windows' BELOW_NORMAL_PRIORITY_CLASS, which the processes it starts inherit (a
     /// process started by one below normal is below normal too); Linux's nice 10 (.NET's BelowNormal), which every process
     /// and thread it starts inherits. The PC's other programs then go first and the build takes what they leave, which on an
     /// idle PC is all of it. False when it could not be lowered (it ended already, or the system refused): the build runs as before
@@ -149,7 +92,7 @@ public static class MakeGameRun
 
     /// (Longshot#1010) Why the build tools can't start on Windows, said before they are run: they are under a folder Windows lets
     /// no program list (Disk.Unlistable), where the compiler stops at once and the builder could only say "could not build a test
-    /// program". Null when nothing is in the way, and always on Linux. The words are English, as make_game.py's, and Problems
+    /// program". Null when nothing is in the way, and always on Linux. The words are English, as the builder's, and Problems
     /// matches them (BlockedFolder)
     public static string? Blocked(MakeGameCommand command, bool windows, Func<string, bool>? listable = null) =>
         windows && Disk.Unlistable(command.WorkingDirectory, listable) is { } folder
@@ -157,49 +100,7 @@ public static class MakeGameRun
                             @"Longshot's folder out of it (for example to C:\Longshot) and start Longshot from there.", Problems.BlockedFolderWords, folder)
             : null;
 
-    /// Windows loads no part of a program (a DLL, a Python extension's .pyd) from a path of MAX_PATH (260) characters or more,
-    /// whatever its long-paths setting
-    public const int MaxPath = 260;
 
-    /// (#205) Why the build tools' Python could not load one of its own parts on Windows ("ImportError: DLL load failed while
-    /// importing backend_c: The filename or extension is too long", in the PC's language): Longshot's folder is so deep that a file
-    /// in that Python's folder is MaxPath characters or more. Said after the failure, measured on the disk: the longest path
-    /// there and how long it is, in English as make_game.py's words, and Problems matches them (LongFolder). Null for another
-    /// error, a Python whose paths are all shorter, and always on Linux. files: every file under a folder (the disk's, by default)
-    public static string? TooDeep(MakeGameCommand command, string error, bool windows, Func<string, IEnumerable<string>>? files = null)
-    {
-        if (!windows || !error.Contains("DLL load failed", StringComparison.OrdinalIgnoreCase)) return null;
-        if (Path.GetDirectoryName(command.FileName) is not { Length: > 0 } python) return null;
-        files ??= d => Directory.EnumerateFiles(d, "*", new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true, AttributesToSkip = 0 });
-        string? longest;
-        try { longest = files(python).MaxBy(f => f.Length); }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return null; }
-        return longest is { Length: >= MaxPath }
-            ? string.Format(CultureInfo.InvariantCulture, "{0} the build tools' Python has files there whose path is {1} characters long ({2}), " +
-                            "and Windows loads no program part from a path of {3} or more. Move Longshot's folder closer to the top of the " +
-                            @"drive (for example to C:\Longshot) and start Longshot from there.", Problems.LongFolderWords, longest.Length, longest, MaxPath)
-            : null;
-    }
-
-    /// make_game.py --check run, and its answer. windows: the build tools are Windows' (Blocked, TooDeep)
-    public static async Task<GameCheck> CheckAsync(MakeGameCommand command, bool windows, CancellationToken cancel = default)
-    {
-        if (Blocked(command, windows) is { } blocked) return new GameCheck(GameCheckStatus.CheckFailed, blocked, ThisPc: true);
-        var lines = new List<string>();
-        string? lastError = null;
-        try
-        {
-            var code = await RunAsync(command.StartInfo(), l => { lock (lines) lines.Add(l); },
-                                      l => { if (!string.IsNullOrWhiteSpace(l)) lastError = l; }, cancel, command.LowPriority).ConfigureAwait(false);
-            GameCheck answer;
-            lock (lines) answer = GameCheck.Read(lines.ToList(), lastError, code);
-            return code != 0 && TooDeep(command, answer.Text, windows) is { } deep ? new GameCheck(GameCheckStatus.CheckFailed, deep, ThisPc: true) : answer;
-        }
-        catch (Exception e) when (e is System.ComponentModel.Win32Exception or IOException or InvalidOperationException)
-        {
-            return new GameCheck(GameCheckStatus.CheckFailed, Tr.F("The build tools could not start: {0}", e.Message), ThisPc: true);
-        }
-    }
 }
 
 /// What a build should take on this PC before it starts, by stage. Measured on one PC (two player builds of nightly-56 on a
@@ -213,7 +114,7 @@ public static class BuildForecast
     static readonly Dictionary<string, (double Seconds, bool Parallel)> Reference = new()
     {
         ["download"] = (10, false), ["read"] = (76, false), ["lift"] = (57, true), ["compile"] = (305, true), ["finish"] = (66, false),
-        [MakeGameProtocol.ShadersStage] = (311, false),
+        [BuildProgress.ShadersStage] = (311, false),
     };
 
     /// The build's worker setting scales translation and compilation. Shader preparation uses its own workers.
@@ -228,8 +129,8 @@ public static class BuildForecast
 
     /// The whole build's seconds: download, the tools' download first; shaders, the shaders prepared now
     public static double Total(bool download, bool shaders, int threads) =>
-        new[] { "download", "read", "lift", "compile", "finish", MakeGameProtocol.ShadersStage }
-            .Where(id => (download || id != "download") && (shaders || id != MakeGameProtocol.ShadersStage))
+        new[] { "download", "read", "lift", "compile", "finish", BuildProgress.ShadersStage }
+            .Where(id => (download || id != "download") && (shaders || id != BuildProgress.ShadersStage))
             .Sum(id => Seconds(id, threads));
 }
 
@@ -244,26 +145,23 @@ public sealed class BuildClock
 {
     /// The forecast seconds of measured work a pace needs before it counts
     public const double Evidence = 30;
-    /// How long make_game runs before the time left is said at all, and how long before the forecast is said anyway when
-    /// nothing has shown this PC's pace yet (a build of kept stages, a compile that has not said @@eta)
+    /// How long the builder runs before the time left is said at all, and how long before the forecast is said anyway when
+    /// nothing has shown this PC's pace yet (a build of kept stages, a compile that has not said its eta)
     public static readonly TimeSpan Warmup = TimeSpan.FromSeconds(20), Patience = TimeSpan.FromMinutes(2);
     /// The share of a stage's forecast a stage that keeps an earlier build's work is forecast at (the read or the translation
     /// skipped), and the least share of a compile of some files (the link, the checks)
     const double KeptShare = 0.1, LeastCompile = 0.03;
-    const double LeastShaderShare = 0.75, ShaderSampleLifetime = 15;
 
     BuildStage? active;
     TimeSpan started, still, sampledAt;
-    TimeSpan? linkingAt;
     double sampledFraction;
     readonly Dictionary<string, TimeSpan> took = new();
     readonly int threads;
     TimeSpan begun = TimeSpan.MinValue;
-    TimeSpan making = TimeSpan.MinValue;   // (when make_game's first stage began: the download before it is the network's)
+    TimeSpan making = TimeSpan.MinValue;   // (when the builder's first stage began: the download before it is the network's)
     TimeSpan last;
     int etaLines;
-    TimeSpan etaAt, shaderEtaAt;
-    MakeGameLine.ShaderEta? observedShaderTiming;
+    TimeSpan etaAt;
     bool settled;
 
     /// threads: the CPU threads the build may use (0: this PC's)
@@ -284,11 +182,6 @@ public sealed class BuildClock
             etaLines = p.EtaLines;
             etaAt = now;
         }
-        if (!ReferenceEquals(p.ShaderTiming, observedShaderTiming))
-        {
-            observedShaderTiming = p.ShaderTiming;
-            shaderEtaAt = now;
-        }
         var running = p.Stages.FirstOrDefault(s => s.State == StageState.Running);
         if (running != active)
         {
@@ -297,7 +190,6 @@ public sealed class BuildClock
             active = running;
             started = still = sampledAt = now;
             sampledFraction = 0;
-            linkingAt = null;
         }
         if (active != null)
         {
@@ -309,12 +201,11 @@ public sealed class BuildClock
                 sampledAt = now;
                 sampledFraction = fraction;
             }
-            if (active.Id == "compile" && p.Linking) linkingAt ??= now;
         }
         // Warm up once. ActiveRemaining can still withdraw a stale countdown.
         if (!settled && making != TimeSpan.MinValue && now - making >= Warmup)
             settled = now - making >= Patience || p.Eta != null
-                || Pace(p, true) != null || Pace(p, false) != null || p.ShaderTiming?.Seconds != null || Moving() != null;
+                || Pace(p, true) != null || Pace(p, false) != null || Moving() != null;
         if (p.Finished) Overall = 1;
         else if (p.Error == null && making != TimeSpan.MinValue && Remaining(p) is double left)
         {
@@ -323,7 +214,7 @@ public sealed class BuildClock
         }
     }
 
-    /// The time left is said: make_game has run a while (Warmup) and this PC has shown its pace (a pace, make_game's @@eta, a
+    /// The time left is said: the builder has run a while (Warmup) and this PC has shown its pace (a pace, the builder's eta, a
     /// running stage's rate), or it has run long enough (Patience) that the forecast is better than nothing; or the build is done
     public bool Settled(BuildProgress p) => settled || p.Finished;
 
@@ -346,7 +237,7 @@ public sealed class BuildClock
     }
 
     static bool CountsForPace(BuildStage stage, bool cpu) =>
-        !stage.Kept && stage.Id is not ("download" or MakeGameProtocol.ShadersStage) && BuildForecast.Parallel(stage.Id) == cpu;
+        !stage.Kept && stage.Id is not ("download" or BuildProgress.ShadersStage) && BuildForecast.Parallel(stage.Id) == cpu;
 
     /// Pace of CPU or disk work against its forecast, using completed stages and the observed share of the running stage.
     /// Null until Evidence forecast seconds have been measured. Limited to 0.2..5.
@@ -371,7 +262,7 @@ public sealed class BuildClock
         return forecast >= Evidence ? Math.Clamp(actual / forecast, 0.2, 5) : null;
     }
 
-    double PaceOf(BuildProgress p, BuildStage stage) => stage.Id == MakeGameProtocol.ShadersStage
+    double PaceOf(BuildProgress p, BuildStage stage) => stage.Id == BuildProgress.ShadersStage
         ? 1 : Pace(p, BuildForecast.Parallel(stage.Id)) ?? 1;
 
     /// The share of a whole stage's work this build does in it: a compile of some files their share (a little at least, the
@@ -383,32 +274,14 @@ public sealed class BuildClock
 
     double Expected(BuildProgress p, BuildStage s) => BuildForecast.Seconds(s.Id, threads) * PaceOf(p, s) * Share(p, s);
 
-    // @@eta budgets only the pending objects. Linking has its own small allowance even with a zero-file plan.
+    // The eta budgets only the pending objects. Linking has its own small allowance even with a zero-file plan.
     double? ActiveRemaining(BuildProgress p, BuildStage stage)
     {
         var expected = Expected(p, stage);
         var ran = RunningSeconds;
-        if (IsShader(stage) && p.ShaderTiming is { } shader)
-        {
-            // A producer can explicitly withdraw a rate. A countdown also expires if its updates stop.
-            var age = (last - shaderEtaAt).TotalSeconds;
-            if (shader.Seconds is not double seconds || age > ShaderSampleLifetime) return null;
-            var estimate = CountDown(seconds, age);
-            // A short window can see a burst of cached work or a slow pocket of pipelines.
-            // The cumulative rate anchors the estimate once it has measured enough work.
-            var progressAge = (last - sampledAt).TotalSeconds;
-            if (estimate is double recent && progressAge <= ShaderSampleLifetime &&
-                Moving() is double whole && whole > progressAge)
-            {
-                var longer = Math.Max(3, whole - progressAge);
-                return Math.Clamp(recent, longer * LeastShaderShare, longer);
-            }
-            return estimate;
-        }
         if (stage.Id == "compile")
         {
             var link = BuildForecast.Seconds("compile", threads) * LeastCompile * PaceOf(p, stage);
-            if (linkingAt is { } at) return CountDown(link, (last - at).TotalSeconds);
             if (p.Eta is double eta)
             {
                 var sinceEta = (last - etaAt).TotalSeconds;
@@ -467,10 +340,9 @@ public sealed class BuildClock
         return stage == active ? Of(stage.Id)?.TotalSeconds + ActiveRemaining(p, stage) : Expected(p, stage);
     }
 
-    bool HasShaderEstimate(BuildProgress p) =>
-        p.ShaderTiming is { } shader ? shader.Seconds != null : Moving() != null;
+    bool HasShaderEstimate(BuildProgress p) => Moving() != null;
 
-    static bool IsShader(BuildStage stage) => stage.Id == MakeGameProtocol.ShadersStage;
+    static bool IsShader(BuildStage stage) => stage.Id == BuildProgress.ShadersStage;
 }
 
 /// Times and sizes as the window writes them
@@ -492,6 +364,25 @@ public static class Durations
         var m = (long)Math.Round(seconds / 60);
         if (m < 60) return Tr.F("About {0} min", m);
         return m % 60 == 0 ? Tr.F("About {0} h", m / 60) : Tr.F("About {0} h {1} min", m / 60, m % 60);
+    }
+
+    /// The ready page's line, what a build or an update took and where (folder, as shown): "Built in 12 min, in ~/Games/L.",
+    /// "Updated from nightly-1 in 5 s, in ...", in seconds under a minute (an update that changed little takes a few), else in
+    /// whole minutes. from: the version an update came from (null: a build); older: it went back to an older one
+    public static string Done(TimeSpan took, string folder, string? from = null, bool older = false)
+    {
+        var s = (long)Math.Round(Math.Max(0, took.TotalSeconds));
+        if (s < 60)
+        {
+            s = Math.Max(1, s);
+            return from != null
+                ? Tr.F(older ? "Went back from {0} in {1} s, in {2}." : "Updated from {0} in {1} s, in {2}.", from, s, folder)
+                : Tr.F("Built in {0} s, in {1}.", s, folder);
+        }
+        var m = (long)Math.Round(s / 60.0);
+        return from != null
+            ? Tr.F(older ? "Went back from {0} in {1} min, in {2}." : "Updated from {0} in {1} min, in {2}.", from, m, folder)
+            : Tr.F("Built in {0} min, in {1}.", m, folder);
     }
 
     /// "~4 min" for a stage still to come

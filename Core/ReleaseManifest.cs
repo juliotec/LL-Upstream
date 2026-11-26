@@ -19,20 +19,15 @@ public sealed record Product(string Name, string Display, string Repo, int First
     public string Api => Server + "/api/v1/repos/" + Repo;
 }
 
-/// One version's release, its files checked against its signed SHA256SUMS: for each system ("windows-x64", "linux-x64"),
-/// Longshot's builder (Builder: LongshotBuilder-&lt;v&gt;-windows-x64.zip, Longshot-&lt;v&gt;-x86_64.AppImage) and the Windows builder's
-/// tools.lock (Tools), or the launcher's own program (Launcher: also "windows-x64-portable", the portable zip). Notes: the release's page.
-/// BuilderManifests: a release of longshot-builder's kind, by system, its manifest signed in SHA256SUMS; such a release has no
-/// Builder, and this launcher refuses it (NeedsNightlyLauncher)
+/// One version's release, its files checked against its signed SHA256SUMS: the launcher's own program for each system (Launcher:
+/// "windows-x64", "windows-x64-portable", the portable zip, and "linux-x64"). Notes: the release's page. BuilderManifests: a
+/// Longshot release of longshot-builder's kind, by system ("windows-x64", "linux-x64"), its manifest (LongshotBuildRelease) signed
+/// in SHA256SUMS; empty for a release built with make_game.py, which this launcher does not build (OldVersions). Assets: every
+/// file the release lists, by name (the manifest names its full file and deltas, with their SHA-256s)
 public sealed record ReleaseInfo(string Product, string Version, string Commit, DateTimeOffset? Published, string? Notes,
-                                 IReadOnlyDictionary<string, FileRef> Launcher, IReadOnlyDictionary<string, FileRef> Tools,
-                                 IReadOnlyDictionary<string, FileRef> Builder,
-                                 IReadOnlyDictionary<string, FileRef>? BuilderManifests = null)
-{
-    /// Whether this version is built with the new builder (longshot-builder) on this system: its signed SHA256SUMS lists that
-    /// builder's manifest for it. This launcher only knows make_game.py's builds (NeedsNightlyLauncher)
-    public bool HasNewBuilder(Platform platform) => BuilderManifests?.ContainsKey(ReleaseManifest.PlatformKey(platform)) == true;
-}
+                                 IReadOnlyDictionary<string, FileRef> Launcher,
+                                 IReadOnlyDictionary<string, FileRef>? BuilderManifests = null,
+                                 IReadOnlyDictionary<string, (string Url, long Size)>? Assets = null);
 
 /// A release as Forgejo's API lists it (GET /repos/{repo}/releases): its tag, whether it is a draft or a pre-release, its
 /// files (name, download link, size), its page, its commit, and its page's text (Body: the markdown the release workflow and
@@ -49,7 +44,7 @@ public sealed record ListedRelease(string Tag, bool Draft, bool Prerelease, Date
 public static class ReleaseManifest
 {
     public const long MaxFile = 16L << 30;
-    public const string Sums = "SHA256SUMS", Sig = "SHA256SUMS.sig", ToolsLock = "tools.lock";
+    public const string Sums = "SHA256SUMS", Sig = "SHA256SUMS.sig";
     public const int MaxBody = 64 << 10;
 
     public static string PlatformKey(Platform platform) => platform == Platform.Windows ? "windows-x64" : "linux-x64";
@@ -66,17 +61,6 @@ public static class ReleaseManifest
         WindowsPortable => $"LongshotLauncher-{version}-windows-x64-portable.zip",
         _ => $"LongshotLauncher-{version}-x86_64.AppImage",
     };
-
-    /// The manifest a release of longshot-builder's kind has for a system (the new builder, which this launcher does not run)
-    public static string BuilderManifestName(string version, string platform) => $"longshot-builder-{version}-{platform}.json";
-
-    /// Whether the release list shows a longshot-builder manifest for this system: a hint for the Version list, which has no signed
-    /// SHA256SUMS yet; what refuses a version is ReleaseInfo.HasNewBuilder, from the signed one
-    public static bool ListsNewBuilder(ListedRelease release, Platform platform) =>
-        release.Assets.Any(a => a.Name == BuilderManifestName(release.Tag, PlatformKey(platform)));
-
-    public static string BuilderFile(string version, string platform) =>
-        platform == "windows-x64" ? $"LongshotBuilder-{version}-windows-x64.zip" : $"Longshot-{version}-x86_64.AppImage";
 
     public static IReadOnlyList<ListedRelease> ParseList(string json)
     {
@@ -125,15 +109,24 @@ public static class ReleaseManifest
                                  Opt(r, "target_commitish") ?? "", assets, body);
     }
 
-    /// What a channel offers from the list, null when nothing
-    public static string? Newest(IEnumerable<ListedRelease> list, string channel, Product product) =>
-        OnChannel(list, channel, product).FirstOrDefault()?.Tag;
+    /// What a channel offers from the list, null when nothing: its newest release this launcher supports on platform (Supported),
+    /// an older one when the newest are make_game.py's
+    public static string? Newest(IEnumerable<ListedRelease> list, string channel, Product product, Platform platform) =>
+        OnChannel(list, channel, product, platform).FirstOrDefault()?.Tag;
 
-    /// Every published release a channel offers from the list, newest first (Versions.Newer: one channel's versions are all of
-    /// one order): its newest, then the ones before it that the server still has (the Version dropdown on Home)
-    public static IReadOnlyList<ListedRelease> OnChannel(IEnumerable<ListedRelease> list, string channel, Product product)
+    /// Whether this launcher offers a release on platform: a Longshot release only when it is of longshot-builder's kind for this
+    /// system (its manifest, LongshotBuildRelease.ManifestName, is one of its files); one built with make_game.py, or with no
+    /// builder for this system, is never offered (OldVersions). Every launcher release is
+    public static bool Supported(ListedRelease r, Product product, Platform platform) =>
+        product.Name != Product.Longshot.Name
+        || r.Assets.Any(a => a.Name == LongshotBuildRelease.ManifestName(r.Tag, PlatformKey(platform)));
+
+    /// Every published release a channel offers from the list on platform (Supported), newest first (Versions.Newer: one
+    /// channel's versions are all of one order): its newest, then the ones before it that the server still has (the Version
+    /// dropdown on Home, Add version)
+    public static IReadOnlyList<ListedRelease> OnChannel(IEnumerable<ListedRelease> list, string channel, Product product, Platform platform)
     {
-        var published = list.Where(r => !r.Draft && Versions.IsTagName(r.Tag));
+        var published = list.Where(r => !r.Draft && Versions.IsTagName(r.Tag) && Supported(r, product, platform));
         var on = channel switch
         {
             Versions.Nightly => published.Where(r => Versions.TrackOf(r.Tag) == Versions.Nightly),
@@ -166,13 +159,11 @@ public static class ReleaseManifest
         }
         var empty = new Dictionary<string, FileRef>();
         if (product.Name == Product.Launcher.Name)
-            return new ReleaseInfo(product.Name, r.Tag, r.Commit, r.Published, r.Page, Pick(p => LauncherFile(r.Tag, p), LauncherKeys), empty, empty);
-        var tools = new Dictionary<string, FileRef>(StringComparer.Ordinal);
-        if (assets.TryGetValue(ToolsLock, out var lockFile) && sums.TryGetValue(ToolsLock, out var lockSha))
-            tools["windows-x64"] = new FileRef(lockFile.Url, lockSha, lockFile.Size);
-        return new ReleaseInfo(product.Name, r.Tag, r.Commit, r.Published, r.Page, empty, tools, Pick(p => BuilderFile(r.Tag, p)),
+            return new ReleaseInfo(product.Name, r.Tag, r.Commit, r.Published, r.Page, Pick(p => LauncherFile(r.Tag, p), LauncherKeys));
+        return new ReleaseInfo(product.Name, r.Tag, r.Commit, r.Published, r.Page, empty,
                                // (by the manifest's exact name, never by a name holding "Builder": the old Windows app is LongshotBuilder)
-                               Pick(p => BuilderManifestName(r.Tag, p)));
+                               Pick(p => LongshotBuildRelease.ManifestName(r.Tag, p)),
+                               r.Assets.GroupBy(a => a.Name, StringComparer.Ordinal).ToDictionary(g => g.Key, g => (g.First().Url, g.First().Size), StringComparer.Ordinal));
     }
 
     /// A small file a release has, into memory, checked for its size and SHA-256

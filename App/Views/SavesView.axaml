@@ -21,18 +21,22 @@
       <Setter Property="FontSize" Value="13"/>
     </Style>
   </UserControl.Styles>
-  <Grid RowDefinitions="Auto,*,Auto" RowSpacing="18">
-    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="20">
+  <Grid RowDefinitions="Auto,*" RowSpacing="18">
+    <Panel>
       <StackPanel>
         <TextBlock Classes="heading" Text="{c:T 'Saves'}"/>
         <TextBlock Classes="sub" Text="{Binding Sub}"/>
+        <StackPanel Classes="meta">
+          <c:Icon Kind="check" Foreground="{StaticResource Go}"/>
+          <TextBlock Text="{c:T 'Existing saves are backed up before every transfer.'}"/>
+        </StackPanel>
       </StackPanel>
-    </Grid>
+    </Panel>
 
     <Grid Grid.Row="1" ColumnDefinitions="*,290" ColumnSpacing="24">
       <Grid RowDefinitions="Auto,*" RowSpacing="10">
         <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="14">
-          <TextBlock Classes="label" Text="{c:T 'YOUR LONGSHOT SAVES'}" Margin="0" VerticalAlignment="Center"/>
+          <TextBlock Classes="label" Text="{c:T 'Your Longshot saves'}" Margin="0" VerticalAlignment="Center"/>
           <TextBlock Grid.Column="1" Classes="faint" Text="{Binding SlotCount}" VerticalAlignment="Center"/>
           <!-- the save folder in the file manager, to find the saves by hand -->
           <Button Grid.Column="2" Classes="link smaller" Command="{Binding OpenFolderCommand}" VerticalAlignment="Center"
@@ -43,7 +47,7 @@
             </StackPanel>
           </Button>
         </Grid>
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" ClipToBounds="True">
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="0,0,-12,0" Padding="0,0,12,32">
           <StackPanel Spacing="10">
             <Border Classes="card" Padding="16,8">
               <Panel>
@@ -54,15 +58,49 @@
                 <ItemsControl ItemsSource="{Binding SlotRows}">
                   <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:SlotRowViewModel">
-                      <Grid ColumnDefinitions="26,*,Auto,Auto" ColumnSpacing="10" Height="40">
+                      <Grid ColumnDefinitions="26,*,Auto,Auto,Auto,Auto" ColumnSpacing="10" Height="40">
                         <Border Width="24" Height="24" CornerRadius="12" Background="{StaticResource SoftNum}" VerticalAlignment="Center">
                           <TextBlock Text="{Binding Number}" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource InkSoft}"
                                      HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <TextBlock Grid.Column="1" Text="{Binding Name}" FontSize="13" VerticalAlignment="Center"/>
                         <TextBlock Grid.Column="2" Classes="faint tnum" Text="{Binding Saved}" VerticalAlignment="Center"/>
-                        <Button Grid.Column="3" Classes="small" Content="{c:T 'Progress'}" Command="{Binding ProgressCommand}"
+                        <Button Grid.Column="3" Classes="small" Content="{c:T 'Progress'}" Command="{Binding ProgressCommand}" c:Pad.First="True"
                                 ToolTip.Tip="{Binding Why}" ToolTip.ShowOnDisabled="True" VerticalAlignment="Center"/>
+                        <!-- the save Play starts on: this profile's start slot, or the button that makes it so -->
+                        <Border Grid.Column="4" Classes="chip small go" IsVisible="{Binding Starts}" VerticalAlignment="Center"
+                                ToolTip.Tip="{c:T 'Play starts on this save, in a version that can'}">
+                          <TextBlock Text="{c:T 'Play starts here'}"/>
+                        </Border>
+                        <Button Grid.Column="4" Classes="small" Content="{c:T 'Start here'}" Command="{Binding StartHereCommand}"
+                                IsVisible="{Binding CanStartHere}" VerticalAlignment="Center"
+                                ToolTip.Tip="{c:T 'Play starts on this save, in a version that can'}"/>
+                        <!-- to another profile: Copy to or Move to, in a small menu (none with one profile) -->
+                        <Button Grid.Column="5" Classes="small" IsVisible="{Binding CanMove}" VerticalAlignment="Center"
+                                ToolTip.Tip="{c:T 'Copy or move this save to another profile'}">
+                          <StackPanel Orientation="Horizontal" Spacing="6">
+                            <c:Icon Kind="swap" Width="13" Height="13"/>
+                            <TextBlock Text="{c:T 'Copy or move…'}"/>
+                          </StackPanel>
+                          <Button.Flyout>
+                            <Flyout Placement="BottomEdgeAlignedRight">
+                              <ItemsControl ItemsSource="{Binding Moves}">
+                                <ItemsControl.ItemTemplate>
+                                  <DataTemplate x:DataType="vm:SlotMoveViewModel">
+                                    <StackPanel Spacing="2" Margin="0,2">
+                                      <Button Classes="menuitem" Command="{Binding CopyCommand}">
+                                        <StackPanel Orientation="Horizontal" Spacing="10"><c:Icon Kind="plus"/><TextBlock Text="{Binding CopyText}"/></StackPanel>
+                                      </Button>
+                                      <Button Classes="menuitem" Command="{Binding MoveCommand}">
+                                        <StackPanel Orientation="Horizontal" Spacing="10"><c:Icon Kind="arrowRight"/><TextBlock Text="{Binding MoveText}"/></StackPanel>
+                                      </Button>
+                                    </StackPanel>
+                                  </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                              </ItemsControl>
+                            </Flyout>
+                          </Button.Flyout>
+                        </Button>
                       </Grid>
                     </DataTemplate>
                   </ItemsControl.ItemTemplate>
@@ -96,9 +134,9 @@
         </ScrollViewer>
       </Grid>
 
-      <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" ClipToBounds="True">
+      <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="0,0,-12,0" Padding="0,0,12,32">
         <StackPanel Spacing="8">
-          <TextBlock Classes="label" Text="{c:T 'BRING SAVES INTO LONGSHOT'}" Margin="0,0,0,2"/>
+          <TextBlock Classes="label" Text="{c:T 'Bring saves into Longshot'}" Margin="0,0,0,2"/>
           <Button Classes="transfer" Command="{Binding ImportCommand}">
             <Grid ColumnDefinitions="20,*" ColumnSpacing="10">
               <c:Icon Kind="download" Width="18" Height="18" VerticalAlignment="Center" Foreground="{StaticResource Brand}"/>
@@ -117,7 +155,7 @@
               </StackPanel>
             </Grid>
           </Button>
-          <TextBlock Classes="label" Text="{c:T 'TAKE YOUR SAVES WITH YOU'}" Margin="0,10,0,2"/>
+          <TextBlock Classes="label" Text="{c:T 'Take your saves with you'}" Margin="0,10,0,2"/>
           <Button Classes="transfer" Command="{Binding ExportCommand}" ToolTip.Tip="{Binding ExportHint}" ToolTip.ShowOnDisabled="True">
             <Grid ColumnDefinitions="20,*" ColumnSpacing="10">
               <c:Icon Kind="upload" Width="18" Height="18" VerticalAlignment="Center"/>
@@ -131,11 +169,5 @@
       </ScrollViewer>
     </Grid>
 
-    <Grid Grid.Row="2" ColumnDefinitions="*,Auto" ColumnSpacing="20">
-      <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-        <c:Icon Kind="check" Width="14" Height="14" Foreground="{StaticResource Go}" VerticalAlignment="Center"/>
-        <TextBlock Classes="faint" Text="{c:T 'Existing saves are backed up before every transfer.'}" VerticalAlignment="Center"/>
-      </StackPanel>
-    </Grid>
   </Grid>
 </UserControl>

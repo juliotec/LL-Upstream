@@ -148,7 +148,7 @@ public static class InstanceFolders
         if ((running ?? (() => Saves.Running(platform)))().Any(n => n.Contains(Saves.Longshot.Display, StringComparison.Ordinal)))
             throw new IOException("Longshot is running: close it, then build or move its folder again.");
         if (registry.Find(move.Build.Id) is not { } entry || !BuildRegistry.SameFolder(entry.Folder, move.From))
-            throw new IOException("This instance's folder changed since, so it is left as it is: " + move.From);
+            throw new IOException("This version's folder changed since, so it is left as it is: " + move.From);
         var from = Path.GetFullPath(move.From);
         if (!Directory.Exists(from)) throw new IOException("The folder is gone: " + move.From);
         if (new DirectoryInfo(from).LinkTarget != null)
@@ -160,7 +160,7 @@ public static class InstanceFolders
         if (Path.Exists(move.To)) throw new IOException("A folder of that name is there already: " + move.To);
         if (Parent(move.To) is { } into && !BuildRegistry.SameFolder(into, from) && Directory.Exists(into)
             && (registry.FindByFolder(into) != null || GameFolder.IsGameFolder(into, platform)))
-            throw new IOException($"{move.To} would be inside another instance's folder, {into}: move that one first.");
+            throw new IOException($"{move.To} would be inside another version's folder, {into}: move that one first.");
         Place(from, move.To);
         try
         {

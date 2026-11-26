@@ -152,6 +152,23 @@ static partial class Program
 
     /// LauncherService.Relist in its source: nothing when builds.json could not be read, and Leftovers.Relist only when
     /// ShouldRelist says so (not at every start), remembered in the settings
+    /// The window's thread never prunes the tools (PruneTools' file work in a Task.Run, under the fetches' exclusion),
+    /// and a change of the build files folder, saved, lets the old one's work folders go (LauncherService.LeaveWork) from both pages
+    static void BuilderUiThreadSourceChecks(string repo)
+    {
+        var service = File.ReadAllText(Path.Combine(repo, "App", "LauncherService.cs"));
+        var prune = service[service.IndexOf("public void PruneTools()", StringComparison.Ordinal)..];
+        prune = prune[..prune.IndexOf("\n    }", StringComparison.Ordinal)];
+        var run = prune.IndexOf("Task.Run(", StringComparison.Ordinal);
+        Require(run > 0 && prune.IndexOf("Tools.Prune(", StringComparison.Ordinal) > run && prune.IndexOf("Prefetch.CleanStaging(", StringComparison.Ordinal) > run,
+                "PruneTools reads the tools' records and deletes their folders off the window's thread, under the fetches' exclusion.");
+        var settings = File.ReadAllText(Path.Combine(repo, "App", "ViewModels", "SettingsViewModel.cs"));
+        var step = File.ReadAllText(Path.Combine(repo, "App", "ViewModels", "SettingsStepViewModel.cs"));
+        Require(service.Contains("Disk.LeaveLongshotWork(from, to, building,") && settings.Contains("if (Save()) LeaveOldWork();")
+                && settings.Contains("if (workSaved) LeaveOldWork();") && step.Contains("if (Save()) Job.Service.LeaveWork(before);"),
+                "A saved change of the build files folder lets the old one's launcher work folders go, from Settings and from step 2.");
+    }
+
     static void RelistSourceChecks(string repo)
     {
         var service = File.ReadAllText(Path.Combine(repo, "App", "LauncherService.cs"));

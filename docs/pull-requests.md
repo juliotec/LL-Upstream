@@ -1,9 +1,14 @@
 # Pull request builds
 
 The home's **Pull request** track builds an open Longshot pull request on the tester's PC, next to their other versions,
-so a change can be played on real hardware before it is merged. It builds a pull request the way the Test Farm's agents
-([Beanstalk](https://git.magicbean.dev/MagicBeanDev/Beanstalk)) do: the pull request's source, over the build tools of
-`main`.
+so a change can be played on real hardware before it is merged. It builds a pull request from its source, as the Test Farm's agents
+([Beanstalk](https://git.magicbean.dev/MagicBeanDev/Beanstalk)) do. Building from source is `longshot-builder`'s
+`from-source`, run by the newest nightly's builder (fetched first when this PC has not got it): `from-source --commit <its
+head> --out versions/<version> --name <version> --cache <the launcher's builder cache>` compiles a builder from the
+commit's source into the version's folder, which is then built and played as a release's is (`Core/SourceBuilds.cs`, the
+one entry for a pull request's and main's builds). A nightly's builder from before `from-source` says it can't yet. The
+old way, the pull request's source over a nightly's `make_game.py` tools (`PullRequestSource`), is gone with the old
+builder.
 
 <p align="center">
   <img src="images/pr-track.png" alt="The Pull request track: a pull request's build with a newer push, who wrote it, Read it, Find a pull request" width="720">
@@ -62,27 +67,9 @@ after a successful build. A failed or stopped build can leave these files behind
 
 1. Its pull request is read again: it must still be open, out of draft, for this system and at that very commit; a newer
    push is refused ("pick it again").
-2. **The newest nightly's tools** are installed the usual way, checked against that nightly's signed release (or kept from
-   an installed version).
-3. **The source:** `archive/<full commit hash>.tar.gz` from git.magicbean.dev (about 20 MB, capped at 128 MB). It must name
-   that commit in its header, and hold plain files only, nothing outside its folder.
-4. **`Toolchains.InstallPullRequest`** makes `toolchains/pr-<number>-<commit>`:
-   - the nightly's tools, **hard-linked** (about 50 MB of new disk beside the nightly's 900 MB);
-   - each top folder of the nightly's tools the source has too (`nx2`, `host`, `gpu`, `scripts`, `third_party`, ...),
-     replaced by the source's;
-   - the native helpers a release builds into `third_party` that the source lacks, **copied**, never linked, so rebuilding
-     one leaves the nightly's alone;
-   - its record keeps only the parts no source file replaced, so a later version may reuse its tools but never its source.
-
-   It is **refused when the pull request's `tools.lock` asks for other tools** than the nightly's for this system, as
-   Beanstalk refuses to judge one: its build would need tools nobody checked.
-5. The wizard's other steps are as for any version.
-
-**Builds stay fast.** A pull request's build uses the same work folder as every other build, which keeps the most recent
-build's translation and objects. The translation is keyed by the translator and its settings, not the version, so a pull
-request built after its nightly that leaves `nx2/` alone takes the nightly's translation instead of translating again, and
-the objects nothing changed are reused. Its game files are linked from another build of the same dump
-(`LONGSHOT_ROMFS_FROM`), and its tools are links to the nightly's.
+2. Then the newest nightly's `longshot-builder from-source` builds its builder from that commit, into its version folder,
+   and the game is built with it as any version's is. Its steps go in the launcher's log; an error is said in the
+   builder's words.
 
 Nothing of a pull request is downloaded before its warnings: the early tools download (`ToolsPrefetch`) skips pull
 requests.
@@ -90,5 +77,4 @@ requests.
 ## Risk
 
 The pull request's build scripts and its game run on the tester's PC with the tester's rights, without the Test Farm's
-sandbox. The launcher fetches only the commit Beanstalk names as the head, by its full hash, over https, and checks the
-archive is of it. The warnings say who, if anyone, vouches for the code.
+sandbox. The build is asked for only the commit Beanstalk names as the head, by its full hash. The warnings say who, if anyone, vouches for the code.

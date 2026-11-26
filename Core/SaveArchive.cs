@@ -423,7 +423,7 @@ public static class SaveArchive
                                        string? backupRoot = null, Func<IReadOnlyList<string>>? running = null, Func<DateTime>? now = null)
     {
         if (!unpacked.Whole || !unpacked.Valid) throw new SaveFailure("This .zip is not a whole save folder that can be imported.");
-        var target = System.IO.Path.Combine(env.LongshotUser, Top);
+        var target = System.IO.Path.Combine(env.SavesUser, Top);
         var had = Directory.Exists(target);
         var stamp = (now ?? (() => DateTime.Now))().ToString("yyyyMMdd-HHmmss", System.Globalization.CultureInfo.InvariantCulture);
         var root = backupRoot ?? env.BackupRoot;

@@ -1,10 +1,7 @@
-using System.Formats.Tar;
-using System.IO.Compression;
-using System.Text;
 using LongshotLauncher.Core;
 
-// The Pull request track (docs/pull-requests.md): the names, Beanstalk's list, the track's versions, the source
-// archive and the toolchain made from it, and the home and its warnings as the source has them
+// The Pull request track (docs/pull-requests.md): the names, Beanstalk's list, the track's versions, the build from source (the
+// newest nightly's builder's from-source: SourceBuilds), and the home and its warnings as the source has them
 static partial class Program
 {
     const string HeadA = "1a2b3c4d5e6f708192a3b4c5d6e7f80910111213", HeadB = "bbbbbbbb5e6f708192a3b4c5d6e7f80910111213";
@@ -13,8 +10,34 @@ static partial class Program
                           string title = "fix(audio): the thing", params string[] labels) =>
         new(number, title, "someone", head, draft, labels, bigbean, approved, approved ? new[] { "maint1" } : Array.Empty<string>());
 
+    // ---- versions built from source: a pull request's and main's tags, and SourceBuilds, the one place that builds them
+
+    static void SourceBuildChecks()
+    {
+        var sha = "4f2c9e1a7b3d5f6081a2b3c4d5e6f708192a3b4c";
+        Require(Versions.MainTag(sha) == "main-4f2c9e1a" && Versions.MainOf("main-4f2c9e1a") == "4f2c9e1a" && Versions.MainOf("main-4F2C9E1A") == null
+                && Versions.TrackOf("main-4f2c9e1a") == Versions.PullRequest && Versions.Shown("main-4f2c9e1a") == "main \u00b7 4f2c9e1a"
+                && Versions.IsSourceBuild("main-4f2c9e1a") && Versions.IsSourceBuild("pr-12-4f2c9e1a") && !Versions.IsSourceBuild("v4.0.0"),
+                "main-<sha8> is a build from source, on the pull requests' track, as pr-<n>-<sha8> is.");
+        Require(SourceBuilds.ParseHead("{\"name\": \"main\", \"commit\": {\"id\": \"" + sha.ToUpperInvariant() + "\"}}") == sha
+                && SourceBuilds.ParseHead("{\"commit\": {\"id\": \"abc\"}}") == null && SourceBuilds.ParseHead("<html>") == null,
+                "main's newest commit from git.magicbean.dev's branch answer; anything else is none.");
+        static Task<PullRequest?> None(int _, CancellationToken __) => Task.FromResult<PullRequest?>(null);
+        Require(SourceBuilds.CommitAsync(new Releases(new FakeFetcher(), Platform.Linux, []), "main-4f2c9e1a", sha, None).GetAwaiter().GetResult() == sha,
+                "main's build is of the commit Add version read.");
+        var moved = new FakeFetcher();
+        moved.Texts[SourceBuilds.MainUrl] = () => "{\"commit\": {\"id\": \"aaaaaaaa" + sha[8..] + "\"}}";
+        var threw = "";
+        try { SourceBuilds.CommitAsync(new Releases(moved, Platform.Linux, []), "main-4f2c9e1a", null, None).GetAwaiter().GetResult(); }
+        catch (InvalidDataException e) { threw = e.Message; }
+        Require(threw.Contains("moved on", StringComparison.Ordinal), "main moved past the tag's commit since: said, nothing built: " + threw);
+        var draft = new PullRequest(7, "WIP: a change", "x", sha, true, [], false, false, []);
+        Require(PullRequests.Problem(draft, Platform.Linux) == null, "A WIP pull request can be built (after its warnings).");
+    }
+
     static async Task PullRequestChecks(string repo)
     {
+        SourceBuildChecks();
         // ---- names ----
         Require(Versions.PullRequestOf("pr-222-1a2b3c4d") == (222, "1a2b3c4d") && Versions.PullRequestOf("pr-0-1a2b3c4d") == null
                 && Versions.PullRequestOf("pr-222-1A2B3C4D") == null && Versions.PullRequestOf("pr-222-1a2b3c4") == null
@@ -78,8 +101,9 @@ static partial class Program
                 && Pr(1, HeadA, labels: new[] { "platform/windows", "platform/linux" }).For(Platform.Windows)
                 && !Pr(1, HeadA, labels: new[] { "platform/steam-deck" }).For(Platform.Windows),
                 "A pull request labelled for the other system only is not for this PC; one for both, or neither, is.");
-        Require(PullRequests.Problem(list[0], Platform.Windows) != null && PullRequests.Problem(list[1], Platform.Linux) != null
-                && PullRequests.Problem(list[2], Platform.Linux) == null, "A draft, or one for the other system, cannot be built here.");
+        Require(PullRequests.Problem(list[0], Platform.Windows) != null && PullRequests.Problem(list[1], Platform.Linux) == null
+                && PullRequests.Problem(list[2], Platform.Linux) == null,
+                "One for the other system cannot be built here; a draft (WIP) can, after its warnings, which say it is one.");
 
         var server = new FakeFetcher();
         server.Texts[PullRequests.ListUrl] = () => json;
@@ -100,10 +124,10 @@ static partial class Program
             Pr(1556, HeadB, approved: true), Pr(1597, HeadB, approved: true, labels: new[] { "platform/windows" }), Pr(1596, HeadB),
         };
         var rows = VersionPick.OfPullRequests(builds, pulls, Platform.Linux, new HashSet<int> { 1596 });
-        Require(rows.Select(r => r.Tag).SequenceEqual(new[] { "pr-1556-11111111", "pr-1600-1a2b3c4d", "pr-1596-bbbbbbbb" })
+        Require(rows.Select(r => r.Tag).SequenceEqual(new[] { "pr-1556-11111111", "pr-1600-1a2b3c4d", "pr-1598-1a2b3c4d", "pr-1596-bbbbbbbb" })
                 && rows[0].Installed && !rows[1].Installed,
                 "The track lists the installed pull requests first (an older push stays its build's version), then the trusted open ones and " +
-                "the ones found by number; never a draft, one for the other system, or an untrusted one nobody looked for.");
+                "the ones found by number, a trusted draft too; never one for the other system, or an untrusted one nobody looked for.");
         Require(VersionPick.OfPullRequests(builds, null, Platform.Linux).Select(r => r.Tag).SequenceEqual(new[] { "pr-1556-11111111" }),
                 "Before Beanstalk answers: only the installed ones.");
         Require(VersionPick.Plan(Versions.PullRequest, "pr-1600-1a2b3c4d", builds) is { Action: PickAction.Replace, Older: false } p && p.Build == mine
@@ -111,130 +135,55 @@ static partial class Program
                 && VersionPick.Plan(Versions.PullRequest, "pr-1556-11111111", builds).Action == PickAction.Play,
                 "Another pull request is built in the place of the one installed (switching); none installed, in a folder of its own.");
 
-        // ---- the source archive ----
-        var scratch = Path.Combine(Path.GetTempPath(), "pr-checks-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(scratch);
-        try
+        // ---- the build: from source, by the newest nightly's builder's from-source (SourceBuilds)
+        var sourceVersions = Folder("pr-from-source");
+        var sourceChains = new Toolchains(sourceVersions, Platform.Linux);
+        var sourceReleases = new Releases(new FakeFetcher(), Platform.Linux, [])
         {
-            var source = new Dictionary<string, string>
-            {
-                ["nx2/make_game.py"] = "print('pr')\n", ["nx2/new.py"] = "new\n", ["third_party/zbic/zbic.c"] = "int x;\n",
-                ["tools.lock"] = "", ["docs/x.md"] = "docs\n", ["scripts/run.sh"] = "#!/bin/sh\n",
-            };
-            byte[] Archive(string? commit, Action<TarWriter>? more = null, IReadOnlyDictionary<string, string>? files = null)
-            {
-                using var ms = new MemoryStream();
-                using (var gz = new GZipStream(ms, CompressionLevel.Fastest, leaveOpen: true))
-                using (var tar = new TarWriter(gz, TarEntryFormat.Pax))
-                {
-                    if (commit != null) tar.WriteEntry(new PaxGlobalExtendedAttributesTarEntry(new Dictionary<string, string> { ["comment"] = commit }));
-                    tar.WriteEntry(new PaxTarEntry(TarEntryType.Directory, "longshot/"));
-                    foreach (var (path, text) in files ?? source)
-                        tar.WriteEntry(new PaxTarEntry(TarEntryType.RegularFile, "longshot/" + path)
-                        {
-                            DataStream = new MemoryStream(Encoding.UTF8.GetBytes(text)),
-                            Mode = path.EndsWith(".sh", StringComparison.Ordinal) ? (UnixFileMode)0b111_101_101 : (UnixFileMode)0b110_100_100,
-                        });
-                    more?.Invoke(tar);
-                }
-                return ms.ToArray();
-            }
-            var files = PullRequestSource.Files(Archive(HeadA), HeadA);
-            Require(files.Count == source.Count && files.Single(f => f.Path == "scripts/run.sh").Executable && !files.Single(f => f.Path == "nx2/new.py").Executable,
-                    "The archive's files, without its top folder, the run bit kept.");
-            Require(Fails(() => PullRequestSource.Files(Archive(HeadB), HeadA)) && Fails(() => PullRequestSource.Files(Archive(null), HeadA)),
-                    "An archive that is not of the commit asked for, or names none, is refused.");
-            Require(Fails(() => PullRequestSource.Files(Archive(HeadA, t => t.WriteEntry(new PaxTarEntry(TarEntryType.SymbolicLink, "longshot/link") { LinkName = "/etc/passwd" })), HeadA))
-                    && Fails(() => PullRequestSource.Files(Archive(HeadA, files: new Dictionary<string, string> { ["../x"] = "x" }), HeadA))
-                    && Fails(() => PullRequestSource.Files(new byte[] { 1, 2, 3 }, HeadA)),
-                    "A link, a path out of its folder, or no archive at all is refused.");
-            Require(!PullRequestSource.IsNewBuilder(files)
-                    && PullRequestSource.IsNewBuilder(PullRequestSource.Files(Archive(HeadA, files: new Dictionary<string, string> { ["builder/Cargo.toml"] = "" }), HeadA)),
-                    "A pull request with no make_game.py is built with the new builder: it needs the nightly launcher.");
-            Require(PullRequestSource.ArchiveUrl(HeadA) == "https://git.magicbean.dev/api/v1/repos/MagicBeanDev/Longshot/archive/" + HeadA + ".tar.gz",
-                    "The source is the archive of the exact commit, by its full hash.");
-
-            // ---- the toolchain: the nightly's tools linked, the pull request's source over them ----
-            var root = Path.Combine(scratch, "toolchains");
-            var from = Path.Combine(root, "nightly-2029-c544828f");
-            var share = Path.Combine(from, "usr", "share", "longshot");
-            void Put(string rel, string text)
-            {
-                var path = Path.Combine(from, rel.Replace('/', Path.DirectorySeparatorChar));
-                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-                File.WriteAllText(path, text);
-            }
-            const string lockText = "tool sysroot 1 linux-x64 " + "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" + " 10 usr/lib/longshot/sysroot - https://x/s.zip\n";
-            Put("usr/share/longshot/nx2/make_game.py", "print('nightly')\n");
-            Put("usr/share/longshot/nx2/old.py", "old\n");
-            Put("usr/share/longshot/scripts/run.sh", "old\n");
-            Put("usr/share/longshot/third_party/zbic/zbic.c", "int y;\n");
-            Put("usr/share/longshot/third_party/zbic/zbic.so", "built\n");
-            Put("usr/share/longshot/tools.lock", lockText);
-            Put("usr/share/longshot/VERSION", "nightly-2029-c544828f\n");
-            Put("usr/python/bin/python3", "python\n");
-            Put("usr/lib/longshot/sysroot/lib.a", "sysroot\n");
-            Put("toolchain.json", """
-                {"format": 1, "tag": "nightly-2029-c544828f", "kind": "Linux", "run": null, "parts": [
-                  {"sha": "bbbb", "size": 5, "dest": ".", "url": "https://x/AppImage", "entries": []},
-                  {"sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "size": 10, "dest": "usr/lib/longshot", "from": null, "to": "sysroot",
-                   "url": "https://x/s.zip", "entries": [{"path": "usr/lib/longshot/sysroot/lib.a", "link": null}]},
-                  {"sha": "cccc", "size": 3, "dest": "usr/share/longshot", "url": "https://x/n.zip", "entries": [{"path": "usr/share/longshot/nx2/old.py", "link": null}]}
-                ]}
+            // (nightly-501 is make_game.py's, no builder manifest: the newest nightly with a builder is nightly-500)
+            Listed = [new ListedRelease("nightly-501-bbbbbbbb", false, true, null, null, "c", []),
+                      new ListedRelease("nightly-500-aaaaaaaa", false, true, null, null, "c", [(LongshotBuildRelease.ManifestName("nightly-500-aaaaaaaa", "linux-x64"), "https://e/m", 10)]),
+                      new ListedRelease("v4.0.0", false, false, null, null, "c", [])],
+        };
+        async Task<string> Refusal(string tag, PullRequest? listed)
+        {
+            try { await SourceBuilds.EnsureAsync(sourceChains, sourceReleases, tag, null, (_, _) => Task.FromResult(listed)); }
+            catch (InvalidDataException e) { return e.Message; }
+            return "";
+        }
+        if (!OperatingSystem.IsWindows())
+        {
+            var made = Path.Combine(sourceVersions, "pr-222-1a2b3c4d");
+            var nightlyBuilder = FakeBuilder(Path.Combine(sourceVersions, "nightly-500-aaaaaaaa"), "nightly-500-aaaaaaaa", $$"""
+                echo '{"v":1,"type":"stage","stage":"rust","text":"Rust"}'
+                echo '{"v":1,"type":"progress","stage":"rust","fraction":0.5,"overall":0.05}'
+                mkdir -p '{{made}}'
+                cp "$0" '{{made}}/Longshot.x86_64'
+                echo '{"v":1,"commit":"{{HeadA}}","version":"pr-222-1a2b3c4d","signed":false}' > '{{made}}/source.json'
+                echo '{"v":1,"type":"from_source","folder":"{{made}}","program":"{{made}}/Longshot.x86_64","commit":"{{HeadA}}","version":"pr-222-1a2b3c4d","signed":false,"downloaded":1}'
+                echo '{"v":1,"type":"done","folder":"{{made}}","seconds":1,"compile_seconds":1,"previous_seconds":null}'
                 """);
-            var chains = new Toolchains(root, new FakeFetcher());
-            var nightly = chains.Find("nightly-2029-c544828f")!;
-            var withLock = source.ToDictionary(kv => kv.Key, kv => kv.Key == "tools.lock" ? lockText : kv.Value);
-            var srcFiles = PullRequestSource.Files(Archive(HeadA, files: withLock), HeadA);
-            var made = chains.InstallPullRequest("pr-222-1a2b3c4d", nightly, srcFiles, Platform.Linux);
-            var mshare = Path.Combine(made.Folder, "usr", "share", "longshot");
-            Require(chains.Find("pr-222-1a2b3c4d") != null && File.ReadAllText(made.MakeGame) == "print('pr')\n"
-                    && !File.Exists(Path.Combine(mshare, "nx2", "old.py")) && File.Exists(Path.Combine(mshare, "nx2", "new.py"))
-                    && !Directory.Exists(Path.Combine(mshare, "docs")) && File.ReadAllText(Path.Combine(mshare, "VERSION")) == "pr-222-1a2b3c4d\n"
-                    && File.ReadAllText(Path.Combine(mshare, "third_party", "zbic", "zbic.c")) == "int x;\n",
-                    "The pull request's source replaces the nightly's (a file it removed is gone); its docs are left out; VERSION names it.");
-            Require(File.ReadAllText(Path.Combine(share, "nx2", "make_game.py")) == "print('nightly')\n" && File.Exists(Path.Combine(share, "nx2", "old.py")),
-                    "The nightly's tools are untouched.");
-            var helper = Path.Combine(mshare, "third_party", "zbic", "zbic.so");
-            File.WriteAllText(helper, "rebuilt\n");
-            Require(File.ReadAllText(Path.Combine(share, "third_party", "zbic", "zbic.so")) == "built\n",
-                    "A native helper the source lacks is copied, never linked: rebuilding it leaves the nightly's alone.");
-            if (!OperatingSystem.IsWindows())
-                Require((File.GetUnixFileMode(Path.Combine(mshare, "scripts", "run.sh")) & UnixFileMode.UserExecute) != 0,
-                        "A script keeps its run bit.");
-            var record = File.ReadAllText(Path.Combine(made.Folder, Toolchains.RecordName));
-            Require(record.Contains("\"pr-222-1a2b3c4d\"", StringComparison.Ordinal) && record.Contains("usr/lib/longshot/sysroot/lib.a", StringComparison.Ordinal)
-                    && !record.Contains("old.py", StringComparison.Ordinal) && !record.Contains("https://x/AppImage", StringComparison.Ordinal),
-                    "Its record keeps the tools (reused by the next version) but no part a source file replaced, nor the builder.");
-            Toolchains.DeleteTree(from);
-            Require(File.ReadAllText(Path.Combine(made.Folder, "usr", "python", "bin", "python3")) == "python\n",
-                    "The nightly's tools can be deleted afterwards (pruned): the pull request's keep theirs.");
-
-            // (a pull request that changes the tools is refused, and leaves nothing)
-            Toolchains.DeleteTree(made.Folder);
-            Directory.CreateDirectory(from);
-            foreach (var (rel, text) in new[] { ("usr/share/longshot/nx2/make_game.py", "n\n"), ("usr/share/longshot/tools.lock", lockText) }) Put(rel, text);
-            Put("toolchain.json", "{\"format\": 1, \"tag\": \"nightly-2029-c544828f\", \"kind\": \"Linux\", \"parts\": []}");
-            var other = withLock.ToDictionary(kv => kv.Key, kv => kv.Key == "tools.lock" ? lockText.Replace("aaaa", "abab") : kv.Value);
-            Require(Fails(() => chains.InstallPullRequest("pr-222-1a2b3c4d", chains.Find("nightly-2029-c544828f")!,
-                                                          PullRequestSource.Files(Archive(HeadA, files: other), HeadA), Platform.Linux))
-                    && !Directory.Exists(chains.PathOf("pr-222-1a2b3c4d")) && !Directory.Exists(chains.PathOf("pr-222-1a2b3c4d") + ".part"),
-                    "A pull request whose tools.lock differs from the nightly's is refused, and leaves nothing.");
-
-            // (the Windows builder's zip has tools.lock at its top, beside LongshotBuilder\, not in its tools folder)
-            Toolchains.DeleteTree(from);
-            const string winLock = "tool sysroot 1 windows-x64 " + "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" + " 10 sysroot - https://x/s.zip\n";
-            Put("tools.lock", winLock);
-            Put("LongshotBuilder/tools/nx2/make_game.py", "n\n");
-            Put("toolchain.json", "{\"format\": 1, \"tag\": \"nightly-2029-c544828f\", \"kind\": \"Setup\", \"run\": \"LongshotBuilder/LongshotBuilder.exe\", \"parts\": []}");
-            var winMade = chains.InstallPullRequest("pr-222-1a2b3c4d", chains.Find("nightly-2029-c544828f")!,
-                PullRequestSource.Files(Archive(HeadA, files: source.ToDictionary(kv => kv.Key, kv => kv.Key == "tools.lock" ? winLock : kv.Value)), HeadA), Platform.Windows);
-            Require(winMade.Tag == "pr-222-1a2b3c4d", "A Windows builder's tools.lock, at the top of its folder, is found to compare the pull request's with.");
+            var seen = new List<ToolsDownloadProgress>();
+            var said = new List<string>();
+            var built = await SourceBuilds.EnsureAsync(sourceChains, sourceReleases, "pr-222-1a2b3c4d", null, (_, _) => Task.FromResult<PullRequest?>(Pr(222, HeadA)),
+                                                       "/c/longshot-builder", seen.Add, said.Add);
+            Require(File.ReadAllLines(Path.Combine(sourceVersions, "nightly-500-aaaaaaaa", "args.txt")).SequenceEqual(new[]
+                    {
+                        "from-source", "--commit", HeadA, "--out", made, "--name", "pr-222-1a2b3c4d", "--cache", "/c/longshot-builder", "--output", "json",
+                    }) && built.BuilderExe == Path.Combine(made, "Longshot.x86_64") && sourceChains.Find("pr-222-1a2b3c4d") != null
+                    && seen.Any(p => Math.Abs(p.Fraction - 0.05) < 1e-9) && seen[^1].Fraction == 1 && said.Any(l => l.Contains("rust: Rust", StringComparison.Ordinal)),
+                    "A pull request's build: the newest nightly's builder's from-source --commit <its head> --out <its version folder> --name <its tag> --cache <the launcher's>, "
+                    + "its progress said: " + string.Join(" | ", said));
+            ScriptBuilder(nightlyBuilder, "echo 'longshot-builder: unknown command: from-source' >&2\nexit 2");
+            Require(await Refusal("pr-223-1a2b3c4d", Pr(223, HeadA)) == SourceBuilds.NotYet("pr-223-1a2b3c4d"),
+                    "A nightly's builder from before from-source: not yet, said plainly.");
+            ScriptBuilder(nightlyBuilder, "echo '{\"v\":1,\"type\":\"error\",\"code\":\"source_download_failed\",\"text\":\"the archive could not be downloaded\"}'\nexit 1");
+            Require(await Refusal("pr-223-1a2b3c4d", Pr(223, HeadA)) == "the archive could not be downloaded" && sourceChains.Find("pr-223-1a2b3c4d") == null,
+                    "from-source's error: its words, nothing installed.");
         }
-        finally
-        {
-            Toolchains.DeleteTree(scratch);
-        }
+        Require((await Refusal("pr-222-1a2b3c4d", Pr(222, HeadB))).Contains("newer push", StringComparison.Ordinal)
+                && (await Refusal("pr-222-1a2b3c4d", null)).Contains("#222", StringComparison.Ordinal),
+                "A newer push, or a pull request no longer open, is said as such first.");
 
         // ---- the home and its warnings, as the source has them ----
         var home = File.ReadAllText(Path.Combine(repo, "App", "ViewModels", "HomeViewModel.cs"));

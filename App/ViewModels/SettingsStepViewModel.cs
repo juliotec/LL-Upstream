@@ -50,10 +50,14 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
     public int MemoryGb { get; }
     public int Threads { get; }
 
-    void Save()
+    bool Save()
     {
-        try { Job.Service.SaveSettings(); }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+        try
+        {
+            Job.Service.SaveSettings();
+            return true;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return false; }
     }
 
     // ---- saves ----
@@ -101,16 +105,12 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
     /// AMD's licence (Windows) or the Linux notice (FsrLinuxNotice), whichever this platform asks for before FSR 4 is on
     bool FsrKnown => Linux ? s.FsrLinuxNotice : s.FsrLicense;
 
-    /// (Linux) This version's tools can build FSR 4: they carry AMD's FSR API headers (MakeGameCommand.FsrBuilds). Unknown
-    /// tools (not found yet) are taken as able: the build says so in its log if they were not
-    public bool FsrBuildable => Windows || Job.Tools is not { } tools || MakeGameCommand.FsrBuilds(tools, Platform.Linux);
-
     public bool Fsr
     {
-        get => s.Fsr && FsrKnown && FsrBuildable;
+        get => s.Fsr && FsrKnown;
         set
         {
-            if (value == Fsr || (value && !FsrEnabled)) return;
+            if (value == Fsr) return;
             if (value && !FsrKnown)
             {
                 Main.Modal = new LicenceViewModel(Main, LicenceOf.Amd, Linux, () =>
@@ -129,9 +129,6 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
             RaiseUpscalers();
         }
     }
-
-    /// The FSR 4 switch can be turned on: this version's tools build it
-    public bool FsrEnabled => FsrBuildable;
 
     public bool DlssAccepted => Dlss;
     /// The line under the switch: hidden once the licence's tick shows, unless it says this PC has no card for it (in red)
@@ -157,7 +154,7 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
             return Upscalers.Unsupported(SystemInfo.GameCards(Job.Service.GpuCards, snapshot), SystemInfo.FsrRuns)
                 ? (SystemInfo.EstimatedGpu(snapshot) != null ? Tr.T("The estimated Auto GPU is not a Radeon RX 6000 or newer.") : Tr.T("This PC has no Radeon RX 6000 or newer."))
                 : Linux
-                ? (!FsrBuildable ? Tr.T("This version can't build it on Linux yet.") : Tr.T("Uses your Vulkan FSR 4 library."))
+                ? Tr.T("Uses your Vulkan FSR 4 library.")
                 : Fsr ? "" : s.FsrLicense ? Tr.T("Licence accepted earlier.") : Tr.T("Shows AMD's licence first.");
         }
     }
@@ -170,13 +167,37 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
     // Vulkan driver has what it asks for, which only the game can tell, at its start: SystemInfo.XessIntel)
     public bool XessYourGpu => Job.GameGpuCards.Any(SystemInfo.XessIntel);
 
-    /// This version's tools fetch Intel's library (MakeGameCommand.XessBuilds). Unknown tools (not found yet) are taken as able:
-    /// the build says so in its log if they were not
-    public bool XessBuildable => Job.Tools is not { } tools || MakeGameCommand.XessBuilds(tools);
+    /// The licence a build was refused for (longshot-builder's license_not_accepted, ProblemViewModel): its prompt, as turning its
+    /// upscaler on shows it; accepted, the licence is kept, the upscaler on, and then runs (the build again)
+    public void AskLicence(LicenceOf of, Action then)
+    {
+        Main.Modal = new LicenceViewModel(Main, of, Linux, () =>
+        {
+            switch (of)
+            {
+                case LicenceOf.Nvidia:
+                    s.DlssLicense = true;
+                    s.Dlss = true;
+                    break;
+                case LicenceOf.Amd:
+                    if (Linux) s.FsrLinuxNotice = true;
+                    else s.FsrLicense = true;
+                    s.Fsr = true;
+                    break;
+                default:
+                    s.XessLicense = true;
+                    s.Xess = true;
+                    break;
+            }
+            Save();
+            RaiseUpscalers();
+            then();
+        }, RaiseUpscalers);
+    }
 
     public bool Xess
     {
-        get => Windows && s.Xess && s.XessLicense && XessBuildable;
+        get => Windows && s.Xess && s.XessLicense;
         set
         {
             if (value == Xess || (value && !XessEnabled)) return;
@@ -193,12 +214,11 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
         }
     }
 
-    /// The XeSS switch can be turned on: Windows, and this version's tools fetch Intel's library
-    public bool XessEnabled => Windows && XessBuildable;
+    /// The XeSS switch can be turned on: Windows (longshot-builder downloads Intel's library under Intel's licence)
+    public bool XessEnabled => Windows;
     public bool XessAccepted => Xess;
     public bool ShowXessLine => !XessAccepted;
-    public string XessLine => !XessBuildable ? Tr.T("This version can't fetch it yet.")
-        : Xess ? "" : s.XessLicense ? Tr.T("Licence accepted earlier.") : Tr.T("Shows Intel's licence first.");
+    public string XessLine => Xess ? "" : s.XessLicense ? Tr.T("Licence accepted earlier.") : Tr.T("Shows Intel's licence first.");
 
     // ---- (Linux) the player's FSR 4 library ----
 
@@ -284,8 +304,8 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
 
     void RaiseUpscalers() =>
         RaiseAll(nameof(Dlss), nameof(Fsr), nameof(ShowFsrLibrary), nameof(DlssAccepted), nameof(ShowDlssLine), nameof(DlssLine), nameof(FsrAccepted),
-                 nameof(ShowFsrLine), nameof(FsrLine), nameof(FsrBuildable), nameof(FsrEnabled),
-                 nameof(Xess), nameof(XessAccepted), nameof(ShowXessLine), nameof(XessLine), nameof(XessBuildable), nameof(XessEnabled),
+                 nameof(ShowFsrLine), nameof(FsrLine),
+                 nameof(Xess), nameof(XessAccepted), nameof(ShowXessLine), nameof(XessLine), nameof(XessEnabled),
                  nameof(Estimate));
 
     // ---- install ----
@@ -337,14 +357,25 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
         }
     }
 
-    public string Drive => Disk.DriveName(Job.InstallDir);
-    void Measure() => Free = Disk.FreeBytes(Job.InstallDir);
+    /// The drive the meter shows: the one with the least room past what the build needs there (Disk.Needs: the game folder and
+    /// the build files, which may be on two drives)
+    public string Drive => Disk.DriveName(Shown.Folder);
+    void Measure()
+    {
+        space = Disk.Needs(Job.InstallDir, Job.Service.Work).Select(n => (n.Folder, n.Bytes, Disk.FreeBytes(n.Folder))).ToList();
+        Free = Shown.Free;
+    }
 
-    public bool Short => free is long f && f < Disk.BuildBytes;
-    public double MeterFraction => free is long f && f > 0 ? Math.Min(1, Disk.BuildBytes / (double)f) : 0;
-    public string MeterText => free is not long f ? Tr.F("Needs {0} GB", Disk.BuildBytes >> 30)
-        : Short ? Tr.F("Needs {0} GB, only {1} GB free on {2}", Disk.BuildBytes >> 30, f >> 30, Drive)
-        : Tr.F("Needs {0} GB, {1} GB free on {2}", Disk.BuildBytes >> 30, f >> 30, Drive);
+    IReadOnlyList<(string Folder, long Bytes, long? Free)> space = [];
+    (string Folder, long Bytes, long? Free) Shown =>
+        space.OrderBy(n => n.Free is long f ? f - n.Bytes : long.MaxValue).FirstOrDefault((Job.InstallDir, Disk.LongshotGameBytes + Disk.LongshotWorkBytes, free));
+    long Need => Shown.Bytes;
+
+    public bool Short => space.Any(n => n.Free is long f && f < n.Bytes);
+    public double MeterFraction => free is long f && f > 0 ? Math.Min(1, Need / (double)f) : 0;
+    public string MeterText => free is not long f ? Tr.F("Needs {0} GB", Math.Max(1, Need >> 30))
+        : Short ? Tr.F("Needs {0} GB, only {1} GB free on {2}", Math.Max(1, Need >> 30), f >> 30, Drive)
+        : Tr.F("Needs {0} GB, {1} GB free on {2}", Math.Max(1, Need >> 30), f >> 30, Drive);
 
     // ---- the game ----
 
@@ -445,9 +476,13 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
         if (Main.Host is not { } host) return;
         var picked = await host.PickFolderAsync(Tr.T("Where the build files go"), WorkFull);
         if (picked == null) return;
+        var before = Job.Service.Work;
         s.Work = Path.GetFullPath(picked);
-        Save();
+        // (the launcher's work folders in the one left let go once the change is saved: LauncherService.LeaveWork)
+        if (Save()) Job.Service.LeaveWork(before);
         RaiseAll(nameof(Work), nameof(WorkFull), nameof(AdvancedDesc));
+        // (longshot-builder's build files need room on their own drive: Disk.Needs)
+        Measure();
     }
 
     // ---- the footer ----
@@ -474,8 +509,8 @@ public sealed class SettingsStepViewModel : ViewModelBase, IWizardPage
     {
         if (Short || Job.Picked == null || Job.Tools == null) return;
         // (a build replaces the game its folder has, an update's or a rebuild's always: it waits for the game to be closed, as
-        // Delete does. On Windows make_game.py would build for minutes and stop at its last step, the swap, while one runs. One
-        // started during the build is found there by make_game.py itself, and shown as Problems' GameRunning)
+        // Delete does: the builder would build for minutes and then refuse the swap while one runs. One started during the build
+        // is found there by the builder itself, and shown as Problems' GameRunning)
         if (GameFolder.IsBuilt(Job.InstallDir, Main.Platform) && Saves.Running(Main.Platform).Contains(Saves.Longshot.Display))
         {
             Main.ShowToast(Tr.T("Save and close Longshot first: this replaces the game in its folder."));

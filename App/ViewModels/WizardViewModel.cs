@@ -25,10 +25,17 @@ public sealed class BuildJob
 
     /// Where it is built, from the builds folder (BuildRegistry.FolderOf: builds/&lt;track&gt;/&lt;version&gt;), and the rename an update's or
     /// a go-back's folder takes to its new version's name when the build starts (InstanceFolders.Rename). Again when the builds
-    /// folder changes in step 2
+    /// folder changes in step 2, and once its tools are known: a release of longshot-builder's kind builds in its version folder
+    /// (BuilderVersions: versions/&lt;v&gt;/builds/default, never renamed), for the current profile
     public void Place()
     {
         var s = Main.Service;
+        if (Builder is LongshotBuilder && s.VersionFolderFor(Version) is { } version)
+        {
+            InstallDir = BuilderVersions.GameFolderOf(version);
+            renameFrom = renameTo = null;
+            return;
+        }
         InstallDir = s.Registry.FolderOf(Kind == JobKind.Build ? null : Replaces, s.BuildsFolder, Channel, Version, s.Platform);
         renameFrom = renameTo = null;
         if (Kind != JobKind.Build && Replaces != null && !BuildRegistry.SameFolder(Replaces.Folder, InstallDir))
@@ -70,14 +77,28 @@ public sealed class BuildJob
     /// renamed to the new version's name); null when it builds in its folder as it is
     public string? RenameFrom => renameTo != null && BuildRegistry.SameFolder(renameTo, InstallDir) ? renameFrom : null;
     public FoundGameFile? Picked { get; set; }
-    public Toolchain? Tools { get; set; }
+    public Toolchain? Tools
+    {
+        get => tools;
+        set
+        {
+            tools = value;
+            Place();
+        }
+    }
+    Toolchain? tools;
+    /// The builder of these tools (Builders.For); null until they are installed
+    public LongshotBuilder? Builder => Tools is { } t ? Builders.For(t, Service.Platform, Service.Home, LauncherService.LauncherPath) : null;
+    /// The .nup this build's game read its files from, which is not there any more (Play found it gone: LongshotBuilder.MissingNup):
+    /// step 1 says so, and the game is built again from where the player picks it now
+    public string? MovedNup { get; set; }
     /// The tools were downloaded in step 1 (not already on this PC), and how long that took
     public bool ToolsDownloaded { get; set; }
     /// The tools' download started before step 1, after the update check (ToolsPrefetch): "Downloaded in the background"
     public bool ToolsEarly { get; set; }
     public TimeSpan ToolsTime { get; set; }
     public bool AdvancedOpen { get; set; }
-    /// A completely cold build (Advanced, or the problem page's Try a completely cold build): before make_game.py starts, the
+    /// A completely cold build (Advanced, or the problem page's Try a completely cold build): before the builder starts, the
     /// build files and both stores go (Disk.FreeWork), and this build's folder's shader caches with their pipeline notes
     /// (ShaderCaches.Clear); no caches are taken from the build it replaces, nor game files from another build. For this build only
     public bool Cold { get; set; }
@@ -103,7 +124,7 @@ public sealed class BuildJob
     }
 }
 
-/// One game file found on this PC (or browsed, or dropped), and what make_game.py --check said of it
+/// One game file found on this PC (or browsed, or dropped), and what longshot-builder check said of it
 public sealed class GameFileViewModel : ViewModelBase
 {
     readonly FilesStepViewModel step;
@@ -173,7 +194,7 @@ public sealed class GameFileViewModel : ViewModelBase
 }
 
 /// Step 1, the game files: the version's tools download (Toolchains) while the game files found on this PC are listed, then each
-/// is checked with make_game.py --check from those tools. Next once both are done and a supported file is picked
+/// is checked with longshot-builder check from those tools. Next once both are done and a supported file is picked
 public sealed class FilesStepViewModel : ViewModelBase, IWizardPage
 {
     GameFileViewModel? picked;
@@ -229,8 +250,11 @@ public sealed class FilesStepViewModel : ViewModelBase, IWizardPage
     public ObservableCollection<GameFileViewModel> Files { get; } = new();
 
     /// (an update builds the game again from the game files: when the ones it was built from moved, it says so rather than that
-    /// they are picked)
-    public string Sub => Job.Kind != JobKind.Update ? Tr.T("Pick your dump of the game. Longshot reads it on this PC; nothing is uploaded.")
+    /// they are picked. A .nup moved since its build, Play found: picked, the game is pointed at it, not built again, Next)
+    public string Sub => Job.MovedNup is { } moved
+            ? Tr.F("Longshot reads the game's files from your .nup, which is no longer at {0}. Pick it where it is now, and the game reads it from there.",
+                   ShownPath.Of(moved))
+        : Job.Kind != JobKind.Update ? Tr.T("Pick your dump of the game. Longshot reads it on this PC; nothing is uploaded.")
         : Remembered() != null
             ? Tr.F(Job.Older ? "Going back from {0} to {1}. The file you built it from is picked; pick another if it moved."
                              : "Updating {0} to {1}. The file you built it from is picked; pick another if it moved.", Job.ShownFrom, Job.Shown)
@@ -386,7 +410,11 @@ public sealed class FilesStepViewModel : ViewModelBase, IWizardPage
                 if (token.IsCancellationRequested) return;
                 searching = false;
                 if (remembered != null) Add(remembered, pick: true, first: true);
-                foreach (var f in found) Add(f, pick: false, first: false);
+                // (a .nup moved since its build: one found under its name is checked first, so it is the one picked when it is
+                // supported, and Next points the game at it)
+                var moved = Job.MovedNup is { } m ? Path.GetFileName(m) : null;
+                foreach (var f in found.OrderBy(f => !string.Equals(f.Name, moved, StringComparison.OrdinalIgnoreCase)))
+                    Add(f, pick: false, first: false);
                 RaiseAll(nameof(Searching), nameof(NothingFound));
                 if (Job.Tools != null) _ = CheckAllAsync();
             });
@@ -421,15 +449,16 @@ public sealed class FilesStepViewModel : ViewModelBase, IWizardPage
     /// Each file checked in turn (the check unpacks into one probe folder); the first supported one is picked when none is
     async Task CheckAllAsync()
     {
-        if (checking || Job.Tools is not { } tools) return;
+        if (checking || Job.Builder is not { } builder) return;
         checking = true;
         var token = Job.Cancel.Token;
         try
         {
             while (!token.IsCancellationRequested && Files.FirstOrDefault(f => f.Check == null) is { } next)
             {
-                var command = MakeGameCommand.ForCheck(tools, next.File.Source, Service.Platform, Service.Home, LauncherService.LauncherPath, Service.Work);
-                var result = await Task.Run(() => MakeGameRun.CheckAsync(command, Service.Platform == Platform.Windows, token), token);
+                // (longshot-builder check)
+                var source = next.File.Source;
+                var result = await Task.Run(() => builder.CheckAsync(source, Service.Work, token), token);
                 LauncherLog.Add($"game file check, {next.File.Name}: {result.Status}: {result.Text}");
                 next.Check = result;
                 if (picked == next && !next.Ok) Picked = null;
@@ -536,6 +565,94 @@ public sealed class FilesStepViewModel : ViewModelBase, IWizardPage
     void Next()
     {
         if (!CanNext) return;
-        Main.Navigate(Job.Settings ?? new SettingsStepViewModel(Job));
+        // (a game whose .nup moved, Play found: the .nup picked is pointed at in seconds, longshot-builder index, rather than the game
+        // built again. Only another .nup than the one it was built from goes on to the build: RepointViewModel)
+        if (Job.MovedNup != null && Job.Replaces is { } entry && Job.Builder is LongshotBuilder builder && picked?.File.Source is BuildSource.Nup nup)
+        {
+            Main.Modal = new RepointViewModel(this, builder, entry, nup.Path);
+            return;
+        }
+        ToSettings();
+    }
+
+    /// Step 2, the build's settings
+    public void ToSettings() => Main.Navigate(Job.Settings ?? new SettingsStepViewModel(Job));
+}
+
+/// Over step 1, for a game whose .nup moved (BuildJob.MovedNup): the .nup picked where it is now pointed at by longshot-builder index
+/// (LongshotBuilder.RepointAsync: seconds, the game folder's record and romfs index, then the row and the game-file setting), not
+/// the game built again. Cancel stops it. Another .nup than the one the game was built from (not_the_same_nup) goes on to the
+/// build; any other stop says why, with Rebuild instead
+public sealed class RepointViewModel : ViewModelBase
+{
+    readonly FilesStepViewModel step;
+    readonly CancellationTokenSource cancel = new();
+    string? problem;
+
+    /// start: run index now (the screenshots show it without)
+    public RepointViewModel(FilesStepViewModel step, LongshotBuilder builder, BuildEntry entry, string nup, bool start = true)
+    {
+        this.step = step;
+        Nup = nup;
+        CancelCommand = new Command(Cancel);
+        RebuildCommand = new Command(() => { Main.Modal = null; step.ToSettings(); });
+        if (start) _ = RunAsync(builder, entry);
+    }
+
+    MainViewModel Main => step.Job.Main;
+    public string Nup { get; }
+    public string Sub => Tr.F("From {0}. This takes a few seconds.", ShownPath.Of(Nup));
+
+    public string? Problem
+    {
+        get => problem;
+        set
+        {
+            if (Set(ref problem, value)) RaiseAll(nameof(HasProblem), nameof(Working));
+        }
+    }
+
+    public bool HasProblem => problem != null;
+    public bool Working => problem == null;
+    public Command CancelCommand { get; }
+    public Command RebuildCommand { get; }
+
+    void Cancel()
+    {
+        try { cancel.Cancel(); }
+        catch (ObjectDisposedException) { }
+        if (Main.Modal == this) Main.Modal = null;
+    }
+
+    async Task RunAsync(LongshotBuilder builder, BuildEntry entry)
+    {
+        var s = step.Job.Service;
+        IndexResult result;
+        // (on the window's thread: the row and the setting change there once index is done, RepointAsync)
+        try { result = await builder.RepointAsync(entry, Nup, s.Registry, s.Settings, s.Home.Settings, s.Work, cancel.Token); }
+        catch (OperationCanceledException)
+        {
+            LauncherLog.Add($"moved .nup: pointing {entry.Folder} at {Nup} cancelled");
+            return;
+        }
+        LauncherLog.Add($"moved .nup: {entry.Folder} pointed at {Nup}: {result.Outcome}{(result.Code is { } c ? " (" + c + ")" : "")}" +
+                        (result.Text is { } t ? ": " + t : ""));
+        if (cancel.IsCancellationRequested) return;
+        switch (result.Outcome)
+        {
+            case IndexOutcome.Done:
+                step.Job.Stop();
+                Main.ShowHome();
+                Main.ShowToast(result.Text ?? Tr.F("The game now reads its files from {0}.", ShownPath.Of(Nup)));
+                break;
+            case IndexOutcome.NotTheSameNup:
+                Main.Modal = null;
+                step.ToSettings();
+                Main.ShowToast(Tr.T("This .nup is not the one the game was built from, so the game is built again from it."));
+                break;
+            default:
+                Problem = Tr.F("The game could not be pointed at this .nup: {0}", result.Text);
+                break;
+        }
     }
 }

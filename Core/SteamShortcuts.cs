@@ -94,14 +94,21 @@ public static class SteamShortcuts
     public static Placement? Locate(string launcher, Func<string, string?>? getenv = null)
     {
         var home = SteamHome(getenv);
-        var userdata = Path.Combine(home, "userdata");
-        var account = MostRecentAccount(Path.Combine(home, "config"), userdata) ?? NewestAccount(userdata);
-        var vdf = account == null
-            ? (File.Exists(Path.Combine(home, "config", "shortcuts.vdf")) ? Path.Combine(home, "config", "shortcuts.vdf") : null)
-            : Path.Combine(account, "config", "shortcuts.vdf");
+        var vdf = LibraryFile(getenv);
         if (vdf == null) return null;
         var script = File.Exists(Path.Combine(home, "steam.sh")) ? Path.Combine(home, "steam.sh") : null;
         return new Placement(GameEntry(launcher), vdf, script);
+    }
+
+    /// The library Locate places into: the shortcuts.vdf of the account Steam last used, or null when this user has no Steam
+    public static string? LibraryFile(Func<string, string?>? getenv = null)
+    {
+        var home = SteamHome(getenv);
+        var userdata = Path.Combine(home, "userdata");
+        var account = MostRecentAccount(Path.Combine(home, "config"), userdata) ?? NewestAccount(userdata);
+        return account == null
+            ? (File.Exists(Path.Combine(home, "config", "shortcuts.vdf")) ? Path.Combine(home, "config", "shortcuts.vdf") : null)
+            : Path.Combine(account, "config", "shortcuts.vdf");
     }
 
     /// The account Steam itself says is in use: the SteamID64 whose entry in loginusers.vdf holds

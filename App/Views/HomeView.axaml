@@ -2,17 +2,77 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:LongshotLauncher.ViewModels"
              xmlns:c="using:LongshotLauncher.Controls"
+             xmlns:core="using:LongshotLauncher.Core"
+             xmlns:views="using:LongshotLauncher.Views"
              x:Class="LongshotLauncher.Views.HomeView"
              x:DataType="vm:HomeViewModel">
   <UserControl.Styles>
-    <Style Selector="Border.vrow.selected">
-      <Setter Property="Background" Value="{StaticResource Selected}"/>
+    <!-- the front page's group: centred, one width for the band, the pickers and the button -->
+    <Style Selector="StackPanel.front">
+      <Setter Property="Width" Value="680"/>
+      <Setter Property="Spacing" Value="26"/>
     </Style>
-    <Style Selector="Border.vrow:pointerover">
-      <Setter Property="Background" Value="{StaticResource RowHover}"/>
+    <Style Selector="Grid.bandgrid">
+      <Setter Property="Margin" Value="34,20,30,20"/>
     </Style>
-    <Style Selector="Border.vrow.selected:pointerover">
-      <Setter Property="Background" Value="{StaticResource Selected}"/>
+    <Style Selector="Image.bandlogo">
+      <Setter Property="Width" Value="120"/>
+      <Setter Property="Height" Value="120"/>
+    </Style>
+    <Style Selector="StackPanel.gorow">
+      <Setter Property="Margin" Value="0,4,0,0"/>
+    </Style>
+    <Style Selector="StackPanel.gorow Button.bigplay">
+      <Setter Property="MinWidth" Value="240"/>
+    </Style>
+    <!-- (the Save picker with no version yet: off, as quiet as the page, not the theme's light grey) -->
+    <Style Selector="ComboBox.picker:disabled">
+      <Setter Property="Opacity" Value="0.45"/>
+    </Style>
+    <Style Selector="ComboBox.picker:disabled /template/ Border#Background">
+      <Setter Property="Background" Value="{StaticResource Glass}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource GlassLine}"/>
+    </Style>
+    <!-- Update beside Play: as big, a strong second (light on the dark page), never green -->
+    <Style Selector="Button.second.bigplay">
+      <Setter Property="Background" Value="#26FFFFFF"/>
+      <Setter Property="BorderBrush" Value="#40FFFFFF"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="Foreground" Value="White"/>
+    </Style>
+    <Style Selector="Button.second.bigplay:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#38FFFFFF"/>
+      <Setter Property="Foreground" Value="White"/>
+    </Style>
+    <Style Selector="TextBlock.note.warn">
+      <Setter Property="Foreground" Value="{StaticResource Warn}"/>
+    </Style>
+    <!-- a short window (960x560, a laptop's): the band and the spacing smaller, so the button stays in view -->
+    <ContainerQuery Name="home" Query="max-height:560">
+      <Style Selector="StackPanel.front">
+        <Setter Property="Spacing" Value="16"/>
+      </Style>
+      <Style Selector="Grid.bandgrid">
+        <Setter Property="Margin" Value="28,10,24,10"/>
+      </Style>
+      <Style Selector="TextBlock.wordmark">
+        <Setter Property="FontSize" Value="48"/>
+      </Style>
+      <Style Selector="Image.bandlogo">
+        <Setter Property="Width" Value="96"/>
+        <Setter Property="Height" Value="96"/>
+      </Style>
+      <Style Selector="Button.bigplay">
+        <Setter Property="Height" Value="54"/>
+      </Style>
+    </ContainerQuery>
+    <Style Selector="Button.savescard">
+      <Setter Property="Height" Value="NaN"/>
+      <Setter Property="Padding" Value="16,16,18,16"/>
+      <Setter Property="CornerRadius" Value="12"/>
+      <Setter Property="HorizontalAlignment" Value="Stretch"/>
+      <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+      <Setter Property="FontWeight" Value="Normal"/>
     </Style>
     <!-- the cards over the versions (an offer, an update, a problem): a soft brand-blue card, its icon in a circle, a title, the
          whole text (no one-line cut: its first sentence bright, the rest on a quieter line, Converters.FirstSentence), a quiet link for the second choice and one strong button; a problem in the warning's colour -->
@@ -72,7 +132,7 @@
       <Setter Property="Background" Value="Transparent"/>
     </Style>
   </UserControl.Styles>
-  <DockPanel>
+  <DockPanel Container.Name="home" Container.Sizing="Height">
     <!-- the launcher's channel offers another launcher: a newer one, or after a channel switch maybe an older one (SelfUpdate) -->
     <Border DockPanel.Dock="Top" Classes="offer" IsVisible="{Binding HasLauncherUpdate}">
       <Grid ColumnDefinitions="36,*,Auto" ColumnSpacing="14">
@@ -204,7 +264,7 @@
           <c:Icon Kind="folder" Width="18" Height="18" Foreground="{StaticResource InfoInk}"/>
         </Border>
         <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
-          <TextBlock Classes="offertitle" Text="{c:T 'Instances in the old folder layout'}"/>
+          <TextBlock Classes="offertitle" Text="{c:T 'Versions in the old folder layout'}"/>
           <TextBlock Classes="note" Text="{Binding RenameSummary}" TextWrapping="Wrap"/>
           <StackPanel Spacing="2" Margin="0,4,0,2" IsVisible="{Binding #RenameMore.IsChecked}">
             <ItemsControl ItemsSource="{Binding RenameMoves}">
@@ -227,22 +287,6 @@
         </StackPanel>
       </Grid>
     </Border>
-    <!-- the newest versions need the nightly launcher (Longshot's new builder): said once, with the way there -->
-    <Border DockPanel.Dock="Top" Classes="offer" IsVisible="{Binding ShowNeedsNightly}">
-      <Grid ColumnDefinitions="36,*,Auto" ColumnSpacing="14">
-        <Border Classes="offericon">
-          <c:Icon Kind="alert" Width="18" Height="18"/>
-        </Border>
-        <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
-          <TextBlock Text="{c:T 'Newer versions of Longshot need the nightly launcher.'}" TextWrapping="Wrap"/>
-          <TextBlock Classes="offerfine" Text="{c:T 'They are built with the new builder, which this launcher does not support. Your versions keep working.'}" TextWrapping="Wrap"/>
-        </StackPanel>
-        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="14" VerticalAlignment="Center">
-          <Button Classes="link soft" Content="{c:T 'Dismiss'}" Command="{Binding DismissNeedsNightlyCommand}"/>
-          <Button Classes="small primary" Content="{c:T 'Switch to nightly…'}" Command="{Binding NeedsNightlyCommand}"/>
-        </StackPanel>
-      </Grid>
-    </Border>
     <!-- a problem to read: the same card in the warning's colour, its whole text -->
     <Border DockPanel.Dock="Top" Classes="offer warn" IsVisible="{Binding HasNotice}">
       <Grid ColumnDefinitions="36,*,Auto" ColumnSpacing="14">
@@ -261,293 +305,180 @@
       </Grid>
     </Border>
 
-    <!-- (the scroll bar is drawn over the content's right edge, Fluent's ScrollViewer: the content keeps a gutter for it) -->
-    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-    <Panel Margin="0,0,16,0">
-      <!-- no build yet: Build -->
-      <StackPanel IsVisible="{Binding NoBuilds}" HorizontalAlignment="Center" VerticalAlignment="Center">
-        <Panel Width="190" Height="190" HorizontalAlignment="Center">
-          <Ellipse Margin="8">
-            <Ellipse.Fill>
-              <RadialGradientBrush>
-                <GradientStop Offset="0" Color="#663D63E6"/>
-                <GradientStop Offset="0.68" Color="#003D63E6"/>
-              </RadialGradientBrush>
-            </Ellipse.Fill>
-          </Ellipse>
-          <Image Source="avares://LongshotLauncher/Assets/longshot.png" Width="132" Height="132" RenderOptions.BitmapInterpolationMode="HighQuality">
-            <Image.Effect><DropShadowEffect OffsetX="0" OffsetY="12" BlurRadius="14" Color="#99000000"/></Image.Effect>
-          </Image>
-        </Panel>
-        <TextBlock Classes="heading" Text="{c:T 'Build your game'}" HorizontalAlignment="Center" Margin="0,2,0,0"/>
-        <TextBlock Classes="sub" MaxWidth="470" TextAlignment="Center" HorizontalAlignment="Center"
-                   Text="{c:T 'Longshot makes a PC version of your own copy of the game. It takes about 15 to 30 minutes, once per version.'}"/>
-        <Button Classes="primary tall" HorizontalAlignment="Center" Margin="0,26,0,0" MinWidth="190" FontSize="16" Command="{Binding BuildCommand}">
-          <StackPanel Orientation="Horizontal" Spacing="8">
-            <c:Icon Kind="download" Width="16" Height="16"/>
-            <TextBlock Text="{c:T 'Build'}"/>
-          </StackPanel>
-        </Button>
-        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center" Margin="0,16,0,0" IsVisible="{Binding KnowsNewest}">
-          <TextBlock Classes="note" Text="{c:T 'Builds'}" VerticalAlignment="Center"/>
-          <TextBlock FontSize="13" FontWeight="SemiBold" Text="{Binding NewestDefaultText}" VerticalAlignment="Center"/>
-          <Border Classes="tag" Classes.nightly="{Binding DefaultIsNightly}">
-            <TextBlock Text="{Binding DefaultChannel}"/>
-          </Border>
-          <Button Classes="link" Content="{c:T 'Change'}" Command="{Binding ChannelCommand}" Margin="4,0,0,0"/>
-        </StackPanel>
-        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center" Margin="0,16,0,0" IsVisible="{Binding Checking}">
-          <c:Spinner VerticalAlignment="Center"/>
-          <TextBlock Classes="note" Text="{c:T 'Asking git.magicbean.dev for the newest version…'}"/>
-        </StackPanel>
-        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center" Margin="0,8,0,0" IsVisible="{Binding ShowCheckLine}">
-          <c:Spinner VerticalAlignment="Center"/>
-          <TextBlock Classes="note" Text="{Binding CheckCommand.Status}"/>
-        </StackPanel>
-        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center" Margin="0,16,0,0" IsVisible="{Binding CheckFailed}">
-          <TextBlock Classes="note" Text="{Binding CheckFailedText}"/>
-          <Button Classes="link" Content="{c:T 'Change'}" Command="{Binding ChannelCommand}" IsVisible="{Binding ChannelEmpty}"/>
-          <Button Classes="link" Content="{c:T 'Try again'}" Command="{Binding RetryCheckCommand}"/>
-          <Button Classes="link soft" Content="{c:T 'Copy for a bug report'}" Command="{Binding CopyCheckReportCommand}" IsVisible="{Binding ShowCheckReport}"/>
-        </StackPanel>
-        <!-- why: no address, no connection, a timeout, an HTTP error, or a release refused -->
-        <TextBlock Classes="note" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" MaxWidth="560" Margin="0,4,0,0"
-                   Text="{Binding CheckWhy}" IsVisible="{Binding HasCheckWhy}"/>
-        <TextBlock Classes="faint" HorizontalAlignment="Center" Margin="0,8,0,0"
-                   Text="{c:T 'You need your dump of the game: a .nup or .nx file, or its romfs and exefs folders.'}"/>
-        <!-- built already, by another launcher (installed or portable) or in a folder moved since: listed where it is -->
-        <Button Classes="link" HorizontalAlignment="Center" Margin="0,10,0,0" Command="{Binding AddFolderCommand}">
-          <StackPanel Orientation="Horizontal" Spacing="6">
-            <c:Icon Kind="folder" Width="14" Height="14"/>
-            <TextBlock Text="{c:T 'Built it already? Add its folder…'}"/>
-          </StackPanel>
-        </Button>
-      </StackPanel>
 
-      <!-- the default version, and every version -->
-      <!-- (centred as a whole when it fits, from the top when it does not; the title on a row of its own, so the two columns start
-           level: TRACK beside YOUR INSTANCES) -->
-      <Grid IsVisible="{Binding HasBuilds}" ColumnDefinitions="300,*" RowDefinitions="Auto,Auto" ColumnSpacing="44"
-            VerticalAlignment="Center">
-        <TextBlock Classes="title" Text="Longshot"/>
-        <!-- opposite the title: the picked track's newest version when its build has an update, and What's new in it
-             (ReleaseNotesViewModel: every version since the build's, newest first); nothing there otherwise -->
-        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Margin="0,8,0,0"
-                    IsVisible="{Binding HasTrackUpdate}">
-          <c:Icon Kind="arrowUp" Width="15" Height="15" Foreground="{StaticResource BrandInk}" VerticalAlignment="Center"/>
-          <TextBlock FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource BrandInk}" Text="{Binding TrackUpdate}"
-                     TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
-          <Button Classes="link" Content="{c:T 'What\'s new'}" Command="{Binding NotesDefaultCommand}" VerticalAlignment="Center"
-                  IsVisible="{Binding !TrackUpdateIsPullRequest}"/>
-          <!-- (a pull request's newer push has no release notes: the pull request itself) -->
-          <Button Classes="link" Content="{c:T 'Read it'}" Command="{Binding ReadPullRequestCommand}" VerticalAlignment="Center"
-                  IsVisible="{Binding TrackUpdateIsPullRequest}"/>
-        </StackPanel>
-        <StackPanel Grid.Row="1" VerticalAlignment="Top">
-          <!-- the track (its name only: what it holds is the Version field's), then one of its versions (VersionPick): a check
-               beside the installed one, Update available beside it when its build has a newer version, the button below -->
-          <TextBlock Classes="label" Text="{c:T 'TRACK'}" Margin="0,12,0,6"/>
-          <ComboBox Width="NaN" Height="44" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
-                    ItemsSource="{Binding Tracks}" SelectedItem="{Binding PickTrack}">
-            <ComboBox.ItemTemplate>
-              <DataTemplate x:DataType="vm:TrackChoice">
-                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" VerticalAlignment="Center"/>
-              </DataTemplate>
-            </ComboBox.ItemTemplate>
-          </ComboBox>
-          <!-- (the field's badge on its label's row, so the version itself is never cut; the list has room for it on the row) -->
-          <Grid ColumnDefinitions="*,Auto" Margin="0,10,0,6">
-            <TextBlock Classes="label" Text="{c:T 'VERSION'}" Margin="0" VerticalAlignment="Center"/>
-            <Border Grid.Column="1" Classes="chip small update" IsVisible="{Binding PickHasUpdate}">
-              <TextBlock Text="{c:T 'Update available'}"/>
-            </Border>
+    <!-- ==== the profile's front page: the game's band, then the Version and Save pickers and the one button, centred; the
+         profile is the title bar's. One page in every state: Build (no version, or its game gone), Update (Play beside it), Play ==== -->
+    <Border Classes="homepage">
+      <StackPanel Classes="front" VerticalAlignment="Center" HorizontalAlignment="Center">
+        <!-- the band: the wordmark and the logo, a calm backdrop -->
+        <Border Classes="heroband">
+          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="18" Classes="bandgrid">
+            <TextBlock Classes="wordmark" Text="Longshot" VerticalAlignment="Center"/>
+            <Image Grid.Column="1" Classes="tilted bandlogo" Source="avares://LongshotLauncher/Assets/longshot.png"
+                   RenderOptions.BitmapInterpolationMode="HighQuality" VerticalAlignment="Center"/>
           </Grid>
-          <ComboBox Width="NaN" Height="44" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
-                    ItemsSource="{Binding TrackVersions}" SelectedItem="{Binding PickVersion}" IsEnabled="{Binding HasTrackVersions}">
-            <ComboBox.SelectionBoxItemTemplate>
-              <DataTemplate x:DataType="vm:VersionChoice">
-                <Grid ColumnDefinitions="16,*,Auto" ColumnSpacing="8">
-                  <c:Icon Kind="check" Width="14" Height="14" Foreground="{StaticResource Go}" VerticalAlignment="Center"
-                          IsVisible="{Binding Installed}" ToolTip.Tip="{c:T 'Installed'}"/>
-                  <TextBlock Grid.Column="1" Text="{Binding Shown}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
-                  <TextBlock Grid.Column="2" Classes="faint" Text="{Binding FieldNote}" VerticalAlignment="Center" IsVisible="{Binding !HasUpdate}"/>
-                </Grid>
-              </DataTemplate>
-            </ComboBox.SelectionBoxItemTemplate>
-            <ComboBox.ItemTemplate>
-              <DataTemplate x:DataType="vm:VersionChoice">
-                <Grid ColumnDefinitions="16,*,Auto" ColumnSpacing="8">
-                  <c:Icon Kind="check" Width="14" Height="14" Foreground="{StaticResource Go}" VerticalAlignment="Center"
-                          IsVisible="{Binding Installed}" ToolTip.Tip="{c:T 'Installed'}"/>
-                  <TextBlock Grid.Column="1" Text="{Binding Shown}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
-                  <TextBlock Grid.Column="2" Classes="faint" Text="{Binding Note}" VerticalAlignment="Center" IsVisible="{Binding !HasUpdate}"/>
-                  <Border Grid.Column="2" Classes="chip small update" IsVisible="{Binding HasUpdate}">
-                    <TextBlock Text="{c:T 'Update available'}"/>
-                  </Border>
-                </Grid>
-              </DataTemplate>
-            </ComboBox.ItemTemplate>
-          </ComboBox>
-          <!-- the Pull request track: who wrote the one picked and whether a BigBean approved it, Read it, and Find a pull request
-               for one the list leaves out (it lists the ones a BigBean wrote or approved) -->
-          <StackPanel IsVisible="{Binding IsPullRequestTrack}" Margin="0,8,0,0" Spacing="4">
-            <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding HasPickedPullRequest}">
-              <c:Icon Kind="check" Width="13" Height="13" Foreground="{StaticResource Go}" VerticalAlignment="Center" IsVisible="{Binding PullRequestTrusted}"/>
-              <c:Icon Kind="alert" Width="13" Height="13" Foreground="{StaticResource Warn}" VerticalAlignment="Center" IsVisible="{Binding PullRequestUntrusted}"/>
-              <TextBlock Classes="note" Text="{Binding PullRequestTrust}" TextTrimming="CharacterEllipsis" MaxWidth="280" VerticalAlignment="Center"/>
-            </StackPanel>
-            <StackPanel Orientation="Horizontal" Spacing="16">
-              <Button Classes="link smaller" Content="{c:T 'Read it'}" Command="{Binding ReadPullRequestCommand}" IsVisible="{Binding HasPickedPullRequest}"/>
-              <Button Classes="link smaller" Content="{c:T 'Find a pull request…'}" Command="{Binding FindPullRequestCommand}"/>
-            </StackPanel>
-          </StackPanel>
-          <!-- the pick's button: Play when it is installed, else Update to, Go back to or Build; Update beside Play, the same size
-               and with its icon, when the build has a newer version, or under it when its words are too long for the row (German's
-               Aktualisieren): the whole word, never cut -->
-          <WrapPanel ItemSpacing="12" LineSpacing="10" Margin="0,14,0,0">
-            <Button Classes="go" Command="{Binding GoCommand}" IsVisible="{Binding GoIsPlay}">
-              <StackPanel Orientation="Horizontal" Spacing="8">
-                <c:Icon Kind="play" Width="18" Height="18"/>
-                <TextBlock Text="{c:T 'Play'}"/>
-              </StackPanel>
-            </Button>
-            <Button Classes="primary tall" Command="{Binding GoCommand}" IsVisible="{Binding GoIsBuild}">
-              <TextBlock Text="{Binding GoText}" TextTrimming="CharacterEllipsis" MaxWidth="260"/>
-            </Button>
-            <Button Classes="primary tall hero" Command="{Binding UpdateDefaultCommand}" IsVisible="{Binding HeroHasUpdate}">
-              <StackPanel Orientation="Horizontal" Spacing="8">
-                <c:Icon Kind="arrowUp" Width="18" Height="18"/>
-                <TextBlock Text="{c:T 'Update'}" TextTrimming="CharacterEllipsis"/>
-              </StackPanel>
-            </Button>
-          </WrapPanel>
-          <!-- what it does: the installed version's line, the build a version replaces in its folder, or a new build's -->
-          <TextBlock Classes="note" Text="{Binding HeroNote}" TextWrapping="Wrap" Margin="0,8,0,0"/>
-          <!-- Remove: the row's Delete -->
-          <StackPanel Orientation="Horizontal" Spacing="16" Margin="0,6,0,0">
-            <Button Classes="link smaller" Command="{Binding RemoveCommand}" IsVisible="{Binding ShowRemove}" Foreground="{StaticResource Bad}">
-              <StackPanel Orientation="Horizontal" Spacing="6">
-                <c:Icon Kind="trash" Width="13" Height="13"/>
-                <TextBlock Text="{c:T 'Remove'}"/>
-              </StackPanel>
-            </Button>
-          </StackPanel>
-        </StackPanel>
+        </Border>
 
-        <StackPanel Grid.Row="1" Grid.Column="1" VerticalAlignment="Top" Margin="0,8,0,0">
-          <!-- (the links under each other, right, when a narrower window or a longer translation leaves them no room side by side) -->
-          <Grid ColumnDefinitions="Auto,*" ColumnSpacing="18" Margin="0,0,0,12">
-            <TextBlock Classes="label" Text="{c:T 'YOUR INSTANCES'}" Margin="0" VerticalAlignment="Center"/>
-            <WrapPanel Grid.Column="1" ItemSpacing="18" LineSpacing="4" HorizontalAlignment="Right" VerticalAlignment="Center">
-              <Button Classes="link" Command="{Binding AddFolderCommand}" ToolTip.Tip="{c:T 'A game folder, a folder of them, or a portable launcher\'s LongshotLauncher-data: listed where it is'}">
-                <StackPanel Orientation="Horizontal" Spacing="6">
-                  <c:Icon Kind="folder" Width="14" Height="14"/>
-                  <TextBlock Text="{c:T 'Add a build folder…'}"/>
-                </StackPanel>
-              </Button>
-              <Button Classes="link" Command="{Binding ChannelCommand}">
-                <StackPanel Orientation="Horizontal" Spacing="6">
-                  <c:Icon Kind="plus" Width="14" Height="14"/>
-                  <TextBlock Text="{c:T 'Build another version'}"/>
-                </StackPanel>
-              </Button>
-            </WrapPanel>
-          </Grid>
-          <Border Classes="card">
-            <ScrollViewer MaxHeight="370" VerticalScrollBarVisibility="Auto">
-              <ItemsControl ItemsSource="{Binding Builds}">
-                <ItemsControl.ItemTemplate>
+        <!-- the two pickers: the version (on this PC, then Manage versions… and New version…; with none yet, the one a build
+             makes) and the save to start on (the profile's slots, the newest picked, then Manage saves…; New game with none;
+             off with no version, hidden for a version that cannot start on a slot) -->
+        <Grid ColumnDefinitions="*,*" ColumnSpacing="14" Classes="pickers">
+          <StackPanel>
+            <TextBlock Classes="pickercap" Text="{c:T 'Version'}"/>
+            <Panel>
+              <!-- (the field shows the version's short name, never cut mid-name: the full one is the list's and the tooltip's) -->
+              <ComboBox Classes="picker" ItemsSource="{Binding HeroChoices}" SelectedItem="{Binding HeroChoice}" AutomationProperties.Name="{c:T 'Version'}"
+                        ToolTip.Tip="{Binding HeroItem.Version}" IsVisible="{Binding HasBuilds}">
+                <ComboBox.SelectionBoxItemTemplate>
                   <DataTemplate x:DataType="vm:BuildItemViewModel">
-                    <Border Classes="vrow" Classes.selected="{Binding IsSelected}" Background="Transparent"
-                            BorderBrush="{StaticResource GlassLine}" BorderThickness="{Binding Separator}">
-                      <Panel>
-                        <Border Width="3" HorizontalAlignment="Left" Margin="0,10" CornerRadius="0,2,2,0" Background="{StaticResource Brand}"
-                                IsVisible="{Binding IsSelected}"/>
-                        <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
-                          <Button Classes="row" Command="{Binding SelectCommand}" Background="Transparent">
-                            <Grid ColumnDefinitions="20,*,Auto" ColumnSpacing="14" Margin="16,13">
-                              <Panel VerticalAlignment="Center">
-                                <c:Icon Kind="star" Width="17" Height="17" Foreground="{StaticResource Warn}" IsVisible="{Binding IsDefault}"/>
-                                <Ellipse Width="14" Height="14" Stroke="{StaticResource InkFaint}" StrokeThickness="1.5" IsVisible="{Binding ShowRing}"/>
-                              </Panel>
-                              <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                <TextBlock Text="{Binding Version}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
-                                <TextBlock Classes="faint" Text="{Binding Meta}" IsVisible="{Binding ShowMeta}" TextTrimming="CharacterEllipsis"/>
-                                <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding IsDeleting}">
-                                  <c:Spinner Width="12" Height="12" VerticalAlignment="Center"/>
-                                  <TextBlock Classes="faint" Text="{Binding DeletingText}"/>
-                                </StackPanel>
-                              </StackPanel>
-                              <!-- (an update: only the badge here; the hero's Update and What's new act on it once the row is picked) -->
-                              <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                                <Border Classes="chip small update" IsVisible="{Binding ShowUpdateBadge}"><TextBlock Text="{c:T 'Update available'}"/></Border>
-                                <Border Classes="chip quiet" IsVisible="{Binding IsDefault}"><TextBlock Text="{c:T 'Default'}"/></Border>
-                                <Border Classes="tag" Classes.nightly="{Binding IsNightly}" Classes.pr="{Binding IsPullRequest}">
-                                  <TextBlock Text="{Binding Channel}"/>
-                                </Border>
-                              </StackPanel>
-                            </Grid>
-                          </Button>
-                          <!-- (the left side wraps, so the buttons on the right always show whole in the 1040-wide window) -->
-                          <Grid Grid.Row="1" Grid.ColumnSpan="2" ColumnDefinitions="*,Auto" ColumnSpacing="8" Margin="50,0,12,12" IsVisible="{Binding ShowActions}">
-                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="6" IsVisible="{Binding ShowDefaultNote}" Margin="4,0,0,0" VerticalAlignment="Center">
-                              <c:Icon Kind="star" Width="13" Height="13" Foreground="{StaticResource Warn}" VerticalAlignment="Center"/>
-                              <TextBlock Grid.Column="1" Classes="faint" Text="{c:T 'Your default: the Play button starts this one'}" TextWrapping="Wrap" VerticalAlignment="Center"/>
-                            </Grid>
-                            <WrapPanel ItemSpacing="8" LineSpacing="8" IsVisible="{Binding ShowOtherActions}" VerticalAlignment="Center">
-                              <Button Classes="small" Command="{Binding PlayCommand}">
-                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                  <c:Icon Kind="play" Width="14" Height="14"/>
-                                  <TextBlock Text="{c:T 'Play this version'}"/>
-                                </StackPanel>
-                              </Button>
-                              <Button Classes="small" Command="{Binding SetDefaultCommand}">
-                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                  <c:Icon Kind="starLine" Width="14" Height="14"/>
-                                  <TextBlock Text="{c:T 'Set as default'}"/>
-                                </StackPanel>
-                              </Button>
-                            </WrapPanel>
-                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                              <Button Classes="small" Command="{Binding SavesCommand}" ToolTip.Tip="{c:T 'Import or export your saves, which every version shares'}">
-                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                  <c:Icon Kind="disk" Width="14" Height="14"/>
-                                  <TextBlock Text="{c:T 'Saves'}"/>
-                                </StackPanel>
-                              </Button>
-                              <Button Classes="icon" Command="{Binding FolderCommand}" ToolTip.Tip="{c:T 'Open folder'}"><c:Icon Kind="folder"/></Button>
-                              <Button Classes="icon iconbad" Command="{Binding DeleteCommand}" ToolTip.Tip="{c:T 'Delete'}"><c:Icon Kind="trash"/></Button>
-                            </StackPanel>
-                          </Grid>
-                        </Grid>
-                      </Panel>
-                    </Border>
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                      <TextBlock Classes="wrap lime" Text="{Binding ShortVersion}" FontWeight="SemiBold" TextWrapping="Wrap" VerticalAlignment="Center"/>
+                      <Border Grid.Column="1" Classes="tag" Classes.nightly="{Binding IsNightly}" Classes.pr="{Binding IsPullRequest}" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Channel}"/>
+                      </Border>
+                    </Grid>
                   </DataTemplate>
-                </ItemsControl.ItemTemplate>
-              </ItemsControl>
-            </ScrollViewer>
-          </Border>
-          <!-- the footer, and Check for updates: Longshot's channels and the launcher's own, now -->
-          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" Margin="0,16,0,0">
-            <TextBlock Classes="faint" Text="{Binding Footer}" TextWrapping="Wrap" VerticalAlignment="Center"/>
-            <Button Grid.Column="1" Classes="link smaller" Command="{Binding CheckForUpdatesCommand}" VerticalAlignment="Center"
-                    ToolTip.Tip="{c:T 'Look for a new Longshot on your versions\' channels, and a new launcher'}">
-              <StackPanel Orientation="Horizontal" Spacing="6">
-                <c:Icon Kind="refresh" Width="13" Height="13"/>
-                <TextBlock Text="{c:T 'Check for updates'}"/>
-              </StackPanel>
-            </Button>
-          </Grid>
-          <TextBlock Classes="faint" Text="{Binding Status}" TextWrapping="Wrap" Margin="0,4,0,0" IsVisible="{Binding ShowStatus}"/>
-          <Button Classes="link soft" HorizontalAlignment="Left" Margin="0,2,0,0" Content="{c:T 'Copy for a bug report'}"
-                  Command="{Binding CopyCheckReportCommand}" IsVisible="{Binding ShowStatusReport}"/>
-          <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,4,0,0" IsVisible="{Binding CheckCommand.IsBusy}">
-            <c:Spinner Width="12" Height="12" VerticalAlignment="Center"/>
-            <TextBlock Classes="faint" Text="{Binding CheckCommand.Status}"/>
+                </ComboBox.SelectionBoxItemTemplate>
+                <ComboBox.DataTemplates>
+                  <DataTemplate DataType="vm:BuildItemViewModel" x:DataType="vm:BuildItemViewModel">
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                      <TextBlock Classes="wrap" Text="{Binding Version}" FontWeight="SemiBold" TextWrapping="Wrap" VerticalAlignment="Center"/>
+                      <Border Grid.Column="1" Classes="tag" Classes.nightly="{Binding IsNightly}" Classes.pr="{Binding IsPullRequest}" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Channel}"/>
+                      </Border>
+                    </Grid>
+                  </DataTemplate>
+                  <DataTemplate DataType="vm:BuildTargetChoice" x:DataType="vm:BuildTargetChoice">
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                      <TextBlock Text="{Binding Version}" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                      <Border Grid.Column="1" Classes="tag" Classes.nightly="{Binding IsNightly}" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Channel}"/>
+                      </Border>
+                    </Grid>
+                  </DataTemplate>
+                  <DataTemplate DataType="vm:ManageChoice" x:DataType="vm:ManageChoice">
+                    <StackPanel Classes="manage" Orientation="Horizontal" Spacing="8" Margin="0,2">
+                      <c:Icon Kind="{Binding Icon}" Width="13" Height="13" VerticalAlignment="Center"/>
+                      <TextBlock Text="{Binding Text}" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                    </StackPanel>
+                  </DataTemplate>
+                </ComboBox.DataTemplates>
+              </ComboBox>
+              <ComboBox Classes="picker" ItemsSource="{Binding BuildChoices}" SelectedItem="{Binding BuildChoice}" AutomationProperties.Name="{c:T 'Version'}"
+                        IsVisible="{Binding NoBuilds}">
+                <ComboBox.DataTemplates>
+                  <DataTemplate DataType="vm:BuildItemViewModel" x:DataType="vm:BuildItemViewModel">
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                      <TextBlock Classes="wrap" Text="{Binding Version}" FontWeight="SemiBold" TextWrapping="Wrap" VerticalAlignment="Center"/>
+                      <Border Grid.Column="1" Classes="tag" Classes.nightly="{Binding IsNightly}" Classes.pr="{Binding IsPullRequest}" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Channel}"/>
+                      </Border>
+                    </Grid>
+                  </DataTemplate>
+                  <DataTemplate DataType="vm:BuildTargetChoice" x:DataType="vm:BuildTargetChoice">
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                      <TextBlock Text="{Binding Version}" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                      <Border Grid.Column="1" Classes="tag" Classes.nightly="{Binding IsNightly}" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Channel}"/>
+                      </Border>
+                    </Grid>
+                  </DataTemplate>
+                  <DataTemplate DataType="vm:ManageChoice" x:DataType="vm:ManageChoice">
+                    <StackPanel Classes="manage" Orientation="Horizontal" Spacing="8" Margin="0,2">
+                      <c:Icon Kind="{Binding Icon}" Width="13" Height="13" VerticalAlignment="Center"/>
+                      <TextBlock Text="{Binding Text}" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                    </StackPanel>
+                  </DataTemplate>
+                </ComboBox.DataTemplates>
+              </ComboBox>
+            </Panel>
           </StackPanel>
+          <!-- (a version that cannot start on a slot asks on its title screen: one quiet line in the picker's place) -->
+          <TextBlock Grid.Column="1" Classes="note" Text="{c:T 'This version asks for the save on its title screen'}" TextWrapping="Wrap"
+                     VerticalAlignment="Bottom" Margin="2,0,0,10" IsVisible="{Binding ShowSaveTitleNote}"/>
+          <StackPanel Grid.Column="1" IsVisible="{Binding ShowSavePicker}">
+            <TextBlock Classes="pickercap" Text="{c:T 'Save slot'}" ToolTip.Tip="{Binding SavesPickNote}"/>
+            <ComboBox Classes="picker" ItemsSource="{Binding SaveChoices}" SelectedItem="{Binding SaveChoice}" AutomationProperties.Name="{c:T 'Save slot'}"
+                      ToolTip.Tip="{Binding SavesPickNote}" IsEnabled="{Binding HasBuilds}">
+              <ComboBox.SelectionBoxItemTemplate>
+                <DataTemplate x:DataType="vm:SaveStartChoice">
+                  <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                    <c:Icon Kind="disk" Width="15" Height="15" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="1" Text="{Binding Title}" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="2" Text="{Binding Hearts, StringFormat='{}{0} ♥'}" FontWeight="Bold" Foreground="{StaticResource Bad}"
+                               IsVisible="{Binding HasHearts}" VerticalAlignment="Center"/>
+                  </Grid>
+                </DataTemplate>
+              </ComboBox.SelectionBoxItemTemplate>
+              <ComboBox.DataTemplates>
+                <DataTemplate DataType="vm:SaveStartChoice" x:DataType="vm:SaveStartChoice">
+                  <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="12" Margin="0,2">
+                    <TextBlock Text="{Binding Title}" FontWeight="SemiBold"/>
+                    <TextBlock Grid.Column="1" Text="{Binding Hearts, StringFormat='{}{0} ♥'}" FontWeight="Bold" Foreground="{StaticResource Bad}"
+                               IsVisible="{Binding HasHearts}"/>
+                    <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Classes="faint" Text="{Binding Detail}"/>
+                  </Grid>
+                </DataTemplate>
+                <DataTemplate DataType="vm:ManageChoice" x:DataType="vm:ManageChoice">
+                  <StackPanel Classes="manage" Orientation="Horizontal" Spacing="8" Margin="0,2">
+                    <c:Icon Kind="{Binding Icon}" Width="13" Height="13" VerticalAlignment="Center"/>
+                    <TextBlock Text="{Binding Text}" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                  </StackPanel>
+                </DataTemplate>
+              </ComboBox.DataTemplates>
+            </ComboBox>
+          </StackPanel>
+        </Grid>
+
+        <!-- the button, a controller's first press: Build, Build it again, or Play (and Update beside it, as big, when there is one) -->
+        <StackPanel Classes="gorow" Orientation="Horizontal" HorizontalAlignment="Center" Spacing="18">
+          <Button Classes="go bigplay" Command="{Binding BuildCommand}" IsVisible="{Binding NoBuilds}" c:Pad.First="True">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+              <c:Icon Kind="download" Width="18" Height="18" Foreground="{StaticResource GoInk}"/>
+              <TextBlock Text="{c:T 'Build'}" Foreground="{StaticResource GoInk}"/>
+            </StackPanel>
+          </Button>
+          <Button Classes="primary bigplay" Command="{Binding HeroPlayCommand}" IsVisible="{Binding HeroIsRebuild}" c:Pad.First="True">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+              <c:Icon Kind="refresh" Width="18" Height="18"/>
+              <TextBlock Text="{Binding HeroGoText}" TextTrimming="CharacterEllipsis" MaxWidth="280"/>
+            </StackPanel>
+          </Button>
+          <Button Classes="go bigplay" Command="{Binding HeroPlayCommand}" IsVisible="{Binding HeroIsPlayOnly}" c:Pad.First="True">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+              <c:Icon Kind="play" Width="20" Height="20" Foreground="{StaticResource GoInk}"/>
+              <TextBlock Text="{c:T 'Play'}" Foreground="{StaticResource GoInk}"/>
+            </StackPanel>
+          </Button>
+          <!-- (a version built by Longshot's old builder: no Play here, the stable launcher offered in this one's place) -->
+          <Button Classes="primary bigplay" Command="{Binding HeroStableCommand}" IsVisible="{Binding HeroIsOld}" c:Pad.First="True">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+              <c:Icon Kind="arrowUp" Width="18" Height="18"/>
+              <TextBlock Text="{c:T 'Switch to the stable launcher'}" TextTrimming="CharacterEllipsis" MaxWidth="320"/>
+            </StackPanel>
+          </Button>
+          <!-- (an update for the version shown: a second button of the same size, beside Play) -->
+          <Button Classes="second bigplay" Command="{Binding UpdateDefaultCommand}" IsVisible="{Binding HeroIsPlayAndUpdate}">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+              <c:Icon Kind="arrowUp" Width="18" Height="18"/>
+              <TextBlock Text="{c:T 'Update'}"/>
+            </StackPanel>
+          </Button>
         </StackPanel>
-      </Grid>
-    </Panel>
-    </ScrollViewer>
+
+        <!-- one line under it, only when it must be said: why the last Play failed, a version this launcher doesn't
+             play, or with no version why there is nothing to build yet -->
+        <Grid Classes="statusline" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10" HorizontalAlignment="Center" MaxWidth="600"
+              IsVisible="{Binding HasStatusLine}">
+          <Border Classes="boxicon" IsVisible="{Binding StatusIsWarning}">
+            <c:Icon Kind="alert" Width="13" Height="13" Foreground="{StaticResource Warn}"/>
+          </Border>
+          <TextBlock Grid.Column="1" Classes="note" Classes.warn="{Binding StatusIsWarning}" Text="{Binding StatusLine}" TextWrapping="Wrap"
+                     VerticalAlignment="Center"/>
+          <Button Grid.Column="2" Classes="link smaller" Content="{c:T 'Try again'}" Command="{Binding RetryCheckCommand}" IsVisible="{Binding StatusCanRetry}"
+                  VerticalAlignment="Center"/>
+        </Grid>
+      </StackPanel>
+    </Border>
   </DockPanel>
 </UserControl>

@@ -8,7 +8,6 @@ namespace LongshotLauncher.Core;
                              DefaultIgnoreCondition = JsonIgnoreCondition.Never, ReadCommentHandling = System.Text.Json.JsonCommentHandling.Skip)]
 [JsonSerializable(typeof(RegistryFile))]
 [JsonSerializable(typeof(LauncherSettings))]
-[JsonSerializable(typeof(Toolchains.Record))]
 [JsonSerializable(typeof(Dictionary<string, long>))]
 internal sealed partial class CoreJson : JsonSerializerContext
 {

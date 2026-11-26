@@ -7,7 +7,7 @@
         x:DataType="vm:MainViewModel"
         Title="Longshot Launcher"
         Icon="avares://LongshotLauncher/Assets/longshot.png"
-        Width="1040" Height="680" MinWidth="960" MinHeight="560" CanResize="True"
+        Width="1200" Height="760" MinWidth="960" MinHeight="560" CanResize="True"
         WindowDecorations="None" Background="Transparent" TransparencyLevelHint="Transparent"
         DragDrop.AllowDrop="True"
         WindowStartupLocation="CenterScreen">
@@ -87,24 +87,69 @@
 
   <!-- (the corners are the platform's, square when the window fills the screen: MainWindow.Shape; the TV view scales what is in
        it up to the screen) -->
-  <Border Name="Frame" CornerRadius="8" BorderBrush="{StaticResource GlassLine}" BorderThickness="1" ClipToBounds="True">
-    <Border.Background>
-      <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
-        <GradientStop Offset="0" Color="#1A1D23"/>
-        <GradientStop Offset="1" Color="#121418"/>
-      </LinearGradientBrush>
-    </Border.Background>
+  <Border Name="Frame" CornerRadius="8" BorderBrush="{StaticResource GlassLine}" BorderThickness="1" ClipToBounds="True" Background="{StaticResource Page}">
     <Panel>
+    <!-- the brand's four stripes across the window's top edge -->
+    <UniformGrid Classes="stripes" Height="3" VerticalAlignment="Top" ZIndex="1" IsHitTestVisible="False">
+      <Border Background="{StaticResource Rust}"/>
+      <Border Background="{StaticResource Orange}"/>
+      <Border Background="{StaticResource Gold}"/>
+      <Border Background="{StaticResource Leaf}"/>
+    </UniformGrid>
     <LayoutTransformControl Name="Scaler">
     <Panel>
       <Grid RowDefinitions="64,*">
         <!-- the title bar: drag it to move the window -->
         <Grid Name="TitleBar" ColumnDefinitions="*,Auto,*" Background="Transparent">
-          <StackPanel Orientation="Horizontal" Spacing="10" Margin="28,0,0,0" VerticalAlignment="Center" IsHitTestVisible="False">
+          <StackPanel Orientation="Horizontal" Spacing="18" Margin="28,0,0,0" VerticalAlignment="Center">
+          <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center" IsHitTestVisible="False">
             <Image Source="avares://LongshotLauncher/Assets/longshot.png" Width="28" Height="28" RenderOptions.BitmapInterpolationMode="HighQuality"/>
             <TextBlock Text="Longshot Launcher" FontSize="15" FontWeight="Bold" VerticalAlignment="Center"/>
             <TextBlock Text="{Binding LauncherVersion}" FontSize="11" Foreground="{StaticResource InkSoft}" VerticalAlignment="Center" Margin="0,2,0,0"/>
           </StackPanel>
+          <!-- the profile: the saves under the tabs are its; its menu switches, manages and makes profiles -->
+          <Button Name="ProfileChip" Classes="profilechip" IsVisible="{Binding ShowsTabs}" Command="{Binding ProfileMenuCommand}"
+                  VerticalAlignment="Center"
+                  ToolTip.Tip="{c:T 'Who is playing: switch, manage or make profiles'}" AutomationProperties.Name="{Binding ProfileName}">
+            <StackPanel Orientation="Horizontal" Spacing="9">
+              <Border Classes="avatar" Background="{Binding ProfileColour}">
+                <TextBlock Text="{Binding ProfileInitial}"/>
+              </Border>
+              <TextBlock Text="{Binding ProfileName}" FontWeight="SemiBold" VerticalAlignment="Center" MaxWidth="160" TextTrimming="CharacterEllipsis"/>
+              <c:Icon Kind="chevron" Width="12" Height="12" VerticalAlignment="Center" Foreground="{StaticResource InkSoft}"/>
+            </StackPanel>
+          </Button>
+          </StackPanel>
+          <Popup PlacementTarget="{Binding #ProfileChip}" Placement="BottomEdgeAlignedLeft" IsOpen="{Binding ProfileMenuOpen}"
+                 IsLightDismissEnabled="True" VerticalOffset="6">
+            <Border Classes="menu" MinWidth="240" c:Pad.Scope="True">
+              <StackPanel Spacing="2">
+                <ItemsControl ItemsSource="{Binding ProfileItems}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ProfileCardViewModel">
+                      <Button Classes="menuitem" Command="{Binding PickCommand}" Height="44">
+                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                          <Border Classes="avatar small" Background="{Binding Colour}"><TextBlock Text="{Binding Initial}"/></Border>
+                          <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold"/>
+                            <TextBlock Classes="faint" Text="{Binding SavesLine}"/>
+                          </StackPanel>
+                          <c:Icon Grid.Column="2" Kind="check" Foreground="{StaticResource Lime}" IsVisible="{Binding IsCurrent}"/>
+                        </Grid>
+                      </Button>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <Border Classes="divider" Margin="4,4"/>
+                <Button Classes="menuitem" Command="{Binding ManageProfilesCommand}">
+                  <StackPanel Classes="manage" Orientation="Horizontal" Spacing="10"><c:Icon Kind="list"/><TextBlock Text="{c:T 'Manage profiles…'}"/></StackPanel>
+                </Button>
+                <Button Classes="menuitem" Command="{Binding NewProfileCommand}" c:Pad.First="True">
+                  <StackPanel Classes="manage" Orientation="Horizontal" Spacing="10"><c:Icon Kind="plus"/><TextBlock Text="{c:T 'New profile…'}"/></StackPanel>
+                </Button>
+              </StackPanel>
+            </Border>
+          </Popup>
           <Border Grid.Column="1" IsVisible="{Binding InWizard}" Height="40" CornerRadius="20" Padding="4" Background="#0BFFFFFF"
                   BorderBrush="{StaticResource GlassLine}" BorderThickness="1" VerticalAlignment="Center">
             <ItemsControl ItemsSource="{Binding Steps}">
@@ -128,7 +173,7 @@
               </ItemsControl.ItemTemplate>
             </ItemsControl>
           </Border>
-          <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" Classes.linux="{Binding Linux}">
+          <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" Classes="captions">
             <!-- the tabs: the pages a player moves between, the one shown lit, on those pages only (a build or a transfer keeps
                  its own way back). The keyboard and a controller reach them up from the page; Home is a controller's B there -->
             <StackPanel Name="NavBar" Orientation="Horizontal" IsVisible="{Binding ShowsTabs}">
@@ -146,18 +191,11 @@
                   <TextBlock Classes="navlabel" Text="{c:T 'Saves'}"/>
                 </StackPanel>
               </Button>
-              <Button Classes="caption gear nav" Classes.on="{Binding IsNfcShown}" Focusable="True" Command="{Binding GoNfcCommand}"
-                      ToolTip.Tip="{c:T 'NFC tags'}" AutomationProperties.Name="{c:T 'NFC tags'}">
+              <Button Classes="caption gear nav" Classes.on="{Binding IsVersionsShown}" Focusable="True" Command="{Binding GoVersionsCommand}"
+                      ToolTip.Tip="{c:T 'Versions'}" AutomationProperties.Name="{c:T 'Versions'}">
                 <StackPanel Classes="navitem">
-                  <c:Icon Kind="nfc"/>
-                  <TextBlock Classes="navlabel" Text="{c:T 'NFC'}"/>
-                </StackPanel>
-              </Button>
-              <Button Classes="caption gear nav" Classes.on="{Binding IsStorageShown}" Focusable="True" Command="{Binding StorageCommand}"
-                      ToolTip.Tip="{c:T 'Storage'}" AutomationProperties.Name="{c:T 'Storage'}">
-                <StackPanel Classes="navitem">
-                  <c:Icon Kind="drive"/>
-                  <TextBlock Classes="navlabel" Text="{c:T 'Storage'}"/>
+                  <c:Icon Kind="list"/>
+                  <TextBlock Classes="navlabel" Text="{c:T 'Versions'}"/>
                 </StackPanel>
               </Button>
               <Button Classes="caption gear nav" Classes.on="{Binding IsSettingsShown}" Focusable="True" Command="{Binding SettingsCommand}"
@@ -179,22 +217,27 @@
           </StackPanel>
         </Grid>
 
-        <TransitioningContentControl Name="Pages" Grid.Row="1" Content="{Binding Page}" Margin="64,16,64,32">
+        <!-- (no margin at the foot: a page whose content scrolls runs its scroll to the window's edge, its own padding under the last
+             card, so nothing is cut by an empty band; the pages that do not scroll keep 32 px there, in their templates) -->
+        <TransitioningContentControl Name="Pages" Grid.Row="1" Content="{Binding Page}" Margin="64,16,64,0">
           <TransitioningContentControl.DataTemplates>
             <DataTemplate DataType="vm:HomeViewModel"><views:HomeView/></DataTemplate>
-            <DataTemplate DataType="vm:FilesStepViewModel"><views:FilesStepView/></DataTemplate>
-            <DataTemplate DataType="vm:SettingsStepViewModel"><views:SettingsStepView/></DataTemplate>
-            <DataTemplate DataType="vm:BuildStepViewModel"><views:BuildStepView/></DataTemplate>
-            <DataTemplate DataType="vm:ReadyViewModel"><views:ReadyView/></DataTemplate>
-            <DataTemplate DataType="vm:ProblemViewModel"><views:ProblemView/></DataTemplate>
-            <DataTemplate DataType="vm:ProblemPageViewModel"><views:ProblemPageView/></DataTemplate>
+            <DataTemplate DataType="vm:ProfilesViewModel"><views:ProfilesView/></DataTemplate>
+            <DataTemplate DataType="vm:WhoViewModel"><views:WhoView Margin="0,0,0,32"/></DataTemplate>
+            <DataTemplate DataType="vm:FilesStepViewModel"><views:FilesStepView Margin="0,0,0,32"/></DataTemplate>
+            <DataTemplate DataType="vm:SettingsStepViewModel"><views:SettingsStepView Margin="0,0,0,32"/></DataTemplate>
+            <DataTemplate DataType="vm:BuildStepViewModel"><views:BuildStepView Margin="0,0,0,32"/></DataTemplate>
+            <DataTemplate DataType="vm:ReadyViewModel"><views:ReadyView Margin="0,0,0,32"/></DataTemplate>
+            <DataTemplate DataType="vm:ProblemViewModel"><views:ProblemView Margin="0,0,0,32"/></DataTemplate>
+            <DataTemplate DataType="vm:ProblemPageViewModel"><views:ProblemPageView Margin="0,0,0,32"/></DataTemplate>
             <DataTemplate DataType="vm:SettingsViewModel"><views:SettingsView/></DataTemplate>
             <DataTemplate DataType="vm:StorageViewModel"><views:StorageView/></DataTemplate>
+            <DataTemplate DataType="vm:VersionsViewModel"><views:VersionsView/></DataTemplate>
             <DataTemplate DataType="vm:SavesViewModel"><views:SavesView/></DataTemplate>
-            <DataTemplate DataType="vm:SavesConfirmViewModel"><views:SavesConfirmView/></DataTemplate>
-            <DataTemplate DataType="vm:SavesResultViewModel"><views:SavesResultView/></DataTemplate>
-            <DataTemplate DataType="vm:SaveEditorViewModel"><views:SaveEditorView/></DataTemplate>
-            <DataTemplate DataType="vm:BackupsViewModel"><views:BackupsView/></DataTemplate>
+            <DataTemplate DataType="vm:SavesConfirmViewModel"><views:SavesConfirmView Margin="0,0,0,32"/></DataTemplate>
+            <DataTemplate DataType="vm:SavesResultViewModel"><views:SavesResultView Margin="0,0,0,32"/></DataTemplate>
+            <DataTemplate DataType="vm:SaveEditorViewModel"><views:SaveEditorView Margin="0,0,0,32"/></DataTemplate>
+            <DataTemplate DataType="vm:BackupsViewModel"><views:BackupsView Margin="0,0,0,32"/></DataTemplate>
             <DataTemplate DataType="vm:NfcViewModel"><views:NfcView/></DataTemplate>
           </TransitioningContentControl.DataTemplates>
         </TransitioningContentControl>
@@ -205,13 +248,14 @@
         <ContentControl Name="Dialog" Content="{Binding Modal}" HorizontalAlignment="Center" VerticalAlignment="Center">
           <ContentControl.DataTemplates>
             <DataTemplate DataType="vm:ChannelPickerViewModel"><views:ChannelPickerView/></DataTemplate>
+            <DataTemplate DataType="vm:AddVersionViewModel"><views:AddVersionView/></DataTemplate>
             <DataTemplate DataType="vm:DeleteViewModel"><views:DeleteView/></DataTemplate>
             <DataTemplate DataType="vm:BuildFilesViewModel"><views:BuildFilesView/></DataTemplate>
             <DataTemplate DataType="vm:LicenceViewModel"><views:LicenceView/></DataTemplate>
             <DataTemplate DataType="vm:StopBuildViewModel"><views:StopBuildView/></DataTemplate>
-            <DataTemplate DataType="vm:NeedsNightlyLauncherViewModel"><views:NeedsNightlyLauncherView/></DataTemplate>
             <DataTemplate DataType="vm:SavePickViewModel"><views:SavePickView/></DataTemplate>
             <DataTemplate DataType="vm:HookshotImportViewModel"><views:HookshotImportView/></DataTemplate>
+            <DataTemplate DataType="vm:StableLauncherViewModel"><views:StableLauncherView/></DataTemplate>
             <DataTemplate DataType="vm:HookshotSettingsViewModel"><views:HookshotSettingsView/></DataTemplate>
             <DataTemplate DataType="vm:ReleaseNotesViewModel"><views:ReleaseNotesView/></DataTemplate>
             <DataTemplate DataType="vm:SaveEditAskViewModel"><views:SaveEditAskView/></DataTemplate>
@@ -221,6 +265,7 @@
             <DataTemplate DataType="vm:PullRequestWarningViewModel"><views:PullRequestWarningView/></DataTemplate>
             <DataTemplate DataType="vm:PullRequestConfirmViewModel"><views:PullRequestConfirmView/></DataTemplate>
             <DataTemplate DataType="vm:PullRequestFindViewModel"><views:PullRequestFindView/></DataTemplate>
+            <DataTemplate DataType="vm:RepointViewModel"><views:RepointView/></DataTemplate>
           </ContentControl.DataTemplates>
         </ContentControl>
       </Border>

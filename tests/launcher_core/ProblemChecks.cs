@@ -1,35 +1,28 @@
 using LongshotLauncher.Core;
 
-/// launcher/Core/Problems.cs: the messages make_game.py and the game write mapped to a problem and its fix, and a crash found
+/// launcher/Core/Problems.cs: the messages the builder and the game write mapped to a problem and its fix, and a crash found
 /// once in a build's newest log. No game, no network.
 static partial class Program
 {
     static void ProblemChecks()
     {
-        // build failures: make_game.py's own messages
-        Require(Problems.FromBuild("Files of the builder's own compiler are missing (clang.exe in tools). Your antivirus most likely removed them").Kind == ProblemKind.Antivirus,
-                "the antivirus message: Antivirus");
+        // build failures: the builder's own messages
+        Require(Problems.FromBuild("Files of the builder's own compiler are missing (clang.exe in tools). Your antivirus most likely removed them").Kind == ProblemKind.Unknown,
+                "make_game.py's antivirus words: none of the builder's, as said (its tools_incomplete has a code)");
         Require(Problems.FromBuild("This is build 1a2b3c4d. Longshot supports build e0f3ccfa.").Kind == ProblemKind.WrongGameVersion,
                 "another build: WrongGameVersion");
         Require(Problems.FromBuild("Your game dump is incomplete: 12 game files in it are damaged").Kind == ProblemKind.IncompleteDump,
                 "an incomplete dump");
-        Require(Problems.FromBuild("OSError: [Errno 28] No space left on device").Kind == ProblemKind.DiskFull, "no space: DiskFull");
+        Require(Problems.FromBuild("OSError: [Errno 28] No space left on device") is { Kind: ProblemKind.DiskFull } full
+                && full.Detail == Problems.FromCode("disk_full")!.Detail, "no space: DiskFull, in the builder's figures");
         var mem = Problems.FromBuild("the system stopped it, most likely because the PC ran out of memory. Close other programs and build again");
         Require(mem.Kind == ProblemKind.BuildMemory && mem.Fixes.Any(f => f.Kind == FixKind.LowerBuildMemory), "out of memory: lower the build memory");
         Require(Problems.FromBuild("something new").Kind == ProblemKind.Unknown, "an unknown message: Unknown, not a wrong fix");
-        // (make_game.py before its swap on Windows, with Longshot started during the build: end_stale_games)
-        Require(Problems.FromBuild("Longshot is still running from this folder (process 4242). Close it, then retry. No installed files " +
-                                   "were replaced.").Kind == ProblemKind.GameRunning, "Longshot running at the swap: GameRunning");
-        Require(Problems.FromBuild(@"Could not replace C:\Games\Longshot\nightly\bin\longshot.exe. Close any running copy of Longshot and " +
-                                   "check that the file and folder are writable, then retry.").Kind == ProblemKind.Unknown,
-                "an exe the swap could not replace: not GameRunning (a folder that can't be written says it too)");
-        Require(Problems.FromBuild("The builder's own compiler (tools/llvm-mingw) could not build a test program: x. Unpack the zip again " +
-                                   "into a folder your antivirus allows.").Kind == ProblemKind.Antivirus, "the compiler can't build: Antivirus");
         // (Longshot#1010: tools under C:\Users\<name>\Cookies, a junction Windows lets no program list. Said before they run, on
-        // Windows only, naming the highest such folder; and matched before Antivirus, whose words the builder's own may carry)
+        // Windows only, naming the highest such folder)
         var cookies = Path.Combine(Path.GetPathRoot(Path.GetTempPath())!, "Users", "me", "Cookies");   // (this OS's paths)
         var tools = Path.Combine(cookies, "Desktop", "Longshot", "LongshotLauncher-data", "toolchains", "n", "LongshotBuilder", "tools");
-        var command = new MakeGameCommand("python.exe", [], tools, new Dictionary<string, string?>());
+        var command = new MakeGameCommand("longshot-builder.exe", [], tools, new Dictionary<string, string?>());
         bool Denies(string d) => !d.EndsWith("Cookies", StringComparison.Ordinal) && !d.EndsWith("Desktop", StringComparison.Ordinal);
         var blocked = MakeGameRun.Blocked(command, windows: true, Denies);
         Require(blocked != null && blocked.Contains("inside " + cookies + ",", StringComparison.Ordinal)
@@ -37,32 +30,14 @@ static partial class Program
         Require(MakeGameRun.Blocked(command, windows: false, Denies) == null, "Linux: no folder check");
         Require(MakeGameRun.Blocked(command, windows: true, _ => true) == null, "every folder listable: nothing in the way");
         Require(Problems.FromBuild(Problems.BlockedFolderWords + @" C:\x. Unpack the zip again into a folder your antivirus allows.").Kind
-                == ProblemKind.BlockedFolder, "the builder's own words for it: BlockedFolder, not Antivirus");
-        // (#205: Python's .pyd under a folder too deep for Windows. Measured after the failure, on Windows only, naming the longest path)
-        const string dll = "nup.py stopped (exit status 1): ImportError: DLL load failed while importing backend_c: Der Dateiname ist zu lang.";
-        var python = Path.Combine(tools, "python");
-        var py = new MakeGameCommand(Path.Combine(python, "python.exe"), [], tools, new Dictionary<string, string?>());
-        var deepFile = Path.Combine(python, "Lib", "site-packages", "zstandard", new string('b', 300) + ".pyd");
-        IEnumerable<string> Deep(string d) => d == python ? [Path.Combine(python, "python.exe"), deepFile] : [];
-        IEnumerable<string> Shallow(string d) => [Path.Combine(python, "python.exe")];
-        var deep = MakeGameRun.TooDeep(py, dll, windows: true, Deep);
-        Require(deep != null && deep.StartsWith(Problems.LongFolderWords, StringComparison.Ordinal) && deep.Contains(deepFile, StringComparison.Ordinal)
-                && deep.Contains(deepFile.Length + " characters", StringComparison.Ordinal) && Problems.FromBuild(deep).Kind == ProblemKind.LongFolder,
-                "a .pyd past 260 characters: LongFolder, naming the path and its length: " + deep);
-        Require(MakeGameRun.TooDeep(py, dll, windows: false, Deep) == null, "Linux: no path check");
-        Require(MakeGameRun.TooDeep(py, dll, windows: true, Shallow) == null, "every path short: not the folder's depth");
-        Require(MakeGameRun.TooDeep(py, "nup.py stopped (exit status 1): ValueError: TOC SHA-256 mismatch", windows: true, Deep) == null,
-                "another error: not measured");
-        Require(Problems.FromBuild("ImportError: DLL load failed while importing backend_c: The filename or extension is too long.").Kind
-                == ProblemKind.LongFolder, "Python's own words, in English: LongFolder");
-        Require(Problems.FromBuild(dll).Kind == ProblemKind.Unknown, "Python's words in another language, unmeasured: as said");
-        // (messages that name an antivirus, a free space or "not supported" among causes of their own: as make_game.py said them)
+                == ProblemKind.BlockedFolder, "the builder's own words for it: BlockedFolder");
+        // (messages that name an antivirus, a free space or "not supported" among causes of their own: as said)
         Require(Problems.FromBuild(@"Could not clear C:\Longshot\work\gen ([WinError 32] in use). A file in it is in use: close any window " +
                                    "showing that folder, wait for your antivirus to finish, then try again.").Kind == ProblemKind.Unknown,
-                "a folder in use: not Antivirus");
+                "a folder in use: as said");
         Require(Problems.FromBuild(@"The translated game came out cut short twice (code_12.c). Check that the drive with C:\work has free " +
                                    "space, and that no antivirus and no second Longshot Builder is working in that folder, then update again.").Kind ==
-                ProblemKind.Unknown, "cut short twice: not Antivirus, not DiskFull");
+                ProblemKind.Unknown, "cut short twice: not DiskFull");
         Require(Problems.FromBuild(@"The generated cache path D:\out\cache is not a normal path inside the build folder (symbolic links and " +
                                    "reparse points are not supported). Choose a different output folder.").Kind == ProblemKind.Unknown,
                 "a reparse point: not WrongGameVersion");

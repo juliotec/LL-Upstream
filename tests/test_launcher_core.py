@@ -5,9 +5,9 @@ are tests/fixtures/release's (made by scripts/release.py). Its scratch folder is
     python -I tests/test_launcher_core.py [--dotnet <dotnet>] [--strict] [--longshot <checkout of MagicBeanDev/Longshot>] [--pinned]
 
 With --longshot it also checks what the launcher copies from Longshot: make_game.py's languages, the SDK commits the DLSS and
-FSR 4 licence texts name, the first-import player ID, the shader caches' names, the translator's stamped files and its
-compiler's tools.lock parts, and what the save editor (scripts/longshot_save_editor.py) prints, which the launcher's Progress view
-reads (tests/save_editor_fixtures.py; skipped for a Longshot from before the editor). CI checks out the commit tests/longshot.ref pins (--pinned
+FSR 4 licence texts name, the first-import player ID, the shader caches' names, and what the save editor (scripts/longshot_save_editor.py) prints, which the launcher's Progress view
+reads (tests/save_editor_fixtures.py; skipped for a Longshot from before the editor), and longshot-builder's error codes'
+table (tests/fixtures/longshot-builder/codes.md; skipped for a Longshot from before it). CI checks out the commit tests/longshot.ref pins (--pinned
 makes the test refuse a checkout that is at another commit); a scheduled CI run also checks Longshot's main, as advice. To
 move the pin, see docs/ci.md.
 
@@ -87,15 +87,22 @@ def check_pin(longshot):
 
 
 def check_languages(longshot):
-    """Core/Languages.cs lists Longshot's make_game.py LANGUAGES, in its order (the codes --language takes)"""
-    tree = ast.parse((longshot / "nx2" / "make_game.py").read_text(encoding="utf-8"))
-    want = next(ast.literal_eval(n.value) for n in tree.body if isinstance(n, ast.Assign) and len(n.targets) == 1
-                and isinstance(n.targets[0], ast.Name) and n.targets[0].id == "LANGUAGES")
+    """Core/Languages.cs lists Longshot's builder's LANGUAGES, in its order (the codes --language takes): longshot-builder's
+    (builder/crates/build-driver/src/options.rs), or before it make_game.py's"""
+    rust = longshot / "builder" / "crates" / "build-driver" / "src" / "options.rs"
+    if rust.is_file():
+        text = rust.read_text(encoding="utf-8")
+        start = text.index("pub const LANGUAGES")
+        want = re.findall(r'\("([^"]+)", "([^"]+)"\)', text[start:text.index("];", start)])
+    else:
+        tree = ast.parse((longshot / "nx2" / "make_game.py").read_text(encoding="utf-8"))
+        want = next(ast.literal_eval(n.value) for n in tree.body if isinstance(n, ast.Assign) and len(n.targets) == 1
+                    and isinstance(n.targets[0], ast.Name) and n.targets[0].id == "LANGUAGES")
     source = (ROOT / "Core" / "Languages.cs").read_text(encoding="utf-8")
     body = source[source.index("All = new[]"):source.index("};", source.index("All = new[]"))]
     have = re.findall(r'\("([^"]+)", "([^"]+)"\)', body)
     if have != [tuple(x) for x in want]:
-        raise SystemExit("Core/Languages.cs differs from make_game.py's LANGUAGES:\n%s\n%s" % (have, want))
+        raise SystemExit("Core/Languages.cs differs from the builder's LANGUAGES:\n%s\n%s" % (have, want))
 
 
 def check_licences(longshot):
@@ -125,19 +132,6 @@ def check_licences(longshot):
                              % (script, name, commit))
 
 
-def check_xess_fetch(longshot):
-    """Core/MakeGameCommand.cs's XessBuilds takes scripts/xess_sdk.py or scripts/fetch.py in a version's tools as the sign that
-    its make_game.py fetches Intel's XeSS library (--fetch-xess-runtime). A Longshot whose make_game.py takes the flag with
-    neither script would have its XeSS switch greyed out in the launcher, as every nightly from 611 was until XessBuilds took
-    fetch.py too"""
-    make_game = (longshot / "nx2" / "make_game.py").read_text(encoding="utf-8")
-    if "--fetch-xess-runtime" not in make_game:
-        return
-    if not any((longshot / "scripts" / script).is_file() for script in ("xess_sdk.py", "fetch.py")):
-        raise SystemExit("Longshot's make_game.py takes --fetch-xess-runtime, but its tools carry neither scripts/xess_sdk.py nor "
-                         "scripts/fetch.py: Core/MakeGameCommand.cs's XessBuilds would grey Intel XeSS out")
-
-
 def check_save_user(longshot):
     """A first import must use the player the game opens, not the emulator's profile ID."""
     host = (longshot / "host" / "nn_applet.c").read_text(encoding="utf-8")
@@ -151,9 +145,7 @@ def check_save_user(longshot):
 
 
 def check_shader_caches(longshot):
-    """Core/ShaderCaches.cs names the caches Longshot's scripts/devtools/packs.py copies (CACHES, PLAY_FILES) and stamps the
-    translator with the folders and files of nx2/translator_files.py (DIRS, FILES), in its order, and its compiler with parts
-    tools.lock unpacks, each system's cpm among them"""
+    """Core/ShaderCaches.cs names the caches Longshot's scripts/devtools/packs.py copies (CACHES, PLAY_FILES)"""
     def literal(script, name):
         tree = ast.parse((longshot / script).read_text(encoding="utf-8"))
         return next(n.value for n in tree.body if isinstance(n, ast.Assign) and len(n.targets) == 1
@@ -163,30 +155,12 @@ def check_shader_caches(longshot):
     def listed(name):
         at = source.index(name + " = new[]")
         return re.findall(r'"([^"]+)"', source[at:source.index("};", at)])
-    for name, script, theirs in (("Names", "scripts/devtools/packs.py", "CACHES"), ("TranslatorDirs", "nx2/translator_files.py", "DIRS"),
-                                 ("TranslatorFiles", "nx2/translator_files.py", "FILES")):
-        want = list(ast.literal_eval(literal(script, theirs)))
-        if listed(name) != want:
-            raise SystemExit("Core/ShaderCaches.cs's %s differs from %s's %s:\n%s\n%s" % (name, script, theirs, listed(name), want))
+    want = list(ast.literal_eval(literal("scripts/devtools/packs.py", "CACHES")))
+    if listed("Names") != want:
+        raise SystemExit("Core/ShaderCaches.cs's Names differs from scripts/devtools/packs.py's CACHES:\n%s\n%s" % (listed("Names"), want))
     play = ast.literal_eval(literal("scripts/devtools/packs.py", "PLAY_FILES").args[0])
     if play != r"longshot_vk_pipelines_play_[0-9]+\.bin" or 'PlayPrefix = "longshot_vk_pipelines_play_"' not in source:
         raise SystemExit("scripts/devtools/packs.py's PLAY_FILES changed: review Core/ShaderCaches.cs's IsCache (%s)" % play)
-    # (the compiler's parts, by the folder tools.lock unpacks them to: each a dest of its system's lines, and its cpm among
-    # them, where nx2/build.py's header_package takes the Vulkan and SPIR-V headers from, RX_CPM)
-    dests, cpm = {}, {}
-    for line in (longshot / "tools.lock").read_text(encoding="utf-8").splitlines():
-        w = line.split()
-        if len(w) >= 9 and w[0] == "tool":
-            dests.setdefault(w[3], set()).add(w[6])
-            if w[1] == "cpm":
-                cpm[w[3]] = w[6]
-    for name, system in (("WindowsCompiler", "windows-x64"), ("LinuxCompiler", "linux-x64")):
-        missing = [d for d in listed(name) if d not in dests.get(system, set())]
-        if not listed(name) or missing:
-            raise SystemExit("Core/ShaderCaches.cs's %s names folders tools.lock's %s lines do not unpack to: %s" % (name, system, missing))
-        if cpm.get(system) not in listed(name):
-            raise SystemExit("Core/ShaderCaches.cs's %s lacks tools.lock's %s cpm (%s), where the translator's headers come from"
-                             % (name, system, cpm.get(system)))
 
 
 def check_running_excludes_own_runtime():
@@ -238,6 +212,33 @@ def check_save_editor(longshot):
     save_editor_fixtures.check(now)
 
 
+def codes_table(text):
+    """The rows of a build-events.md's "Codes" table (the lines starting with | between its heading and the next)"""
+    rows, inside = [], False
+    for line in text.splitlines():
+        if line.startswith("## "):
+            inside = line.strip() == "## Codes"
+        elif inside and line.startswith("|"):
+            rows.append(line.rstrip())
+    return rows
+
+
+def check_build_codes(longshot):
+    """longshot-builder's error codes the launcher sorts (Core/LongshotBuilder.cs's FileCodes and OwnCodes, which LongshotBuildChecks
+    compares with tests/fixtures/longshot-builder/codes.md): that copy is the Codes table of Longshot's
+    docs/dev/reference/build-events.md as it is now. A Longshot from before longshot-builder has no such doc: said, not a failure"""
+    doc = longshot / "docs" / "dev" / "reference" / "build-events.md"
+    if not doc.is_file():
+        print("build codes: skipped: this Longshot has no docs/dev/reference/build-events.md")
+        return
+    theirs = codes_table(doc.read_text(encoding="utf-8"))
+    ours = [l.rstrip() for l in (ROOT / "tests" / "fixtures" / "longshot-builder" / "codes.md").read_text(encoding="utf-8").splitlines()
+            if l.startswith("|")]
+    if not theirs or theirs != ours:
+        raise SystemExit("tests/fixtures/longshot-builder/codes.md is not the Codes table of Longshot's docs/dev/reference/build-events.md:"
+                         " copy it again, and move Core/LongshotBuilder.cs's FileCodes and OwnCodes with it")
+
+
 def check_translations():
     """The catalogs' texts are the window's, with their placeholders and plural forms (scripts/translations.py). A text a catalog
     lacks shows in English: said, not a failure"""
@@ -269,9 +270,9 @@ def main():
             check_pin(args.longshot)
         check_languages(args.longshot)
         check_licences(args.longshot)
-        check_xess_fetch(args.longshot)
         check_save_user(args.longshot)
         check_shader_caches(args.longshot)
+        check_build_codes(args.longshot)
         check_save_editor(args.longshot)
     elif args.strict:
         raise SystemExit("--strict needs --longshot <checkout of MagicBeanDev/Longshot>")

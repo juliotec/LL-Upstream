@@ -35,7 +35,7 @@
           </ItemsControl.ItemTemplate>
         </ItemsControl>
         <StackPanel IsVisible="{Binding HasProfiles}">
-          <TextBlock Classes="label" Text="{c:T 'PROFILE'}" Margin="0,16,0,0"/>
+          <TextBlock Classes="label" Text="{c:T 'Profile'}" Margin="0,16,0,0"/>
           <TextBlock Classes="hint" Text="{Binding ProfileHint}" Margin="0,2,0,0"/>
           <ItemsControl ItemsSource="{Binding Profiles}" Margin="0,14,0,0">
             <ItemsControl.ItemsPanel>

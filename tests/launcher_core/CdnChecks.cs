@@ -213,46 +213,6 @@ static partial class Program
         Require(server.Asked.SequenceEqual(new[] { cdnRelease }) && !File.Exists(SelfUpdate.Staged(current))
                 && !File.Exists(SelfUpdate.Staged(current) + ".part"), "Another launcher from the CDN went on, or left a file.");
 
-        // (a builder through Toolchains: the CDN cut short, the checked file starts again; another file is refused)
-        var app = Zip(("LongshotBuilder/LongshotBuilder.exe", "MZ", null, 0x1A4), ("LongshotBuilder/tools/nx2/make_game.py", "w", null, 0x1A4),
-                      ("LongshotBuilder/tools/python/python.exe", "MZ", null, 0x1A4));
-        const string appUrl = "https://git.magicbean.dev/MagicBeanDev/Longshot/releases/download/v3.6.0/LongshotBuilder-v3.6.0-windows-x64.zip";
-        var appCdn = CdnFetcher.CdnOf(appUrl)!;
-        var appDirect = CdnFetcher.Direct(appUrl);
-        var otherApp = (byte[])app.Clone();
-        otherApp[^30] ^= 1;
-        server.Files[appDirect] = new Served(app);
-        server.Files[appCdn] = new Served(otherApp, app.Length / 2, null);
-        var llvm = Zip(("llvm-mingw-20261104-ucrt-x86_64/bin/clang.exe", "MZ", null, 0x1A4));
-        var llvmCdn = cdnPackage.Replace("abc-", ShaOf(llvm) + "-");
-        var llvmOrigin = package.Replace("abc-", ShaOf(llvm) + "-");
-        var llvmDirect = CdnFetcher.Direct(llvmOrigin);
-        server.Files[llvmCdn] = new Served(llvm, 0, 503);
-        server.Files[llvmDirect] = new Served(otherApp);
-        server.Files[upstream] = new Served(llvm);
-        PartsList Setup(string tag, string toolLinks) => new(ListKind.Setup, tag,
-            new List<Part> { new(ShaOf(app), app.Length, ".", null, null, appUrl) }
-                .Concat(ToolsLock.Parse($"tool llvm-mingw 20261104 windows-x64 {ShaOf(llvm)} {llvm.Length} LongshotBuilder/tools/llvm-mingw "
-                                        + $"llvm-mingw-20261104-ucrt-x86_64 {toolLinks}", "windows-x64")).ToList(), ToolsLock.Run);
-        var chains = new Toolchains(Path.Combine(root, "toolchains"), cdn);
-        server.Asked.Clear();
-        var w = await chains.InstallAsync(Setup("v3.6.0", $"{llvmCdn} {llvmOrigin} {upstream}"));
-        Require(File.Exists(Path.Combine(w.ToolsRoot, "llvm-mingw", "bin", "clang.exe")) && File.Exists(w.MakeGame),
-                "A builder, the CDN cut short, and a tool from its last link.");
-        Require(server.Asked.SequenceEqual(new[] { appCdn, appDirect, llvmCdn, llvmDirect, upstream }),
-                "Each link once, in order (the tool's git-cdn link not tried twice): " + string.Join(", ", server.Asked));
-        chains.Prune(Array.Empty<string>());   // (else its parts are kept from v3.6.0, not downloaded)
-        server.Asked.Clear();
-        await chains.InstallAsync(Setup("v3.6.2", $"{llvmOrigin} {upstream}"));
-        Require(server.Asked.SequenceEqual(new[] { appCdn, appDirect, llvmCdn, llvmDirect, upstream }),
-                "A tool listed without its git-cdn link gets it in front: " + string.Join(", ", server.Asked));
-        server.Files[appCdn] = new Served(otherApp);
-        chains.Prune(Array.Empty<string>());
-        server.Asked.Clear();
-        await ThrowsAsync<InvalidDataException>(() => chains.InstallAsync(Setup("v3.6.3", $"{llvmOrigin} {upstream}")),
-                                                "A builder that is another file from the CDN was installed.");
-        Require(server.Asked.SequenceEqual(new[] { appCdn }) && !chains.IsInstalled("v3.6.3"), "Another builder from the CDN went on.");
-
         // (a release list: from the CDN when it answers, else git.magicbean.dev, as for a file)
         async Task<string> Text(CdnFetcher via, string url)
         {
@@ -283,7 +243,7 @@ static partial class Program
         }
         server.Files.Remove(list);
 
-        // (LONGSHOT_LAUNCHER_NO_CDN=1: everything from git.magicbean.dev, a tool's git-cdn link too)
+        // (LONGSHOT_LAUNCHER_NO_CDN=1: everything from git.magicbean.dev)
         Require(!CdnFetcher.EnabledByEnvironment(k => k == CdnFetcher.DisableVariable ? "1" : null)
                 && CdnFetcher.EnabledByEnvironment(_ => null) && CdnFetcher.EnabledByEnvironment(k => k == CdnFetcher.DisableVariable ? "0" : null)
                 && CdnFetcher.DisableVariable == "LONGSHOT_LAUNCHER_NO_CDN", "LONGSHOT_LAUNCHER_NO_CDN=1 turns the CDN off.");
@@ -298,15 +258,5 @@ static partial class Program
         server.Files.Remove(cdnList);
         Require(await Text(off, list) == "text of " + list && server.Asked.SequenceEqual(new[] { list }),
                 "With the CDN off, a release list from git.magicbean.dev only.");
-        Require(off.Expand(new[] { llvmCdn, llvmOrigin, upstream }).SequenceEqual(new[] { llvmDirect, upstream })
-                && off.Expand(new[] { cdnRelease }).SequenceEqual(new[] { cdnRelease })
-                && cdn.Expand(new[] { llvmCdn, llvmOrigin, upstream }).SequenceEqual(new[] { llvmCdn, llvmDirect, upstream })
-                && cdn.Expand(new[] { llvmOrigin, upstream }).SequenceEqual(new[] { llvmCdn, llvmDirect, upstream }),
-                "A tool's links with the CDN on and off.");
-        server.Files[appCdn] = new Served(otherApp);
-        server.Files[llvmDirect] = new Served(llvm);
-        server.Asked.Clear();
-        await new Toolchains(Path.Combine(root, "toolchains-off"), off).InstallAsync(Setup("v3.6.4", $"{llvmCdn} {llvmOrigin} {upstream}"));
-        Require(server.Asked.SequenceEqual(new[] { appDirect, llvmDirect }), "With the CDN off, no git-cdn link: " + string.Join(", ", server.Asked));
     }
 }

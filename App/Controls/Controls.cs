@@ -81,6 +81,9 @@ public sealed class Icon : Control
         ["chevronRight"] = new[] { ("M10 7l5 5-5 5", 1.6) },
         ["nfc"] = new[] { ("M7.5 8.5a5.5 5.5 0 0 1 0 7M11 6a9 9 0 0 1 0 12M14.5 3.5a12.5 12.5 0 0 1 0 17", 1.8) },
         ["refresh"] = new[] { ("M19 12a7 7 0 1 1-2.05-4.95M17.5 3.5v4h-4", 1.8) },
+        // (an open book: the modding docs; and a list: the game data reference)
+        ["book"] = new[] { ("M12 6.5C10 5 7.5 4.5 4 4.5v13c3.5 0 6 .5 8 2c2-1.5 4.5-2 8-2v-13c-3.5 0-6 .5-8 2zM12 6.5v13", 1.7) },
+        ["list"] = new[] { ("M9 7h11M9 12h11M9 17h11", 1.8), ("M5.9 7a.9.9 0 1 1-1.8 0a.9.9 0 1 1 1.8 0zM5.9 12a.9.9 0 1 1-1.8 0a.9.9 0 1 1 1.8 0zM5.9 17a.9.9 0 1 1-1.8 0a.9.9 0 1 1 1.8 0z", 0.0) },
     };
 
     static readonly Dictionary<string, Geometry> Parsed = new();
@@ -266,4 +269,37 @@ public sealed class BusyContent : ContentControl
     public bool IsBusy { get => GetValue(IsBusyProperty); set => SetValue(IsBusyProperty, value); }
     /// "Updating…": short, the button's own words
     public string? BusyText { get => GetValue(BusyTextProperty); set => SetValue(BusyTextProperty, value); }
+}
+
+/// The line under a page's fixed header: shown once the content under it is scrolled, so the header reads as above the content
+/// that passes beneath it, and gone at the top
+public sealed class ScrollEdge : Border
+{
+    public static readonly StyledProperty<ScrollViewer?> TargetProperty = AvaloniaProperty.Register<ScrollEdge, ScrollViewer?>(nameof(Target));
+
+    public ScrollViewer? Target
+    {
+        get => GetValue(TargetProperty);
+        set => SetValue(TargetProperty, value);
+    }
+
+    public ScrollEdge()
+    {
+        Height = 1;
+        Opacity = 0;
+        IsHitTestVisible = false;
+    }
+
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+        if (change.Property != TargetProperty) return;
+        if (change.OldValue is ScrollViewer old) old.ScrollChanged -= Scrolled;
+        if (change.NewValue is ScrollViewer now) now.ScrollChanged += Scrolled;
+        Show();
+    }
+
+    void Scrolled(object? sender, ScrollChangedEventArgs e) => Show();
+
+    void Show() => Opacity = Target is { Offset.Y: > 1 } ? 1 : 0;
 }

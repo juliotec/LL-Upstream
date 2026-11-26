@@ -27,16 +27,33 @@
       </Grid>
     </DataTemplate>
   </UserControl.DataTemplates>
-  <Grid RowDefinitions="Auto,*,Auto" RowSpacing="14">
+  <Grid RowDefinitions="Auto,*" RowSpacing="14">
     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="20">
-      <StackPanel>
+      <Panel Classes="backslot">
+        <Button Classes="back" Command="{Binding BackCommand}" c:Pad.Back="True" ToolTip.Tip="{c:T 'Back to saves'}" AutomationProperties.Name="{c:T 'Back to saves'}">
+          <c:Icon Kind="arrowRight" RenderTransform="rotate(180deg)"/>
+        </Button>
+        <Border Classes="bglyph"><TextBlock Text="B"/></Border>
+      </Panel>
+      <StackPanel Margin="52,0,0,0">
         <TextBlock Classes="heading" Text="{Binding Title}"/>
         <TextBlock Classes="sub" Text="{Binding Where}" IsVisible="{Binding Showing}" Foreground="{StaticResource Ink}"/>
         <TextBlock Classes="faint" Text="{Binding Facts}" IsVisible="{Binding Showing}" Margin="0,3,0,0"/>
         <TextBlock Text="{Binding Warning}" IsVisible="{Binding HasWarning}" Foreground="{StaticResource Warn}" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,0"/>
         <TextBlock Classes="sub" Text="{Binding Sub}" IsVisible="{Binding NotShowing}"/>
+        <StackPanel Classes="meta">
+          <c:Icon Kind="check" Foreground="{StaticResource Go}"/>
+          <TextBlock Text="{c:T 'Backed up first. Close the game before editing.'}"/>
+        </StackPanel>
       </StackPanel>
-      <StackPanel Grid.Column="1" Spacing="6" VerticalAlignment="Top" HorizontalAlignment="Right" MinWidth="190" IsVisible="{Binding Showing}">
+      <StackPanel Grid.Column="1" Spacing="10" VerticalAlignment="Top" HorizontalAlignment="Right">
+      <!-- the slot's own actions -->
+      <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+        <Button Classes="small" Content="{c:T 'Give…'}" Command="{Binding GiveCommand}"/>
+        <Button Classes="small" Content="{c:T 'Start place…'}" Command="{Binding StartCommand}"/>
+        <Button Classes="small" Content="{c:T 'Copy slot…'}" Command="{Binding CopyCommand}"/>
+      </StackPanel>
+      <StackPanel Spacing="6" HorizontalAlignment="Right" MinWidth="190" IsVisible="{Binding Showing}">
         <Border Classes="chip go" IsVisible="{Binding Complete}" HorizontalAlignment="Right">
           <StackPanel Orientation="Horizontal" Spacing="6">
             <c:Icon Kind="check" Width="14" Height="14" Foreground="{StaticResource Go}"/>
@@ -46,6 +63,7 @@
         <TextBlock Text="{Binding Verdict}" IsVisible="{Binding Incomplete}" FontWeight="SemiBold" HorizontalAlignment="Right"/>
         <c:Bar Height="6" Value="{Binding Overall}" Fill="{StaticResource Brand}" IsVisible="{Binding Incomplete}"/>
         <TextBlock Classes="faint" Text="{Binding Via}" IsVisible="{Binding HasVia}" HorizontalAlignment="Right"/>
+      </StackPanel>
       </StackPanel>
     </Grid>
 
@@ -61,7 +79,7 @@
             <Border Classes="boxicon">
               <c:Icon Kind="alert" Width="13" Height="13" Foreground="{StaticResource Warn}"/>
             </Border>
-            <TextBlock Grid.Column="1" Text="{Binding Problem}" TextWrapping="Wrap"/>
+            <TextBlock Grid.Column="1" Text="{Binding Problem}" TextWrapping="Wrap" VerticalAlignment="Center"/>
           </Grid>
         </Border>
         <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Center">
@@ -76,7 +94,7 @@
             <ItemsControl ItemsSource="{Binding Categories}">
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:SaveCategoryRow">
-                  <Button Classes="row cat" Classes.picked="{Binding Selected}" Command="{Binding PickCommand}">
+                  <Button Classes="row cat" Classes.picked="{Binding Selected}" Command="{Binding PickCommand}" c:Pad.First="True">
                     <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" RowSpacing="6">
                       <TextBlock Text="{Binding Title}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
                       <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
@@ -105,7 +123,7 @@
               <Button Grid.Column="2" Classes="small" Content="{c:T 'Take all away'}" Command="{Binding ClearCategoryCommand}"/>
             </Grid>
             <TextBlock DockPanel.Dock="Top" Classes="faint" Text="{Binding DetailNote}" IsVisible="{Binding HasDetailNote}" TextWrapping="Wrap" Margin="0,4,0,0"/>
-            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="0,8,-8,0" Padding="0,0,8,0">
+            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="0,8,-14,0" Padding="0,0,14,0">
               <StackPanel>
                 <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding DetailDone}" Margin="0,10">
                   <c:Icon Kind="check" Width="16" Height="16" Foreground="{StaticResource Go}" VerticalAlignment="Center"/>
@@ -129,7 +147,7 @@
                   </ItemsControl.ItemTemplate>
                 </ItemsControl>
 
-                <TextBlock Classes="label" Text="{c:T 'MISSING'}" Margin="0,12,0,4" IsVisible="{Binding HasMissing}"/>
+                <TextBlock Classes="label" Text="{c:T 'Missing'}" Margin="0,12,0,4" IsVisible="{Binding HasMissing}"/>
                 <ItemsControl ItemsSource="{Binding Missing}" IsVisible="{Binding HasMissing}"/>
 
                 <ItemsControl ItemsSource="{Binding Unreadable}" IsVisible="{Binding HasUnreadable}" Margin="0,10,0,0">
@@ -146,15 +164,5 @@
       </Grid>
     </Panel>
 
-    <Grid Grid.Row="2" ColumnDefinitions="Auto,Auto,Auto,*,Auto" ColumnSpacing="10">
-      <Button Content="{c:T 'Give…'}" Command="{Binding GiveCommand}"/>
-      <Button Grid.Column="1" Content="{c:T 'Start place…'}" Command="{Binding StartCommand}"/>
-      <Button Grid.Column="2" Content="{c:T 'Copy slot…'}" Command="{Binding CopyCommand}"/>
-      <Grid Grid.Column="3" ColumnDefinitions="Auto,*" ColumnSpacing="8" Margin="8,0,0,0" VerticalAlignment="Center">
-        <c:Icon Kind="check" Width="14" Height="14" Foreground="{StaticResource Go}" VerticalAlignment="Center"/>
-        <TextBlock Grid.Column="1" Classes="faint" Text="{c:T 'Backed up first. Close the game before editing.'}" TextWrapping="Wrap" VerticalAlignment="Center"/>
-      </Grid>
-      <Button Grid.Column="4" Classes="primary" Content="{c:T 'Back to saves'}" Command="{Binding BackCommand}" c:Pad.Back="True"/>
-    </Grid>
   </Grid>
 </UserControl>

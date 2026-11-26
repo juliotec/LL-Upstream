@@ -23,12 +23,26 @@
       </StackPanel>
       <TextBlock Classes="sub" Margin="0,12,0,0" TextWrapping="Wrap"
                  Text="{c:T 'A pull request is a change someone proposed for Longshot. It is not in a release yet: this launcher builds its code on your PC and runs it, and it may have bugs, crash, or be changed again soon.'}"/>
+      <!-- unreviewed code with the player's rights, said for every pull request; a WIP one may not even build -->
+      <Border Classes="warnbox">
+        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+          <Border Classes="boxicon">
+            <c:Icon Kind="alert" Width="13" Height="13" Foreground="{StaticResource Warn}"/>
+          </Border>
+          <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+            <TextBlock TextWrapping="Wrap"
+                       Text="{c:T 'Its code runs on this PC with your rights, as any program you start: it can read and change your files. Build only one you trust.'}"/>
+            <TextBlock TextWrapping="Wrap" IsVisible="{Binding IsDraft}"
+                       Text="{c:T 'This one is a work in progress (WIP): its author has not marked it ready, and it may not build or run.'}"/>
+          </StackPanel>
+        </Grid>
+      </Border>
       <Border Classes="warnbox">
         <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
           <Border Classes="boxicon">
             <c:Icon Kind="disk" Width="13" Height="13" Foreground="{StaticResource Warn}"/>
           </Border>
-          <TextBlock Grid.Column="1" TextWrapping="Wrap"
+          <TextBlock Grid.Column="1" TextWrapping="Wrap" VerticalAlignment="Center"
                      Text="{c:T 'Your saves are shared with your other versions, and a change can damage them. Export them first from Manage saves to keep a copy.'}"/>
         </Grid>
       </Border>

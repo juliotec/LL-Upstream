@@ -1,8 +1,8 @@
 using LongshotLauncher.Core;
 
 /// Instances' folders (Core/InstanceFolders.cs, BuildRegistry.FolderOf, LauncherSettings.FolderFor), through the path a build
-/// takes: a new instance goes in builds/<track>/<version> and make_game.py is given that folder (--out); a second instance of
-/// the same version is "(2)"; an update or a go-back renames its folder to the new version's name before make_game.py starts,
+/// takes: a new instance goes in builds/<track>/<version> and the builder is given that folder (--out); a second instance of
+/// the same version is "(2)"; an update or a go-back renames its folder to the new version's name before the builder starts,
 /// everything in it kept, and back when the build does not finish; a rename that cannot happen changes nothing; a folder the
 /// player chose before is never renamed; and the instances from before this layout move into it only when the player says so
 static partial class Program
@@ -22,20 +22,45 @@ static partial class Program
                 "The build's folder comes from the builds folder.");
     }
 
-    /// The home's layout in its source, at 960x600 with a banner over it: the scroll bar has a gutter of its own (Fluent draws it over
-    /// the content's edge), the title is on a row of its own so both columns start level and from the top, and every top card is
-    /// one style (Border.offer: an icon in a circle, a title, its whole text, a quiet link and one strong button), nothing cut to a
-    /// line; the old-layout offer's list of folders alone is under a toggle (not a tooltip only: a touch screen reaches it)
+    /// The home's layout in its source: it fits the window, its list of saves scrolling inside it. Home only plays: the brand's band, a strip, and the card at the foot,
+    /// Play (the go button) beside the version (the versions on this PC, then Manage versions…), the profile (mods and settings)
+    /// and the save to start on, an update on the band when there is one; no track, no list of versions. The first build's card is one view, Home's and the Versions page's
+    /// empty state. Every top card is one style (Border.offer: an icon in a circle, a title, its whole text, a quiet link and one
+    /// strong button), nothing cut to a line; the old-layout offer's list of folders alone is under a toggle (not a tooltip only:
+    /// a touch screen reaches it)
     static void HomeLayoutSourceChecks(string repo)
     {
         var view = File.ReadAllText(Path.Combine(repo, "App", "Views", "HomeView.axaml"));
-        Require(view.Contains("<ScrollViewer VerticalScrollBarVisibility=\"Auto\" HorizontalScrollBarVisibility=\"Disabled\">")
-                && view.Contains("<Panel Margin=\"0,0,16,0\">"),
-                "The home's scrolled content keeps a gutter for the scroll bar.");
-        Require(view.Contains("ColumnDefinitions=\"300,*\" RowDefinitions=\"Auto,Auto\"")
-                && view.Contains("<StackPanel Grid.Row=\"1\" VerticalAlignment=\"Top\">")
-                && view.Contains("<StackPanel Grid.Row=\"1\" Grid.Column=\"1\" VerticalAlignment=\"Top\""),
-                "The title has a row of its own and both columns start from the top, level.");
+        var versions = File.ReadAllText(Path.Combine(repo, "App", "Views", "VersionsView.axaml"));
+        // (Home is a front page, not a dashboard: the band, the Version and Save pickers and one button, centred; no list of saves,
+        // no profile card, no tiles, no update card: the profile is the title bar's, an update is the button's)
+        Require(view.Contains("<Border Classes=\"homepage\">") && view.Contains("<StackPanel Classes=\"front\" VerticalAlignment=\"Center\" HorizontalAlignment=\"Center\">")
+                && !view.Contains("Name=\"HomeScroll\"") && !view.Contains("ScrollViewer")
+                && !view.Contains("{Binding SaveRows}") && !view.Contains("{Binding ProfileMods}") && !view.Contains("Classes=\"infotile\"")
+                && !view.Contains("{Binding BandKicker}") && !view.Contains("{Binding BandNote}") && !view.Contains("Classes=\"updatecard\""),
+                "Home is the band, the two pickers and the button, centred, with nothing else to read.");
+        Require(view.Contains("<Button Classes=\"go bigplay\" Command=\"{Binding HeroPlayCommand}\" IsVisible=\"{Binding HeroIsPlayOnly}\" c:Pad.First=\"True\">")
+                && view.Contains("<Button Classes=\"go bigplay\" Command=\"{Binding BuildCommand}\" IsVisible=\"{Binding NoBuilds}\" c:Pad.First=\"True\">")
+                && view.Contains("<Button Classes=\"primary bigplay\" Command=\"{Binding HeroPlayCommand}\" IsVisible=\"{Binding HeroIsRebuild}\" c:Pad.First=\"True\">")
+                && view.Contains("<Button Classes=\"second bigplay\" Command=\"{Binding UpdateDefaultCommand}\" IsVisible=\"{Binding HeroIsPlayAndUpdate}\">")
+                && !view.Contains("Classes=\"link\" Command=\"{Binding HeroPlayCommand}\"")
+                && view.Contains("ItemsSource=\"{Binding HeroChoices}\"") && view.Contains("ItemsSource=\"{Binding BuildChoices}\"")
+                && !view.Contains("ItemsSource=\"{Binding ProfileChoices}\"")
+                && view.Contains("ItemsSource=\"{Binding SaveChoices}\"") && view.Contains("IsEnabled=\"{Binding HasBuilds}\""),
+                "Home's button: Build, Build it again, or Play, and Update as big beside Play; the Version picker (the version a build makes with none yet) and the Save picker (off with none).");
+        // (the Save picker is the profile's slots, the newest picked, then Manage saves…: no Choose in game; New game alone with
+        // none; a version that cannot start on a slot hides it, one quiet line in its place)
+        var homeVm = File.ReadAllText(Path.Combine(repo, "App", "ViewModels", "HomeViewModel.cs"));
+        Require(!homeVm.Contains("Tr.T(\"Choose in game\")") && homeVm.Contains("new SaveStartChoice(null, Tr.T(\"New game\")")
+                && homeVm.Contains("public bool ShowSavePicker => NoBuilds || HeroStartsOnSlot;")
+                && view.Contains("IsVisible=\"{Binding ShowSavePicker}\"") && view.Contains("IsVisible=\"{Binding ShowSaveTitleNote}\""),
+                "Home's Save picker lists the profile's slots (New game with none), hidden for a version that cannot start on one.");
+        Require(!view.Contains("{Binding Tracks}") && !view.Contains("{Binding Builds}") && !view.Contains("{Binding TrackVersions}"),
+                "Home has no track and no list of versions: they are the Versions page's.");
+        Require(!view.Contains("BuildCardView") && versions.Contains("<views:BuildCardView IsVisible=\"{Binding NoBuilds}\"/>"),
+                "The first build is Home's own state (its button says Build); the card is the Versions page's empty state.");
+        Require(view.Contains("IsVisible=\"{Binding HasStatusLine}\"") && view.Contains("Text=\"{Binding StatusLine}\""),
+                "One status line under the button, only when it must be said.");
         foreach (var has in new[] { "HasLauncherUpdate", "HasHookshotOffer", "HasNx2naviOffer", "HasInstalledOffer", "HasLeftoverOffer", "HasRenameOffer" })
             Require(view.Contains($"<Border DockPanel.Dock=\"Top\" Classes=\"offer\" IsVisible=\"{{Binding {has}}}\">"),
                     $"A home card has the one card style ({has}).");
@@ -46,48 +71,47 @@ static partial class Program
                 "The old-layout offer's folders are under a toggle.");
         Require(System.Text.RegularExpressions.Regex.Matches(view, "<Button Classes=\"small primary\"").Count >= 6,
                 "Each offer has one strong button.");
-        HomeUpdateSourceChecks(repo, view);
+        HomeUpdateSourceChecks(repo, view, versions);
     }
 
-    /// A newer version shows once in each place: Update available beside the version and on its row, Update (with its icon, Play's
-    /// size) beside Play, and the newest version with What's new opposite the title; no Update button or "is out" line on a row
-    static void HomeUpdateSourceChecks(string repo, string view)
+    /// A newer version shows once in each place: on Home, for the version shown, one line (its newest, What's new, Update); on the
+    /// Versions page, on its card (Update available, Update to vX, What's new) and in the Version list of Build another version
+    /// (Update available in place of the note; on the caption's row, so the version is never cut). The track's newest opposite
+    /// the title of neither page
+    static void HomeUpdateSourceChecks(string repo, string view, string versions)
     {
         var home = File.ReadAllText(Path.Combine(repo, "App", "ViewModels", "HomeViewModel.cs"));
         var app = File.ReadAllText(Path.Combine(repo, "App", "App.axaml"));
-        Require(!view.Contains("{Binding UpdateCommand}") && !view.Contains("{Binding UpdateLine}") && !view.Contains("{Binding NotesCommand}")
-                && !home.Contains("public Command UpdateCommand") && !home.Contains("UpdateLine"),
-                "A row has no Update button, no \"is out\" line and no What's new of its own: the hero's act on the row picked.");
-        Require(view.Contains("<Border Classes=\"chip small update\" IsVisible=\"{Binding ShowUpdateBadge}\"><TextBlock Text=\"{c:T 'Update available'}\"/></Border>")
-                && view.Contains("<Border Grid.Column=\"2\" Classes=\"chip small update\" IsVisible=\"{Binding HasUpdate}\">")
-                && view.Contains("<Border Grid.Column=\"1\" Classes=\"chip small update\" IsVisible=\"{Binding PickHasUpdate}\">")
-                && view.Contains("<ComboBox.SelectionBoxItemTemplate>")
-                && view.Contains("Text=\"{Binding Note}\" VerticalAlignment=\"Center\" IsVisible=\"{Binding !HasUpdate}\"")
-                && app.Contains("<Style Selector=\"Border.chip.update\">"),
-                "Update available is one badge: on the row, on the Version field's label row (the version never cut), and in place of the note in the list.");
-        Require(System.Text.RegularExpressions.Regex.IsMatch(view, "<DataTemplate x:DataType=\"vm:TrackChoice\">\\s*<TextBlock Text=\"\\{Binding Name\\}\"[^>]*/>\\s*</DataTemplate>")
-                && !home.Contains("InstalledOn("),
-                "The Track dropdown shows the track's name only, without its versions or a channel tag.");
-        Require(System.Text.RegularExpressions.Regex.IsMatch(view, "Classes=\"primary tall hero\"[^>]*Command=\"\\{Binding UpdateDefaultCommand\\}\"[^>]*>\\s*<StackPanel Orientation=\"Horizontal\" Spacing=\"8\">\\s*<c:Icon Kind=\"arrowUp\" Width=\"18\" Height=\"18\"/>")
-                && System.Text.RegularExpressions.Regex.IsMatch(app, "<Style Selector=\"Button.hero\">\\s*<Setter Property=\"Height\" Value=\"50\"/>\\s*<Setter Property=\"Padding\" Value=\"34,0\"/>"),
-                "Update beside Play has its arrow and Play's height and padding.");
-        Require(System.Text.RegularExpressions.Regex.IsMatch(view, "<WrapPanel ItemSpacing=\"12\"[^>]*>\\s*<Button Classes=\"go\" Command=\"\\{Binding GoCommand\\}\"")
-                && System.Text.RegularExpressions.Regex.IsMatch(view, "Classes=\"primary tall hero\"[^>]*>(?:(?!</Button>).)*</Button>\\s*</WrapPanel>",
-                                                                System.Text.RegularExpressions.RegexOptions.Singleline),
-                "Update goes under Play when its words do not fit beside it (#226: German's Aktualisieren was cut, not the row).");
-        Require(view.Contains("IsVisible=\"{Binding HasTrackUpdate}\"") && view.Contains("Text=\"{Binding TrackUpdate}\"")
-                && view.Contains("Command=\"{Binding NotesDefaultCommand}\" VerticalAlignment=\"Center\"")
-                && view.Contains("IsVisible=\"{Binding !TrackUpdateIsPullRequest}\"/>")
-                && view.Contains("Command=\"{Binding ReadPullRequestCommand}\" VerticalAlignment=\"Center\"")
-                && !view.Contains("{Binding HeroUpdate}") && !home.Contains("is out on the {1} channel")
-                && home.Contains("NotesDefaultCommand = new Command(() => { if (TrackUpdateItem is { } d) ShowNotes(d); });"),
-                "The picked track's newest version and What's new (a pull request's newer push: Read it) are opposite the title, once, by their shown name.");
+        Require(view.Contains("Command=\"{Binding UpdateDefaultCommand}\"")
+                && home.Contains("UpdateDefaultCommand = new Command(() => { if (HeroItem is { } d) UpdateBuild(d); }")
+                && home.Contains("public bool HeroIsUpdate => HeroItem is { IsBuilt: true, HasUpdate: true, IsDeleting: false };"),
+                "Home's update is its button for the version shown: Update, with Play beside it.");
+        Require(versions.Contains("Command=\"{Binding UpdateToCommand}\" IsVisible=\"{Binding ShowUpdateTo}\"")
+                && versions.Contains("Command=\"{Binding WhatsNewCommand}\" IsVisible=\"{Binding ShowUpdateTo}\"")
+                && versions.Contains("Command=\"{Binding RebuildCommand}\" IsVisible=\"{Binding ShowRebuild}\""),
+                "A version's card has its own Update to, What's new, and Build it again when its game is missing.");
+        var add = File.ReadAllText(Path.Combine(repo, "App", "Views", "AddVersionView.axaml"));
+        var addVm = File.ReadAllText(Path.Combine(repo, "App", "ViewModels", "AddVersionViewModel.cs"));
+        Require(versions.Contains("Command=\"{Binding AddVersionCommand}\"") && !versions.Contains("TrackVersions")
+                && add.Contains("ItemsSource=\"{Binding Channels}\"") && add.Contains("ItemsSource=\"{Binding ChannelVersions}\"")
+                && add.Contains("IsVisible=\"{Binding Installed}\"") && add.Contains("Text=\"{Binding Note}\"")
+                && addVm.Contains("Channels = ChannelPickerViewModel.All.Select(") && app.Contains("<Style Selector=\"Border.chip.update\">"),
+                "Add version: Stable and Nightly, each with its newest, and the channel's versions with a check beside an installed one.");
+        Require(add.Contains("IsVisible=\"{Binding AdvancedOpen}\"") && add.Contains("IsChecked=\"{Binding IsMain}\"") && add.Contains("IsChecked=\"{Binding IsPull}\"")
+                && add.Contains("IsVisible=\"{Binding IsDraft}\"") && add.Contains("<TextBlock Text=\"WIP\"/>") && add.Contains("IsVisible=\"{Binding ShowsPullWarning}\"")
+                && add.Contains("IsVisible=\"{Binding ShowsMainNote}\"") && addVm.Contains("public bool AdvancedClosed => !advanced;")
+                && !addVm.Contains("advanced = true") && !home.Contains("InstalledOn("),
+                "Its Advanced, closed until opened: main and the pull requests (WIP ones marked), each with its warning.");
+        Require(home.Contains("NotesDefaultCommand = new Command(() => { if (TrackUpdateItem is { } d) ShowNotes(d); });")
+                && !home.Contains("is out on the {1} channel"),
+                "What's new is for the build that has the update, by its shown name.");
         // (what it says of their sizes: InstancesUseChecks)
         var disk = File.ReadAllText(Path.Combine(repo, "Core", "Disk.cs"));
         Require(home.Contains("public string Footer => Disk.InstancesUse(")
-                && disk.Contains("Tr.P(n, \"1 instance uses {1} in {2}.\", \"{0} instances use {1} in {2}.\"")
-                && disk.Contains("Tr.P(n, \"1 instance in {1}.\", \"{0} instances in {1}.\""),
-                "The footer counts instances, as the list's heading says.");
+                && disk.Contains("Tr.P(n, \"1 version uses {1} in {2}.\", \"{0} versions use {1} in {2}.\"")
+                && disk.Contains("Tr.P(n, \"1 version in {1}.\", \"{0} versions in {1}.\"")
+                && versions.Contains("Text=\"{Binding Footer}\""),
+                "The Versions page's footer counts versions.");
     }
 
     static void InstanceFolderChecks()
@@ -125,9 +149,9 @@ static partial class Program
         // ---- a new instance, through the path a build takes ----
 
         var home = new LauncherHome(Path.Combine(root, "home"));
-        var lin = new Toolchain("v3.3.0", Path.Combine(home.Toolchains, "v3.3.0"), ListKind.Linux, null);
-        string[] Out(string folder) => MakeGameCommand.For(lin, new BuildRequest(new BuildSource.Nup("/d/game.nup"), folder), p, home,
-                                                            "/L/Longshot.AppImage", _ => false).Arguments.ToArray();
+        var lin = new Toolchain("v3.3.0", Path.Combine(home.Toolchains, "v3.3.0"), LongshotBuilder.Name);
+        string[] Out(string folder) => new LongshotBuilder(lin, lin.BuilderExe, p, home, "/L/Longshot.AppImage", _ => null)
+            .Build(new BuildRequest(new BuildSource.Nup("/d/game.nup"), folder)).Command.Arguments.ToArray();
         bool OutIs(string folder) => Out(folder).SkipWhile(a => a != "--out").Skip(1).FirstOrDefault() == folder;
         const string n200 = "nightly-200-aaaaaaaa", n201 = "nightly-201-bbbbbbbb", n205 = "nightly-205-cccccccc", n199 = "nightly-199-dddddddd";
 
@@ -135,8 +159,8 @@ static partial class Program
         var registry = BuildRegistry.Load(listPath);
         var first = registry.FolderOf(null, builds, Versions.Nightly, n200, p);              // (the first nightly: Build)
         Require(first == Path.Combine(builds, "nightly", n200) && OutIs(first),
-                "A first nightly is made in Builds/nightly/<its version>, and make_game.py is given that folder as it is (--out).");
-        Game(first, n200);                                                                 // (make_game.py writes there: nx2/make_game.py out = --out)
+                "A first nightly is made in Builds/nightly/<its version>, and the builder is given that folder as it is (--out).");
+        Game(first, n200);                                                                 // (the builder writes there: --out)
         var one = registry.Add(first, n200, Versions.Nightly, name: n200, makeDefault: true);
 
         var second = registry.FolderOf(null, builds, Versions.Nightly, n201, p);             // (Build another version, the same track)
@@ -151,11 +175,11 @@ static partial class Program
                 "Another track's first build: Builds/stable/v3.0.1.");
         registry.Save();
 
-        // ---- an update: its folder renamed to the new version's before make_game.py starts ----
+        // ---- an update: its folder renamed to the new version's before the builder starts ----
 
         Require(registry.FolderOf(two, builds, Versions.Nightly, n201, p) == second, "A rebuild of the same version keeps its folder as it is.");
         var update = registry.FolderOf(two, builds, Versions.Nightly, n205, p);
-        Require(update == Path.Combine(builds, "nightly", n205) && OutIs(update), "An update's folder: its new version's name, make_game.py given that.");
+        Require(update == Path.Combine(builds, "nightly", n205) && OutIs(update), "An update's folder: its new version's name, the builder given that.");
         var rename = new InstanceFolders.Move(two, two.Folder, update);
         InstanceFolders.Rename(registry, rename, p, running: None);                         // (BuildStepViewModel.RenameFolder)
         Require(!Directory.Exists(second) && GameFolder.IsGameFolder(update, p) && HasThings(update) && two.Folder == update,
@@ -170,7 +194,7 @@ static partial class Program
         Require(down == Path.Combine(builds, "nightly", n199), "Going back: the older version's name.");
         var goBack = new InstanceFolders.Move(two, two.Folder, down);
         // (the game files picked in the folder being renamed, its own romfs and .longshot_exefs: they follow it. Before, the rename
-        // left make_game.py the old path, and it stopped: "does not hold the game's files")
+        // left the builder the old path, and it stopped: "does not hold the game's files")
         string In(string folder, string name) => Path.Combine(folder, name);
         var dump = Path.Combine(root, "dump");
         two.Romfs = In(update, "romfs");
@@ -190,7 +214,7 @@ static partial class Program
                 "The game files last picked (the next build's Last used) follow it too, once.");
         Require(picked.Follow(update, down) is { Source: BuildSource.Folders { Romfs: var r, Exefs: var x } } moved && moved.Path == down
                 && r == In(down, "romfs") && x == In(down, ".longshot_exefs") && picked.Follow(second, down) == picked,
-                "The build's own pick is read from the renamed folder (make_game.py --romfs, --exefs); one elsewhere as it was.");
+                "The build's own pick is read from the renamed folder (its dump folder); one elsewhere as it was.");
         Require(InstanceFolders.Follow(In(update + "-other", "romfs"), update, down) == In(update + "-other", "romfs")
                 && InstanceFolders.Follow(update, update, down) == down && InstanceFolders.Follow(null, update, down) == null,
                 "Only paths in the folder follow it (not a folder whose name starts the same); the folder itself does.");

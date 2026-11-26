@@ -33,8 +33,9 @@ public static class ShaderCaches
     /// Free room left beside the copy, for what the game adds to the caches as it plays
     public const long Margin = 1L << 30;
 
-    /// The free room a copy of bytes needs: the copy, then the build it is made before (Disk.BuildBytes), and the margin
-    public static long Room(long bytes) => bytes + Disk.BuildBytes + Margin;
+    /// The free room a copy of bytes needs: the copy, then the build it is made before (longshot-builder's, Disk.Needs), and the
+    /// margin
+    public static long Room(long bytes) => bytes + Disk.LongshotGameBytes + Disk.LongshotWorkBytes + Margin;
 
     // (Longshot's scripts/devtools/packs.py CACHES, which names them all for the same copy: tests/test_launcher_core.py --longshot)
     public static readonly IReadOnlyList<string> Names = new[]
@@ -73,23 +74,6 @@ public static class ShaderCaches
     // that does not finish never gives the old build that list for its own notes: Undo)
     const string Notes = "longshot_pipelines.bin";
 
-    // (Longshot's nx2/translator_files.py DIRS and FILES, below gpu/vk: tests/test_launcher_core.py --longshot)
-    public static readonly IReadOnlyList<string> TranslatorDirs = new[] { "eden", "sirit", "compat" };
-    public static readonly IReadOnlyList<string> TranslatorFiles = new[] { "vk_shader.cpp", "vk_bank.cpp", "vk_state.h" };
-    const string Recipe = "translator_files.py";
-
-    // (what compiles the translator, by the folder tools.lock unpacks it to (its dest): the records keep Shader::Info as laid
-    // out in memory, and the game's own translator_stamp only catches another C++ library on Windows (_LIBCPP_VERSION).
-    // Windows: llvm-mingw's clang and libc++, and cpm's Vulkan and SPIR-V headers (nx2/build.py header_package takes them
-    // from RX_CPM, which MakeGameCommand points at the tools' cpm). Linux: emsdk, the clang that builds it, the sysroot's
-    // libstdc++, and cpm's headers. tests/test_launcher_core.py --longshot checks they are tools.lock dests of their system,
-    // each system's cpm among them.
-    // Not nx2/build.py's flags for these files (target(), CPU, -std, -O2, the include order): they are made at run time from
-    // the PC, the environment and the paths, and hashing all of build.py would make nearly every two versions differ. A
-    // change to them alone is not caught here, nor by the stamp the game itself checks: Longshot's to name, should one
-    // matter, as it names the stamped files in translator_files.py)
-    public static readonly IReadOnlyList<string> WindowsCompiler = new[] { "LongshotBuilder/tools/llvm-mingw", "LongshotBuilder/tools/cpm" };
-    public static readonly IReadOnlyList<string> LinuxCompiler = new[] { "usr/lib/longshot/emsdk", "usr/lib/longshot/sysroot", "usr/share/longshot/cpm" };
     const string Part = ".part";
 
     public static bool IsCache(string name) => Names.Contains(name) || IsPlayFile(name);
@@ -101,71 +85,10 @@ public static class ShaderCaches
         return n.Length > 0 && n.All(char.IsAsciiDigit);
     }
 
-    /// What a version's tools translate shaders with: the stamp nx2/translator_files.py makes of the translator's sources below
-    /// tools/gpu/vk (its 16 hex digits, as nx2/build.py compiles them into the renderer), then a hash of that file itself, so that
-    /// two versions whose recipes differ never compare equal by this one. Null when the tools have no such file or sources
-    public static string? Translator(string toolsRoot)
-    {
-        try
-        {
-            var vk = Path.Combine(toolsRoot, "gpu", "vk");
-            var recipe = Path.Combine(toolsRoot, "nx2", Recipe);
-            if (!File.Exists(recipe)) return null;
-            // (os.walk's files sorted as Python sorts their paths, by code point with the system's separator, then the three
-            // files in their own order)
-            var found = new List<string>();
-            foreach (var top in TranslatorDirs)
-            {
-                var dir = Path.Combine(vk, top);
-                if (Directory.Exists(dir)) found.AddRange(Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories));
-            }
-            found.Sort(StringComparer.Ordinal);
-            found.AddRange(TranslatorFiles.Select(n => Path.Combine(vk, n)));
-            using var sha = IncrementalHash.CreateHash(HashAlgorithmName.SHA1);
-            foreach (var f in found)
-            {
-                sha.AppendData(Encoding.UTF8.GetBytes(Path.GetRelativePath(vk, f).Replace('\\', '/')));
-                sha.AppendData(UnixLines(File.ReadAllBytes(f)));
-            }
-            var stamp = Convert.ToHexStringLower(sha.GetHashAndReset())[..16];
-            sha.AppendData(UnixLines(File.ReadAllBytes(recipe)));
-            return stamp + "-" + Convert.ToHexStringLower(sha.GetHashAndReset())[..16];
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException) { return null; }
-    }
-
-    /// What a version's tools compile the translator with: a hash of the SHA-256 of each of its compiler's tools.lock parts
-    /// (WindowsCompiler for the Windows builder's tools, LinuxCompiler for the Linux one's), as the version's record names
-    /// them (Toolchains.PartShas). Null when the record cannot be read or lacks one of them (a Linux builder that carried its
-    /// tools itself): such a version counts as another
-    public static string? Compiler(Toolchain tools)
-    {
-        if (Toolchains.PartShas(tools.Folder) is not { } shas) return null;
-        var text = new StringBuilder();
-        foreach (var part in tools.Kind == ListKind.Setup ? WindowsCompiler : LinuxCompiler)
-        {
-            if (!shas.TryGetValue(part, out var sha)) return null;
-            text.Append(part).Append(' ').Append(sha).Append('\n');
-        }
-        return Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(text.ToString())))[..16];
-    }
-
-    /// What two versions must share for one's caches to serve the other: the translator (Translator) and what compiles it
-    /// (Compiler). Null when either cannot be read
+    /// What two versions must share for one's caches to serve the other: the shader translator and what compiles it, as the
+    /// stamps of their release's manifest say (Toolchains.BuilderStamp). Null when either cannot be read
     public static string? Stamp(Toolchain tools) =>
-        Translator(tools.ToolsRoot) is { } translator && Compiler(tools) is { } compiler ? translator + "-" + compiler : null;
-
-    /// Windows line ends as Unix ones, as the stamp reads its files (bytes.replace(b"\r\n", b"\n"))
-    static byte[] UnixLines(byte[] bytes)
-    {
-        var at = 0;
-        for (var i = 0; i < bytes.Length; i++)
-        {
-            if (bytes[i] == (byte)'\r' && i + 1 < bytes.Length && bytes[i + 1] == (byte)'\n') continue;
-            bytes[at++] = bytes[i];
-        }
-        return at == bytes.Length ? bytes : bytes[..at];
-    }
+        Toolchains.BuilderStamp(tools.Folder) is { } stamps ? "longshot-builder-" + stamps : null;
 
     /// A game folder's caches: its cache/ files the game reads back, with something in them; never a link
     static List<FileInfo> Caches(string game)
@@ -200,15 +123,24 @@ public static class ShaderCaches
     /// The bytes Clearable would let go in game
     public static long ClearableBytes(string game, bool notes = false) => Clearable(game, notes).Sum(f => f.Length);
 
-    /// Whether Longshot runs: it holds its caches and writes them as it plays
-    static bool LongshotRunning() => Saves.Running(Platforms.Current).Any(n => n.Contains(Saves.Longshot.Display, StringComparison.Ordinal));
+    /// Whether Longshot runs: it holds its caches and writes them as it plays; or its builder builds one of folders, whose
+    /// shader preparation (the built game, also named longshot) writes the store and the game folder's caches (Busy)
+    static bool LongshotRunning(IEnumerable<string>? folders) => Busy(Platforms.Current, Saves.Candidates(Platforms.Current), folders);
+
+    /// Busy, from the processes' names (Saves.Candidates): Longshot's game in any case (Windows' Longshot.exe, Linux's longshot,
+    /// an AppImage named for it: Saves.RunningFrom), or its builder building one of folders (Saves.BuilderRunning: a check or a
+    /// perf-report is not a build). folders null: any longshot-builder running counts, as which folder it writes can't be told.
+    /// building: the tests' stand-in for the folders' locks
+    public static bool Busy(Platform platform, IReadOnlyList<string> candidates, IEnumerable<string>? folders = null, Func<string, bool>? building = null) =>
+        Saves.RunningFrom(platform, candidates).Any(n => n.Contains(Saves.Longshot.Display, StringComparison.OrdinalIgnoreCase))
+        || (folders == null ? Saves.BuilderAmong(candidates) : Saves.BuilderRunning(platform, folders, candidates: candidates, building: building));
 
     /// game's shader caches deleted (Clearable): the game prepares them again when it next starts. Null, and nothing deleted,
     /// while Longshot runs (running: the tests' stand-in); else the bytes freed. A file that cannot be deleted is the caller's
     /// exception, the ones before it gone
     public static long? Clear(string game, bool notes = false, Func<bool>? running = null)
     {
-        if ((running ?? LongshotRunning)())
+        if ((running ?? (() => LongshotRunning([game])))())
         {
             LauncherLog.Add($"shader caches of {game} not cleared: Longshot is running");
             return null;
@@ -259,10 +191,11 @@ public static class ShaderCaches
     public static long StoreBytes(string? store) => StoreFiles(store).Sum(f => f.Length);
 
     /// The store's files deleted (StoreFiles), then its folder if that leaves it empty. Null, and nothing deleted, while Longshot
-    /// runs (running: the tests' stand-in); else the bytes freed. A file that cannot be deleted is the caller's exception
-    public static long? ClearStore(string store, Func<bool>? running = null)
+    /// runs, or a build of one of folders (every version's game folder: none, any longshot-builder running counts; running: the
+    /// tests' stand-in); else the bytes freed. A file that cannot be deleted is the caller's exception
+    public static long? ClearStore(string store, Func<bool>? running = null, IEnumerable<string>? folders = null)
     {
-        if ((running ?? LongshotRunning)())
+        if ((running ?? (() => LongshotRunning(folders)))())
         {
             LauncherLog.Add($"shader store {store} not cleared: Longshot is running");
             return null;
@@ -320,7 +253,7 @@ public static class ShaderCaches
             if (!pipelines) return new CachesResult(sameTranslator ? CachesKept.NoCaches : CachesKept.OtherTranslator);
             files = files.Where(f => IsPipelineSide(f.Name)).ToList();
         }
-        if ((running ?? LongshotRunning)()) return new CachesResult(CachesKept.Running);
+        if ((running ?? (() => LongshotRunning([from, to])))()) return new CachesResult(CachesKept.Running);
         var bytes = files.Sum(f => f.Length);
         var target = Path.Combine(to, CacheDir);
         string PartOf(FileInfo f) => Path.Combine(target, f.Name + Part);

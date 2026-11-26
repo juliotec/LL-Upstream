@@ -169,10 +169,15 @@ static partial class Program
                 && view.Contains("Text=\"{Binding UpdateLauncherCommand.Status}\"") && view.Contains("Value=\"{Binding UpdateLauncherCommand.Progress}\"")
                 && view.Contains("Command=\"{Binding CancelLauncherUpdateCommand}\""),
                 "The launcher's banner shows its update running: the button's spinner, each step, the download's bar, Cancel.");
-        Require(view.Contains("Text=\"{Binding CheckCommand.Status}\""), "The home shows the check running.");
+        // (the update check's words: on the first build's card, Home's with no version and the Versions page's empty state, and
+        // under the Versions page's list)
+        var versions = File.ReadAllText(Path.Combine(repo, "App", "Views", "VersionsView.axaml"));
+        var buildCard = File.ReadAllText(Path.Combine(repo, "App", "Views", "BuildCardView.axaml"));
+        Require(buildCard.Contains("Text=\"{Binding CheckCommand.Status}\"") && versions.Contains("Text=\"{Binding CheckCommand.Status}\""),
+                "The first build's card and the Versions page show the check running.");
         Require(Regex.IsMatch(home, @"CheckForUpdatesCommand = new Command\([\s\S]*?_ = CheckReleasesAsync\(\);[\s\S]*?\}, \(\) => CanStartBuild\);")
                 && Regex.IsMatch(home, @"void BusyChanged\(\)\s*\{[^}]*CheckForUpdatesCommand\.Changed\(\);")
-                && view.Contains("Command=\"{Binding CheckForUpdatesCommand}\""),
-                "Check for updates runs the check, and is off while the check runs and while the launcher updates itself.");
+                && versions.Contains("Command=\"{Binding CheckForUpdatesCommand}\""),
+                "Check for updates (the Versions page's) runs the check, and is off while the check runs and while the launcher updates itself.");
     }
 }

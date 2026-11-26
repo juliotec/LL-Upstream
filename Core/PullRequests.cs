@@ -33,7 +33,7 @@ public sealed record PullRequest(int Number, string Title, string Author, string
 /// answer (GET /api/v1/public/pulls), which it serves from its own copy of git.magicbean.dev's list (a minute old at most) and
 /// its database, so an update check costs git.magicbean.dev nothing. Beanstalk also says who the BigBeans are and which heads they
 /// approved, which git.magicbean.dev tells no one without signing in. A pull request's build, pr-&lt;number&gt;-&lt;commit&gt;, is made on
-/// this PC from the source of its head commit (PullRequestSource)
+/// this PC from the source of its head commit, by longshot-builder's from-source (SourceBuilds)
 public static class PullRequests
 {
     public const string Beanstalk = "https://beanstalk.magicbean.dev";
@@ -68,17 +68,16 @@ public static class PullRequests
     }
 
     /// Work in progress, as Longshot's CI reads it (scripts/check_pr_description.py's is_draft): Forgejo's draft mark, or a title
-    /// that starts with "WIP:" or "[WIP]" in any case. None is built until it is marked ready
+    /// that starts with "WIP:" or "[WIP]" in any case. Listed and built as any other, marked WIP, after the same warnings
     public static bool IsDraft(string? title, bool draft = false)
     {
         var t = (title ?? "").TrimStart();
         return draft || t.StartsWith("WIP:", StringComparison.OrdinalIgnoreCase) || t.StartsWith("[WIP]", StringComparison.OrdinalIgnoreCase);
     }
 
-    /// Why this PC cannot build it (null: it can): a draft, or for the other system
+    /// Why this PC cannot build it (null: it can): for the other system. A draft (WIP) can be built: the warnings say what it is
     public static string? Problem(PullRequest pr, Platform platform) =>
-        pr.Draft ? Tr.F("#{0} is a draft: it can be built once its author marks it ready.", pr.Number)
-        : !pr.For(platform) ? platform == Platform.Windows
+        !pr.For(platform) ? platform == Platform.Windows
             ? Tr.F("#{0} is for Linux only.", pr.Number)
             : Tr.F("#{0} is for Windows only.", pr.Number)
         : null;

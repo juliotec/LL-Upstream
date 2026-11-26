@@ -90,5 +90,5 @@ next patch), and git-cliff turns the titles into the release notes. The launcher
 ## Licensing
 
 The launcher is free software under the [GNU General Public License, version 3 or later](LICENSE), as Longshot is. By
-submitting a change you license it under those terms. The Inter font (`App/Assets/Fonts`) keeps its own licence,
-`Inter-LICENSE.txt`.
+submitting a change you license it under those terms. The Inter and Noto Sans fonts (`App/Assets/Fonts`) keep their own
+licences, `Inter-LICENSE.txt` and `NotoSans-OFL.txt`.

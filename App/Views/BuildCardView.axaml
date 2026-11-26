@@ -1,0 +1,88 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:LongshotLauncher.ViewModels"
+             xmlns:c="using:LongshotLauncher.Controls"
+             x:Class="LongshotLauncher.Views.BuildCardView"
+             x:DataType="vm:HomeViewModel">
+  <!-- The first build's card, Home's with no version yet and the Versions page's empty state: Home's Play card (the brand's
+       cream sticker), its title and line, then the build's big action and what it makes, needs and takes -->
+  <Border Classes="playcard">
+    <StackPanel Spacing="14">
+      <StackPanel Spacing="2">
+        <TextBlock Classes="tilebig" FontSize="24" Text="{c:T 'Build your game'}"/>
+        <TextBlock Classes="note" FontSize="14" TextWrapping="Wrap"
+                   Text="{c:T 'Longshot makes a PC version of your own copy of the game. Then you play it here; your saves go with every version.'}"/>
+      </StackPanel>
+      <Border>
+        <Grid ColumnDefinitions="Auto,*,*,*" ColumnSpacing="18">
+          <StackPanel Spacing="8" VerticalAlignment="Top">
+            <Button Classes="go bigplay" Command="{Binding BuildCommand}" c:Pad.First="True">
+              <StackPanel Orientation="Horizontal" Spacing="10">
+                <c:Icon Kind="download" Width="18" Height="18" Foreground="{StaticResource GoInk}"/>
+                <TextBlock Text="{c:T 'Build'}" Foreground="{StaticResource GoInk}"/>
+              </StackPanel>
+            </Button>
+            <!-- built already, by another launcher (installed or portable) or in a folder moved since: listed where it is -->
+            <Button Classes="link soft smaller" Command="{Binding AddFolderCommand}" HorizontalAlignment="Center">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <c:Icon Kind="folder" Width="13" Height="13"/>
+                <TextBlock Text="{c:T 'Built it already? Add its folder…'}"/>
+              </StackPanel>
+            </Button>
+          </StackPanel>
+          <!-- the version a build makes, its channel and Change -->
+          <StackPanel Grid.Column="1">
+            <TextBlock Classes="pickercap" Text="{c:T 'Version'}"/>
+            <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="8" IsVisible="{Binding KnowsNewest}">
+              <TextBlock FontSize="20" FontWeight="Bold" Classes="tnum" Text="{Binding NewestDefaultText}" VerticalAlignment="Center"/>
+              <Border Grid.Column="1" Classes="tag" Classes.nightly="{Binding DefaultIsNightly}" VerticalAlignment="Center">
+                <TextBlock Text="{Binding DefaultChannel}"/>
+              </Border>
+            </Grid>
+            <Button Classes="link smaller" Content="{c:T 'Change'}" Command="{Binding ChannelCommand}" HorizontalAlignment="Left" Margin="0,6,0,0"
+                    IsVisible="{Binding KnowsNewest}"/>
+            <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding Checking}">
+              <c:Spinner VerticalAlignment="Center"/>
+              <TextBlock Classes="note" Text="{c:T 'Asking git.magicbean.dev for the newest version…'}" TextWrapping="Wrap"/>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,8,0,0" IsVisible="{Binding ShowCheckLine}">
+              <c:Spinner VerticalAlignment="Center"/>
+              <TextBlock Classes="note" Text="{Binding CheckCommand.Status}"/>
+            </StackPanel>
+            <StackPanel Spacing="6" IsVisible="{Binding CheckFailed}">
+              <TextBlock Classes="note" Text="{Binding CheckFailedText}" TextWrapping="Wrap"/>
+              <!-- why: no address, no connection, a timeout, an HTTP error, or a release refused -->
+              <TextBlock Classes="faint" TextWrapping="Wrap" Text="{Binding CheckWhy}" IsVisible="{Binding HasCheckWhy}"/>
+              <WrapPanel ItemSpacing="16">
+                <Button Classes="link smaller" Content="{c:T 'Try again'}" Command="{Binding RetryCheckCommand}"/>
+                <Button Classes="link smaller" Content="{c:T 'Change'}" Command="{Binding ChannelCommand}" IsVisible="{Binding ChannelEmpty}"/>
+                <Button Classes="link soft smaller" Content="{c:T 'Copy for a bug report'}" Command="{Binding CopyCheckReportCommand}" IsVisible="{Binding ShowCheckReport}"/>
+              </WrapPanel>
+            </StackPanel>
+          </StackPanel>
+          <!-- what a build needs: the player's own copy, and the time -->
+          <StackPanel Grid.Column="2">
+            <TextBlock Classes="pickercap" Text="{c:T 'What you need'}"/>
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+              <Border Classes="need"><c:Icon Kind="disk" Width="14" Height="14" Foreground="{StaticResource Deep}"/></Border>
+              <StackPanel Grid.Column="1" Spacing="2">
+                <TextBlock Text="{c:T 'Your own copy of the game'}" FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                <TextBlock Classes="faint" TextWrapping="Wrap" Text="{c:T 'A .nup or .nx file, or its romfs and exefs folders.'}"/>
+              </StackPanel>
+            </Grid>
+          </StackPanel>
+          <StackPanel Grid.Column="3">
+            <TextBlock Classes="pickercap" Text="{c:T 'How long'}"/>
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+              <Border Classes="need"><c:Icon Kind="clock" Width="14" Height="14" Foreground="{StaticResource Deep}"/></Border>
+              <StackPanel Grid.Column="1" Spacing="2">
+                <TextBlock Text="{c:T '15 to 30 minutes'}" FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                <TextBlock Classes="faint" TextWrapping="Wrap" Text="{c:T 'Once per version. You can keep using your PC.'}"/>
+              </StackPanel>
+            </Grid>
+          </StackPanel>
+        </Grid>
+      </Border>
+    </StackPanel>
+  </Border>
+</UserControl>

@@ -15,15 +15,13 @@ namespace LongshotLauncher.Core;
 ///   time, and the build log's last LogLines lines, with no user name (Privacy.Scrub: the home folder as %USERPROFILE% or ~). No game file, no
 ///   save.
 /// - With Settings' "Send performance statistics" ticked (the player's yes to statistics, off by default), every build's end on
-///   its own (Auto): completed, failed, stopped by the player (cancelled) or by a signal (terminated), with the same fields but
-///   no log; a failed or terminated one says why it stopped and its last error line, with no user name and every game file's
-///   name taken out (Diagnostic), so the dashboards tell its failures apart. The server only counts those, for Prometheus: no
-///   comment.
+///   its own (Auto), with the same fields but no log. The builder sends those itself: play is given --send-build-statistics
+///   (BuilderVersions.PlayArguments). The launcher sends one (Auto) only as the fallback for a build whose builder process died
+///   without an error event (a crash, a signal: terminated) or that the launcher's own SIGTERM stopped: it says why it stopped
+///   and its last error line, with no user name and every game file's name taken out (Diagnostic), so the dashboards tell its
+///   failures apart. The server only counts those, for Prometheus: no comment.
 ///
 /// Every report names its client (Client), apart from the launcher's version.
-///
-/// The launcher sends it itself, not the version's tools as for a crash or the performance statistics: a build that failed may
-/// have failed in those tools.
 public static partial class BuildReports
 {
     public const string Address = "https://data-services.magicbean.dev/telemetry/build";

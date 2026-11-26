@@ -16,11 +16,11 @@
       <StackPanel>
         <TextBlock Classes="modaltitle" Text="{c:T 'Import graphics and controls from Hookshot'}"/>
         <TextBlock Classes="sub" Text="{c:T 'Choose one Longshot version to receive Hookshot\'s compatible settings.'}"/>
-        <TextBlock Classes="label" Text="{c:T 'FROM HOOKSHOT'}" Margin="0,16,0,4"/>
+        <TextBlock Classes="label" Text="{c:T 'From Hookshot'}" Margin="0,16,0,4"/>
         <TextBlock Classes="mono path" Text="{Binding SourcePath}" IsVisible="{Binding HasSource}" TextWrapping="Wrap"/>
         <TextBlock Classes="hint" Text="{Binding SourceHint}" TextWrapping="Wrap"/>
         <Button Content="{c:T 'Choose Hookshot game folder…'}" Command="{Binding PickFolderCommand}" HorizontalAlignment="Left" Margin="0,8,0,0"/>
-        <TextBlock Classes="label" Text="{c:T 'TO LONGSHOT'}" Margin="0,16,0,4"/>
+        <TextBlock Classes="label" Text="{c:T 'To Longshot'}" Margin="0,16,0,4"/>
         <TextBlock Classes="hint" IsVisible="{Binding NoTargets}" Text="{c:T 'Build a Longshot version first, then import its graphics and controls. You can import saves before building.'}" TextWrapping="Wrap"/>
         <TextBlock Classes="hint" IsVisible="{Binding NeedsTarget}" Text="{c:T 'Choose the Longshot version whose settings will be replaced.'}" TextWrapping="Wrap"/>
         <ComboBox Classes="dd" Width="NaN" HorizontalAlignment="Stretch" ItemsSource="{Binding Targets}" SelectedItem="{Binding Target}" IsVisible="{Binding HasTargets}">
@@ -40,7 +40,7 @@
             <Border Classes="boxicon">
               <c:Icon Kind="alert" Width="13" Height="13" Foreground="{StaticResource Warn}"/>
             </Border>
-            <StackPanel Grid.Column="1" Spacing="6">
+            <StackPanel Grid.Column="1" Spacing="6" VerticalAlignment="Center">
               <TextBlock Text="{c:T 'Hookshot\'s graphics and controls replace the same settings in this version\'s longshot_options.ini; its other settings stay as they are. The game language replaces this version\'s. Hookshot keeps its originals. Saves are imported separately.'}" TextWrapping="Wrap"/>
               <TextBlock Text="{Binding LanguageText}" IsVisible="{Binding HasLanguageText}" TextWrapping="Wrap"/>
               <TextBlock Text="{Binding BackupText}" TextWrapping="Wrap"/>
@@ -53,7 +53,7 @@
             <Border Classes="boxicon">
               <c:Icon Kind="alert" Width="13" Height="13" Foreground="{StaticResource Warn}"/>
             </Border>
-            <StackPanel Grid.Column="1" Spacing="4">
+            <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
               <TextBlock Text="{Binding Problem}" TextWrapping="Wrap"/>
               <Button Classes="link soft" HorizontalAlignment="Left" Content="{c:T 'Copy for a bug report'}" Command="{Binding CopyCommand}"/>
             </StackPanel>

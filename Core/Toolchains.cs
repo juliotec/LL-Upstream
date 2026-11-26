@@ -1,86 +1,143 @@
-using System.IO.Compression;
-using System.Security.Cryptography;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 
 namespace LongshotLauncher.Core;
 
-/// How far an install is: Fraction 0..1 of the bytes of all its parts (a part kept from another version counts as done)
-public sealed record ToolchainProgress(double Fraction, int Part, int Parts, string Text);
-
-/// One installed version's build tools: nx2/make_game.py under ToolsRoot, and the Python that runs it
-public sealed record Toolchain(string Tag, string Folder, ListKind Kind, string? Run)
+/// One installed version's builder: Run, its program's name in Folder (a version folder's Longshot.exe or Longshot.x86_64)
+public sealed record Toolchain(string Tag, string Folder, string? Run)
 {
-    /// Windows: the setup's LongshotBuilder/tools beside its builder; Linux: the AppImage's usr/share/longshot
-    public string ToolsRoot => Kind == ListKind.Setup
-        ? Path.Combine(Folder, Path.GetDirectoryName(Run ?? "LongshotBuilder/x")!.Replace('/', Path.DirectorySeparatorChar), "tools")
-        : Path.Combine(Folder, "usr", "share", "longshot");
-
-    /// Linux: the AppImage's usr/lib/longshot (the prebuilt Vulkan back end, and beside it tools.lock's emsdk, sysroot, FFmpeg and
-    /// SDL2, unpacked there by InstallAppImageAsync; an older AppImage carries them itself. builder/linux/AppRun)
-    public string LibRoot => Path.Combine(Folder, "usr", "lib", "longshot");
-
-    public string Python => Kind == ListKind.Setup
-        ? Path.Combine(ToolsRoot, "python", "python.exe")
-        : Path.Combine(Folder, "usr", "python", "bin", "python3");
-
-    public string MakeGame => Path.Combine(ToolsRoot, "nx2", "make_game.py");
+    /// The builder's program
+    public string BuilderExe => Path.Combine(Folder, Run ?? LongshotBuilder.Name);
 }
 
-/// The build tools of each version the launcher builds with, in &lt;home&gt;/toolchains/&lt;tag&gt;/, from the version's parts (its
-/// release's builder and the tools of its tools.lock).
-/// Each part is checked for its size and SHA-256 before it is unpacked; a part another installed version already has (the same
-/// SHA-256, unpacked the same way) is linked or copied from it instead of downloaded. A version is unpacked into &lt;tag&gt;.part and
-/// renamed once complete, so a failed or cancelled install leaves nothing that looks installed.
+/// The builder of each version the launcher builds with: the program in its version folder, &lt;launcher data&gt;/versions/&lt;tag&gt;/
+/// (BuilderVersions), put there by a builder's own fetch (FetchAsync: `longshot-builder fetch &lt;tag&gt; --out &lt;version folder&gt;
+/// --from &lt;every installed version folder&gt; --output json`, Longshot's build.md "Fetch a version"), which checks the release's
+/// signature, applies a delta or a chain of them from a kept version, or downloads the full file, and writes its record,
+/// longshot_release.json, beside it. A version built from source has source.json instead (SourceBuilds). The launcher keeps no
+/// manifest, delta or chain of its own: only the first builder on a PC that has none is downloaded by it (BootstrapAsync), whole
+/// and checked against the release's signed manifest, and placed as fetch places it. An older launcher kept its builders in
+/// &lt;launcher data&gt;/toolchains/&lt;tag&gt;/ (Legacy): read as a delta's base and as the builder of a version folder made from them,
+/// never installed into any more, and pruned once no row uses them (Prune)
 public sealed class Toolchains
 {
-    public const string RecordName = "toolchain.json";
-    public const string SysrootPart = "usr/lib/longshot/sysroot";   // (its rooted links are rebased inside it)
-    const string Downloads = ".downloads";
+    /// The record fetch writes beside the program (Longshot's builder/crates/release install.rs RECORD)
+    public const string ReleaseRecord = "longshot_release.json";
+    /// The record from-source writes beside the program (SourceBuilds)
+    public const string SourceRecord = "source.json";
+    /// An older launcher's record of a builder in toolchains/&lt;tag&gt;/ (fetch reads it as a delta's base too)
+    public const string LegacyRecord = "toolchain.json";
+    /// The kind an older launcher's record names for longshot-builder's one file (its make_game.py tools' are Setup or Linux)
+    public const string LegacyKind = "LongshotBuild";
+    /// Where fetch stages what it makes, inside the version folder (install.rs STAGING; deleted whatever happens)
+    public const string Staging = ".fetch";
 
     readonly string root;
-    readonly IFetcher fetcher;
+    readonly string? legacy;
+    readonly Platform platform;
 
-    public Toolchains(string root, IFetcher fetcher)
+    /// root: the version folders' (BuilderVersions.Root); legacy: an older launcher's toolchains folder (LauncherHome.Toolchains)
+    public Toolchains(string root, Platform platform, string? legacy = null)
     {
         this.root = root;
-        this.fetcher = fetcher;
+        this.platform = platform;
+        this.legacy = legacy;
     }
 
     public string Root => root;
-    /// What the tools are downloaded with (a pull request's source too: PullRequestSource)
-    public IFetcher Fetcher => fetcher;
+    /// An older launcher's toolchains folder; null when not given
+    public string? LegacyRoot => legacy;
+    public Platform Platform => platform;
 
     public string PathOf(string tag) =>
         Versions.IsTagName(tag) ? Path.Combine(root, tag) : throw new ArgumentException("Not a version name: " + tag, nameof(tag));
 
+    /// An installed version's builder: its version folder's program, there, with a record that names this version (fetch's or
+    /// from-source's). Null otherwise: not installed, or taken (an antivirus's quarantine), so the next build fetches it again
     public Toolchain? Find(string tag)
     {
         if (!Versions.IsTagName(tag)) return null;
-        var record = Read(Path.Combine(root, tag));
-        return record == null ? null : new Toolchain(tag, Path.Combine(root, tag), record.Kind, record.Run);
+        var folder = Path.Combine(root, tag);
+        var exe = BuilderVersions.ExeName(platform);
+        return File.Exists(Path.Combine(folder, exe)) && RecordedVersion(folder) == tag ? new Toolchain(tag, folder, exe) : null;
     }
 
+    /// Whether a version's builder is installed (Find)
     public bool IsInstalled(string tag) => Find(tag) != null;
 
+    /// The versions installed: their version folders holding a builder whose record names them
     public IReadOnlyList<string> Installed()
     {
         if (!Directory.Exists(root)) return Array.Empty<string>();
         return Directory.EnumerateDirectories(root).Select(Path.GetFileName).OfType<string>()
-            .Where(n => Versions.IsTagName(n) && !n.EndsWith(".part", StringComparison.Ordinal) && Read(Path.Combine(root, n)) != null)
+            .Where(n => Versions.IsTagName(n) && Find(n) != null)
             .OrderBy(n => n, StringComparer.Ordinal).ToList();
     }
 
-    /// Every version folder (and leftover staging or download) that keep does not name; the names removed
+    /// The version a version folder's record names: fetch's longshot_release.json, else from-source's source.json ("version");
+    /// null for neither
+    public static string? RecordedVersion(string folder) =>
+        Field(Path.Combine(folder, ReleaseRecord), "version") ?? Field(Path.Combine(folder, SourceRecord), "version");
+
+    /// A string at the top of a record; null when the file is not there or not a JSON object with it
+    static string? Field(string path, string name)
+    {
+        try
+        {
+            if (!File.Exists(path)) return null;
+            using var doc = JsonDocument.Parse(File.ReadAllBytes(path));
+            return doc.RootElement.ValueKind == JsonValueKind.Object ? Str(doc.RootElement, name) : null;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or JsonException) { return null; }
+    }
+
+    /// An older launcher's builder of tag (toolchains/&lt;tag&gt;/, its record of longshot-builder's kind and its file there); null
+    /// when there is none. Read only: the builder of a version folder made from its row (LauncherService), and a delta's base
+    public Toolchain? Legacy(string tag)
+    {
+        if (legacy == null || !Versions.IsTagName(tag)) return null;
+        var folder = Path.Combine(legacy, tag);
+        var record = Path.Combine(folder, LegacyRecord);
+        if (Field(record, "kind") != LegacyKind || Field(record, "run") is not { Length: > 0 } run || run != Path.GetFileName(run)
+            || !File.Exists(Path.Combine(folder, run)))
+            return null;
+        return new Toolchain(tag, folder, run);
+    }
+
+    /// The folders a fetch may take a delta's base from (its --from): every version folder with a builder in it, whatever its
+    /// record (fetch hashes a program with none), and an older launcher's toolchains
+    public IReadOnlyList<string> Bases()
+    {
+        var bases = new List<string>();
+        if (Directory.Exists(root))
+            bases.AddRange(Directory.EnumerateDirectories(root)
+                                    .Where(d => Versions.IsTagName(Path.GetFileName(d)) && File.Exists(BuilderVersions.ExeOf(d, platform))));
+        if (legacy != null && Directory.Exists(legacy))
+            bases.AddRange(Directory.EnumerateDirectories(legacy).Where(d => Legacy(Path.GetFileName(d)) != null));
+        return bases.OrderBy(d => d, StringComparer.Ordinal).ToList();
+    }
+
+    /// The builder that runs a fetch: the newest installed version's (by Versions' order, then the newest program), else an older
+    /// launcher's. Null on a PC with none (BootstrapAsync)
+    public Toolchain? Fetcher()
+    {
+        var newest = Comparer<string>.Create((a, b) => Versions.Newer(a, b) ? -1 : Versions.Newer(b, a) ? 1 : 0);
+        IEnumerable<Toolchain> mine = Installed().Select(t => Find(t)).OfType<Toolchain>();
+        if (!mine.Any() && legacy != null && Directory.Exists(legacy))
+            mine = Directory.EnumerateDirectories(legacy).Select(d => Legacy(Path.GetFileName(d))).OfType<Toolchain>();
+        return mine.OrderBy(t => t.Tag, newest).ThenByDescending(t => File.GetLastWriteTimeUtc(t.BuilderExe)).FirstOrDefault();
+    }
+
+    /// An older launcher's toolchains that keep does not name, deleted (with its staging and downloads); the names removed. The
+    /// version folders are never pruned here: BuilderVersions.Prunable
     public IReadOnlyList<string> Prune(IEnumerable<string> keep)
     {
         var kept = new HashSet<string>(keep, StringComparer.Ordinal);
         var removed = new List<string>();
-        if (!Directory.Exists(root)) return removed;
-        foreach (var dir in Directory.EnumerateDirectories(root))
+        if (legacy == null || !Directory.Exists(legacy)) return removed;
+        foreach (var dir in Directory.EnumerateDirectories(legacy))
         {
             var name = Path.GetFileName(dir);
-            var stale = name == Downloads || name.EndsWith(".part", StringComparison.Ordinal);
+            var stale = name == ".downloads" || name.EndsWith(".part", StringComparison.Ordinal);
             if (!stale && (!Versions.IsTagName(name) || kept.Contains(name))) continue;
             DeleteTree(dir);
             removed.Add(name);
@@ -88,596 +145,127 @@ public sealed class Toolchains
         return removed;
     }
 
-    public async Task<Toolchain> InstallAsync(PartsList list, Action<ToolchainProgress>? progress = null, CancellationToken cancel = default)
+    /// A version's builder installed into its version folder by a builder's own fetch: progress as it says it (fetch_progress),
+    /// its log lines (log). On a PC with no builder at all, or whose builder has no fetch (an older one: a command line it does
+    /// not take), BootstrapAsync. Throws InvalidDataException with the builder's text when it stopped (its error event), and
+    /// OperationCanceledException when cancelled (the process ended: the next fetch clears what it left)
+    public Task<Toolchain> FetchAsync(Releases releases, string tag, Action<ToolsDownloadProgress>? progress = null, Action<string>? log = null,
+                                      CancellationToken cancel = default, Func<string, string?>? getenv = null) =>
+        FetchAsync(c => releases.VersionAsync(tag, c), releases.Fetcher, tag, progress, log, cancel, getenv);
+
+    /// FetchAsync with the release read by release (its files checked against its signed SHA256SUMS), downloaded by fetcher
+    public async Task<Toolchain> FetchAsync(Func<CancellationToken, Task<ReleaseInfo>> release, IFetcher fetcher, string tag,
+                                            Action<ToolsDownloadProgress>? progress = null, Action<string>? log = null,
+                                            CancellationToken cancel = default, Func<string, string?>? getenv = null)
     {
-        var dest = PathOf(list.Tag);
-        var staging = dest + ".part";
-        Directory.CreateDirectory(root);
-        if (new DirectoryInfo(staging).LinkTarget != null) throw new IOException("The tools' staging folder is a symbolic link: " + staging);
-        if (Directory.Exists(staging)) DeleteTree(staging);
+        if (Fetcher() is { } runner)
+        {
+            if (await RunFetchAsync(runner, tag, progress, log, cancel, getenv).ConfigureAwait(false) is { } fetched) return fetched;
+            log?.Invoke($"longshot-builder {tag}: {runner.Tag}'s builder has no fetch, or does not start: downloaded by the launcher");
+        }
+        return await BootstrapAsync(await release(cancel).ConfigureAwait(false), fetcher, progress, log, cancel).ConfigureAwait(false);
+    }
+
+    /// The fetch's command line: fetch &lt;tag&gt; --out &lt;its version folder&gt; --from &lt;each base&gt; --output json
+    public IReadOnlyList<string> FetchArguments(string tag)
+    {
+        var args = new List<string> { "fetch", tag, "--out", PathOf(tag) };
+        foreach (var b in Bases().Where(b => !BuildRegistry.SameFolder(b, PathOf(tag)))) args.AddRange(["--from", b]);
+        args.AddRange(LongshotBuilder.OutputJson);
+        return args;
+    }
+
+    /// fetch run by runner: the version installed, or null when the runner does not take the command (exit status 2 with no
+    /// error event: a builder from before fetch) or does not start at all (damaged, or another system's)
+    async Task<Toolchain?> RunFetchAsync(Toolchain runner, string tag, Action<ToolsDownloadProgress>? progress, Action<string>? log,
+                                         CancellationToken cancel, Func<string, string?>? getenv)
+    {
+        var answer = await LongshotBuilder.AskAsync(runner.BuilderExe, FetchArguments(tag), e =>
+        {
+            switch (e)
+            {
+                case BuildEvent.FetchProgress p:
+                    progress?.Invoke(new ToolsDownloadProgress(p.Total > 0 ? Math.Clamp(p.Bytes / (double)p.Total, 0, 1) : 0, p.Total));
+                    break;
+                case BuildEvent.Log l:
+                    log?.Invoke($"longshot-builder {tag}: {l.Text}");
+                    break;
+            }
+        }, cancel, getenv).ConfigureAwait(false);
+        // (exit 2 first: a builder with no fetch command says so as a usage error event too, and falls back all the same)
+        if (answer.Exit is 2 or -1)
+        {
+            log?.Invoke($"longshot-builder {tag}: {runner.Tag}'s builder did not fetch: {answer.Why}");
+            return null;
+        }
+        if (answer.Error is { } error)
+            throw new InvalidDataException(error.Code == "no_builder_in_release" ? OldVersions.NotBuiltHere(tag) : error.Text);
+        if (answer.Exit != 0 || answer.Events.OfType<BuildEvent.Fetched>().LastOrDefault() is not { } fetched)
+            throw new InvalidDataException(answer.Why ?? Tr.F("The build tools stopped without saying why (exit code {0}).", answer.Exit));
+        log?.Invoke($"longshot-builder {tag}: {fetched.How}" + (fetched.From is { } from ? $" from {from}" : "")
+                    + $", {fetched.Downloaded >> 20} MB downloaded, by {runner.Tag}'s builder");
+        progress?.Invoke(new ToolsDownloadProgress(1, 0));
+        return Find(tag) ?? throw new InvalidDataException(Tr.F("{0}'s builder was fetched, but its version folder does not hold it.", Versions.Shown(tag)));
+    }
+
+    /// The first builder on a PC that has none: the release's full file for this system, downloaded and checked against its
+    /// manifest (its size and SHA-256), the manifest against the release's signed SHA256SUMS (as Releases.VersionAsync read it), and placed
+    /// in the version folder as fetch places it, with the record fetch writes, so the next fetch takes it as one of its own. A
+    /// release with no builder for this system was made for make_game.py, which this launcher does not run: OldVersions' words
+    public async Task<Toolchain> BootstrapAsync(ReleaseInfo release, IFetcher fetcher, Action<ToolsDownloadProgress>? progress = null,
+                                                Action<string>? log = null, CancellationToken cancel = default)
+    {
+        var tag = release.Version;
+        var key = ReleaseManifest.PlatformKey(platform);
+        if (release.BuilderManifests?.TryGetValue(key, out var manifestFile) != true)
+            throw new InvalidDataException(OldVersions.NotBuiltHere(tag));
+        var json = System.Text.Encoding.UTF8.GetString(
+            await ReleaseManifest.FetchAsync(fetcher, manifestFile!, LongshotBuildRelease.MaxManifest, cancel).ConfigureAwait(false));
+        var manifest = LongshotBuildRelease.Parse(json, tag, key);
+        if (release.Assets?.TryGetValue(manifest.Full.Name, out var full) != true) throw new InvalidDataException($"{tag} has no {manifest.Full.Name}.");
+        var dest = PathOf(tag);
+        var staging = Path.Combine(dest, Staging);
+        if (new DirectoryInfo(staging).LinkTarget != null) throw new IOException("The version folder's staging folder is a symbolic link: " + staging);
+        DeleteTreeIfPresent(staging);
         Directory.CreateDirectory(staging);
-        var downloads = Path.Combine(root, Downloads);
-        var total = Math.Max(1, list.Parts.Sum(p => p.Size));
-        long done = 0;
-        var sources = Others(list.Tag);
-        var record = new Record { Tag = list.Tag, Kind = list.Kind, Run = list.Run };
+        var exe = BuilderVersions.ExeName(platform);
+        var made = Path.Combine(staging, exe + ".part");
         try
         {
-            for (var i = 0; i < list.Parts.Count; i++)
-            {
-                cancel.ThrowIfCancellationRequested();
-                var part = list.Parts[i];
-                var entries = new List<Entry>();
-                if (Reuse(part, sources, staging, entries))
-                    progress?.Invoke(new ToolchainProgress((done += part.Size) / (double)total, i + 1, list.Parts.Count,
-                                                           $"Part {i + 1} of {list.Parts.Count} unchanged: kept from an installed version"));
-                else
-                {
-                    Directory.CreateDirectory(downloads);
-                    var zip = Path.Combine(downloads, part.Sha + ".zip.part");
-                    var before = done;
-                    try
-                    {
-                        progress?.Invoke(new ToolchainProgress(done / (double)total, i + 1, list.Parts.Count,
-                                                               $"Downloading part {i + 1} of {list.Parts.Count} ({part.Size >> 20} MB)"));
-                        await Download(part, zip, have => progress?.Invoke(new ToolchainProgress(
-                            (before + Math.Min(have, part.Size)) / (double)total, i + 1, list.Parts.Count,
-                            $"Downloading part {i + 1} of {list.Parts.Count} ({have >> 20} of {part.Size >> 20} MB)")), cancel);
-                        cancel.ThrowIfCancellationRequested();
-                        Unpack(zip, part, staging, entries);
-                    }
-                    finally
-                    {
-                        File.Delete(zip);
-                    }
-                    done += part.Size;
-                    progress?.Invoke(new ToolchainProgress(done / (double)total, i + 1, list.Parts.Count, $"Part {i + 1} of {list.Parts.Count} ready"));
-                }
-                record.Parts.Add(new RecordPart
-                {
-                    Sha = part.Sha, Size = part.Size, Dest = part.Dest, From = part.From, To = part.To, Url = part.Url, Entries = entries,
-                });
-            }
-            CheckLinksInside(staging);
-            using (var f = new FileStream(Path.Combine(staging, RecordName), FileMode.CreateNew, FileAccess.Write))
-                JsonSerializer.Serialize(f, record, CoreJson.Default.Record);
-            cancel.ThrowIfCancellationRequested();   // (the last moment: from here the new folder takes the old one's place)
-        }
-        catch
-        {
-            DeleteTree(staging);
-            throw;
-        }
-        if (Directory.Exists(dest)) DeleteTree(dest);
-        Directory.Move(staging, dest);
-        TryDeleteEmpty(downloads);
-        return new Toolchain(list.Tag, dest, list.Kind, list.Run);
-    }
-
-    // ---- reuse ----
-
-    List<(string Folder, Record Record)> Others(string tag)
-    {
-        var found = new List<(string, Record)>();
-        foreach (var name in Installed())
-            if (name != tag && Read(Path.Combine(root, name)) is { } r) found.Add((Path.Combine(root, name), r));
-        return found;
-    }
-
-    static bool Reuse(Part part, List<(string Folder, Record Record)> sources, string staging, List<Entry> entries)
-    {
-        foreach (var (folder, record) in sources)
-        {
-            var old = record.Parts.FirstOrDefault(p => p.AsPart().Same(part));
-            if (old == null || old.Entries.Count == 0) continue;
-            if (!old.Entries.All(e => Exists(Path.Combine(folder, Native(e.Path)), e.Link != null))) continue;
-            var made = new List<string>();
-            try
-            {
-                foreach (var e in old.Entries)
-                {
-                    var target = Path.Combine(staging, Native(e.Path));
-                    EnsureParent(staging, target);
-                    if (e.Link != null) Symlink(staging, e.Link, target);
-                    else FileLinks.LinkOrCopy(Path.Combine(folder, Native(e.Path)), target);
-                    made.Add(target);
-                    entries.Add(e);
-                }
-                return true;
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-                foreach (var m in made) File.Delete(m);
-                entries.Clear();
-            }
-        }
-        return false;
-    }
-
-    static bool Exists(string path, bool link)
-    {
-        var info = new FileInfo(path);
-        return link ? info.LinkTarget != null : info.Exists && info.LinkTarget == null;
-    }
-
-    // ---- download and unpack ----
-
-    /// The part from its link, else from each of its mirrors in turn: the first whose bytes are the ones the list names
-    async Task Download(Part part, string zip, Action<long> progress, CancellationToken cancel)
-    {
-        Exception? last = null;
-        IReadOnlyList<string> urls = new[] { part.Url }.Concat(part.Mirrors ?? Array.Empty<string>()).ToList();
-        var through = fetcher;
-        if (part.Mirrors is { Count: > 0 } && fetcher is CdnFetcher cdn)
-        {
-            // (a tool's own links, git-cdn's among them: each tried as it is, in order, so that no link is tried twice)
-            urls = cdn.Expand(urls);
-            through = cdn.Inner;
-        }
-        foreach (var url in urls)
-        {
-            try
-            {
-                await DownloadFrom(through, url, part.Sha, part.Size, zip, progress, cancel);
-                return;
-            }
-            catch (Exception e) when (e is FetchException or InvalidDataException) { last = e; }
-        }
-        throw last!;
-    }
-
-    static async Task DownloadFrom(IFetcher fetcher, string url, string sha, long size, string path, Action<long> progress, CancellationToken cancel)
-    {
-        await using var file = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None);
-        await using var checking = new CheckedStream(file, size);
-        await fetcher.DownloadAsync(url, checking, progress, cancel);
-        if (checking.Length != size)
-            throw new InvalidDataException($"A part of the tools did not download completely ({checking.Length} of {size} bytes).");
-        if (!CryptographicOperations.FixedTimeEquals(checking.Hash(), Convert.FromHexString(sha)))
-            throw new InvalidDataException("A part of the tools did not download correctly (its checksum differs).");
-    }
-
-    /// The Linux builder of a release: its AppImage, checked by its size and SHA-256, unpacked (extract: the AppImage's own
-    /// --appimage-extract, run in a folder, making squashfs-root there) into &lt;tag&gt;.part, then the build tools of the
-    /// tools.lock inside it (its linux-x64 lines, covered by the AppImage's checksum) unpacked beside it at their dests, as on
-    /// Windows: each checked by its size and SHA-256, or kept from another installed version. Renamed once complete. An
-    /// AppImage with no tools.lock inside carries its own tools: nothing else is downloaded
-    public async Task<Toolchain> InstallAppImageAsync(string tag, FileRef file, Func<string, string, CancellationToken, Task>? extract = null,
-                                                      Action<ToolchainProgress>? progress = null, CancellationToken cancel = default)
-    {
-        if (!Versions.IsTagName(tag)) throw new ArgumentException("Not a version name: " + tag, nameof(tag));
-        var dest = PathOf(tag);
-        var work = dest + ".part";
-        Directory.CreateDirectory(root);
-        if (Directory.Exists(work)) DeleteTree(work);
-        Directory.CreateDirectory(work);
-        try
-        {
-            var image = Path.Combine(work, "builder.AppImage");
-            // (the builder first, then its tools: its share of the bar until its tools.lock says how much more there is)
-            const double builderShare = 0.4;
-            progress?.Invoke(new ToolchainProgress(0, 1, 1, $"Downloading the builder ({file.Size >> 20} MB)"));
-            await DownloadFrom(fetcher, file.Url, file.Sha256, file.Size, image, have => progress?.Invoke(new ToolchainProgress(
-                Math.Min(have, file.Size) / (double)Math.Max(1, file.Size) * builderShare, 1, 1,
-                $"Downloading the builder ({have >> 20} of {file.Size >> 20} MB)")), cancel);
-            if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(image, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
-            progress?.Invoke(new ToolchainProgress(builderShare, 1, 1, "Unpacking the builder"));
-            await (extract ?? ExtractAppImage)(image, work, cancel);
-            var tree = Path.Combine(work, "squashfs-root");
-            if (!File.Exists(Path.Combine(tree, "AppRun"))) throw new InvalidDataException("The builder's AppImage has no AppRun.");
-            if (IsLauncher(tree)) throw new InvalidDataException("The builder's AppImage unpacked this launcher instead of itself.");
-            File.Delete(image);
-            CheckLinksInside(tree);
-            var record = new Record { Tag = tag, Kind = ListKind.Linux };
-            record.Parts.Add(new RecordPart { Sha = file.Sha256, Size = file.Size, Dest = ".", Url = file.Url });
-            var lockFile = Path.Combine(tree, Native(LinuxToolsLock));
-            if (File.Exists(lockFile) && new FileInfo(lockFile).LinkTarget == null)
-            {
-                var parts = ToolsLock.Parse(await File.ReadAllTextAsync(lockFile, cancel), ReleaseManifest.PlatformKey(Platform.Linux));
-                await InstallTools(tag, parts, tree, Path.Combine(root, Downloads), record, builderShare, progress, cancel);
-                CheckLinksInside(tree);
-            }
-            using (var f = new FileStream(Path.Combine(tree, RecordName), FileMode.CreateNew, FileAccess.Write))
-                JsonSerializer.Serialize(f, record, CoreJson.Default.Record);
+            progress?.Invoke(new ToolsDownloadProgress(0, manifest.Full.Size));
+            await LongshotBuildRelease.DownloadAsync(fetcher, full.Url, manifest.Full, made,
+                have => progress?.Invoke(new ToolsDownloadProgress(Math.Min(1, have / (double)manifest.Full.Size), manifest.Full.Size)), cancel)
+                .ConfigureAwait(false);
+            if (!OperatingSystem.IsWindows())
+                File.SetUnixFileMode(made, File.GetUnixFileMode(made) | UnixFileMode.UserExecute | UnixFileMode.GroupExecute | UnixFileMode.OtherExecute);
             cancel.ThrowIfCancellationRequested();
-            if (Directory.Exists(dest)) DeleteTree(dest);
-            Directory.Move(tree, dest);
+            // (Windows: an antivirus scans the program just written, holding it: tried again while it is held)
+            SelfUpdate.WhileHeld(() => File.Move(made, Path.Combine(dest, exe), overwrite: true));
+            File.WriteAllText(Path.Combine(dest, ReleaseRecord), manifest.Record(exe));
         }
-        finally
-        {
-            if (Directory.Exists(work)) DeleteTree(work);
-        }
-        progress?.Invoke(new ToolchainProgress(1, 1, 1, "The builder is ready"));
-        return new Toolchain(tag, dest, ListKind.Linux, null);
+        finally { DeleteTreeIfPresent(staging); }
+        log?.Invoke($"longshot-builder {tag}: downloaded whole by the launcher ({manifest.Full.Size >> 20} MB): no builder on this PC to fetch it");
+        progress?.Invoke(new ToolsDownloadProgress(1, 0));
+        return Find(tag) ?? throw new InvalidDataException(Tr.F("{0}'s builder was fetched, but its version folder does not hold it.", Versions.Shown(tag)));
     }
 
-    /// The tools.lock a Linux builder carries (builder/linux/AppRun, scripts/linux/appimage.sh)
-    public const string LinuxToolsLock = "usr/share/longshot/tools.lock";
-
-    /// A pull request's tools (PullRequestSource): from's folder again under tag, its files hard links to from's (copies on a disk
-    /// without them, FileLinks), so it costs the disk ~50 MB beside the nightly's ~900 MB. But for the source: each top folder or
-    /// file of from's ToolsRoot the source has too (nx2, host, gpu, scripts, assets, builder, third_party, tools.lock...) is the
-    /// source's, written anew, and what the source lacks of from's third_party (the native helpers a release builds into it,
-    /// liba64emit.so, zbic.so, and their stamps, which rebuild them when their sources changed) is copied, never linked, so a build
-    /// that rewrites one leaves from's alone. The rest (Python, the compilers, the sysroot, cpm) stays from's, so the lift and
-    /// object stores (MakeGameCommand) find the same tools and reuse from's translation when the pull request leaves the
-    /// translator alone. VERSION names tag (nx2/version.py, with no git history). Its record keeps only the parts no source file
-    /// replaced, so another version reuses its tools (Reuse) but never takes the pull request's source for its own. Refused when the
-    /// source's tools.lock names other tools for this system than from's
-    public Toolchain InstallPullRequest(string tag, Toolchain from, IReadOnlyList<SourceFile> source, Platform platform,
-                                        CancellationToken cancel = default)
-    {
-        if (!Versions.IsPullRequest(tag)) throw new ArgumentException("Not a pull request's build: " + tag, nameof(tag));
-        var system = ReleaseManifest.PlatformKey(platform);
-        var theirs = source.FirstOrDefault(f => f.Path == "tools.lock")
-                     ?? throw new InvalidDataException("The pull request's source has no tools.lock.");
-        // (the Linux AppImage's is in usr/share/longshot, with the tools; the Windows builder's zip has it at its top, from.Folder)
-        var ours = new[] { Path.Combine(from.ToolsRoot, "tools.lock"), Path.Combine(Path.GetDirectoryName(from.ToolsRoot)!, "tools.lock"),
-                           Path.Combine(from.Folder, "tools.lock") }
-                       .FirstOrDefault(File.Exists)
-                   ?? throw new InvalidDataException($"{from.Tag}'s tools have no tools.lock to compare the pull request's with.");
-        static string Key(Part p) => $"{p.Sha} {p.Dest} {p.From} {p.To}";
-        IEnumerable<string> want, got;
-        try
-        {
-            want = ToolsLock.Parse(System.Text.Encoding.UTF8.GetString(theirs.Bytes), system).Select(Key).Order(StringComparer.Ordinal).ToList();
-            got = ToolsLock.Parse(File.ReadAllText(ours), system).Select(Key).Order(StringComparer.Ordinal).ToList();
-        }
-        catch (FormatException e) { throw new InvalidDataException("The pull request's tools.lock cannot be read: " + e.Message, e); }
-        if (!want.SequenceEqual(got))
-            throw new InvalidDataException(Tr.F("This pull request changes the build tools (its tools.lock), so it can't be built with {0}'s.", Versions.Shown(from.Tag)));
-        var record = Read(from.Folder) ?? throw new InvalidDataException($"{from.Tag}'s tools have no record.");
-
-        var dest = PathOf(tag);
-        var work = dest + ".part";
-        Directory.CreateDirectory(root);
-        if (Directory.Exists(work)) DeleteTree(work);
-        var tree = Path.Combine(work, "tree");
-        try
-        {
-            var toolsRoot = Path.GetRelativePath(from.Folder, from.ToolsRoot);
-            var replaced = new HashSet<string>(StringComparer.Ordinal);
-            if (Directory.Exists(from.ToolsRoot))
-                foreach (var e in new DirectoryInfo(from.ToolsRoot).EnumerateFileSystemInfos("*", AllEntries))
-                    if (source.Any(f => f.Path == e.Name || f.Path.StartsWith(e.Name + "/", StringComparison.Ordinal))) replaced.Add(e.Name);
-            replaced.Add("VERSION");
-            Mirror(from.Folder, tree, rel => rel == RecordName
-                || (Path.GetDirectoryName(rel) is { } parent && parent == toolsRoot && replaced.Contains(Path.GetFileName(rel))), cancel);
-            var srcRoot = Path.Combine(tree, toolsRoot);
-            foreach (var f in source)
-            {
-                cancel.ThrowIfCancellationRequested();
-                if (!replaced.Contains(f.Path.Split('/')[0])) continue;   // (docs, tests, the website: no build reads them)
-                var path = Path.Combine(srcRoot, Native(f.Path));
-                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-                File.WriteAllBytes(path, f.Bytes);
-                if (f.Executable && !OperatingSystem.IsWindows())
-                    File.SetUnixFileMode(path, File.GetUnixFileMode(path) | UnixFileMode.UserExecute | UnixFileMode.GroupExecute | UnixFileMode.OtherExecute);
-            }
-            var helpers = Path.Combine(from.ToolsRoot, "third_party");
-            if (replaced.Contains("third_party") && Directory.Exists(helpers))
-                foreach (var file in Directory.EnumerateFiles(helpers, "*", new EnumerationOptions { RecurseSubdirectories = true, AttributesToSkip = 0 }))
-                {
-                    var target = Path.Combine(srcRoot, "third_party", Path.GetRelativePath(helpers, file));
-                    if (File.Exists(target) || new FileInfo(file).LinkTarget != null) continue;
-                    Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-                    File.Copy(file, target);
-                }
-            File.WriteAllText(Path.Combine(srcRoot, "VERSION"), tag + "\n");
-            CheckLinksInside(tree);
-            // (only the parts the source left alone: a part with a file under a replaced folder would hand the pull request's
-            // source to the next version that reuses it)
-            var prefix = toolsRoot.Replace(Path.DirectorySeparatorChar, '/') + "/";
-            record.Tag = tag;
-            record.Parts = record.Parts.Where(p => p.Dest != "." && !p.Entries.Any(e =>
-                e.Path.StartsWith(prefix, StringComparison.Ordinal) && replaced.Contains(e.Path[prefix.Length..].Split('/')[0]))).ToList();
-            using (var f = new FileStream(Path.Combine(tree, RecordName), FileMode.CreateNew, FileAccess.Write))
-                JsonSerializer.Serialize(f, record, CoreJson.Default.Record);
-            cancel.ThrowIfCancellationRequested();
-            if (Directory.Exists(dest)) DeleteTree(dest);
-            Directory.Move(tree, dest);
-        }
-        finally
-        {
-            if (Directory.Exists(work)) DeleteTree(work);
-        }
-        return new Toolchain(tag, dest, from.Kind, from.Run);
-    }
-
-    static readonly EnumerationOptions AllEntries = new() { AttributesToSkip = 0 };
-
-    /// from's files again under to: hard links (copies on a disk without them), links made again as they are, folders made; skip
-    /// (a path relative to from) leaves one out
-    static void Mirror(string from, string to, Func<string, bool> skip, CancellationToken cancel, string rel = "")
-    {
-        Directory.CreateDirectory(to);
-        foreach (var e in new DirectoryInfo(from).EnumerateFileSystemInfos("*", AllEntries))
-        {
-            cancel.ThrowIfCancellationRequested();
-            var path = rel.Length == 0 ? e.Name : Path.Combine(rel, e.Name);
-            if (skip(path)) continue;
-            var target = Path.Combine(to, e.Name);
-            if (e.LinkTarget is { } link)
-            {
-                if (e is DirectoryInfo) Directory.CreateSymbolicLink(target, link);
-                else File.CreateSymbolicLink(target, link);
-            }
-            else if (e is DirectoryInfo d) Mirror(d.FullName, target, skip, cancel, path);
-            else FileLinks.LinkOrCopy(e.FullName, target);
-        }
-    }
-
-    /// Each part into tree (a Linux builder's), kept from another installed version when one has it, else downloaded and
-    /// unpacked; recorded for the next version's reuse. The bar goes from start to 1 by the parts' bytes
-    async Task InstallTools(string tag, IReadOnlyList<Part> parts, string tree, string downloads, Record record, double start,
-                            Action<ToolchainProgress>? progress, CancellationToken cancel)
-    {
-        var sources = Others(tag);
-        var total = Math.Max(1, parts.Sum(p => p.Size));
-        long done = 0;
-        double At(long bytes) => start + (1 - start) * Math.Min(bytes, total) / total;
-        for (var i = 0; i < parts.Count; i++)
-        {
-            cancel.ThrowIfCancellationRequested();
-            var part = parts[i];
-            var entries = new List<Entry>();
-            var where = part.To == null ? part.Dest : part.Dest + "/" + part.To;
-            if (Directory.Exists(Path.Combine(tree, Native(where)))) { done += part.Size; continue; }   // (a builder that carries it still)
-            if (Reuse(part, sources, tree, entries))
-                progress?.Invoke(new ToolchainProgress(At(done += part.Size), i + 1, parts.Count,
-                                                       $"Build tool {i + 1} of {parts.Count} unchanged: kept from an installed version"));
-            else
-            {
-                Directory.CreateDirectory(downloads);
-                var zip = Path.Combine(downloads, part.Sha + ".zip.part");
-                var before = done;
-                try
-                {
-                    progress?.Invoke(new ToolchainProgress(At(done), i + 1, parts.Count,
-                                                           $"Downloading build tool {i + 1} of {parts.Count} ({part.Size >> 20} MB)"));
-                    await Download(part, zip, have => progress?.Invoke(new ToolchainProgress(At(before + Math.Min(have, part.Size)), i + 1,
-                        parts.Count, $"Downloading build tool {i + 1} of {parts.Count} ({have >> 20} of {part.Size >> 20} MB)")), cancel);
-                    cancel.ThrowIfCancellationRequested();
-                    Unpack(zip, part, tree, entries);
-                }
-                finally
-                {
-                    File.Delete(zip);
-                }
-                done += part.Size;
-            }
-            record.Parts.Add(new RecordPart
-            {
-                Sha = part.Sha, Size = part.Size, Dest = part.Dest, From = part.From, To = part.To, Url = part.Url, Entries = entries,
-            });
-        }
-        TryDeleteEmpty(downloads);
-    }
-
-    static async Task ExtractAppImage(string image, string folder, CancellationToken cancel)
-    {
-        // (a binfmt_misc handler, NixOS's programs.appimage.binfmt, takes any file with AppImage's magic to appimage-run, which
-        // unpacks it in its own cache and runs its AppRun with our arguments: without the magic the kernel runs its runtime)
-        if (HasAppImageBinfmt()) ClearAppImageMagic(image);
-        var si = new System.Diagnostics.ProcessStartInfo(image, "--appimage-extract")
-        {
-            WorkingDirectory = folder, UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true,
-        };
-        WithoutOurAppImage(si.Environment);
-        using var p = System.Diagnostics.Process.Start(si) ?? throw new IOException("The builder's AppImage did not start.");
-        var output = p.StandardOutput.ReadToEndAsync(cancel);
-        var error = p.StandardError.ReadToEndAsync(cancel);
-        await p.WaitForExitAsync(cancel);
-        await Task.WhenAll(output, error);
-        if (p.ExitCode != 0) throw new IOException($"The builder's AppImage could not be unpacked ({p.ExitCode}): {error.Result.Trim()}");
-    }
-
-    /// Another AppImage's environment, without what says which AppImage this launcher runs from: APPIMAGE and APPDIR, which the
-    /// AppImage runtime sets for the program it starts, and TARGET_APPIMAGE, which AppImageLauncher's binfmt-bypass sets for the
-    /// runtime it starts. An AppImage's runtime mounts or unpacks TARGET_APPIMAGE when it is set, not itself: left in, the
-    /// builder's --appimage-extract would unpack this launcher
-    public static void WithoutOurAppImage(IDictionary<string, string?> environment)
-    {
-        environment.Remove("APPIMAGE");
-        environment.Remove("APPDIR");
-        environment.Remove("TARGET_APPIMAGE");
-    }
-
-    /// Where Linux lists its binfmt_misc handlers: one file each, besides register and status
-    public const string BinfmtMisc = "/proc/sys/fs/binfmt_misc";
-
-    /// Whether an enabled binfmt_misc handler takes type 2 AppImages (its magic ends with "AI" and 2, at offset 8 of the ELF
-    /// header): NixOS's programs.appimage.binfmt, AppImageLauncher. None where the folder is missing or unreadable
-    public static bool HasAppImageBinfmt(string folder = BinfmtMisc)
+    /// A version's stamps from its record (ShaderCaches.Stamp), translator then compiler; null when its record has none
+    public static string? BuilderStamp(string folder)
     {
         try
         {
-            if (!Directory.Exists(folder)) return false;
-            foreach (var entry in Directory.EnumerateFiles(folder))
-            {
-                var name = Path.GetFileName(entry);
-                if (name is "register" or "status") continue;
-                var lines = File.ReadAllLines(entry);
-                if (lines.FirstOrDefault() == "enabled"
-                    && lines.Any(l => l.StartsWith("magic ", StringComparison.Ordinal) && l.EndsWith("414902", StringComparison.Ordinal)))
-                    return true;
-            }
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
-        return false;
-    }
-
-    /// The AppImage magic ("AI" and its type, at offset 8 of the ELF header) zeroed: its runtime does not read it
-    public static void ClearAppImageMagic(string image)
-    {
-        using var f = new FileStream(image, FileMode.Open, FileAccess.ReadWrite);
-        Span<byte> magic = stackalloc byte[3];
-        f.Position = 8;
-        if (f.Read(magic) != 3 || magic[0] != (byte)'A' || magic[1] != (byte)'I') return;
-        f.Position = 8;
-        f.Write(stackalloc byte[3]);
-    }
-
-    static string Native(string rel) => rel.Replace('/', Path.DirectorySeparatorChar);
-
-    /// A zip entry's name: relative, '/' between its parts, none of them "..", no drive or backslash
-    static string ZipName(string name)
-    {
-        if (!ToolsLock.SafeName(name) || name.Contains('\\') || name.Contains(':') || name.Split('/').Any(p => p == "."))
-            throw new InvalidDataException("A part of the tools has a path outside its folder: " + name);
-        return name;
-    }
-
-    static void Unpack(string zipPath, Part part, string staging, List<Entry> entries)
-    {
-        var rooted = new List<(string Target, string Rel, string LinkTo)>();
-        var dest = part.Dest == "." ? staging : Path.Combine(staging, Native(part.Dest));
-        using (var zip = ZipFile.OpenRead(zipPath))
-            foreach (var entry in zip.Entries)
-            {
-                var name = entry.FullName;
-                if (name.EndsWith('/')) continue;
-                ZipName(name);
-                if (part.From != null)
-                {
-                    // (a tool's archive may hold more than its folder: only the folder is taken, tools.lock's prefix)
-                    if (!name.StartsWith(part.From + "/", StringComparison.Ordinal)) continue;
-                    name = part.To + name[part.From.Length..];
-                }
-                var rel = part.Dest == "." ? name : part.Dest + "/" + name;
-                var target = Path.Combine(staging, Native(rel));
-                EnsureParent(staging, target);
-                var mode = (entry.ExternalAttributes >> 16) & 0xFFFF;
-                if ((mode & 0xF000) == 0xA000)
-                {
-                    string linkTo;
-                    using (var reader = new StreamReader(entry.Open())) linkTo = reader.ReadToEnd();
-                    if (linkTo.StartsWith('/'))
-                    {
-                        // (released sysroots hold /lib links rooted inside the sysroot; other parts must not have absolute links)
-                        if (part.Dest != SysrootPart) throw new InvalidDataException($"A part of the tools has an absolute link: {name} -> {linkTo}");
-                        rooted.Add((target, rel, linkTo));
-                        continue;
-                    }
-                    Symlink(staging, linkTo, target);
-                    entries.Add(new Entry { Path = rel, Link = linkTo });
-                    continue;
-                }
-                using (var from = entry.Open())
-                using (var to = new FileStream(target, FileMode.CreateNew, FileAccess.Write))
-                    from.CopyTo(to);
-                if (!OperatingSystem.IsWindows() && (mode & 0x1FF) != 0)   // (the modes the parts are made with: none group- or world-writable)
-                    File.SetUnixFileMode(target, (mode & 0x49) != 0
-                        ? UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute | UnixFileMode.GroupRead
-                          | UnixFileMode.GroupExecute | UnixFileMode.OtherRead | UnixFileMode.OtherExecute
-                        : UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.GroupRead | UnixFileMode.OtherRead);
-                entries.Add(new Entry { Path = rel });
-            }
-        // (a sysroot link may name a file a later link makes: until none is left, or none can be made)
-        while (rooted.Count > 0)
-        {
-            var pending = new List<(string Target, string Rel, string LinkTo)>();
-            foreach (var r in rooted)
-            {
-                if (r.LinkTo.StartsWith("//", StringComparison.Ordinal)) throw new InvalidDataException("Not a rooted sysroot link: " + r.LinkTo);
-                var destination = Path.GetFullPath(Path.Combine(dest, Native(r.LinkTo.TrimStart('/'))));
-                if (!Inside(dest, destination)) throw new InvalidDataException($"A sysroot link leaves its root: {r.Rel} -> {r.LinkTo}");
-                if (!File.Exists(destination) && !Directory.Exists(destination)) { pending.Add(r); continue; }
-                var relative = Path.GetRelativePath(Path.GetDirectoryName(r.Target)!, destination).Replace(Path.DirectorySeparatorChar, '/');
-                Symlink(staging, relative, r.Target);
-                entries.Add(new Entry { Path = r.Rel, Link = relative });
-            }
-            if (pending.Count == rooted.Count)
-                throw new InvalidDataException("Sysroot links have missing or circular targets: " + string.Join(", ", pending.Select(p => p.Rel)));
-            rooted = pending;
-        }
-    }
-
-    static bool Inside(string root, string path)
-    {
-        var full = Path.TrimEndingDirectorySeparator(Path.GetFullPath(root));
-        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
-        return path.Equals(full, comparison) || path.StartsWith(full + Path.DirectorySeparatorChar, comparison);
-    }
-
-    /// The folders up to target's, made under root; never through a link a part made
-    static void EnsureParent(string root, string target)
-    {
-        var parent = Path.GetDirectoryName(Path.GetFullPath(target))!;
-        if (!Inside(root, parent)) throw new InvalidDataException("A part of the tools would write outside its folder: " + target);
-        var rel = Path.GetRelativePath(Path.GetFullPath(root), parent);
-        var at = Path.GetFullPath(root);
-        if (rel == ".") return;
-        foreach (var piece in rel.Split(Path.DirectorySeparatorChar))
-        {
-            at = Path.Combine(at, piece);
-            var info = new DirectoryInfo(at);
-            if (info.LinkTarget != null || new FileInfo(at).LinkTarget != null)
-                throw new InvalidDataException("A part of the tools would write through a symbolic link: " + at);
-            if (File.Exists(at)) throw new InvalidDataException("A part of the tools has a file where a folder goes: " + at);
-            if (!info.Exists) info.Create();
-        }
-    }
-
-    /// linux_update._symlink: a relative link whose ".." come first, landing inside the staging folder
-    static void Symlink(string root, string linkTo, string target)
-    {
-        var parts = linkTo.Split('/');
-        var ups = 0;
-        while (ups < parts.Length && parts[ups] == "..") ups++;
-        if (parts.Skip(ups).Contains("..") || linkTo.StartsWith('/') || linkTo.Contains('\\'))
-            throw new InvalidDataException($"A link in the tools climbs after a name: {target} -> {linkTo}");
-        var destination = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(target)!, Native(linkTo)));
-        if (!Inside(root, destination)) throw new InvalidDataException($"A link in the tools leaves its folder: {target} -> {linkTo}");
-        File.CreateSymbolicLink(target, linkTo);
-    }
-
-    /// Every link in the finished folder resolves inside it, whatever order the parts made them in
-    static void CheckLinksInside(string staging)
-    {
-        var options = new EnumerationOptions { RecurseSubdirectories = true, AttributesToSkip = 0, IgnoreInaccessible = false };
-        foreach (var path in Directory.EnumerateFileSystemEntries(staging, "*", options))
-        {
-            var info = new FileInfo(path);
-            if (info.LinkTarget == null) continue;
-            var final = info.ResolveLinkTarget(returnFinalTarget: true);
-            if (final == null || !Inside(staging, Path.GetFullPath(final.FullName)))
-                throw new InvalidDataException("A link in the tools leaves its folder: " + path);
-        }
-    }
-
-    // ---- the record each version keeps of its parts: what reuse reads ----
-
-    /// The launcher's own program inside its AppImage (scripts/package.sh), never in a builder's
-    public const string LauncherProgram = "usr/bin/LongshotLauncher";
-
-    /// Whether an unpacked AppImage is this launcher's, not a builder's: what --appimage-extract made under AppImageLauncher
-    /// before TARGET_APPIMAGE was left out (WithoutOurAppImage)
-    static bool IsLauncher(string tree) => File.Exists(Path.Combine(tree, Native(LauncherProgram)));
-
-    /// A version's record; none for a Linux one that holds the launcher instead of its builder, so that it is installed again
-    static Record? Read(string folder)
-    {
-        try
-        {
-            using var f = File.OpenRead(Path.Combine(folder, RecordName));
-            var record = JsonSerializer.Deserialize(f, CoreJson.Default.Record);
-            return record?.Kind == ListKind.Linux && IsLauncher(folder) ? null : record;
+            var path = Path.Combine(folder, ReleaseRecord);
+            if (!File.Exists(path)) return null;
+            using var doc = JsonDocument.Parse(File.ReadAllBytes(path));
+            return doc.RootElement.ValueKind == JsonValueKind.Object && doc.RootElement.TryGetProperty("stamps", out var s)
+                   && s.ValueKind == JsonValueKind.Object && Str(s, "translator") is { Length: > 0 } t && Str(s, "compiler") is { Length: > 0 } c
+                ? t + "-" + c : null;
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or JsonException) { return null; }
     }
 
-    /// The SHA-256 of each tools.lock part a version folder's record names, by the folder the part became there (tools.lock's
-    /// dest, '/' separated: LongshotBuilder/tools/llvm-mingw, usr/lib/longshot/sysroot); null when it has no record to read.
-    /// A Linux builder's AppImage itself is ".". What ShaderCaches.Compiler compares
-    public static IReadOnlyDictionary<string, string>? PartShas(string folder)
-    {
-        if (Read(folder) is not { } record) return null;
-        var shas = new Dictionary<string, string>(StringComparer.Ordinal);
-        foreach (var p in record.Parts)
-            shas[p.To == null ? p.Dest : p.Dest == "." ? p.To : p.Dest + "/" + p.To] = p.Sha;
-        return shas;
-    }
+    static string? Str(JsonElement e, string name) =>
+        e.TryGetProperty(name, out var p) && p.ValueKind == JsonValueKind.String ? p.GetString() : null;
 
     /// A folder and everything in it; a link in it is removed, never followed
     public static void DeleteTree(string dir)
@@ -704,110 +292,5 @@ public sealed class Toolchains
         }
         info.Delete();
         return true;
-    }
-
-    static void TryDeleteEmpty(string dir)
-    {
-        try { if (Directory.Exists(dir) && !Directory.EnumerateFileSystemEntries(dir).Any()) Directory.Delete(dir); }
-        catch (IOException) { }
-    }
-
-    internal sealed class Record
-    {
-        public int Format { get; set; } = 1;
-        public string Tag { get; set; } = "";
-        [JsonConverter(typeof(JsonStringEnumConverter<ListKind>))]
-        public ListKind Kind { get; set; }
-        public string? Run { get; set; }
-        public List<RecordPart> Parts { get; set; } = new();
-    }
-
-    internal sealed class RecordPart
-    {
-        public string Sha { get; set; } = "";
-        public long Size { get; set; }
-        public string Dest { get; set; } = ".";
-        public string? From { get; set; }
-        public string? To { get; set; }
-        public string Url { get; set; } = "";
-        public List<Entry> Entries { get; set; } = new();
-
-        public Part AsPart() => new(Sha, Size, Dest, From, To, Url);
-    }
-
-    /// One file a part put in the version's folder, relative with '/'; Link: a symbolic link's target
-    internal sealed class Entry
-    {
-        public string Path { get; set; } = "";
-        public string? Link { get; set; }
-    }
-
-    /// The bytes written through it, counted and hashed, and stopped past the size the list says
-    sealed class CheckedStream : Stream
-    {
-        readonly Stream inner;
-        readonly long limit;
-        readonly IncrementalHash hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-        long length;
-
-        public CheckedStream(Stream inner, long limit)
-        {
-            this.inner = inner;
-            this.limit = limit;
-        }
-
-        public byte[] Hash() => hash.GetHashAndReset();
-
-        void Count(ReadOnlySpan<byte> data)
-        {
-            length += data.Length;
-            if (length > limit) throw new InvalidDataException("A part of the tools is larger than its list says.");
-            hash.AppendData(data);
-        }
-
-        public override void Write(byte[] buffer, int offset, int count) => Write(buffer.AsSpan(offset, count));
-
-        public override void Write(ReadOnlySpan<byte> buffer)
-        {
-            Count(buffer);
-            inner.Write(buffer);
-        }
-
-        public override async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancel = default)
-        {
-            Count(buffer.Span);
-            await inner.WriteAsync(buffer, cancel);
-        }
-
-        public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancel) =>
-            WriteAsync(buffer.AsMemory(offset, count), cancel).AsTask();
-
-        // (seekable only back to its start, with what it had counted dropped: a download started again, CdnFetcher's fallback)
-        public override bool CanRead => false;
-        public override bool CanSeek => inner.CanSeek;
-        public override bool CanWrite => true;
-        public override long Length => length;
-        public override long Position { get => length; set => Seek(value, SeekOrigin.Begin); }
-        public override void Flush() => inner.Flush();
-        public override Task FlushAsync(CancellationToken cancel) => inner.FlushAsync(cancel);
-        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
-
-        public override long Seek(long offset, SeekOrigin origin) =>
-            (origin == SeekOrigin.Current ? length + offset : offset) == length ? length : throw new NotSupportedException();
-
-        public override void SetLength(long value)
-        {
-            if (value != 0 || !inner.CanSeek) throw new NotSupportedException();
-            inner.SetLength(0);
-            inner.Position = 0;
-            hash.GetHashAndReset();
-            length = 0;
-        }
-
-        protected override void Dispose(bool disposing)
-        {
-            if (disposing) hash.Dispose();
-            base.Dispose(disposing);
-        }
     }
 }

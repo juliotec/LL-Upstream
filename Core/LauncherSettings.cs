@@ -52,14 +52,37 @@ public sealed class LauncherSettings
 
     /// BuildWorkers' Every thread (0: a launcher before it reads it as Automatic)
     public const int EveryThread = 0;
-    /// make_game.py's --work; null: the launcher's own (LauncherHome.Work)
-    public string? Work { get; set; }
+    /// make_game.py's --work; null: the launcher's own (LauncherHome.Work). A folder chosen before, when another is chosen, is
+    /// kept in EarlierWork: the build files left in it are Remove everything's to take
+    public string? Work
+    {
+        get => work;
+        set
+        {
+            if (work is { Length: > 0 } old && old != value && !EarlierWork.Contains(old)) EarlierWork = [.. EarlierWork.TakeLast(15), old];
+            work = value;
+        }
+    }
+    string? work;
+    /// The build files folders chosen before Work's (only Remove everything reads them: Disk.AllParts in each, nothing else)
+    public List<string> EarlierWork { get; set; } = new();
     /// The channel new builds start on, as the player picked it in Settings; null: not picked, so it follows the launcher (BuildChannel)
     public string? DefaultChannel { get; set; }
     /// The channel the launcher updates itself from (its own releases, apart from Longshot's); null: its own version's track
     public string? LauncherChannel { get; set; }
     /// The player answered the offer to import Hookshot's saves (imported, or Not now): it is not offered again at start
     public bool HookshotSavesAsked { get; set; }
+    /// The profiles as a launcher kept them in this file before their folders: read once by the move to them
+    /// (ProfileMigration.MoveFromSettings), then gone from the file: the profiles are the folders
+    /// under profiles/, each one's data its profile.json's
+    [JsonPropertyName("profiles")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<LauncherProfile>? LegacyProfiles { get; set; }
+    /// The version folder (versions/&lt;v&gt;'s name) the last update of a builder's version replaced: kept for going back to it while
+    /// the others nothing uses are pruned (LauncherService.PruneVersions); null: none
+    public string? RollbackVersion { get; set; }
+    /// The profile the launcher is on (its id); null: the default
+    public string? CurrentProfile { get; set; }
     /// The player answered the offer to import NX2navi's saves (imported, or Not now)
     public bool Nx2naviSavesAsked { get; set; }
     /// (A portable launcher) The player answered the offer to use the installed launcher's builds and saves (used, or Not now)
@@ -104,18 +127,6 @@ public sealed class LauncherSettings
     /// The channel new builds start on: the one the player picked, else the launcher's own (a nightly launcher builds nightlies;
     /// LauncherChannel when set, else its own version's track)
     public string BuildChannel(string ownTag) => DefaultChannel ?? SelfUpdate.ChannelOf(ownTag, LauncherChannel);
-
-    /// The launcher's own update channel set to nightly (a stable launcher refuses the versions built with the new builder, which
-    /// only the nightly launcher builds); true when that changed it. The builds' default track is pinned first to what it was
-    /// (ownTag: this launcher's version), so the switch moves only the launcher: a player who stays on this launcher (no nightly
-    /// launcher out yet, or its update failed) still builds the versions it can
-    public bool SwitchLauncherToNightly(string ownTag)
-    {
-        if (LauncherChannel == Versions.Nightly) return false;
-        DefaultChannel ??= BuildChannel(ownTag);
-        LauncherChannel = Versions.Nightly;
-        return true;
-    }
 
     /// The folder builds go in when none was chosen: make_game.py's own default game folder's parent, ~/Games/Longshot
     /// (%USERPROFILE%\Games\Longshot on Windows)

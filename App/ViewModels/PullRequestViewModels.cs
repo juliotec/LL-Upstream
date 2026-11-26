@@ -36,6 +36,8 @@ public sealed class PullRequestWarningViewModel : ViewModelBase
     public string PrMeta => Pr.Author.Length > 0 ? Tr.F("by {0} · at {1}", Pr.Author, Pr.Head[..8]) : Tr.F("at {0}", Pr.Head[..8]);
 
     public bool Trusted => Pr.Trusted;
+    /// A work in progress (WIP: a draft, or a WIP: title): built all the same, once the player read that it may not build or run
+    public bool IsDraft => Pr.Draft;
     /// Why it is trusted: a BigBean wrote it, or approved this push for the Test Farm
     public string TrustText =>
         Pr.Approved && Pr.ApprovedBy.Count > 0 ? Tr.F("A BigBean approved this push for the Test Farm ({0}).", string.Join(", ", Pr.ApprovedBy))

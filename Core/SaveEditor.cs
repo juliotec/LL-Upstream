@@ -6,7 +6,7 @@ using System.Text.RegularExpressions;
 namespace LongshotLauncher.Core;
 
 /// Why the save editor cannot be run for a build (Ready: it can)
-public enum SaveEditorWhy { Ready, NoSave, NoBuild, NoGameFiles, NoTools, NoEditor }
+public enum SaveEditorWhy { Ready, NoSave, NoBuild, NoEditor }
 
 /// The save editor of one build: Longshot's scripts/longshot_save_editor.py in that version's own tools, its Python, and the game
 /// folder (the one holding romfs) it reads the game's lists from
@@ -145,24 +145,15 @@ public sealed class SaveEditing
     /// Where the backup of an edit goes (the folder the tool makes edit-<profile>-<date>-<time> in)
     public string BackupRoot => env.BackupRoot;
 
-    public const string ScriptName = "longshot_save_editor.py";
-
-    public static string ScriptOf(Toolchain tools) => Path.Combine(tools.ToolsRoot, "scripts", ScriptName);
-
-    /// The build's save editor, or why there is none: the build's own version's tools with the editor's script (a version from
-    /// before the editor, or one whose tools were let go, has none), and the game's files in the build's folder (the tool reads the
-    /// game's lists from them: make_game.py unpacks them to its romfs folder)
-    public static (SaveEditorTool? Tool, SaveEditorWhy Why) Find(BuildEntry? build, Toolchains tools, Func<string, bool>? file = null,
-                                                                 Func<string, bool>? folder = null)
+    /// The build's save editor, or why there is none. The editor was Longshot's scripts/longshot_save_editor.py (Longshot#1401,
+    /// never in a release), run with the Python of make_game.py's tools over the romfs folder they unpacked into the game's folder.
+    /// longshot-builder's versions carry no Python and read the game's files from the .nup in place: none of them has an editor
+    /// yet, so Progress says so (NoEditor) until longshot-builder brings one
+    public static (SaveEditorTool? Tool, SaveEditorWhy Why) Find(BuildEntry? build, Func<string, bool>? folder = null)
     {
-        file ??= File.Exists;
         folder ??= Directory.Exists;
         if (build == null || !folder(build.Folder)) return (null, SaveEditorWhy.NoBuild);
-        if (!folder(Path.Combine(build.Folder, "romfs"))) return (null, SaveEditorWhy.NoGameFiles);
-        if (GameFolder.Version(build.Folder) is not { } version || tools.Find(version) is not { } own || !file(own.Python)) return (null, SaveEditorWhy.NoTools);
-        var script = ScriptOf(own);
-        if (!file(script) || !file(Path.Combine(Path.GetDirectoryName(script)!, "oot_savefile.py"))) return (null, SaveEditorWhy.NoEditor);
-        return (new SaveEditorTool(own.Python, script, own.ToolsRoot, build.Folder), SaveEditorWhy.Ready);
+        return (null, SaveEditorWhy.NoEditor);
     }
 
     /// What the page says when there is no editor
@@ -170,8 +161,6 @@ public sealed class SaveEditing
     {
         SaveEditorWhy.NoSave => Tr.T("There is no save to edit yet."),
         SaveEditorWhy.NoBuild => Tr.T("Build Longshot first: the save editor reads the game's own files."),
-        SaveEditorWhy.NoGameFiles => Tr.T("This build's game files are not in its folder, and the save editor reads them. Build it again."),
-        SaveEditorWhy.NoTools => Tr.T("This build's tools are not on this PC, and the save editor runs from them. Update or build it again."),
         // (no Longshot release has the editor yet: it is Longshot#1401, not merged. Say so, and what to do, rather than "a newer
         // version has it", which sent players who were up to date looking for one: issue #217. Move the version on when a release
         // without it follows 3.0.0, and say which one has it once one does)

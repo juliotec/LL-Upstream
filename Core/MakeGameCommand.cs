@@ -12,162 +12,28 @@ public abstract record BuildSource
 }
 
 /// A build's choices (the wizard's settings step, LauncherSettings). Out is not used by an update (the folder is the update's).
-/// RomfsFrom: another game folder built from the same .nup (BuildRegistry.SameGameFiles), whose game files make_game links in
-/// instead of reading the .nup again (LONGSHOT_ROMFS_FROM). IntelCompiles: Intel shader compiles (GamePlay.IntelCompilesAuto,
+/// IntelCompiles: Intel shader compiles (GamePlay.IntelCompilesAuto,
 /// SideBySide, OneAtATime); IntelLongerLimits: Shader time limit on Longer (LauncherSettings, where they apply). Xess: Intel's XeSS library fetched
-/// under Intel's licence (XessLicense), Windows only. LowPriority: make_game.py and everything it starts run below normal priority
-/// (MakeGameRun.RunAsync), so the PC stays usable while it builds; off for Build workers' Every thread (SystemInfo.LowPriority)
+/// under Intel's licence (XessLicense), Windows only. LowPriority: the builder and everything it starts run below normal priority
+/// (MakeGameRun.RunAsync), so the PC stays usable while it builds; off for Build workers' Every thread (SystemInfo.LowPriority).
+/// WorkId: the launcher's row the build is of (BuildEntry.Id, kept by its updates however its folder is renamed), which names
+/// longshot-builder's work folder (LongshotBuilder.WorkFolder); null: the builder's own, by the game folder's path. Profile: (a
+/// version folder's builder, BuilderVersions) the profile folder the build is for: build --profile, its game folder the version
+/// folder's (Out is then that folder, the builder's to place), profile.json's game and upscalers written by the builder
 public sealed record BuildRequest(
     BuildSource Source, string? Out, string? Language = null, string? Work = null, int? Jobs = null, int? MemoryGb = null,
     bool PrepareShaders = true, bool Dlss = false, bool DlssLicense = false, bool Fsr = false, bool FsrLicense = false,
-    string? RomfsFrom = null, int IntelCompiles = GamePlay.IntelCompilesAuto, bool IntelLongerLimits = false, bool Xess = false,
-    bool XessLicense = false, bool LowPriority = true);
+    int IntelCompiles = GamePlay.IntelCompilesAuto, bool IntelLongerLimits = false, bool Xess = false,
+    bool XessLicense = false, bool LowPriority = true, string? WorkId = null, string? Profile = null, bool SendStatistics = false);
 
-/// make_game.py as the 2.x Builders start it (Runner.Info and MainWindow.Run on Windows; builder/linux/AppRun and
-/// longshot_builder.py on Linux): the program, its arguments, its folder and the environment changes (null: removed).
-/// LowPriority: run below normal priority, the compilers it starts with it (BuildRequest.LowPriority, MakeGameRun.RunAsync)
+/// A run of the builder (LongshotBuilder): the program, its arguments, its folder and the environment changes (null: removed).
+/// LowPriority: run below normal priority, the compilers it starts with it (BuildRequest.LowPriority, MakeGameRun.RunAsync).
+/// DroppedPrefixes: every inherited variable starting with one of them removed before Environment is applied
+/// (LongshotBuilder.Dropped)
 public sealed record MakeGameCommand(
     string FileName, IReadOnlyList<string> Arguments, string WorkingDirectory, IReadOnlyDictionary<string, string?> Environment,
-    bool LowPriority = false)
+    bool LowPriority = false, IReadOnlyList<string>? DroppedPrefixes = null)
 {
-    /// launcher: this launcher's own path, written into the game folder's stamp (builder=) so the game's update offer starts it
-    /// (host/hos_update.c). directoryExists, fileExists: the tests' stand-ins for the disk
-    public static MakeGameCommand For(Toolchain tools, BuildRequest r, Platform platform, LauncherHome home, string launcher,
-                                      Func<string, bool>? directoryExists = null, Func<string, bool>? fileExists = null)
-    {
-        directoryExists ??= Directory.Exists;
-        fileExists ??= File.Exists;
-        if (r.Jobs is <= 0) throw new ArgumentOutOfRangeException(nameof(r), "Build workers must be positive.");
-        if (r.MemoryGb is <= 0) throw new ArgumentOutOfRangeException(nameof(r), "Build memory must be positive.");
-        var windows = platform == Platform.Windows;
-        var args = new List<string> { "-I", tools.MakeGame };
-        switch (r.Source)
-        {
-            case BuildSource.Nup n:
-                args.AddRange(new[] { "--nup", n.Path });
-                break;
-            case BuildSource.Folders f:
-                args.AddRange(new[] { "--romfs", f.Romfs, "--exefs", f.Exefs });
-                break;
-            case BuildSource.Update u:
-                args.AddRange(new[] { "--update", u.Folder });
-                break;
-        }
-        if (r.Source is not BuildSource.Update)
-        {
-            args.AddRange(new[] { "--out", r.Out ?? throw new ArgumentException("A build needs its game folder (Out).", nameof(r)) });
-            // (a code make_game knows: "de-DE" from a 2.x settings file is "de"; none known, make_game keeps the folder's or English)
-            if (Languages.Normalize(r.Language) is { } language) args.AddRange(new[] { "--language", language });
-        }
-        var work = r.Work ?? home.Work;
-        args.AddRange(new[] { "--work", work });
-        // (the build workers: LONGSHOT_JOBS on Windows, BuildWorkers.Apply; --jobs on Linux, as longshot_builder.py passes them)
-        if (!windows && r.Jobs is int jobs) args.AddRange(new[] { "--jobs", jobs.ToString(CultureInfo.InvariantCulture) });
-        if (!r.PrepareShaders) args.Add("--no-prepare-shaders");
-        var dlss = r.Dlss && r.DlssLicense;
-        if (dlss) args.AddRange(new[] { "--fetch-ngx-sdk", "--accept-nvidia-license" });
-        // (AMD FSR 4: on Windows AMD's runtime is fetched under AMD's licence; AMD publishes none for Linux, where the player puts a
-        // Vulkan FSR 4 library beside the game, and the build compiles its own Vulkan back end, as with DLSS)
-        var fsr = r.Fsr && r.FsrLicense && FsrBuilds(tools, platform, directoryExists);
-        if (fsr) args.AddRange(windows ? new[] { "--fsr", "--fetch-fsr-runtime", "--accept-amd-license" } : new[] { "--fsr" });
-        // (Intel XeSS: every Windows build of the game has it, and it runs once Intel's libxess.dll is beside the game, which the
-        // build fetches under Intel's licence. Intel publishes no XeSS library for Linux. Tools from before the flag: XessBuilds)
-        var xess = windows && r.Xess && r.XessLicense && XessBuilds(tools, fileExists);
-        if (xess) args.AddRange(new[] { "--fetch-xess-runtime", "--accept-intel-license" });
-
-        var env = new Dictionary<string, string?>(StringComparer.Ordinal)
-        {
-            ["PYTHONIOENCODING"] = "utf-8",
-            ["LONGSHOT_BUILDER_EXE"] = launcher,
-            // (the 2.x setup's home and portable mark: make_game would take them for its work folder and stamp; the launcher passes --work)
-            ["LONGSHOT_SETUP_BASE"] = null,
-            ["LONGSHOT_BUILDER_PORTABLE"] = null,
-            ["LONGSHOT_BUILDER_ARGS"] = null,
-            // (DLSS, FSR and XeSS only when ticked: one set on the PC is not passed on either)
-            ["LONGSHOT_NGX_SDK"] = dlss ? home.NgxSdk : null,
-            ["LONGSHOT_FFX_SDK"] = fsr && windows ? home.FfxSdk : null,
-            ["LONGSHOT_XESS_SDK"] = xess ? home.XessSdk : null,
-            ["LONGSHOT_MEM_LIMIT_GB"] = r.MemoryGb?.ToString(CultureInfo.InvariantCulture),
-            // (Keep capped stores for switching versions, on the work folder's drive.)
-            ["LONGSHOT_OBJ_STORE"] = Path.Combine(work, Disk.ObjectStore),
-            ["LONGSHOT_LIFT_STORE"] = Path.Combine(work, Disk.LiftStore),
-            ["LONGSHOT_OBJ_STORE_GB"] = "4",
-            ["LONGSHOT_LIFT_STORE_KEEP"] = "2",
-            // (a version's game files from another game folder of the same .nup: hard links, not ~25 GB read and written again. A
-            // builder that does not know the variable reads the .nup as before; one set on the PC is not passed on)
-            ["LONGSHOT_ROMFS_FROM"] = r.Source is BuildSource.Nup ? r.RomfsFrom : null,
-        };
-        if (windows && r.Jobs is int workers) env["LONGSHOT_JOBS"] = workers.ToString(CultureInfo.InvariantCulture);
-        // (Intel shader compiles, Side by side or One at a time: the shader preparation make_game starts takes it from its
-        // environment, as the game does. Auto sets nothing, so the game's own Auto, or one set on the PC, applies)
-        if (windows && GamePlay.IntelCompilesValue(r.IntelCompiles) is string compiles) env[GamePlay.IntelCompilesVar] = compiles;
-        if (windows && r.IntelLongerLimits)
-            foreach (var (name, value) in GamePlay.IntelLongerLimits) env[name] = value;
-        if (windows)
-        {
-            // (the tools' own compiler, headers and libraries when they have them: nothing of the PC's but Windows' own)
-            foreach (var (name, folder) in new[] { ("EMSDK", "emsdk"), ("RX_CPM", "cpm") })
-            {
-                var path = Path.Combine(tools.ToolsRoot, folder);
-                if (directoryExists(path)) env[name] = path;
-            }
-        }
-        else
-        {
-            // (builder/linux/AppRun: everything the AppImage builds with)
-            var lib = tools.LibRoot;
-            env["LONGSHOT_TOOLS"] = tools.ToolsRoot;
-            env["EMSDK"] = Path.Combine(lib, "emsdk");
-            env["LONGSHOT_SYSROOT"] = Path.Combine(lib, "sysroot");
-            env["LONGSHOT_FFMPEG"] = Path.Combine(lib, "ffmpeg");
-            // (tools.lock's sdl2, unpacked beside the builder; a builder that carried its tools has it in lib itself)
-            env["LONGSHOT_SDL2"] = directoryExists(Path.Combine(lib, "sdl2"))
-                ? Path.Combine(lib, "sdl2", "libSDL2-2.0.so.0") : Path.Combine(lib, "libSDL2-2.0.so.0");
-            // (the Vulkan back end: every build of current tools compiles it, and their AppImage carries none. One made before
-            // 2026-11-14 carried a prebuilt lib/longshot_vk.so, which its build took in place of compiling one unless DLSS or FSR 4
-            // was on (NGX or AMD's FSR API headers, which the prebuilt one has neither of): given only where it is there)
-            var prebuilt = Path.Combine(lib, "longshot_vk.so");
-            env["LONGSHOT_VK_PREBUILT"] = dlss || fsr || !fileExists(prebuilt) ? null : prebuilt;
-        }
-        return new MakeGameCommand(tools.Python, args, tools.ToolsRoot, env, r.LowPriority);
-    }
-
-    /// Whether these tools build AMD FSR 4: on Windows always; on Linux when they carry AMD's FSR API headers, which the Vulkan
-    /// back end compiled in the build reads (an AppImage made before it carried them has none, and its build would stop at them)
-    public static bool FsrBuilds(Toolchain tools, Platform platform, Func<string, bool>? directoryExists = null) =>
-        platform == Platform.Windows || (directoryExists ?? Directory.Exists)(Path.Combine(tools.ToolsRoot, "third_party", "fidelityfx"));
-
-    /// Whether these tools fetch Intel's XeSS library: they carry the script make_game.py's --fetch-xess-runtime runs, either
-    /// scripts/xess_sdk.py or, from nightly-611 on (Longshot #1802, which folded the vendors' scripts into one), scripts/fetch.py,
-    /// which has fetched XeSS since it was made. Longshot's tools from before either would stop at the flag they do not know
-    public static bool XessBuilds(Toolchain tools, Func<string, bool>? fileExists = null)
-    {
-        var exists = fileExists ?? File.Exists;
-        return exists(Path.Combine(tools.ToolsRoot, "scripts", "xess_sdk.py")) || exists(Path.Combine(tools.ToolsRoot, "scripts", "fetch.py"));
-    }
-
-    /// make_game.py --check: is this the game, and the version these tools build? (the 2.x Builders' check: --nup, or the exefs
-    /// folder alone). The same program and environment as a build with no DLSS; a .nup is read into &lt;work&gt;/probe
-    public static MakeGameCommand ForCheck(Toolchain tools, BuildSource source, Platform platform, LauncherHome home, string launcher,
-                                           string? work = null, Func<string, bool>? directoryExists = null)
-    {
-        var build = For(tools, new BuildRequest(new BuildSource.Update("."), null, Work: work), platform, home, launcher, directoryExists);
-        var args = new List<string> { "-I", tools.MakeGame, "--check" };
-        switch (source)
-        {
-            case BuildSource.Nup n:
-                args.AddRange(new[] { "--nup", n.Path });
-                break;
-            case BuildSource.Folders f:
-                args.AddRange(new[] { "--exefs", f.Exefs });
-                break;
-            default:
-                throw new ArgumentException("Only game files are checked, not a game folder.", nameof(source));
-        }
-        args.AddRange(new[] { "--work", work ?? home.Work });
-        return build with { Arguments = args };
-    }
-
     public ProcessStartInfo StartInfo()
     {
         var si = new ProcessStartInfo(FileName)
@@ -181,6 +47,10 @@ public sealed record MakeGameCommand(
             StandardErrorEncoding = System.Text.Encoding.UTF8,
         };
         foreach (var a in Arguments) si.ArgumentList.Add(a);
+        if (DroppedPrefixes is { Count: > 0 } dropped)
+            foreach (var k in si.Environment.Keys.Where(k => dropped.Any(d => k.StartsWith(d, OperatingSystem.IsWindows()
+                         ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))).ToList())
+                si.Environment.Remove(k);
         foreach (var (k, v) in Environment)
             if (v == null) si.Environment.Remove(k);
             else si.Environment[k] = v;
@@ -215,15 +85,17 @@ public static class GamePlay
         ("RX_VK_PREPARE_STALL_S", "1800"), ("RX_VK_PRECOMPILE_STALL_S", "180"), ("RX_VK_PREDICT_STALL_S", "180"),
     };
 
-    /// The environment the game starts with, from the launcher's. On Linux LONGSHOT_NFC_DIR is kept, though the other LONGSHOT_
-    /// variables are dropped: the NFC page (NfcTags.Folder) and the game must read the same folder. intelCompiles: Intel shader
+    /// The environment the game starts with, from the launcher's. On Linux LONGSHOT_NFC_DIR and LONGSHOT_SHADER_STORE are kept,
+    /// though the other LONGSHOT_ variables are dropped: the NFC page (NfcTags.Folder) and the game must read the same folder, and
+    /// the game must play with the shader store the Storage page counts (SaveEnvironment.ShaderStore) and longshot-builder prepared
+    /// its shaders in (LongshotBuilder.ShaderStoreVar, kept for that preparation too). intelCompiles: Intel shader
     /// compiles (IntelCompilesAuto...); intelLongerLimits: Shader time limit on Longer (both Windows only)
     public static Dictionary<string, string> Environment(Platform platform, IReadOnlyDictionary<string, string> current,
                                                          int intelCompiles = IntelCompilesAuto, bool intelLongerLimits = false)
     {
         var env = platform == Platform.Windows
             ? new Dictionary<string, string>(current, StringComparer.OrdinalIgnoreCase)
-            : current.Where(kv => (kv.Key == NfcTags.Variable || !Dropped.Any(p => kv.Key.StartsWith(p, StringComparison.Ordinal)))
+            : current.Where(kv => (kv.Key is NfcTags.Variable or LongshotBuilder.ShaderStoreVar || !Dropped.Any(p => kv.Key.StartsWith(p, StringComparison.Ordinal)))
                                   && kv.Key != "LD_LIBRARY_PATH")
                 .ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.Ordinal);
         env["LONGSHOT_NO_UPDATE_CHECK"] = "1";   // (the launcher already checked for updates: the game does not ask again)
@@ -290,8 +162,7 @@ public static class GamePlay
                                              int intelCompiles = IntelCompilesAuto, bool intelLongerLimits = false,
                                              bool gamescope = false, string? gamescopeOptions = null)
     {
-        current ??= System.Environment.GetEnvironmentVariables().Cast<System.Collections.DictionaryEntry>()
-            .ToDictionary(e => (string)e.Key, e => (string?)e.Value ?? "");
+        current ??= CurrentEnvironment();
         var exe = GameFolder.ExePath(folder, platform);
         var game = new List<string>();
         if (user != null)
@@ -317,4 +188,9 @@ public static class GamePlay
         foreach (var (k, v) in Environment(platform, current, intelCompiles, intelLongerLimits)) si.Environment[k] = v;
         return si;
     }
+
+    /// The launcher's own environment, as StartInfo takes it when given none
+    public static Dictionary<string, string> CurrentEnvironment() =>
+        System.Environment.GetEnvironmentVariables().Cast<System.Collections.DictionaryEntry>()
+            .ToDictionary(e => (string)e.Key, e => (string?)e.Value ?? "");
 }

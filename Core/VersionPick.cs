@@ -1,10 +1,8 @@
 namespace LongshotLauncher.Core;
 
 /// One version on a track, as the home's Version list shows it (VersionPick.Of): its tag, when it was published (null: not on
-/// the server's list), whether it is the track's newest, and the build of it on this track (null: not installed).
-/// NeedsNightly: the release list shows it is built with the new builder, which this launcher does not run
-/// (NeedsNightlyLauncher)
-public sealed record TrackVersion(string Tag, DateTimeOffset? Published, bool Newest, BuildEntry? Build, bool NeedsNightly = false)
+/// the server's list), whether it is the track's newest, and the build of it on this track (null: not installed)
+public sealed record TrackVersion(string Tag, DateTimeOffset? Published, bool Newest, BuildEntry? Build)
 {
     public bool Installed => Build != null;
 }
@@ -43,14 +41,13 @@ public static class VersionPick
 
     /// A track's versions, newest first (Versions.Compare; a version on no order, such as a test build's "dev", after the
     /// listed ones). listed: the release list the update check read (Releases.Listed), null before it answered: then only the
-    /// installed versions
+    /// installed versions. platform: the releases offered are the ones this launcher supports on it (ReleaseManifest.Supported)
     public static IReadOnlyList<TrackVersion> Of(string track, IEnumerable<BuildEntry> builds, IEnumerable<ListedRelease>? listed,
-                                                 Product product, Platform? platform = null)
+                                                 Product product, Platform platform)
     {
         var mine = On(track, builds);
-        var on = listed != null && Versions.IsChannel(track) ? ReleaseManifest.OnChannel(listed, track, product) : Array.Empty<ListedRelease>();
-        var rows = on.Select((r, i) => new TrackVersion(r.Tag, r.Published, i == 0, BuildOf(r.Tag, mine),
-                                                      platform is { } p && ReleaseManifest.ListsNewBuilder(r, p))).ToList();
+        var on = listed != null && Versions.IsChannel(track) ? ReleaseManifest.OnChannel(listed, track, product, platform) : Array.Empty<ListedRelease>();
+        var rows = on.Select((r, i) => new TrackVersion(r.Tag, r.Published, i == 0, BuildOf(r.Tag, mine))).ToList();
         foreach (var tag in mine.Select(b => b.Version).OfType<string>().Distinct(StringComparer.Ordinal))
             if (rows.All(r => r.Tag != tag)) rows.Add(new TrackVersion(tag, null, false, BuildOf(tag, mine)));
         // (OrderByDescending is stable: versions the order does not rank keep their place, after the ones it does)

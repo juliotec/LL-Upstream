@@ -15,7 +15,7 @@ namespace LongshotLauncher.Core;
 /// git.magicbean.dev itself redirects a release file or a package to git-cdn (Cloudflare's rule, magicbean-infra), which would
 /// send the fall back to the host that just failed: a PC whose network or antivirus breaks the connection to git-cdn alone then
 /// has no way to a file at all. The rule leaves a link with cdn=0 in its query alone, so every such download asked of
-/// git.magicbean.dev (the fall back, a tool's own link, and all of them with the CDN off) carries it: Direct
+/// git.magicbean.dev (the fall back, and all of them with the CDN off) carries it: Direct
 public sealed class CdnFetcher(IFetcher inner, bool enabled = true) : IFetcher
 {
     public const string Origin = "https://git.magicbean.dev", Cdn = "https://git-cdn.magicbean.dev";
@@ -64,27 +64,6 @@ public sealed class CdnFetcher(IFetcher inner, bool enabled = true) : IFetcher
             or ["", "api", "v1", "repos", { Length: > 0 }, { Length: > 0 }, "releases", "tags", { Length: > 0 }];
         return list ? Cdn + u.PathAndQuery : null;
     }
-
-    /// A tool's own links (tools.lock: its git-cdn link, the same file on git.magicbean.dev, where it came from), which Toolchains
-    /// tries in order through Inner, moving on also when a link gives other bytes: each git.magicbean.dev link with its CDN link in
-    /// front when the list lacks it; with the CDN off, a git-cdn link whose git.magicbean.dev twin is listed is left out. A
-    /// git.magicbean.dev link is the server's own answer (Direct), else it would be git-cdn's a second time
-    public IReadOnlyList<string> Expand(IReadOnlyList<string> urls)
-    {
-        if (!Enabled)
-            return urls.Where(u => !(u.StartsWith(Cdn + "/", StringComparison.Ordinal) && urls.Contains(Origin + u[Cdn.Length..])))
-                       .Select(Direct).ToList();
-        var links = new List<string>();
-        foreach (var u in urls)
-        {
-            if (CdnOf(u) is { } cdn && !links.Contains(cdn) && !urls.Contains(cdn)) links.Add(cdn);
-            if (!links.Contains(Direct(u))) links.Add(Direct(u));
-        }
-        return links;
-    }
-
-    /// The fetcher this one wraps: a download as it is, with no CDN
-    public IFetcher Inner => inner;
 
     /// Whether the CDN's failure is worth the server's try: no answer (Status null: connection, TLS, timeout, stall), or 403, 404, 5xx
     public static bool FallsBack(FetchException e) => e.Status is null or 403 or 404 or >= 500;

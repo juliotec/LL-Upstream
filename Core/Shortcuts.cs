@@ -9,6 +9,19 @@ namespace LongshotLauncher.Core;
 public static class Shortcuts
 {
     public const string Name = "Longshot";
+
+    /// The logo the Linux desktop and applications-menu shortcuts point at: the launcher's longshot.png, written into its home,
+    /// where the desktop and the menu can read it (KDE draws a .png path correctly, checked on the Deck 2026-11-15)
+    public static string LogoPath(Func<string, string?>? getenv = null) =>
+        Path.Combine(LauncherHome.Resolve(Platform.Linux, getenv).Root, "longshot.png");
+
+    /// Write the logo where the shortcuts point. False on a refusal (a read-only home, a file held busy): a shortcut without a
+    /// logo beats no shortcut
+    public static bool TryWriteLogo(byte[] png, Func<string, string?>? getenv = null)
+    {
+        try { AtomicFile.Write(LogoPath(getenv), png); return true; }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return false; }
+    }
     /// The AppUserModelIDs the Windows shortcuts name (ShellLinks): the launcher's own Start menu shortcut, and the game's, which
     /// start the launcher's Play. Told apart, the Start menu lists both; without them it listed only the game's (ShellLinks)
     public const string LauncherAppId = "MagicBean.LongshotLauncher", GameAppId = "MagicBean.Longshot";

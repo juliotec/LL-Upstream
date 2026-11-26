@@ -438,6 +438,22 @@ static class SavesChecks
         var linux = new[] { "orchid", "orchid", "AppRun", "eglantine-linux-x86_64.AppImage", "ocarina", "ocarina", "bash", "bash" };
         Require(Saves.RunningFrom(Platform.Linux, linux).SequenceEqual(new[] { "NX2navi", "Orchid", "PokeDinner or Eglantine" }), "Linux processes and AppImages.");
         Require(Saves.RunningFrom(Platform.Linux, new[] { "Longshot.AppImage", "LongshotLauncher" }).Count == 0, "The launcher itself is not the game.");
+        // (longshot-builder's game folder runs longshot (Linux) and longshot.exe (Windows), lowercase, Platforms.GameExe; the
+        // 2.x Builder's ran Longshot.exe. Either is the game, in any case, on both systems: Windows' ProcessName has no .exe,
+        // Linux's comm and argv[0]'s file name are the file's own. The builder beside it is not)
+        foreach (var (platform, seen) in new (Platform, string[])[]
+                 {
+                     (Platform.Linux, ["longshot", Path.GetFileName("/home/p/Games/Longshot/v4.0.0/longshot")]), (Platform.Linux, ["Longshot"]),
+                     (Platform.Windows, ["longshot"]), (Platform.Windows, [Platforms.GameExe(Platform.Windows)]), (Platform.Windows, ["Longshot"]),
+                     (Platform.Windows, ["LONGSHOT.EXE"]), (Platform.Linux, [Platforms.GameExe(Platform.Linux), "longshot-builder"]),
+                 })
+            Require(Saves.RunningFrom(platform, seen).SequenceEqual(new[] { Saves.Longshot.Display }), $"{platform} {string.Join(", ", seen)}: Longshot runs.");
+        foreach (var (platform, seen) in new (Platform, string[])[]
+                 {
+                     (Platform.Linux, ["longshot-builder", "longshot-builder-v4.0.0-linux-x64"]), (Platform.Windows, ["longshot-builder", "longshot-builder.exe"]),
+                     (Platform.Linux, ["longshot_options.ini", "longshotx"]), (Platform.Windows, ["LongshotLauncher", "longshot.exe.old"]),
+                 })
+            Require(Saves.RunningFrom(platform, seen).Count == 0, $"{platform} {string.Join(", ", seen)}: not the game.");
         // (#118: Gear Lever renames the launcher's AppImage after its menu entry's name ("Longshot"), and a deduped name like
         //  longshot-2.appimage walks into the game-AppImage regex: the launcher read its own runtime as the game and refused
         //  its own update. The runtime's argv[0] is the AppImage file path, and the runtime names it in APPIMAGE for the

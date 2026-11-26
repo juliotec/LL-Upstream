@@ -197,7 +197,7 @@ public static class NfcReader
     /// A scanned tag into the NFC folder, as a file of that name is added (NfcTags.AddBytes): refused when it is no figure's tag,
     /// left when the same dump is there, numbered when a different one has its name
     public static NfcTagAdded Save(string folder, byte[] tag) =>
-        tag.Length != NfcTags.TagBytes ? new NfcTagAdded("", NfcTagOutcome.Refused, null, "it is not an NTAG215 dump")
+        tag.Length != NfcTags.TagBytes ? new NfcTagAdded("", NfcTagOutcome.Refused, null, Tr.T("it is not an NTAG215 dump"))
         : NfcTags.AddBytes(folder, FileName(tag), tag);
 }
 

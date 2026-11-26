@@ -62,15 +62,18 @@ public sealed class LauncherService
         // (release lists, release files and packages through git-cdn.magicbean.dev first: CdnFetcher; LONGSHOT_LAUNCHER_NO_CDN=1 turns it off)
         var cdn = CdnFetcher.EnabledByEnvironment();
         Fetcher = new CdnFetcher(Slow(new HttpFetcher(TimeSpan.FromSeconds(60))), cdn);
-        Tools = new Toolchains(home.Toolchains, Fetcher);
+        // (each version's builder in its version folder, versions/<v>; an older launcher's toolchains/ read as fetch's bases)
+        Tools = new Toolchains(BuilderVersions.Root(home.Root), platform, home.Toolchains);
         // (its own timeout, shorter: the check at start should not keep the window waiting on a server that does not answer)
         var check = new CdnFetcher(Slow(new HttpFetcher(TimeSpan.FromSeconds(20))), cdn);
         var keys = ReleaseKeys.Current();
         Releases = new Releases(check, platform, keys, product: Product.Longshot);
         // (the launcher's own releases: its own versions on its own three channels, chosen apart from the builds' in Settings)
         LauncherReleases = new Releases(check, platform, keys, product: Product.Launcher);
+        // (longshot-builder's releases: fetched by a builder of this PC's, each install said in the launcher's log)
         Prefetch = new ToolsPrefetch((tag, progress, cancel) => ToolsSource.EnsureAsync(Tools, Releases, tag, progress, cancel,
-                                                                                        pullRequest: FindPullRequestAsync));
+                                                                                        pullRequest: FindPullRequestAsync, log: LauncherLog.Add,
+                                                                                        cache: Path.Combine(Work, Disk.LongshotBuildCache)));
         // (a prune put off while a fetch ran, once none does: PruneTools)
         Prefetch.Idle += () => ViewModels.Ui.Post(() => { if (Interlocked.Exchange(ref pruneLater, 0) == 1) PruneTools(); });
         SaveEnv = SaveEnvironment.Current() with
@@ -79,6 +82,12 @@ public sealed class LauncherService
             BackupFolder = home.Portable ? home.PortableSaveBackups : null,
             UserFolder = home.Portable ? home.PortableUser : null,
         };
+        // (the profiles' folders, <launcher data>/profiles: made once from what the launcher kept before, the originals left)
+        SaveEnv = SaveEnv with { ProfilesRoot = ProfileStore.Root(home.Root) };
+        MoveToProfileFolders();
+        LauncherProfiles.Ensure(SaveEnv, KnownGame());
+        if (Settings.CurrentProfile != null && LauncherProfiles.Find(SaveEnv, Settings.CurrentProfile) == null) Settings.CurrentProfile = null;
+        SaveEnv = SaveEnv with { SavesHome = LauncherProfiles.SavesHome(SaveEnv, Profile.Id) };
         GpuCards = OperatingSystem.IsWindows() ? WindowsGpus.Read() : SystemInfo.GpuVendors(platform).Select(v => new Gpu(v)).ToList();
     }
 
@@ -131,7 +140,123 @@ public sealed class LauncherService
     /// This launcher's path, for the game folders' stamp (builder=) and the shortcuts (SelfUpdate.StartPath)
     public static string LauncherPath => SelfUpdate.StartPath();
 
-    public void SaveSettings() => Settings.Save(Home.Settings);
+    public void SaveSettings()
+    {
+        Settings.Save(Home.Settings);
+    }
+
+    /// The game copy the launcher knows: the game file last picked, else the default version's (its .nup or its dump folder), else
+    /// the newest of any version's
+    public string? KnownGame() =>
+        Settings.Nup is { Length: > 0 } nup ? nup
+        : Registry.Default is { } d && ProfileMigration.GameOf(d) is { } g ? g
+        : Registry.Builds.OrderByDescending(b => b.Updated).Select(ProfileMigration.GameOf).FirstOrDefault(x => x != null);
+
+    /// The move to the profiles' folders (ProfileMigration), once: every profile a launcher's settings listed (the default
+    /// always), its saves copied from the --user folder, the game's settings copied, its game copy and upscalers from its version;
+    /// what settings.json held of the profiles goes into their profile.json and out of settings.json, a copy of it kept beside it
+    /// (settings.json.before-profile-folders). Nothing else is moved: the originals stay where they are
+    void MoveToProfileFolders()
+    {
+        if (SaveEnv.ProfilesRoot is not { } root) return;
+        try
+        {
+            var result = ProfileMigration.MoveFromSettings(Settings, Home.Settings, Home.Settings + ".before-profile-folders", SaveEnv,
+                                                           Registry.Builds, KnownGame(), oldProfilesRoot: Path.Combine(SaveEnv.LongshotRoot, "profiles"));
+            if (result != null)
+            {
+                LauncherLog.Add($"profiles: made in {root} ({string.Join(", ", result.Profiles)}), the saves copied; the originals stay where they were");
+                foreach (var n in result.Notes) LauncherLog.Add("profiles: " + n);
+            }
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            LauncherLog.Add($"profiles: the move to {root} stopped ({e.Message}); it is tried again at the next start");
+        }
+    }
+
+    /// The versions longshot-builder built in a folder of their own, copied once each into their version folder
+    /// (VersionFolderMigration: versions/<v>/builds/default, the builder put beside it from the installed tools), off the window's
+    /// thread, then their rows pointed at the copies on it; the originals stay where they are. Not while a game runs (its folder's
+    /// files may be open): then at the next start. done: told on the window's thread once rows moved. False: nothing to move
+    public bool MoveToVersionFolders(Action? done = null)
+    {
+        var moves = VersionFolderMigration.Plan(Registry.Builds, Home.Root);
+        if (moves.Count == 0) return false;
+        Task.Run(() =>
+        {
+            try
+            {
+                if (Saves.Running(Platform).Count > 0)
+                {
+                    LauncherLog.Add("versions: a game is running: the versions move into their version folders at the next start");
+                    return;
+                }
+            }
+            catch (Exception e) when (e is InvalidOperationException or System.ComponentModel.Win32Exception or UnauthorizedAccessException) { return; }
+            var copied = new List<VersionFolderMigration.Move>();
+            foreach (var m in moves)
+                try
+                {
+                    var version = Path.GetDirectoryName(Path.GetDirectoryName(m.To)!)!;
+                    if (Tools.Legacy(m.Build.Version!)?.BuilderExe is { } exe) BuilderVersions.Install(version, exe, Platform);
+                    VersionFolderMigration.Copy(m);
+                    // (the row's work folder with it, where its first Play's update finds the last build's lift and objects)
+                    if (!VersionFolderMigration.CarryWork(m, Work, Platform))
+                        LauncherLog.Add($"versions: the work folder of {m.From} was not moved; the first Play of {m.To} updates from the shared stores");
+                    copied.Add(m);
+                    LauncherLog.Add($"versions: {m.From} copied to {m.To}; the original stays where it is");
+                }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+                {
+                    LauncherLog.Add($"versions: {m.From} was not copied to {m.To} ({e.Message}); it is played where it is");
+                }
+            if (copied.Count == 0) return;
+            ViewModels.Ui.Post(() =>
+            {
+                foreach (var m in copied)
+                    if (Registry.Builds.FirstOrDefault(b => b.Id == m.Build.Id && BuildRegistry.SameFolder(b.Folder, m.From)) is { } row)
+                        row.Folder = m.To;
+                try { Registry.Save(); }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException) { LauncherLog.Add("versions: the list was not saved: " + e.Message); }
+                remeasure = true;
+                done?.Invoke();
+            });
+        });
+        return true;
+    }
+
+    // ---- the launcher's profiles (LauncherProfiles): the current one's saves are SaveEnv's, its folder what Play names
+
+    /// The profiles are the folders of profiles/, read each time (LauncherProfiles): another launcher's change shows at once
+    public LauncherProfile Profile => LauncherProfiles.Current(SaveEnv, Settings);
+    public IReadOnlyList<LauncherProfile> Profiles => LauncherProfiles.All(SaveEnv);
+
+    /// The save the current profile's Play starts on (null: its newest), written to its profile.json at once
+    public void SetStartSlot(string? slot) => LauncherProfiles.SetStartSlot(SaveEnv, Profile.Id, slot);
+
+    /// The current profile played this version (a BuildEntry.Id) now
+    public void MarkPlayed(string version) => LauncherProfiles.MarkPlayed(SaveEnv, Profile.Id, version, DateTime.Now);
+
+    /// The current profile's folder (ProfileStore: profile.json, settings.ini, saves/)
+    public string ProfileFolder => LauncherProfiles.FolderOf(SaveEnv, Profile.Id) ?? ProfileStore.Dir(ProfileStore.Root(Home.Root), Profile.Id);
+
+    /// The launcher on another profile: its saves become SaveEnv's (the Saves page, the save editor), its folder the one Play
+    /// names; saved at once
+    public void SwitchProfile(string id)
+    {
+        LauncherProfiles.Of(SaveEnv, id);
+        Settings.CurrentProfile = id == LauncherProfiles.DefaultId ? null : id;
+        SaveEnv = SaveEnv with { SavesHome = LauncherProfiles.SavesHome(SaveEnv, id) };
+        // (what the builders said was of the other profile's game folders: asked again for this one's)
+        BuilderInfos.Clear();
+        try { SaveSettings(); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+    }
+
+    /// The version folder a version of the builder's kind is played and built in (BuilderVersions); null for a name that is no
+    /// version's
+    public string? VersionFolderFor(string version) =>
+        Versions.IsTagName(version) ? BuilderVersions.FolderOf(Home.Root, version) : null;
 
     /// An instance's folder renamed (an update's or a go-back's, the home's move, or one put back): the game files last picked
     /// follow it when they were in it (LauncherSettings.Follow), saved. The list's rows follow in BuildRegistry.Moved
@@ -188,11 +313,6 @@ public sealed class LauncherService
         foreach (var dir in OtherLauncher.GamesIn(picked, Platform))
         {
             if (Registry.FindByFolder(dir) != null) continue;
-            if (NeedsNightly(dir))
-            {
-                LauncherLog.Add($"{dir} not added: built with the new builder, which needs the nightly launcher");
-                continue;
-            }
             var version = GameFolder.Version(dir);
             var b = Registry.Add(dir, version, OtherLauncher.ChannelNamed(dir, version));
             LauncherLog.Add($"build {b.Version} in {b.Folder} added by the player");
@@ -210,22 +330,55 @@ public sealed class LauncherService
     public bool Finds(string picked) =>
         OtherLauncher.At(picked, Platform, Environment.GetEnvironmentVariable) is { HasAnything: true } || OtherLauncher.GamesIn(picked, Platform).Count > 0;
 
-    /// Whether a game folder was built by the new builder (its build record, longshot_build.json), which this launcher doesn't run
-    static bool NeedsNightly(string gameFolder) => File.Exists(Path.Combine(gameFolder, Core.NeedsNightlyLauncher.BuildRecord));
-
     /// A folder the command line named (--launch), listed if it is not yet
     public BuildEntry Ensure(string folder)
     {
         var full = Path.GetFullPath(folder);
         if (Registry.FindByFolder(full) is { } known) return known;
-        if (NeedsNightly(full)) throw Core.NeedsNightlyLauncher.Refusal();
         var version = GameFolder.Version(full);
         var entry = Registry.Add(full, version, Versions.TrackOf(version));
         Registry.Save();
         return entry;
     }
 
-    public bool IsBuilt(BuildEntry b) => GameFolder.IsBuilt(b.Folder, Platform);
+    /// Whether a version's game is there: a version folder's, as its builder's info last said (BuilderInfos), any other's (or one
+    /// whose builder was not asked yet) by its program
+    public bool IsBuilt(BuildEntry b) =>
+        IsBuiltOverride?.Invoke(b)
+        ?? (BuilderInfos.Of(b.Folder, Platform)?.Build is { Folder: { } f } build && BuildRegistry.SameFolder(f, b.Folder) ? build.Present
+            : GameFolder.IsBuilt(b.Folder, Platform));
+
+    /// Each version folder's builder asked what it is and what the current profile's game folder is (BuilderInfos, `info`), off the
+    /// window's thread, one after another; changed: told on the window's thread when an answer differs from what was known
+    public void RefreshInfos(Action? changed = null)
+    {
+        var profile = ProfileFolder;
+        var folders = Registry.Builds.Select(VersionFolderOf).OfType<string>().Distinct(StringComparer.Ordinal)
+                              .Where(v => BuilderVersions.Is(v, Platform)).ToList();
+        if (folders.Count == 0) return;
+        _ = Task.Run(async () =>
+        {
+            var any = false;
+            foreach (var v in folders)
+                if (await BuilderOf(v).InfoAsync(profile).ConfigureAwait(false) is { } info) any |= BuilderInfos.Set(v, info);
+            if (any && changed != null) ViewModels.Ui.Post(changed);
+        });
+    }
+
+    /// A version folder's builder (its Longshot.exe), for its own commands
+    public LongshotBuilder BuilderOf(string versionFolder) =>
+        Builders.For(new Toolchain(Path.GetFileName(Path.TrimEndingDirectorySeparator(versionFolder)), versionFolder, BuilderVersions.ExeName(Platform)),
+                     Platform, Home, LauncherPath);
+
+    /// Whether a version was built with make_game.py (OldVersions): not played, built or updated here, only shown as not supported,
+    /// with the way back to the stable launcher
+    public bool IsOld(BuildEntry b) => IsOldOverride?.Invoke(b) ?? OldVersions.Is(b.Folder, b, Platform, Home.Root);
+
+    /// Whether a version is an old one, without looking: the screenshots' made-up versions are not, unless a scene says
+    public Func<BuildEntry, bool>? IsOldOverride { get; set; }
+
+    /// Whether a version's game is there, without looking: the screenshots' made-up versions are built, or (a scene about it) not
+    public Func<BuildEntry, bool>? IsBuiltOverride { get; set; }
 
     /// The newest version of each channel a build follows, and the one new builds start on; and whether the launcher's own channel
     /// has a newer launcher. False: the server answered nothing, or no file passed its checks (Releases.Problem says why); the old
@@ -270,9 +423,54 @@ public sealed class LauncherService
     /// takes the program out of the portable zip and stays beside its "portable" file. Throws with a reason a player can read.
     /// progress: the download (0..1); step: each step after it, for the screen ("Checking the new launcher…"). cancel stops the
     /// download and its check, never the swap
-    public async Task UpdateLauncherAsync(Action<double>? progress = null, CancellationToken cancel = default, Action<string>? step = null)
+    public Task UpdateLauncherAsync(Action<double>? progress = null, CancellationToken cancel = default, Action<string>? step = null) =>
+        ReplaceLauncherAsync(LauncherUpdate ?? throw new InvalidOperationException("There is no launcher update."), progress, cancel, step);
+
+    /// Whether this launcher can replace itself: started from its own file (not a Flatpak's, which Flatpak updates)
+    public static bool CanReplaceItself => Program.Layout.File != null;
+
+    /// The offer of the stable launcher in place of this one (StableSwitch): the current profile's saves folder and what copying
+    /// them back to the --user folder would do (SavesCopyBack.Plan), worked out now, nothing changed
+    public SavesCopyBack StableSavesPlan() =>
+        SavesCopyBack.Plan(LauncherProfiles.SavesHome(SaveEnv, Profile.Id) ?? SaveEnv.LongshotUser, SaveEnv.LongshotUser);
+
+    /// The replacement by the stable launcher (StableSwitch), once the player said yes: the saves copied back first when asked
+    /// (copyBack: the plan shown; replaceNewer: the newer files there replaced too), the launcher's channel set to stable, then the
+    /// stable channel's newest launcher downloaded, checked and put in place as an update is (ReplaceLauncherAsync), and started;
+    /// this one should close. Throws with a reason a player can read; the channel is put back as it was then, the saves copied
+    /// stay copied (the profile keeps its own)
+    public async Task SwitchToStableAsync(SavesCopyBack? copyBack, bool replaceNewer, Action<double>? progress = null, CancellationToken cancel = default,
+                                          Action<string>? step = null)
     {
-        var release = LauncherUpdate ?? throw new InvalidOperationException("There is no launcher update.");
+        if (copyBack != null)
+        {
+            var copied = await Task.Run(() => copyBack.Copy(replaceNewer), cancel);
+            LauncherLog.Add($"stable launcher: {copied} save files copied from {copyBack.From} to {copyBack.To}" +
+                            (copyBack.Newer.Count > 0 && !replaceNewer ? $", {copyBack.Newer.Count} newer ones there kept" : ""));
+        }
+        var before = Settings.LauncherChannel;
+        Settings.LauncherChannel = Versions.Stable;
+        SaveSettings();
+        try
+        {
+            step?.Invoke(Tr.T("Asking git.magicbean.dev for the stable launcher…"));
+            var release = await LauncherReleases.ChannelAsync(Versions.Stable, cancel)
+                          ?? throw new InvalidDataException(LauncherReleases.Problem ?? Tr.T("git.magicbean.dev has no stable launcher for this PC yet."));
+            if (SelfUpdate.UpdateTo(OwnTag, release, Platform, Versions.Stable, Program.Layout.UpdateKey) == null)
+                throw new InvalidDataException(Tr.T("git.magicbean.dev has no stable launcher for this PC yet."));
+            await ReplaceLauncherAsync(release, progress, cancel, step);
+        }
+        catch
+        {
+            Settings.LauncherChannel = before;
+            try { SaveSettings(); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+            throw;
+        }
+    }
+
+    /// A launcher release downloaded, checked and put in place of this one, then started (UpdateLauncherAsync, SwitchToStableAsync)
+    async Task ReplaceLauncherAsync(ReleaseInfo release, Action<double>? progress, CancellationToken cancel, Action<string>? step)
+    {
         var layout = Program.Layout;
         var current = layout.File
                       ?? throw new InvalidOperationException("This launcher was not started from its own file, so it cannot replace itself.");
@@ -313,9 +511,10 @@ public sealed class LauncherService
     }
 
     /// The version a build updates to, or null: its channel's newest (UpdatePolicy); for a pull request's build, the build of the
-    /// pull request's newer push, while it is open and this PC can build it
+    /// pull request's newer push, while it is open and this PC can build it; none for an old version (OldVersions)
     public string? UpdateFor(BuildEntry b) =>
-        Versions.PullRequestOf(b.Version) is { } pr
+        IsOld(b) ? null
+        : Versions.PullRequestOf(b.Version) is { } pr
             ? UpdatePolicy.UpdateTo(b.Version, Versions.PullRequest,
                                     PullRequestOf(pr.Number) is { } open && PullRequests.Problem(open, Platform) == null ? open.Tag : null)
             : UpdatePolicy.UpdateTo(b, newest);
@@ -341,18 +540,12 @@ public sealed class LauncherService
         return pulls;
     }
 
-    /// A pull request as it is now, for its build's tools (PullRequestSource): from a list at most a minute old; null when it is
+    /// A pull request as it is now, for its build's tools (SourceBuilds): from a list at most a minute old; null when it is
     /// not open any more, or Beanstalk did not answer
     async Task<PullRequest?> FindPullRequestAsync(int number, CancellationToken cancel) =>
         (await PullRequestsAsync(cancel: cancel).ConfigureAwait(false))?.FirstOrDefault(p => p.Number == number);
 
     /// The pull requests the update check reads (the screenshots' stand-in for Beanstalk)
-    /// Whether the newest release on the builds' default track is built with the new builder: the versions after it need the
-    /// nightly launcher, which the home says once (from the list the update check read; false before it answered)
-    public bool NewerNeedsNightly =>
-        Releases.Listed is { } list && ReleaseManifest.OnChannel(list, DefaultChannel, Product.Longshot).FirstOrDefault() is { } newest
-        && ReleaseManifest.ListsNewBuilder(newest, Platform);
-
     public void SetPullRequests(IReadOnlyList<PullRequest>? list)
     {
         pulls = list;
@@ -365,16 +558,6 @@ public sealed class LauncherService
         track == Versions.PullRequest ? VersionPick.OfPullRequests(Registry.Builds, pulls, Platform, foundPulls)
         : VersionPick.Of(track, Registry.Builds, Releases.Listed, Product.Longshot, Platform);
 
-    /// Whether the release list shows a version built with the new builder, which this launcher refuses (NeedsNightlyLauncher)
-    public bool NeedsNightlyLauncher(string tag) =>
-        Releases.Listed?.FirstOrDefault(r => r.Tag == tag) is { } r && ReleaseManifest.ListsNewBuilder(r, Platform);
-
-    /// The launcher's own update channel set to nightly and saved; its update is then looked for by the update check (CheckReleasesAsync:
-    /// LauncherUpdate) and made by the launcher's own self-update (UpdateLauncherAsync)
-    public void SwitchLauncherToNightly()
-    {
-        if (Settings.SwitchLauncherToNightly(OwnTag)) SaveSettings();
-    }
 
     /// The pull requests the player found by their number (Find a pull request): listed on the track with the trusted ones
     readonly HashSet<int> foundPulls = new();
@@ -397,19 +580,23 @@ public sealed class LauncherService
 
     /// The build's game, from its folder (no window of the launcher needed). Returns what the window says first, if anything: the
     /// saves brought together before it started (PlayFolder)
-    public string? Play(BuildEntry b) => PlayFolder(b.Folder);
+    public string? Play(BuildEntry b) => PlayFolder(b.Folder, b);
 
     /// A game folder's game, with the saves and the settings every build shares: the old builds' saves brought in first
     /// (GatherSaves), the player's settings brought to a build that has none (CarrySettings), and the shared user folder given to
     /// (GamePlay.UserFolder, StartInfo). Returns what those did or why the gather could not (SaveText.Gathered), null when
-    /// there was nothing to do. fromHandoff: this Play IS the launch a desktop-mode Play handed to
-    /// Steam (Program.PlayWithoutWindow consumed the one-shot, folder and all). arrived: this
-    /// instance arrived for a --play (the tile's launch option or a command line): its job is to
-    /// start the game, never to hand off again — the routing chain ends at an arrival by
-    /// construction, arm or no arm, handoff or no handoff (the review's loop probe: a receiver
-    /// that found no arm routed on and asked for a THIRD launch)
-    public string? PlayFolder(string folder, SteamLaunchRoute.Handoff? fromHandoff = null, bool arrived = false)
+    /// there was nothing to do. entry: the list's build of that folder (--play names a folder: the list's, if it holds it).
+    public string? PlayFolder(string folder, BuildEntry? entry = null)
     {
+        entry ??= Registry.Builds.FirstOrDefault(b => BuildRegistry.SameFolder(b.Folder, folder));
+        // (a version built by Longshot's old builder: the stable launcher's to play, OldVersions)
+        if (entry != null ? IsOld(entry) : OldVersions.Is(folder, null, Platform, Home.Root))
+            throw new OldVersionException(OldVersions.NotPlayed(entry?.Version ?? GameFolder.Version(folder)));
+        // (longshot-builder's game reads its files from the .nup where it is: gone, it can't start, and the window offers to pick it
+        // again, or to connect its drive. Only a folder whose game longshot-builder built last: LongshotBuilder.CurrentRecord)
+        if (LongshotBuilder.MissingNup(folder, entry) is { } moved) throw new NupMovedException(moved.Nup, moved.DriveMissing);
+        // (a version folder's game: its builder plays it, with the profile)
+        if (PlayVersion(folder, entry)) return null;
         var said = GatherSaid(GatherSaves());
         // (a folder named by --play that no list holds: its user\save the shared save too)
         if (Platform == Platform.Windows) Saves.LinkSaves(SaveEnv, new[] { folder });
@@ -426,59 +613,89 @@ public sealed class LauncherService
             foreach (var line in CarryDriverSettings(folder)) said = said == null ? line : said + " " + line;
             if (RoomInNvidiaCache() is { } room) said = said == null ? room : said + " " + room;
         }
-        // (Steam Input, the Deck's controller: Play goes through the launcher's own Steam tile when
-        // one exists and Steam is up, so Steam brings its controller layer up for the game. The
-        // tile's --play arrives through PlayWithoutWindow, BEFORE the lock is taken, so it never
-        // fights this window's instance lock — nothing here releases it, and the window keeps its
-        // claim exactly as before routing existed. SteamGameId says a routed launch arrived, but
-        // an arrival (arrived: true) never routes at all and a one-shot handoff makes a second
-        // handoff impossible even if Steam lost that variable. SteamLaunchRoute holds the rule and
-        // the reasons; the fallback is exactly the launch that came before it. A Direct decision's
-        // note is part of the answer (review P2: every note was dropped, so the why never reached
-        // the player): the not-loaded, no-tile, outstanding-handoff, mismatched-home and unwritable-
-        // handoff explanations all ride the returned text, which the Play button's toast shows)
-        var route = SteamLaunchRoute.Decide(Platform, SteamShortcuts.Locate(LauncherPath),
-                                            k => Environment.GetEnvironmentVariable(k),
-                                            token: SteamLaunchRoute.HandoffPath(Home.Root),
-                                            handoff: fromHandoff, folder: folder, arrived: arrived,
-                                            persist: arrived ? null : TrySaveSettings);
-        if (route.Route == SteamLaunchRoute.Kind.RunGameId)
-            // (round-five L11: a routed Play used to return route.Note as the answer, and
-            // HomeViewModel shows the returned text in its NOTICE slot — so every successful
-            // routed Play also showed a notice. The toast already says the game is starting; a
-            // second line, in the slot reserved for "something needs reading", is noise. The
-            // saves/settings notice (said) still rides when there is one; the routing itself goes
-            // to the log, where the why is still findable after the fact)
-        {
-            // (an empty Uri is the race answer: an earlier Play's arrival claimed its arm instead
-            // of this Play dispatching anything — the note says so, and nothing new was launched)
-            LauncherLog.Add(route.Uri.Length > 0 ? "play: routed through the Steam tile" : "play: " + route.Note);
-            return said;
-        }
-        if (route.Note.Length > 0) said = said == null ? route.Note : said + " " + route.Note;
-        // (audit #4: the Direct commitment is recorded BEFORE the pre-spawn work below, so a late
-        // legacy --play delivery in this interval — no game visible in the process list yet — is
-        // still recognised as belonging beside a start already under way. audit #5: the marker is
-        // cleared once the spawn is over (success or failure), so it never outlives the interval
-        // and a legitimate press after a quick exit is not suppressed)
-        if (!arrived) SteamLaunchRoute.RecordDirectStart(Home.Root, folder);
-        try
-        {
-            // (the performance statistics: the folder's tick made the player's answer, and what the last sessions left sent)
-            PerfReports.BeforePlay(folder, Settings.SendPerformanceStatistics, Settings.KeepSentPerformanceStatistics, Tools);
-            // (the crash reports: the folder's file made the player's answer, for the crash helper to read after a crash)
-            CrashReports.BeforePlay(folder, Settings.SendCrashReportsAutomatically);
-            using var _ = Process.Start(GamePlay.StartInfo(folder, Platform, user: user,
-                                                           intelCompiles: IntelCompilesApply ? Settings.IntelCompiles : GamePlay.IntelCompilesAuto,
-                                                           intelLongerLimits: Settings.IntelLongerLimits && IntelCompilesApply,
-                                                           gamescope: Platform == Platform.Linux && Settings.Gamescope,
-                                                           gamescopeOptions: Settings.GamescopeOptions));
-        }
-        finally
-        {
-            if (!arrived) SteamLaunchRoute.ClearDirectStart(Home.Root);
-        }
+        // (the performance statistics: the folder's tick made the player's answer, and what the last sessions left sent)
+        PerfReports.BeforePlay(folder, Settings.SendPerformanceStatistics, Settings.KeepSentPerformanceStatistics, Tools,
+                               Path.Combine(Work, Disk.LongshotBuildCache));
+        // (the crash reports: the folder's file made the player's answer, for the crash helper to read after a crash)
+        CrashReports.BeforePlay(folder, Settings.SendCrashReportsAutomatically);
+        var start = GamePlay.StartInfo(folder, Platform, user: user,
+                                       intelCompiles: IntelCompilesApply ? Settings.IntelCompiles : GamePlay.IntelCompilesAuto,
+                                       intelLongerLimits: Settings.IntelLongerLimits && IntelCompilesApply,
+                                       gamescope: Platform == Platform.Linux && Settings.Gamescope,
+                                       gamescopeOptions: Settings.GamescopeOptions);
+        Process.Start(start)?.Dispose();
         return said;
+    }
+
+    /// Said when a Play did not get to the game (BuilderVersions.Ended): the message, on any thread
+    public event Action<string>? PlayFailed;
+
+    /// A version folder's game played by its builder: versions/<v>/Longshot.exe --profile <the current profile's folder>
+    /// --output json --cache <the launcher's builder cache> --no-self-update (the launcher updates its versions). The builder
+    /// checks the game folder is the profile's (its fast check),
+    /// updates it when it is not, and starts the game with the profile; the launcher's own switches for older games are not
+    /// given (BuilderVersions.OldSwitches). False for any other folder. A builder gone from the version folder (taken by an
+    /// antivirus) is put back from an older launcher's tools when it kept them; else the next build of the version fetches it
+    bool PlayVersion(string folder, BuildEntry? entry)
+    {
+        if (!BuilderVersions.InVersions(folder, Home.Root)) return false;
+        var version = Path.GetDirectoryName(Path.GetDirectoryName(Path.GetFullPath(folder).TrimEnd(Path.DirectorySeparatorChar))!)!;
+        if (!BuilderVersions.Is(version, Platform) && entry?.Version is { } v && Tools.Legacy(v)?.BuilderExe is { } exe)
+            try { BuilderVersions.Install(version, exe, Platform); }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { LauncherLog.Add($"play: the builder was not put back in {version}: {e.Message}"); }
+        if (!BuilderVersions.Is(version, Platform)) return false;
+        // (the profile's folder, its saves/ made, and the game copy the launcher knows when it names none: what the builder plays)
+        var profile = ProfileFolder;
+        Directory.CreateDirectory(ProfileStore.SavesOf(profile));
+        try { LauncherProfiles.EnsureGame(SaveEnv, Profile.Id, KnownGame()); }
+        catch (ProfileFailure e) { LauncherLog.Add("play: the profile was not written: " + e.Message); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { LauncherLog.Add("play: the profile was not written: " + e.Message); }
+        PerfReports.BeforePlay(folder, Settings.SendPerformanceStatistics, Settings.KeepSentPerformanceStatistics, Tools,
+                               Path.Combine(Work, Disk.LongshotBuildCache));
+        CrashReports.BeforePlay(folder, Settings.SendCrashReportsAutomatically);
+        // (Steam Input, the Deck's controller: outside Steam, with Steam up, Play asks Steam to start this profile's tile, which
+        // runs this version's builder with the profile, so Steam brings its controller layer up for the game. No tile, a tile
+        // of another version, no Steam or a failure: the builder is started here, as below. SteamLaunchRoute holds the rule)
+        var route = SteamLaunchRoute.Decide(Platform, SteamShortcuts.LibraryFile(), SteamTile.NameFor(Profile),
+                                            BuilderVersions.ExeOf(version, Platform), Environment.GetEnvironmentVariable);
+        if (route.Route == SteamLaunchRoute.Kind.RunGameId)
+        {
+            LauncherLog.Add($"play: through the Steam tile, {route.Uri}: {route.Note}");
+            return true;
+        }
+        LauncherLog.Add("play: direct, " + route.Note);
+        var env = GamePlay.Environment(Platform, GamePlay.CurrentEnvironment(),
+                                       IntelCompilesApply ? Settings.IntelCompiles : GamePlay.IntelCompilesAuto, Settings.IntelLongerLimits && IntelCompilesApply);
+        var start = BuilderVersions.StartInfo(version, Platform, profile, Path.Combine(Work, Disk.LongshotBuildCache), env,
+                                              statistics: Settings.SendPerformanceStatistics);
+        // (its events read: the last error's text is what a failed Play says)
+        start.RedirectStandardOutput = true;
+        start.StandardOutputEncoding = System.Text.Encoding.UTF8;
+        LauncherLog.Add($"play: {start.FileName} {string.Join(' ', start.ArgumentList)}");
+        var builder = Process.Start(start);
+        if (builder != null) _ = WatchBuilder(builder, folder);
+        return true;
+    }
+
+    async Task WatchBuilder(Process builder, string folder)
+    {
+        using (builder)
+        {
+            string? error = null;
+            try
+            {
+                // (every line read, the game's too, so its output never fills the pipe; the builder's error events kept)
+                while (await builder.StandardOutput.ReadLineAsync().ConfigureAwait(false) is { } line)
+                    if (BuildEvents.Parse(line) is BuildEvent.Error e) error = e.Text;
+                await builder.WaitForExitAsync().ConfigureAwait(false);
+            }
+            catch (Exception e) when (e is InvalidOperationException or System.ComponentModel.Win32Exception or IOException) { return; }
+            if (BuilderVersions.Ended(builder.ExitCode, error) is { } said)
+            {
+                LauncherLog.Add($"play: the builder of {folder} ended with {builder.ExitCode}");
+                PlayFailed?.Invoke(said);
+            }
+        }
     }
 
     /// (Windows) What Windows and the NVIDIA driver keep for the other builds' programs, by their paths, given to this build's
@@ -699,8 +916,78 @@ public sealed class LauncherService
 
     /// A build's game folder deleted as the home's Delete does it (BuildRegistry.DeleteGame): the save it holds itself brought
     /// into the shared one, or backed up, first. running: what runs now (Saves.Running)
-    public DeletedGame DeleteGame(BuildEntry b, IReadOnlyList<string> running) =>
-        BuildRegistry.DeleteGame(SaveEnv, b.Folder, Platform, KeepOf(b), () => running);
+    public DeletedGame DeleteGame(BuildEntry b, IReadOnlyList<string> running)
+    {
+        // (a builder's version: its whole folder goes, Longshot.exe and all, once its game folder has; not one that holds the
+        // player's data or another row's game folder, which is left as it is, nothing deleted: BuilderVersions.WhyNotDelete)
+        var version = VersionFolderOf(b);
+        if (version != null)
+        {
+            var why = BuilderVersions.WhyNotDelete(version, Home.Root)
+                      ?? (KeepOf(b).FirstOrDefault(k => BuildRegistry.Holds(version, k)) is { } other
+                          ? $"This version folder holds {other}, which the launcher keeps, so it is not deleted: {version}" : null);
+            if (why != null)
+            {
+                LauncherLog.Add($"version folder not deleted: {why}");
+                return new DeletedGame(b.Folder, false, null, null, null, why);
+            }
+        }
+        var done = BuildRegistry.DeleteGame(SaveEnv, b.Folder, Platform, KeepOf(b), () => running);
+        if (done.Deleted && version != null)
+        {
+            try
+            {
+                BuilderVersions.Delete(version, Home.Root);
+                LauncherLog.Add("version folder deleted: " + version);
+                if (Settings.RollbackVersion == Path.GetFileName(version)) Settings.RollbackVersion = null;
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                // (its game is gone: the row goes; what is left of the folder is pruned later, PruneVersions)
+                LauncherLog.Add($"version folder {version}: its game was deleted, the rest not ({e.Message})");
+            }
+        }
+        return done;
+    }
+
+    /// The version folder (versions/&lt;v&gt;) of a row whose game folder is in one; null for any other
+    public string? VersionFolderOf(BuildEntry b) => BuilderVersions.InVersions(b.Folder, Home.Root)
+        ? Path.GetDirectoryName(Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(Path.GetFullPath(b.Folder)))!) : null;
+
+    /// The version folders nothing uses any more, deleted (BuilderVersions.Prunable): no row plays them, no profile names one as
+    /// its version, not the one the last update replaced (Settings.RollbackVersion, kept for going back), not one fetched this
+    /// session for a build to come (Prefetch.Tags: its builder is in it before any row is), and none while a game or a builder
+    /// runs, or a fetch writes. What is in use is read here, on the window's thread; the folders go off it. The folders deleted, by name
+    public Task<IReadOnlyList<string>> PruneVersions(Func<IReadOnlyList<string>>? running = null)
+    {
+        if (Prefetch.Busy) return Task.FromResult<IReadOnlyList<string>>([]);
+        // (a profile whose profile.json cannot be read names no version: nothing is pruned until it is fixed or deleted)
+        var profiles = ProfileStore.All(ProfileStore.Root(Home.Root));
+        if (profiles.Any(p => p.File == null)) return Task.FromResult<IReadOnlyList<string>>([]);
+        var inUse = Registry.Builds.Select(VersionFolderOf).OfType<string>().Select(Path.GetFileName)
+            .Concat(profiles.Select(p => p.File?.Version)).Concat(Prefetch.Tags)
+            .OfType<string>().ToList();
+        var keep = Settings.RollbackVersion;
+        var root = Home.Root;
+        return Task.Run<IReadOnlyList<string>>(() =>
+        {
+            try
+            {
+                if ((running?.Invoke() ?? Saves.Running(Platform)).Contains(Saves.Longshot.Display)) return [];
+            }
+            catch (Exception e) when (e is InvalidOperationException or System.ComponentModel.Win32Exception or UnauthorizedAccessException) { return []; }
+            var pruned = new List<string>();
+            foreach (var v in BuilderVersions.Prunable(root, inUse, keep))
+                try
+                {
+                    BuilderVersions.Delete(v, root);
+                    pruned.Add(Path.GetFileName(v));
+                    LauncherLog.Add($"versions: {v} pruned: nothing uses it");
+                }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException) { LauncherLog.Add($"versions: {v} not pruned ({e.Message})"); }
+            return pruned;
+        });
+    }
 
     /// The build out of the list; with deleteFiles, its game folder from the disk too (only a game folder: BuildRegistry.DeleteFolder)
     public void Remove(BuildEntry b, bool deleteFiles)
@@ -727,7 +1014,9 @@ public sealed class LauncherService
     }
 
     /// The tools of versions no build uses any more go, but not the ones fetched this session for a build to come. While a fetch
-    /// runs the prune waits (it would take the fetch's staging folder and downloads) and runs when the last one ends (Idle)
+    /// runs the prune waits (it would take the fetch's staging folder and downloads) and runs when the last one ends (Idle). Its
+    /// file work (reading the versions' records, deleting folders) runs off the window's thread, under the installs' own
+    /// exclusion (ToolsPrefetch.CleanStaging): a fetch started meanwhile waits for it, or the prune waits for the fetch
     public void PruneTools()
     {
         if (Prefetch.Busy)
@@ -737,8 +1026,48 @@ public sealed class LauncherService
             // (the last fetch ended between the two looks, its Idle maybe before the flag: prune now)
             Interlocked.Exchange(ref pruneLater, 0);
         }
-        try { Tools.Prune(Registry.Builds.Select(x => x.Version).OfType<string>().Concat(Prefetch.Tags)); }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+        var builds = Registry.Builds.Select(x => x.Version).OfType<string>().ToList();
+        // (make_game.py's build files and SDKs, once no old version is listed: Disk.PruneMakeGame)
+        var oldListed = Registry.Builds.Any(IsOld);
+        var work = Work;
+        var sdks = new[] { Home.NgxSdk, Home.FfxSdk, Home.XessSdk };
+        _ = Task.Run(() =>
+        {
+            // (an older launcher's toolchains/ no row uses: the version folders hold the builders now, and go with their version,
+            // BuilderVersions.Prunable. The fetches' versions read under the exclusion: one asked for since is kept)
+            var pruned = Prefetch.CleanStaging(() =>
+            {
+                try { Tools.Prune(builds.Concat(Prefetch.Tags)); }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+            });
+            if (!pruned)
+            {
+                // (an install holds the tools' folder: again once the fetches end, or now when they ended before the flag)
+                Interlocked.Exchange(ref pruneLater, 1);
+                if (!Prefetch.Busy && Interlocked.Exchange(ref pruneLater, 0) == 1) ViewModels.Ui.Post(PruneTools);
+                return;
+            }
+            try { Disk.PruneMakeGame(work, sdks, oldListed); }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.Security.SecurityException)
+            {
+                LauncherLog.Add("make_game.py's build files not all let go: " + e.Message);
+            }
+        });
+    }
+
+    /// The build files folder changed from `from`, the change saved: the launcher's rows' longshot-builder work folders left in it
+    /// (Disk.LeaveLongshotWork) deleted, off the window's thread. No build looks there any more, and each is a gigabyte or more;
+    /// a folder a build holds (its lock) or the launcher's own build runs in stays
+    public void LeaveWork(string from)
+    {
+        var to = Work;
+        if (BuildRegistry.SameFolder(from, to)) return;
+        IReadOnlyCollection<string> building = ViewModels.BuildStepViewModel.Current?.RunningWorkFolder is { } running ? [running] : [];
+        _ = Task.Run(() =>
+        {
+            var gone = Disk.LeaveLongshotWork(from, to, building, (dir, e) => LauncherLog.Add($"build files: {dir} not let go: {e.Message}"));
+            if (gone.Count > 0) LauncherLog.Add($"build files moved to {to}: {gone.Count} of its builds' work folders let go in {from}");
+        });
     }
 
     bool measuring, remeasure;
@@ -824,7 +1153,10 @@ public sealed class LauncherService
     {
         if (SaveEditorOverride is { } own) return own();
         if (SaveFolder() is not { } save) return (null, SaveEditorWhy.NoSave);
-        var (tool, why) = SaveEditing.Find(Registry.Default, Tools);
+        var (tool, why) = SaveEditing.Find(Registry.Default);
         return tool == null ? (null, why) : (new SaveEditing(tool, SaveEnv, save), why);
     }
 }
+
+/// Play refused for a version built by Longshot's old builder (OldVersions): its message says to use the stable launcher
+public sealed class OldVersionException(string message) : InvalidOperationException(message);

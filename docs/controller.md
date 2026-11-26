@@ -11,12 +11,22 @@ a TV, or at a desk ([#1186](https://git.magicbean.dev/MagicBeanDev/Longshot/issu
 |---|---|
 | **D-pad or left stick** | Moves to the next control that way. Held, it repeats |
 | **A** | Presses the control: a button, a switch, a choice; opens a list, then chooses in it |
-| **B** | Closes an open list; otherwise presses the dialog's or page's Back, Cancel, Keep, Decline or Done, or returns to Home from a tab |
+| **B** | Closes an open list; otherwise presses the dialog's Cancel, Keep or Decline, or the page's Back (the arrow left of its title), or returns to Home from a tab |
 | **LB / RB** | The previous and next control in order, for one no direction reaches |
 | **Right stick** | Scrolls the page or the list |
 
-The first press focuses the home's **Play** (or **Build**), a page's main button, or a dialog's safe button (Keep, Cancel,
-Decline). While a dialog is open the focus stays in it. The Settings cog is in the title bar.
+The first press focuses the home's **Play** (or **Build**, **Update**, or **Build it again** for a version whose game is missing), a
+page's main button (on the Versions page, the first version card's first action: its update, Build it again or Set as
+default; with no version, Build), or a dialog's safe button (Keep, Cancel, Decline). From Play,
+up moves to the home's pickers: the version and the save slot (the profile is the title bar's). A page with neither (Settings, Saves, NFC,
+the backups, the save editor) starts on its main list or its first setting: the language, the
+first slot's Progress, the first category. A dialog or a menu that marks its main control starts there instead of on
+its safe button: the profile menu on New profile… (B closes it), a profile's name box. While a dialog is open the focus stays in it. The Settings cog is in the
+title bar.
+
+**Back.** A page that leads back has a round arrow left of its title. B presses it, and so does **Esc** on the keyboard; while
+a controller is in use (the TV view, or once a controller was pressed) the arrow wears B's glyph. The tabs' pages (Saves, Versions, Profiles,
+NFC, Storage, Settings) have none: B there is the title bar's Home.
 
 ## Which controllers
 

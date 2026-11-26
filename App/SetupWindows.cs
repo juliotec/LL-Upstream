@@ -117,7 +117,9 @@ public static class SetupWindows
             {
                 if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException("Only the Windows launcher uninstalls itself.");
                 // (everything else first, the saves kept: refused with nothing touched while Longshot runs. RemoveEverything)
-                var everything = data.IsChecked == true ? RemoveEverything.Run(Everything(at), saves: false, () => Saves.Running(Platform.Windows)) : null;
+                var places = data.IsChecked == true ? Everything(at) : null;
+                var everything = places != null ? RemoveEverything.Run(places, saves: false, () => Saves.Running(Platform.Windows),
+                                                                       building: () => Saves.BuilderRunning(Platform.Windows, places.Versions)) : null;
                 var removed = Installer.Uninstall(at, new UserRegistry(), new ShellShortcuts(), false, Array.Empty<string>(), Environment.ProcessPath);
                 WindowsShortcuts.RemoveGame();
                 Program.ReleaseLock();
@@ -159,6 +161,6 @@ public static class SetupWindows
         var nfc = Environment.GetEnvironmentVariable(NfcTags.Variable) is { Length: > 0 } ? null : NfcTags.Folder(Platform.Windows);
         return new RemoveEverything.Places(SaveEnvironment.Current(), home, registry.Builds.Select(b => b.Folder).ToList(), settings.BuildsFolderOrDefault(),
                                            !string.IsNullOrWhiteSpace(settings.BuildsFolder), string.IsNullOrWhiteSpace(settings.Work) ? home.Work : settings.Work,
-                                           !string.IsNullOrWhiteSpace(settings.Work), nfc);
+                                           !string.IsNullOrWhiteSpace(settings.Work), nfc, settings.EarlierWork.ToList());
     }
 }

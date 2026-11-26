@@ -60,10 +60,13 @@ public sealed class RemoveEverythingViewModel : ViewModelBase
     public string SavesLabel => Tr.T("Also delete my saves, their backups, the game's settings and NFC tags");
     public string SavesWarning => Tr.T("They go with no copy kept and can't be brought back. To keep a copy, export them first in Saves.");
 
-    /// Why Remove is off now: Longshot or a build or a download runs, or the list of versions could not be read
+    /// Why Remove is off now: Longshot or a build (this launcher's, or longshot-builder writing a listed version's folder:
+    /// Saves.BuilderRunning) or a download runs, or the list of versions could not be read
     string? WhyNot => shownRunning == true || (shownRunning == null && Core.Saves.Running(Main.Platform).Contains(Core.Saves.Longshot.Display))
         ? Tr.T("Close Longshot first: nothing is removed while it runs.")
-        : shownRunning == null && (BuildStepViewModel.Current != null || Main.Service.Prefetch.Busy) ? Tr.T("Wait for the build or download to finish first.")
+        : shownRunning == null && (BuildStepViewModel.Current != null || Main.Service.Prefetch.Busy
+                                   || Core.Saves.BuilderRunning(Main.Platform, Main.Service.Registry.Builds.Select(b => b.Folder)))
+            ? Tr.T("Wait for the build or download to finish first.")
         : shownRunning == null && Main.Service.Registry.Problem != null ? Tr.T("The list of versions could not be read, so nothing is removed.")
         : null;
 
@@ -125,16 +128,23 @@ public sealed class RemoveEverythingViewModel : ViewModelBase
         var nfcChosen = Environment.GetEnvironmentVariable(NfcTags.Variable) is { Length: > 0 };
         var places = new RemoveEverything.Places(s.SaveEnv, s.Home, s.Registry.Builds.Select(b => b.Folder).ToList(), s.BuildsFolder,
                                                  !string.IsNullOrWhiteSpace(s.Settings.BuildsFolder), s.Work, !string.IsNullOrWhiteSpace(s.Settings.Work),
-                                                 nfcChosen ? null : NfcTags.Folder(platform));
+                                                 nfcChosen ? null : NfcTags.Folder(platform), s.Settings.EarlierWork.ToList(), LauncherService.LauncherPath);
         var launcher = LauncherService.LauncherPath;
+        // (any version folder's builder takes the tile out: its note beside Steam's library names the tile whichever made it)
+        var steamBuilder = s.Tools.Installed().Select(t => s.Tools.Find(t)).OfType<Toolchain>().Select(t => s.BuilderOf(t.Folder)).FirstOrDefault();
+        // (the default profile's tile, Longshot, and each other profile's own: SteamTile.NameFor)
+        var tiles = new List<string?> { null };
+        try { tiles.AddRange(s.Profiles.Select(SteamTile.NameFor).Where(n => n != null)); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
         var withSaves = saves;
         try
         {
             done = await Task.Run(() =>
             {
                 // (the shortcuts first, while the logo they name is still there: only the ones that start this launcher)
-                steamWaits = Shortcuts(launcher, platform);
-                var d = RemoveEverything.Run(places, withSaves, () => Core.Saves.Running(platform));
+                steamWaits = Shortcuts(launcher, platform, steamBuilder, tiles);
+                var d = RemoveEverything.Run(places, withSaves, () => Core.Saves.Running(platform),
+                                             building: () => Core.Saves.BuilderRunning(platform, places.Versions));
                 // (the installed Windows launcher's shortcut, entry and program: deleted once the window has closed)
                 if (OperatingSystem.IsWindows() && InstalledOnWindows)
                 {
@@ -165,10 +175,11 @@ public sealed class RemoveEverythingViewModel : ViewModelBase
         }
     }
 
-    /// The shortcuts the launcher made that start it: Linux's desktop and menu entries and Steam's tile (only its own:
-    /// SteamShortcuts.Remove), Windows' desktop and Start menu Longshot.lnk (one starting another launcher stays). A failure
-    /// leaves that shortcut, never the rest. Returns whether Steam's tile went while Steam runs
-    static bool Shortcuts(string launcher, Platform platform)
+    /// The shortcuts the launcher made that start it or its versions: Linux's desktop and menu entries and Steam's tile (taken out
+    /// by a version folder's builder, which only ever removes its own: SteamTile), Windows' desktop and Start menu Longshot.lnk
+    /// (one starting another launcher stays). A failure leaves that shortcut, never the rest. Returns whether Steam's tile went
+    /// while Steam runs
+    static bool Shortcuts(string launcher, Platform platform, LongshotBuilder? steamBuilder, IReadOnlyList<string?> tiles)
     {
         void Try(Action act)
         {
@@ -185,7 +196,16 @@ public sealed class RemoveEverythingViewModel : ViewModelBase
         }
         Try(() => RemoveEverything.RemoveLinuxShortcuts(launcher));
         var steam = false;
-        Try(() => steam = SteamShortcuts.Locate(launcher) is { } tile && SteamShortcuts.Remove(tile) && SteamShortcuts.SteamUp());
+        if (steamBuilder != null && SteamTile.Present())
+            Try(() =>
+            {
+                foreach (var name in tiles)
+                {
+                    var r = SteamTile.RunAsync(steamBuilder, null, remove: true, name: name).GetAwaiter().GetResult();
+                    if (!r.Done) LauncherLog.Add($"remove everything: the Steam shortcut {name ?? "Longshot"} was not removed: " + r.Text);
+                    steam |= r.Action == "removed" && r.SteamRunning;
+                }
+            });
         return steam;
     }
 

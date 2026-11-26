@@ -32,7 +32,7 @@
           <Border Classes="boxicon">
             <c:Icon Kind="alert" Width="13" Height="13" Foreground="{StaticResource Warn}"/>
           </Border>
-          <StackPanel Grid.Column="1" Spacing="4">
+          <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
             <TextBlock Text="{Binding Problem}" TextWrapping="Wrap"/>
             <TextBlock Classes="faint" Text="{Binding BackupMadeText}" IsVisible="{Binding HasBackupMade}" TextWrapping="Wrap"/>
           </StackPanel>
@@ -43,12 +43,12 @@
           <Border Classes="boxicon">
             <c:Icon Kind="alert" Width="13" Height="13" Foreground="{StaticResource Warn}"/>
           </Border>
-          <TextBlock Grid.Column="1" Text="{Binding CloseFirst}" TextWrapping="Wrap"/>
+          <TextBlock Grid.Column="1" Text="{Binding CloseFirst}" TextWrapping="Wrap" VerticalAlignment="Center"/>
         </Grid>
       </Border>
       <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" Margin="0,14,0,0">
-        <c:Icon Kind="folder" Width="15" Height="15" Foreground="{StaticResource InkFaintText}" VerticalAlignment="Top"/>
-        <TextBlock Grid.Column="1" FontSize="12" Foreground="{StaticResource InkSoft}" Text="{Binding BackupLine}" TextWrapping="Wrap"/>
+        <c:Icon Kind="folder" Width="15" Height="15" Foreground="{StaticResource InkFaintText}" VerticalAlignment="Center"/>
+        <TextBlock Grid.Column="1" FontSize="12" Foreground="{StaticResource InkSoft}" Text="{Binding BackupLine}" TextWrapping="Wrap" VerticalAlignment="Center"/>
       </Grid>
       <TextBlock Classes="faint" Text="{c:T 'Close the game first: a running game writes its save again when it quits and would undo the edit.'}"
                  TextWrapping="Wrap" Margin="0,6,0,0" IsVisible="{Binding NotBusy}"/>

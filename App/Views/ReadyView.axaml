@@ -13,6 +13,9 @@
     <TextBlock Classes="sub" Text="{Binding Sub}" TextAlignment="Center" HorizontalAlignment="Center" MaxWidth="700"/>
     <TextBlock FontSize="13" Foreground="{StaticResource Warn}" Text="{Binding Problem}" IsVisible="{Binding HasProblem}" TextWrapping="Wrap"
                TextAlignment="Center" MaxWidth="640" Margin="0,10,0,0"/>
+    <!-- (longshot-builder's game reads its files from the .nup where it is: keep it there) -->
+    <TextBlock FontSize="13" Foreground="{StaticResource Warn}" Text="{Binding KeepNup}" IsVisible="{Binding HasKeepNup}" TextWrapping="Wrap"
+               TextAlignment="Center" MaxWidth="640" Margin="0,10,0,0"/>
     <StackPanel Orientation="Horizontal" Spacing="12" HorizontalAlignment="Center" Margin="0,28,0,0">
       <Button Classes="go" Command="{Binding PlayCommand}">
         <StackPanel Orientation="Horizontal" Spacing="8">

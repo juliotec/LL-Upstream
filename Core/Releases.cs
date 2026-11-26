@@ -15,9 +15,6 @@ public sealed class Releases
 {
     public const string Repo = Product.Server + "/MagicBeanDev/Longshot";
     public const string LauncherRepo = Product.Server + "/MagicBeanDev/LongshotLauncher";
-    const long MaxSmall = 4 << 20;
-    /// How many of a channel's newest versions an update check reads to find one this launcher can build (HasNewBuilder)
-    const int MaxSkipped = 5;
 
     readonly IReadOnlyList<ReleaseKey> keys;
     readonly Func<TimeSpan, CancellationToken, Task> delay;
@@ -46,6 +43,10 @@ public sealed class Releases
         this.delay = delay ?? Task.Delay;
     }
 
+    /// The most pages of the release list read (50 releases each): enough to look past the make_game.py releases on top of a
+    /// channel to its newest supported one (ReleaseManifest.Supported), bounded
+    public const int MaxPages = 20;
+
     public string ListUrl(int page) => $"{Product.Api}/releases?limit=50&page={page}";
 
     public string VersionUrl(string tag) =>
@@ -59,7 +60,7 @@ public sealed class Releases
         Problem = null;
         Unreachable = null;
         var all = new List<ListedRelease>();
-        for (var page = 1; page <= 20; page++)
+        for (var page = 1; page <= MaxPages; page++)
         {
             var text = await TextAsync(ListUrl(page), 2, cancel).ConfigureAwait(false);
             if (text == null)
@@ -99,22 +100,9 @@ public sealed class Releases
         if (list == null) return answers;
         foreach (var channel in answers.Keys.ToList())
         {
-            // (a version built with the new builder is no update for this launcher: the newest one it can build is the channel's;
-            // none: the channel has no version for it. Only a few are read, newest first)
-            foreach (var release in ReleaseManifest.OnChannel(list, channel, Product).Take(MaxSkipped))
-            {
-                // (the list already shows a longshot-builder manifest: skipped without fetching and checking its SHA256SUMS; the
-                // signed check below still refuses one the list does not show)
-                if (ReleaseManifest.ListsNewBuilder(release, Platform)) continue;
-                try
-                {
-                    var info = await VersionAsync(release.Tag, release, cancel).ConfigureAwait(false);
-                    if (info.HasNewBuilder(Platform)) continue;
-                    answers[channel] = info;
-                }
-                catch (Exception e) when (e is InvalidDataException or FetchException) { Problem = e.Message; }
-                break;
-            }
+            if (ReleaseManifest.Newest(list, channel, Product, Platform) is not { } tag) continue;
+            try { answers[channel] = await VersionAsync(tag, list.First(r => r.Tag == tag), cancel).ConfigureAwait(false); }
+            catch (Exception e) when (e is InvalidDataException or FetchException) { Problem = e.Message; }
         }
         return answers;
     }
@@ -148,36 +136,6 @@ public sealed class Releases
         var release = ReleaseManifest.Build(listed, SignedSums.Open(sumBytes, Encoding.ASCII.GetString(sigBytes), keys), Product);
         known[tag] = release;
         return release;
-    }
-
-    /// A version's release, refused when it is built with the new builder (NeedsNightlyLauncher); the old builds' versions pass.
-    /// Throws as VersionAsync does
-    public async Task<ReleaseInfo> OldBuilderAsync(string tag, CancellationToken cancel = default)
-    {
-        var release = await VersionAsync(tag, cancel).ConfigureAwait(false);
-        return release.HasNewBuilder(Platform) ? throw NeedsNightlyLauncher.Refusal() : release;
-    }
-
-    /// A Longshot version's Windows builder and tools for Toolchains: the builder's zip unpacked as it is, then each tool of the
-    /// release's tools.lock (checked by its SHA-256) as tools.lock says
-    public async Task<PartsList> ToolsListAsync(string tag, CancellationToken cancel = default)
-    {
-        var release = await VersionAsync(tag, cancel).ConfigureAwait(false);
-        if (Platform != Platform.Windows) throw new InvalidOperationException("The Linux builder is an AppImage: BuilderAsync.");
-        if (!release.Builder.TryGetValue("windows-x64", out var zip)) throw new InvalidDataException($"{tag} has no Windows builder.");
-        if (!release.Tools.TryGetValue("windows-x64", out var lockFile)) throw new InvalidDataException($"{tag} has no tools.lock.");
-        var lockText = Encoding.UTF8.GetString(await ReleaseManifest.FetchAsync(Fetcher, lockFile, MaxSmall, cancel).ConfigureAwait(false));
-        var parts = new List<Part> { new(zip.Sha256, zip.Size, ".", null, null, zip.Url) };
-        parts.AddRange(ToolsLock.Parse(lockText, "windows-x64"));
-        return new PartsList(ListKind.Setup, tag, parts, ToolsLock.Run);
-    }
-
-    /// A Longshot version's builder file for this system (the Linux AppImage)
-    public async Task<FileRef> BuilderAsync(string tag, CancellationToken cancel = default)
-    {
-        var release = await VersionAsync(tag, cancel).ConfigureAwait(false);
-        return release.Builder.TryGetValue(ReleaseManifest.PlatformKey(Platform), out var file) ? file
-            : throw new InvalidDataException($"{tag} has no builder for {ReleaseManifest.PlatformKey(Platform)}.");
     }
 
     /// A text, tries times for an answer that may come next time (no answer, a server error); null when none came (lastFailure

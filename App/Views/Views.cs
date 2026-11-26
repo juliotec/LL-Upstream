@@ -5,6 +5,10 @@ namespace LongshotLauncher.Views;
 // The pages and dialogs: each its .axaml, bound to its view model (compiled bindings); no logic here but where the view scrolls
 
 public sealed partial class HomeView : UserControl { public HomeView() => InitializeComponent(); }
+public sealed partial class BuildCardView : UserControl { public BuildCardView() => InitializeComponent(); }
+public sealed partial class VersionsView : UserControl { public VersionsView() => InitializeComponent(); }
+public sealed partial class ProfilesView : UserControl { public ProfilesView() => InitializeComponent(); }
+public sealed partial class WhoView : UserControl { public WhoView() => InitializeComponent(); }
 public sealed partial class FilesStepView : UserControl { public FilesStepView() => InitializeComponent(); }
 public sealed partial class SettingsStepView : UserControl
 {
@@ -117,13 +121,14 @@ public sealed partial class SaveEditConfirmView : UserControl { public SaveEditC
 public sealed partial class SaveEditAskView : UserControl { public SaveEditAskView() => InitializeComponent(); }
 public sealed partial class BackupsView : UserControl { public BackupsView() => InitializeComponent(); }
 public sealed partial class ChannelPickerView : UserControl { public ChannelPickerView() => InitializeComponent(); }
+public sealed partial class AddVersionView : UserControl { public AddVersionView() => InitializeComponent(); }
 public sealed partial class DeleteView : UserControl { public DeleteView() => InitializeComponent(); }
 public sealed partial class BuildFilesView : UserControl { public BuildFilesView() => InitializeComponent(); }
 public sealed partial class LicenceView : UserControl { public LicenceView() => InitializeComponent(); }
 public sealed partial class StopBuildView : UserControl { public StopBuildView() => InitializeComponent(); }
-public sealed partial class NeedsNightlyLauncherView : UserControl { public NeedsNightlyLauncherView() => InitializeComponent(); }
 public sealed partial class SavePickView : UserControl { public SavePickView() => InitializeComponent(); }
 public sealed partial class HookshotImportView : UserControl { public HookshotImportView() => InitializeComponent(); }
+public sealed partial class StableLauncherView : UserControl { public StableLauncherView() => InitializeComponent(); }
 public sealed partial class HookshotSettingsView : UserControl { public HookshotSettingsView() => InitializeComponent(); }
 public sealed partial class ReleaseNotesView : UserControl { public ReleaseNotesView() => InitializeComponent(); }
 // (files and folders dropped on the NFC page go through the window's own drop handling, as step 1's do: MainViewModel.Drop)
@@ -133,3 +138,4 @@ public sealed partial class RemoveEverythingView : UserControl { public RemoveEv
 public sealed partial class PullRequestWarningView : UserControl { public PullRequestWarningView() => InitializeComponent(); }
 public sealed partial class PullRequestConfirmView : UserControl { public PullRequestConfirmView() => InitializeComponent(); }
 public sealed partial class PullRequestFindView : UserControl { public PullRequestFindView() => InitializeComponent(); }
+public sealed partial class RepointView : UserControl { public RepointView() => InitializeComponent(); }

@@ -40,6 +40,8 @@
   <ItemGroup>
     <!-- (Inter, under its own licence, Assets/Fonts/Inter-LICENSE.txt, and the Longshot logo, and its icon for the Windows window) -->
     <AvaloniaResource Include="Assets/Fonts/Inter-*.ttf"/>
+    <!-- (Noto Sans Black, the brand's headings, under the SIL Open Font License: Assets/Fonts/NotoSans-OFL.txt) -->
+    <AvaloniaResource Include="Assets/Fonts/NotoSans-Black.ttf"/>
     <AvaloniaResource Include="Assets/longshot.png"/>
     <AvaloniaResource Include="Assets/longshot.ico"/>
     <!-- (the tile's capsule artwork for Steam's grid/, under its own folder. The src_* originals

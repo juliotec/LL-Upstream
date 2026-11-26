@@ -164,20 +164,18 @@ tool llvm-mingw 20261104 windows-x64 5521…40f 191037046 LongshotBuilder/tools/
 
 ## How the launcher reads it
 
-`Core/Releases.cs`, `ReleaseManifest.cs`, `ReleaseTrust.cs`, `ToolsLock.cs`, `ToolsSource.cs`, `Toolchains.cs`,
-`SelfUpdate.cs`:
+`Core/Releases.cs`, `ReleaseManifest.cs`, `ReleaseTrust.cs`, `LongshotBuildRelease.cs`, `ToolsSource.cs`, `Toolchains.cs`,
+`SelfUpdate.cs`, `StableSwitch.cs`:
 
 1. **At start, and on Retry.** It reads Longshot's release list and its own. For each of Longshot's channels and for its
    own launcher channel, it takes the newest version (rules above). It opens that release's `SHA256SUMS` and checks the
    signature. A channel whose newest release is refused offers nothing, and the home says why.
 2. **Builds.** Each build is offered its channel's newest Longshot version when that is newer.
-   - Windows: building a version downloads its `LongshotBuilder-<v>-windows-x64.zip` and its `tools.lock`, each checked
-     against `SHA256SUMS`, then installs the zip and each tool (above) into `<home>/toolchains/<v>.part`. The folder is
-     renamed when complete.
-   - Linux: it downloads `Longshot-<v>-x86_64.AppImage`, checks it, and unpacks it with its own `--appimage-extract`, then
-     installs the `linux-x64` tools of the `tools.lock` inside it (covered by the AppImage's checksum) into the same folder,
-     each checked by its SHA-256, as on Windows. An AppImage with no `tools.lock` inside (one that carried its tools) needs
-     none.
+   - The nightly launcher installs only a release's `longshot-builder`: the file its signed manifest,
+     `longshot-builder-<v>-<system>.json`, names (whole, or from a zstd delta of one it keeps), checked by its SHA-256,
+     into `<home>/toolchains/<v>.part`, renamed when complete. A release with no manifest was made for `make_game.py`,
+     the old builder: the launcher refuses to build it and says to use the stable Longshot Launcher; the
+     `LongshotBuilder-<v>-windows-x64.zip`, the AppImage and `tools.lock` are the stable launcher's.
 3. **Itself.** The launcher's own channel offers a newer launcher, or, after the player picked another channel, that
    channel's newest. *Update the launcher* downloads it beside the current file as `<name>.new` and checks it against
    `SHA256SUMS`. It starts it with `--self-check` (it must print `LongshotLauncher <version>` and exit 0 within a minute),

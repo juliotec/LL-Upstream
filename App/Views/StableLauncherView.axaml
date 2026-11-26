@@ -1,0 +1,57 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:LongshotLauncher.ViewModels"
+             xmlns:c="using:LongshotLauncher.Controls"
+             x:Class="LongshotLauncher.Views.StableLauncherView"
+             x:DataType="vm:StableLauncherViewModel">
+  <!-- The offer of the stable launcher in this one's place: what it means for the versions, the saves copied back first, then
+       Replace (the launcher's own update, reversed) or Cancel -->
+  <Border Classes="dialog" MaxWidth="580">
+    <StackPanel>
+      <TextBlock Classes="modaltitle" Text="{Binding Title}" TextWrapping="Wrap"/>
+      <TextBlock Classes="sub" Text="{Binding Intro}" TextWrapping="Wrap"/>
+      <Border Classes="warnbox" Margin="0,12,0,0">
+        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+          <Border Classes="boxicon">
+            <c:Icon Kind="alert" Width="13" Height="13" Foreground="{StaticResource Warn}"/>
+          </Border>
+          <TextBlock Grid.Column="1" Text="{Binding Warning}" FontSize="13" TextWrapping="Wrap" VerticalAlignment="Center"/>
+        </Grid>
+      </Border>
+      <!-- the saves: where the stable launcher reads them, and the copy there -->
+      <StackPanel Spacing="6" Margin="0,14,0,0" IsEnabled="{Binding Asking}">
+        <TextBlock Classes="hint" Text="{Binding SavesText}" TextWrapping="Wrap"/>
+        <TextBlock Classes="hint" Text="{Binding SavesNothing}" IsVisible="{Binding ShowNothing}" TextWrapping="Wrap"/>
+        <StackPanel Spacing="6" IsVisible="{Binding HasSaves}">
+          <CheckBox Classes="tick" IsChecked="{Binding CopySaves}">
+            <StackPanel Spacing="2">
+              <TextBlock Text="{Binding CopyLabel}" TextWrapping="Wrap"/>
+              <TextBlock Classes="faint" Text="{Binding CopySummary}" TextWrapping="Wrap"/>
+            </StackPanel>
+          </CheckBox>
+          <StackPanel Spacing="4" Margin="26,0,0,0" IsVisible="{Binding ShowNewer}">
+            <TextBlock Classes="faint" Text="{Binding NewerText}" TextWrapping="Wrap"/>
+            <CheckBox Classes="tick" IsChecked="{Binding ReplaceNewer}">
+              <TextBlock Text="{Binding ReplaceNewerLabel}" TextWrapping="Wrap"/>
+            </CheckBox>
+          </StackPanel>
+        </StackPanel>
+      </StackPanel>
+      <TextBlock Classes="hint" Margin="0,10,0,0" Text="{Binding CannotReplaceText}" IsVisible="{Binding CannotReplace}" TextWrapping="Wrap"/>
+      <!-- while it runs: what it does, the download's bar -->
+      <StackPanel Spacing="6" Margin="0,12,0,0" IsVisible="{Binding ReplaceCommand.IsBusy}">
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <c:Spinner VerticalAlignment="Center"/>
+          <TextBlock Classes="note" Text="{Binding ReplaceCommand.Status}" TextWrapping="Wrap"/>
+        </StackPanel>
+        <ProgressBar Value="{Binding ReplaceCommand.Progress}" Maximum="1" IsVisible="{Binding ReplaceCommand.HasFraction}"/>
+      </StackPanel>
+      <TextBlock Classes="hint" Margin="0,10,0,0" Text="{Binding ReplaceCommand.Problem}" IsVisible="{Binding ReplaceCommand.HasProblem}"
+                 Foreground="{StaticResource Bad}" TextWrapping="Wrap"/>
+      <StackPanel Classes="buttons" Margin="0,16,0,0">
+        <Button Content="{c:T 'Cancel'}" Command="{Binding CancelCommand}" c:Pad.Back="True"/>
+        <Button Classes="primary" Content="{c:T 'Replace this launcher'}" Command="{Binding ReplaceCommand}"/>
+      </StackPanel>
+    </StackPanel>
+  </Border>
+</UserControl>

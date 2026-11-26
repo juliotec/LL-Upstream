@@ -9,21 +9,64 @@ public sealed class BuildItemViewModel : ViewModelBase
     readonly HomeViewModel home;
     bool selected;
 
-    public BuildItemViewModel(HomeViewModel home, BuildEntry entry, bool built, string? update, IReadOnlyList<SaveSlot> saves, bool deleting = false)
+    /// old: built by make_game.py (OldVersions): shown as not supported, never played, built or updated here
+    public BuildItemViewModel(HomeViewModel home, BuildEntry entry, bool built, string? update, IReadOnlyList<SaveSlot> saves, bool deleting = false,
+                              bool old = false)
     {
         this.home = home;
         Entry = entry;
         IsBuilt = built;
-        Update = update;
+        IsOld = old && built;
+        Update = IsOld ? null : update;
         Saves = saves;
         IsDeleting = deleting;
         SelectCommand = new Command(() => home.Select(this));
         // (a build being deleted: nothing more starts on it, and its delete does not start twice)
-        PlayCommand = new Command(() => home.Play(this), () => IsBuilt && !IsDeleting);
+        PlayCommand = new Command(() => home.Play(this), () => IsBuilt && !IsOld && !IsDeleting);
         SetDefaultCommand = new Command(() => home.SetDefault(this), () => !IsDeleting);
+        StableCommand = new Command(() => home.Main.Modal = new StableLauncherViewModel(home.Main), () => IsOld && !IsDeleting);
         DeleteCommand = new Command(() => home.AskDelete(this), () => !IsDeleting);
         SavesCommand = new Command(() => home.Main.ShowSaves(), () => !IsDeleting);
         FolderCommand = new Command(() => home.Main.Host?.Open(Entry.Folder));
+        UpdateToCommand = new Command(() => home.UpdateBuild(this), () => HasUpdate && !IsDeleting && home.CanStartBuild);
+        WhatsNewCommand = new Command(() =>
+        {
+            if (Versions.PullRequestOf(Update) is { } n) home.Main.Host?.Open(PullRequests.PageOf(n.Number));
+            else home.ShowNotes(this);
+        }, () => HasUpdate);
+        RebuildCommand = new Command(() =>
+        {
+            if (Entry.Version is { } v)
+                home.Main.StartWizard(JobKind.Rebuild, Versions.IsPullRequest(v) ? Versions.PullRequest : Channel, v, Entry);
+        }, () => IsMissing && Entry.Version != null && home.CanStartBuild);
+    }
+
+    /// Its card's state on the Versions page: Ready, Update available, Game missing, Not supported, Deleting
+    public string StateText => IsDeleting ? Tr.T("Deleting…") : !IsBuilt ? Tr.T("Game missing") : IsOld ? Tr.T("Not supported")
+        : HasUpdate ? Tr.T("Update available") : Tr.T("Ready");
+    public bool StateReady => IsBuilt && !IsOld && !IsDeleting && !HasUpdate;
+    public bool StateUpdate => IsBuilt && !IsDeleting && HasUpdate;
+    /// "Update to v3.2.0" (a pull request's newer push: "Update to its newer push")
+    public string UpdateToText => Update is { } u ? Versions.IsPullRequest(u) ? Tr.T("Update to its newer push") : Tr.F("Update to {0}", Versions.Shown(u)) : "";
+    public bool ShowUpdateTo => HasUpdate && !IsDeleting;
+    public bool ShowRebuild => IsMissing;
+    public bool ShowSetDefault => !IsDefault && !IsDeleting && !IsOld;
+
+    /// Built by Longshot's old builder (make_game.py, OldVersions): this launcher neither plays nor updates it, and says so on its
+    /// card with the way back to the stable launcher (StableCommand); the player may still delete it
+    public bool IsOld { get; }
+    public bool ShowOld => IsOld && !IsDeleting;
+    public string OldText => OldVersions.Shown;
+    /// The offer to replace this launcher with the stable one (StableLauncherViewModel), which plays it
+    public Command StableCommand { get; }
+    public Command UpdateToCommand { get; }
+    public Command WhatsNewCommand { get; }
+    public Command RebuildCommand { get; }
+
+    public void BusyChanged()
+    {
+        UpdateToCommand.Changed();
+        RebuildCommand.Changed();
     }
 
     /// Its folder is being deleted (DeleteViewModel): the row says so with a spinner until it goes
@@ -33,6 +76,9 @@ public sealed class BuildItemViewModel : ViewModelBase
     public IReadOnlyList<SaveSlot> Saves { get; }
     /// The version as players see it (a nightly: "Nightly 2029 · c544828f", Versions.Shown), else the build's name
     public string Version => Entry.Version is { } v ? Versions.Shown(v) : Entry.Name;
+
+    /// Its name without the commit, for a narrow field ("Nightly 187", "PR #1548"; a release as it is): the full name is its tooltip
+    public string ShortVersion => Version.Split(" \u00b7 ")[0];
     public string Channel => UpdatePolicy.ChannelOf(Entry.Channel, Entry.Version);
     public bool IsRelease => Channel == Versions.Stable;
     public bool IsNightly => Channel == Versions.Nightly;
@@ -49,7 +95,6 @@ public sealed class BuildItemViewModel : ViewModelBase
         get
         {
             var bits = new List<string> { Tr.F("Built {0}", Durations.Day(Entry.Updated.LocalDateTime, DateTime.Now)) };
-            if (!IsBuilt) bits.Add(Tr.T("not built"));
             // (its pull request merged or closed since: Beanstalk lists only the open ones. The build stays until the player deletes it)
             if (Versions.PullRequestOf(Entry.Version) is { } pr && home.Main.Service.Pulls != null && home.Main.Service.PullRequestOf(pr.Number) == null)
                 bits.Add(Tr.T("its pull request is closed"));
@@ -67,6 +112,11 @@ public sealed class BuildItemViewModel : ViewModelBase
             if (Set(ref selected, value)) RaiseAll(nameof(ShowActions), nameof(ShowOtherActions), nameof(ShowDefaultNote));
         }
     }
+
+    /// Its folder is listed but its game is not there (deleted by hand, or moved): built again before it plays
+    public bool IsMissing => !IsBuilt && !IsDeleting;
+    /// "Game missing" on the row, in the warning's colour: the hero's button builds it again
+    public string MissingText => Tr.T("Game missing");
 
     public bool ShowActions => selected;
     public bool ShowOtherActions => selected && !IsDefault;
@@ -89,12 +139,40 @@ public sealed class BuildItemViewModel : ViewModelBase
     public Command FolderCommand { get; }
 }
 
+/// A save of Home's list: its slot, place, when and hearts; Chosen: Play starts on it
+public sealed record HomeSaveRow(string Title, string Place, string When, string? Hearts, bool Chosen, Command PickCommand, string? Detail = null)
+{
+    public bool HasHearts => Hearts != null;
+    public bool HasDetail => !string.IsNullOrEmpty(Detail);
+}
+
+/// One entry of Home's Saves picker: a slot, or New game (Slot null) when the profile has none, with what it says under its name and its hearts
+public sealed class SaveStartChoice(string? slot, string title, string detail, string? hearts)
+{
+    public string? Slot => slot;
+    public string Title => title;
+    public string Detail => detail;
+    public string? Hearts => hearts;
+    public bool HasHearts => hearts != null;
+}
+
+/// The last rows of a Home picker that are not a choice but a way to the page that manages them: Manage versions…, New
+/// version…, Manage saves…
+public sealed class ManageChoice(string text, Action go, string icon = "list")
+{
+    public string Text => text;
+    public string Icon => icon;
+    public void Go() => go();
+}
+
 /// One track in the hero's Track dropdown: stable, nightly or a pull request, by its name only (what it holds is the Version
 /// field's). They are made once and kept: a dropdown given new items drops its selection after the pick was shown again
 public sealed class TrackChoice(string id, string name) : ViewModelBase
 {
     public string Id => id;
     public string Name => Tr.T(name);
+    /// In the closed dropdown, so it reads as the track and not as a version: "Stable track"
+    public string Shown => Tr.F("{0} track", Name);
 }
 
 /// One version in the hero's Version dropdown (VersionPick.Of): a check when it is installed on the track, and whether it is the
@@ -127,13 +205,9 @@ public sealed class VersionChoice(string tag) : ViewModelBase
         get => note;
         set
         {
-            if (Set(ref note, value)) Raise(nameof(FieldNote));
+            Set(ref note, value);
         }
     }
-    /// The note in the collapsed Version field: not "Needs the nightly launcher", which would squeeze the version's name (the list
-    /// and the dialog say it)
-    public string FieldNote => needsNightly ? "" : note;
-    bool needsNightly;
     /// Its build has a newer version on its channel: "Update available" in place of the note
     public bool HasUpdate
     {
@@ -144,8 +218,7 @@ public sealed class VersionChoice(string tag) : ViewModelBase
     public void Show(TrackVersion version, bool isDefault, bool hasUpdate)
     {
         Installed = version.Installed;
-        needsNightly = version.NeedsNightly;
-        Note = version.NeedsNightly ? Tr.T("Needs the nightly launcher") : isDefault ? Tr.T("default") : version.Newest ? Tr.T("newest") : "";
+        Note = isDefault ? Tr.T("default") : version.Newest ? Tr.T("newest") : "";
         HasUpdate = hasUpdate;
     }
 }
@@ -178,7 +251,16 @@ public sealed class HomeViewModel : ViewModelBase
         CopyCheckReportCommand = main.CopyReportCommand(() => CheckFailed ? Tr.Sentences(CheckFailedText, CheckWhy) : Status);
         PlayDefaultCommand = new Command(() => { if (Default is { } d) Play(d); }, () => Default is { IsBuilt: true, IsDeleting: false });
         GoCommand = new Command(Go, CanGo);
-        RemoveCommand = new Command(() => { if (HeroItem is { } h) AskDelete(h); }, () => HeroItem is { IsDeleting: false });
+        HeroPlayCommand = new Command(PlayHero, CanPlayHero);
+        HeroNotesCommand = new Command(() =>
+        {
+            if (HeroItem is not { Update: { } u } h) return;
+            if (Versions.PullRequestOf(u) is { } n) Main.Host?.Open(PullRequests.PageOf(n.Number));
+            else ShowNotes(h);
+        }, () => HeroHasUpdate);
+        // (the Versions page's Add version: a channel's version, or under Advanced main or a pull request)
+        AddVersionCommand = new Command(() => Main.Modal = new AddVersionViewModel(Main), () => CanStartBuild);
+        RemoveCommand = new Command(() => { if (PickItem is { } h) AskDelete(h); }, () => PickItem is { IsDeleting: false });
         // (the hero's build: the version picked when it is installed)
         UpdateDefaultCommand = new Command(() => { if (HeroItem is { } d) UpdateBuild(d); }, () => CanStartBuild && HeroItem is { IsDeleting: false });
         CancelLauncherUpdateCommand = new Command(() => UpdateLauncherCommand.Cancel());
@@ -305,17 +387,19 @@ public sealed class HomeViewModel : ViewModelBase
         ? VersionPick.Plan(pickTrack, pickTag, Service.Registry.Builds, Builds.FirstOrDefault(b => b.IsSelected)?.Entry)
         : null;
 
-    /// The version picked when it is installed: the build Play starts, Remove deletes, Update and What's new are for
-    public BuildItemViewModel? HeroItem => Plan is { Action: PickAction.Play, Build: { } b } ? Builds.FirstOrDefault(x => x.Entry.Id == b.Id) : null;
+    /// The Versions page's pick when it is installed already (its card is in the list): nothing to build
+    public BuildItemViewModel? PickItem => Plan is { Action: PickAction.Play, Build: { } b } ? Builds.FirstOrDefault(x => x.Entry.Id == b.Id) : null;
 
+    /// The pick is on this PC already: the Versions page says so in place of a button
     public bool GoIsPlay => Plan?.Action == PickAction.Play;
+    /// Build, Update to, Go back to, Switch to: the Versions page's button for a version not on this PC
     public bool GoIsBuild => Plan is { Action: not PickAction.Play };
-    public bool ShowRemove => HeroItem != null;
+    public bool ShowRemove => PickItem != null;
 
     /// Play; Update to vX or Go back to vX, built in the track's build's place; Build vX, a new build of the track
     public string GoText => Plan switch
     {
-        { Action: PickAction.Play } => Tr.T("Play"),
+        { Action: PickAction.Play } => Tr.T("On this PC"),
         { Action: PickAction.Replace } p when IsPullRequestTrack => Tr.F("Switch to #{0}", Versions.PullRequestOf(p.Version)!.Value.Number),
         { } p when IsPullRequestTrack => Tr.F("Build #{0}", Versions.PullRequestOf(p.Version)!.Value.Number),
         { Action: PickAction.Replace } p => Tr.F(p.Older ? "Go back to {0}" : "Update to {0}", Versions.Shown(p.Version)),
@@ -323,48 +407,23 @@ public sealed class HomeViewModel : ViewModelBase
         _ => Tr.T("Play"),
     };
 
-    /// The button: Play, or Update to / Go back to / Build vX
+    /// The Versions page's button: Update to / Go back to / Build vX / Switch to #N
     public Command GoCommand { get; }
     /// Remove, beside it when the version picked is installed: the row's Delete (DeleteViewModel)
     public Command RemoveCommand { get; }
 
     bool CanGo() => Plan switch
     {
-        { Action: PickAction.Play } => HeroItem is { IsBuilt: true, IsDeleting: false },
+        { Action: PickAction.Play } => false,
         { Action: PickAction.Replace, Build: { } b } => CanStartBuild && !deleting.Contains(b.Id),
         { Action: PickAction.Build } => CanStartBuild,
         _ => false,
     };
 
-    bool needsNightlyDismissed;
-
-    /// The home's card: the newest versions are built with the new builder and need the nightly launcher (until dismissed, for
-    /// this start)
-    public bool ShowNeedsNightly => !needsNightlyDismissed && Service.NewerNeedsNightly;
-
-    public Command NeedsNightlyCommand => new(() => Main.Modal = new NeedsNightlyLauncherViewModel(Main));
-    public Command DismissNeedsNightlyCommand => new(() =>
-    {
-        needsNightlyDismissed = true;
-        Raise(nameof(ShowNeedsNightly));
-    });
-
-    /// A version built with the new builder is refused, with the way out (NeedsNightlyLauncherViewModel); true when it was
-    bool Refused(string version)
-    {
-        if (!Service.NeedsNightlyLauncher(version)) return false;
-        Main.Modal = new NeedsNightlyLauncherViewModel(Main);
-        return true;
-    }
-
     void Go()
     {
-        if (Plan is { Action: not PickAction.Play } picked && Refused(picked.Version)) return;
         switch (Plan)
         {
-            case { Action: PickAction.Play }:
-                if (HeroItem is { } h) Play(h);
-                break;
             case { Action: PickAction.Replace, Build: { } b } p when IsPullRequestTrack:
                 // (another pull request in the place of the one installed: switching, in its folder, after the warnings)
                 AskPullRequest(p.Version, JobKind.Update, b);
@@ -384,6 +443,22 @@ public sealed class HomeViewModel : ViewModelBase
         }
     }
 
+    /// A channel's version built, as the Versions page's Add version asks: in the track's build's place (Update to, Go back to),
+    /// built again where another track's build has it, else a new build
+    public void BuildVersion(string track, string tag)
+    {
+        switch (VersionPick.Plan(track, tag, Service.Registry.Builds))
+        {
+            case { Action: PickAction.Replace, Build: { } b } p:
+                Main.StartWizard(JobKind.Update, track, p.Version, b);
+                break;
+            case { Action: PickAction.Build } p:
+                var same = Service.Registry.Builds.FirstOrDefault(x => x.Version == p.Version);
+                Main.StartWizard(same != null ? JobKind.Rebuild : JobKind.Build, track, p.Version, same);
+                break;
+        }
+    }
+
     /// The dropdowns made again from the builds and the update check's list, the pick kept while it is still there. A pick with
     /// no track yet (the home opening) is the default build's track and version
     void ShowPick()
@@ -391,8 +466,10 @@ public sealed class HomeViewModel : ViewModelBase
         var builds = Service.Registry.Builds;
         if (pickTrack == null)
         {
-            pickTrack = Default?.Entry is { } d ? VersionPick.TrackOf(d) : Service.DefaultChannel;
-            pickTag = Default?.Entry.Version;
+            // (the version Play started last, while it is listed; else the default)
+            var last = Builds.FirstOrDefault(b => b.Entry.Id == Service.Profile.LastPlayed && b.Entry.Version != null)?.Entry ?? Default?.Entry;
+            pickTrack = last is { } d ? VersionPick.TrackOf(d) : Service.DefaultChannel;
+            pickTag = last?.Version;
         }
         var versions = Service.VersionsOn(pickTrack);
         // (a pick no longer there, or a track just picked: its build's version, the default's first, else its newest)
@@ -424,7 +501,7 @@ public sealed class HomeViewModel : ViewModelBase
     void RaisePick()
     {
         RaiseAll(nameof(PickTrack), nameof(PickVersion), nameof(GoText), nameof(GoIsPlay), nameof(GoIsBuild), nameof(ShowRemove),
-                 nameof(HeroNote), nameof(HeroHasUpdate), nameof(PickHasUpdate), nameof(HasTrackUpdate), nameof(TrackUpdate),
+                 nameof(PickNote), nameof(PickHasUpdate), nameof(HasTrackUpdate), nameof(TrackUpdate),
                  nameof(IsPullRequestTrack), nameof(PickedPullRequest), nameof(HasPickedPullRequest), nameof(PullRequestTrust),
                  nameof(PullRequestTrusted), nameof(PullRequestUntrusted), nameof(TrackUpdateIsPullRequest));
         ReadPullRequestCommand.Changed();
@@ -435,7 +512,7 @@ public sealed class HomeViewModel : ViewModelBase
 
     /// Under the button, what it does: the installed version's line ("Your default version. Built 3 Nov, English (US), NVIDIA
     /// DLSS."), the build a version replaces, or a new build's folder
-    public string HeroNote => Plan switch
+    public string PickNote => Plan switch
     {
         null when IsPullRequestTrack => loadingPulls ? Tr.T("Asking Beanstalk for the pull requests…")
             : Service.Pulls == null ? Tr.T("Beanstalk did not answer, so the pull requests are not known.")
@@ -444,7 +521,7 @@ public sealed class HomeViewModel : ViewModelBase
             Versions.Shown(p.Version), b.Version is { } v ? Versions.Shown(v) : b.Name),
         { Action: PickAction.Build } when IsPullRequestTrack =>
             Tr.T("Built from its source on this PC, in about 15 to 30 minutes, with the newest nightly's tools."),
-        { Action: PickAction.Play } when HeroItem is { } d => Tr.F(d.IsDefault ? "Your default version. {0}." : "Installed. {0}.", BuildLine(d)),
+        { Action: PickAction.Play } when PickItem is { } d => Tr.F("{0} is on this PC: play it from Home.", d.Version),
         { Action: PickAction.Replace, Build: { } b } p => Tr.F(p.Older
             ? "{0} is built in place of {1}, in its folder. Update brings the newest back whenever you want it."
             : "{0} is built in place of {1}, in its folder.", Versions.Shown(p.Version), b.Version is { } v ? Versions.Shown(v) : b.Name),
@@ -461,19 +538,355 @@ public sealed class HomeViewModel : ViewModelBase
         if (e.Dlss ?? GameFolder.HasDlss(e.Folder)) bits.Add("NVIDIA DLSS");
         if (e.Fsr == true) bits.Add("AMD FSR 4");
         if (e.Xess == true) bits.Add("Intel XeSS");
-        if (!d.IsBuilt) bits.Add(Tr.T("not built: its game is missing"));
         return string.Join(Tr.T(", "), bits);
     }
 
     /// Update available beside the Version field: the version picked is installed and its build has a newer version
     public bool PickHasUpdate => PickVersion?.HasUpdate == true;
 
-    /// Update beside Play: the version picked is installed and its build has a newer version
-    public bool HeroHasUpdate => HeroItem?.HasUpdate == true;
+    // ---- Home: what Play plays: a version on this PC, and the profile's save it starts on. Picking, building and deleting versions is the Versions page's (VersionsViewModel, on this model)
+
+    string? heroId;
+
+    /// The version Home plays: the one picked there, else the one Play started last, else the default, else the first
+    public BuildItemViewModel? HeroItem => Builds.FirstOrDefault(b => b.Entry.Id == heroId)
+                                           ?? Builds.FirstOrDefault(b => b.Entry.Id == Service.Profile.LastPlayed)
+                                           ?? Default ?? Builds.FirstOrDefault();
+
+    /// Home's version picker: the versions on this PC (built, or their game missing), then Manage versions…
+    public IReadOnlyList<object> HeroChoices { get; private set; } = Array.Empty<object>();
+
+    public object? HeroChoice
+    {
+        get => HeroItem;
+        set
+        {
+            if (value is ManageChoice manage)
+            {
+                Ui.Post(() => Raise(nameof(HeroChoice)));   // (the picker stays on the version)
+                manage.Go();
+                return;
+            }
+            if (value is not BuildItemViewModel b || b.Entry.Id == HeroItem?.Entry.Id) return;
+            heroId = b.Entry.Id;
+            RaiseHero();
+        }
+    }
+
+    // ---- Home's one button: Build with no version, Build it again when its game is gone, Update when there is one (Play beside
+    // it, "Play v3.1.0"), else Play; one status line under it only when it must be said
+
+    /// An update for the version shown, which it can take now: the button is Update, and Play is the link beside it
+    public bool HeroIsUpdate => HeroItem is { IsBuilt: true, HasUpdate: true, IsDeleting: false };
+    /// An old version shown (OldVersions): no Play, the stable launcher offered in its place
+    public bool HeroIsOld => HasBuilds && HeroItem is { IsOld: true, IsDeleting: false };
+    public bool HeroIsPlayOnly => HasBuilds && HeroIsPlay;
+    public bool HeroIsPlayAndUpdate => HasBuilds && HeroIsUpdate;
+
+    /// Why the last Play did not get to the game (LauncherService.PlayFailed), until the next Play
+    string? playError;
+    public string? PlayError
+    {
+        get => playError;
+        set { if (Set(ref playError, value)) RaiseAll(nameof(StatusLine), nameof(HasStatusLine), nameof(StatusIsWarning)); }
+    }
+
+    /// The one line under the button: why the last Play failed, a version this launcher doesn't play (OldVersions), or with no
+    /// version why there is nothing to build yet (asking, or the check failed)
+    public string? StatusLine => PlayError
+        ?? (HeroIsOld ? OldVersions.Shown : null)
+        ?? (NoBuilds && CheckFailed ? CheckFailedText : null)
+        ?? (NoBuilds && Checking ? Tr.T("Asking git.magicbean.dev for the newest version…") : null);
+    public bool HasStatusLine => StatusLine != null;
+    public bool StatusIsWarning => PlayError != null || HeroIsOld;
+    public bool StatusCanRetry => PlayError == null && NoBuilds && CheckFailed;
+
+    /// With no version yet, the Version picker shows the one a build makes, then Manage versions… and New version… (pick another
+    /// to build: the channel picker)
+    public IReadOnlyList<object> BuildChoices { get; private set; } = Array.Empty<object>();
+    public object? BuildChoice
+    {
+        get => BuildChoices.OfType<BuildTargetChoice>().FirstOrDefault();
+        set
+        {
+            if (value is not ManageChoice manage) return;
+            Ui.Post(() => Raise(nameof(BuildChoice)));
+            manage.Go();
+        }
+    }
+
+    void MakeBuildChoices() => BuildChoices = new object[]
+    {
+        new BuildTargetChoice(KnowsNewest ? NewestDefaultText : Tr.T("Newest version"), DefaultChannel, DefaultIsNightly),
+        new ManageChoice(Tr.T("Manage versions…"), () => Main.ShowVersions()),
+        new ManageChoice(Tr.T("New version…"), () => ChannelCommand.Execute(null), "plus"),
+    };
+
+    /// Play when its game is there (and this launcher plays it: not an old version); Build it again when its folder lost it
+    public bool HeroIsPlay => HeroItem is not ({ IsBuilt: false } or { IsOld: true });
+    public bool HeroIsRebuild => HeroItem is { IsBuilt: false };
+    public string HeroGoText => HeroItem is { IsBuilt: false } h ? Tr.F("Build {0} again", h.Version) : Tr.T("Play");
+    public Command HeroPlayCommand { get; }
+
+    bool CanPlayHero() => HeroItem switch
+    {
+        { IsDeleting: true } or { IsOld: true } or null => false,
+        { IsBuilt: false } h => CanStartBuild && h.Entry.Version != null,
+        _ => true,
+    };
+
+    void PlayHero()
+    {
+        PlayError = null;
+        switch (HeroItem)
+        {
+            case { IsBuilt: false, Entry.Version: { } again } gone:
+                // (its game is gone from its folder: built again there, as a rebuild, with its settings)
+                Main.StartWizard(JobKind.Rebuild, Versions.IsPullRequest(again) ? Versions.PullRequest : gone.Channel, again, gone.Entry);
+                break;
+            case { } h:
+                // (the profile remembers what it played, so Home opens on it again)
+                Play(h);
+                break;
+        }
+    }
+
+    /// Under the version: what it is ("Your default version. Built 3 Nov, English (US), NVIDIA DLSS."), or why it cannot play
+    public string HeroNote => HeroItem switch
+    {
+        { IsDeleting: true } h => h.DeletingText,
+        { IsBuilt: false } => Tr.T("Its folder is there, but its game is not: it was deleted or moved. Build it again to play; your saves are not in it."),
+        { IsOld: true } => OldVersions.Shown + ".",
+        { } d => Tr.F(d.IsDefault ? "Your default version. {0}." : "{0}.", BuildLine(d)),
+        null => "",
+    };
+
+    /// An update for Home's version, in one line: "v3.2.0 is out", What's new and Update; nothing when there is none
+    public bool HeroHasUpdate => HeroItem is { HasUpdate: true, IsDeleting: false };
+    public string HeroUpdate => HeroItem is { Update: { } u } ? Versions.PullRequestOf(u) is { } pr
+            ? Tr.F("#{0} has a newer push: {1}", pr.Number, pr.Commit)
+            : Tr.F("{0} is out", Versions.Shown(u)) : "";
+    public bool HeroUpdateIsPullRequest => HeroItem?.IsPullRequest == true;
+    public Command HeroNotesCommand { get; }
+
+    /// The version's state, beside it: Ready, Game missing, Not supported, Deleting
+    public string HeroState => HeroItem switch
+    {
+        { IsDeleting: true } => Tr.T("Deleting…"),
+        { IsBuilt: false } => Tr.T("Game missing"),
+        { IsOld: true } => Tr.T("Not supported"),
+        { } => Tr.T("Ready"),
+        null => "",
+    };
+    public bool HeroReady => HeroItem is { IsBuilt: true, IsOld: false, IsDeleting: false };
+    public bool HeroMissing => HeroItem is { IsBuilt: false, IsDeleting: false } or { IsOld: true, IsDeleting: false };
+    public bool HasHeroState => HeroItem != null;
+    /// The brand's kicker over the game's name, in capitals: Ready to play, Update available, Game missing, Not supported, Deleting
+    public string HeroKicker => (HeroItem switch
+    {
+        { IsDeleting: true } => Tr.T("Deleting…"),
+        { IsBuilt: false } => Tr.T("Game missing"),
+        { IsOld: true } => Tr.T("Not supported"),
+        { HasUpdate: true } => Tr.T("Update available"),
+        { } => Tr.T("Ready to play"),
+        null => "",
+    }).ToUpper(System.Globalization.CultureInfo.CurrentCulture);
+    /// The band's kicker and line in both states: the version's (HeroKicker, HeroNote), or with no version a welcome
+    public string BandKicker => HasBuilds ? HeroKicker : Caps(Tr.T("Welcome"));
+    public string BandNote => HasBuilds ? HeroNote : Tr.T("A PC version of your own copy of the game, built on this PC. Build it once, then play it here.");
+    public bool HeroKickerGo => HeroItem is { IsBuilt: true, IsOld: false, IsDeleting: false, HasUpdate: false };
+    /// The old version's way back: the offer of the stable launcher (StableLauncherViewModel)
+    public Command HeroStableCommand => HeroItem?.StableCommand ?? NoCommand;
+    static readonly Command NoCommand = new(() => { }, () => false);
+
+    /// The Versions page's Add version… (AddVersionViewModel)
+    public Command AddVersionCommand { get; }
+
+    /// Home's pickers made again for the version shown, and everything said of it
+    void RaiseHero()
+    {
+        var manageVersions = new ManageChoice(Tr.T("Manage versions…"), () => Main.ShowVersions());
+        // (every picker ends with Manage… and New…: here the Versions page, and building another version there)
+        HeroChoices = Builds.Cast<object>().Append(manageVersions)
+            .Append(new ManageChoice(Tr.T("New version…"), () => Main.Modal = new AddVersionViewModel(Main), "plus")).ToList();
+        MakeSaveChoices();
+        MakeSaveRows();
+        MakeBuildChoices();
+        ReadSlots();
+        RaiseAll(nameof(HeroItem), nameof(HeroChoices), nameof(HeroChoice), nameof(HeroIsPlay), nameof(HeroIsRebuild), nameof(HeroGoText),
+                 nameof(HeroIsOld), nameof(HeroStableCommand),
+                 nameof(HeroNote), nameof(HeroHasUpdate), nameof(HeroUpdate), nameof(HeroUpdateIsPullRequest), nameof(HeroState),
+                 nameof(HeroReady), nameof(HeroMissing), nameof(HasHeroState),
+                 nameof(SavesLine), nameof(SavesNote), nameof(HasNewestSave), nameof(HeroStartsOnSlot), nameof(SaveChoices),
+                 nameof(SaveChoice), nameof(SavesPickNote), nameof(NewestSlot), nameof(NewestWhen), nameof(NewestPlace),
+                 nameof(HasNewestPlace), nameof(NewestHearts), nameof(HasNewestHearts),
+                 nameof(LastPlayedTitle), nameof(LastPlayedWhen), nameof(HeroKicker), nameof(HeroKickerGo),
+                 nameof(BandKicker), nameof(BandNote),                 nameof(HeroIsUpdate), nameof(HeroIsPlayOnly), nameof(ShowSavePicker), nameof(ShowSaveTitleNote), nameof(HeroIsPlayAndUpdate), nameof(StatusLine),
+                 nameof(HasStatusLine), nameof(StatusIsWarning), nameof(StatusCanRetry), nameof(BuildChoices), nameof(BuildChoice),
+                 nameof(NewestLine));
+        HeroPlayCommand.Changed();
+        HeroNotesCommand.Changed();
+        UpdateDefaultCommand.Changed();
+    }
+
+    IReadOnlyList<SaveSlot> saves = Array.Empty<SaveSlot>();
+    /// What the save editor read of each slot (its place, age and hearts), by the slot's folder name; empty until it answered,
+    /// or when this PC's versions have no editor. Read once for the saves as they are (savesRead: the newest save's time)
+    IReadOnlyDictionary<string, SaveEditorSlot> slotsRead = new Dictionary<string, SaveEditorSlot>();
+    DateTime? savesRead;
+
+    /// The saves, which every version and profile shares: "3 save slots"
+    public string SavesLine => saves.Count == 0 ? Tr.T("No save yet") : Tr.P(saves.Count, "1 save slot", "{0} save slots");
+    public string SavesNote => Newest is { } s
+        ? Tr.F("Last saved: {0}, {1}.", Tr.F("Slot {0}", SaveText.Number(s.Name)), Durations.When(s.Saved!.Value, DateTime.Now))
+        : Tr.T("No save yet: the game starts a new one.");
+    public bool HasNewestSave => Newest != null;
+    SaveSlot? Newest => saves.Where(s => s.Saved != null).OrderByDescending(s => s.Saved).FirstOrDefault();
+
+    // ---- the Saves picker: each of the profile's slots, then Manage saves… (the Saves page); New game alone with none. A slot
+    // picked is the profile's StartSlot (its profile.json's start_slot), which the version shown's game reads itself when it plays
+    // a profile; other versions offer no picker, and a quiet line saying the title screen asks
+
+    /// The version shown starts on a slot when one is picked: a builder's version whose game plays a profile (GameFeatures'
+    /// "profile"), which reads the profile.json's start_slot
+    public bool HeroStartsOnSlot => HeroItem is { IsBuilt: true, IsOld: false } h
+        && BuilderVersions.VersionOfGame(h.Entry.Folder, Platforms.Current) != null && GameFeatures.Has(h.Entry.Folder, "profile");
+    public IReadOnlyList<object> SaveChoices { get; private set; } = Array.Empty<object>();
+
+    public object? SaveChoice
+    {
+        // (the slot picked, else the newest: the one played last)
+        get => SaveChoices.OfType<SaveStartChoice>().FirstOrDefault(c => c.Slot != null && c.Slot == Service.Profile.StartSlot)
+               ?? SaveChoices.OfType<SaveStartChoice>().FirstOrDefault(c => c.Slot != null && c.Slot == Newest?.Name)
+               ?? SaveChoices.OfType<SaveStartChoice>().FirstOrDefault();
+        set
+        {
+            if (value is ManageChoice manage)
+            {
+                Ui.Post(() => Raise(nameof(SaveChoice)));
+                manage.Go();
+                return;
+            }
+            if (value is not SaveStartChoice c || c.Slot == Service.Profile.StartSlot) return;
+            try { Service.SetStartSlot(c.Slot); } catch (Exception e) when (e is ProfileFailure or IOException or UnauthorizedAccessException) { }
+            RaiseAll(nameof(SaveChoice), nameof(SavesPickNote));
+            MakeSaveRows();
+        }
+    }
+
+    /// Under the picker's caption, its tooltip: what Play does with the save
+    public string SavesPickNote => SaveChoice is SaveStartChoice { Slot: not null } c ? Tr.F("Play starts on {0}.", c.Title)
+        : Tr.T("No save yet: Play starts a new game.");
+
+    /// The Save picker is shown for a version that starts on a slot (and with no version yet, off); another version asks for the
+    /// save on its title screen, which the quiet line in its place says
+    public bool ShowSavePicker => NoBuilds || HeroStartsOnSlot;
+    public bool ShowSaveTitleNote => HasBuilds && !HeroStartsOnSlot && !HeroIsOld;
+
+    /// The profile's saves as Home's list: each slot, its place, when and hearts; the one Play starts on ticked. A row picks its
+    /// slot to start on (a version that takes one), else opens the Saves page
+    public IReadOnlyList<HomeSaveRow> SaveRows { get; private set; } = Array.Empty<HomeSaveRow>();
+    public bool HasSaveRows => SaveRows.Count > 0;
+    public bool NoSaveRows => SaveRows.Count == 0;
+    public string SavesCaption => Caps(Tr.F("{0}'s saves", LauncherProfilesText.Name(Service.Profile)));
+
+    void MakeSaveRows()
+    {
+        SaveRows = saves.Where(s => s.Saved != null).OrderByDescending(s => s.Saved).Select(slot =>
+        {
+            slotsRead.TryGetValue(slot.Name, out var read);
+            var when = Durations.When(slot.Saved!.Value, DateTime.Now);
+            var place = read is { Unreadable: null, Place: { } p } ? p : null;
+            // (what the editor read of it: Link's age, rupees and the game's clock)
+            var detail = read is { Unreadable: null } d
+                ? string.Join(" · ", new[] { d.Age == null ? null : d.Age == "adult" ? Tr.T("Adult Link") : Tr.T("Child Link"),
+                                              d.Rupees > 0 ? Tr.P(d.Rupees, "1 rupee", "{0} rupees") : null, d.Clock }.OfType<string>())
+                : null;
+            return new HomeSaveRow(Tr.F("Slot {0}", SaveText.Number(slot.Name)), place ?? Tr.T("Place not read"), when,
+                read is { Unreadable: null } r && r.Hearts > 0 ? Tr.F("{0} ♥", SaveEditorText.Hearts(r.Hearts)) : null,
+                HeroStartsOnSlot && Service.Profile.StartSlot == slot.Name,
+                new Command(() =>
+                {
+                    if (!HeroStartsOnSlot) { Main.ShowSaves(); return; }
+                    SaveChoice = SaveChoices.OfType<SaveStartChoice>().FirstOrDefault(c => c.Slot == slot.Name);
+                    MakeSaveRows();
+                }), detail);
+        }).ToList();
+        RaiseAll(nameof(SaveRows), nameof(HasSaveRows), nameof(NoSaveRows), nameof(SavesCaption));
+    }
+
+    void MakeSaveChoices()
+    {
+        // (the profile's slots, the newest picked unless the player picked one; none yet: New game, alone and inert)
+        var choices = new List<object>();
+        foreach (var slot in saves.Where(s => s.Saved != null).OrderBy(s => s.Name, StringComparer.Ordinal))
+        {
+            slotsRead.TryGetValue(slot.Name, out var read);
+            var when = Durations.When(slot.Saved!.Value, DateTime.Now);
+            var detail = read is { Unreadable: null, Place: { } place } ? Tr.F("{0} · {1}", place, when) : when;
+            choices.Add(new SaveStartChoice(slot.Name, Tr.F("Slot {0}", SaveText.Number(slot.Name)), detail,
+                                       read is { Unreadable: null } r && r.Hearts > 0 ? SaveEditorText.Hearts(r.Hearts) : null));
+        }
+        if (choices.Count == 0)
+        {
+            SaveChoices = new object[] { new SaveStartChoice(null, Tr.T("New game"), Tr.T("No save yet: Play starts a new game."), null) };
+            return;
+        }
+        choices.Add(new ManageChoice(Tr.T("Manage saves…"), () => Main.GoSavesCommand.Execute(null)));
+        SaveChoices = choices;
+    }
+
+    /// The save editor's report of the slots (places, hearts), read in the background once per state of the saves: a version
+    /// with the editor reads them (LauncherService.SaveEditor); the picker and the newest save's card show them when it answers
+    async void ReadSlots()
+    {
+        var newest = Newest?.Saved;
+        if (newest == null || newest == savesRead) return;
+        savesRead = newest;
+        if (Service.SaveEditor().Editing is not { } editing) return;
+        try
+        {
+            var report = await editing.ReportAsync(null);
+            slotsRead = report.Slots.ToDictionary(s => s.Slot, StringComparer.Ordinal);
+            MakeSaveChoices();
+            MakeSaveRows();
+            RaiseAll(nameof(SaveChoices), nameof(SaveChoice), nameof(NewestPlace), nameof(HasNewestPlace), nameof(NewestHearts),
+                     nameof(HasNewestHearts), nameof(NewestLine));
+        }
+        catch (Exception e) when (e is SaveFailure or IOException or InvalidOperationException or System.ComponentModel.Win32Exception
+                                  or OperationCanceledException or System.Text.Json.JsonException)
+        {
+            LauncherLog.Add($"home: the save editor's report was not read ({e.Message})");
+        }
+    }
+
+    // ---- the strip under the hero: the newest save, the last start
+
+    static string Caps(string text) => text.ToUpper(System.Globalization.CultureInfo.CurrentCulture);
+    public string WelcomeKicker => Caps(Tr.T("Welcome"));
+    public string NewestCaption => Caps(Tr.T("Newest save"));
+    public string PlayedCaption => Caps(Tr.T("Last played"));
+    /// Under the newest save's slot: where it is and when ("Kokiri Forest · today 18:40"), or when alone
+    public string NewestLine => HasNewestPlace ? Tr.F("{0} · {1}", NewestPlace, NewestWhen) : NewestWhen;
+
+    /// "Slot 1", "today 18:40", "Kokiri Forest", "5 hearts"
+    public string NewestSlot => Newest is { } s ? Tr.F("Slot {0}", SaveText.Number(s.Name)) : Tr.T("No save yet");
+    public string NewestWhen => Newest is { Saved: { } t } ? Durations.When(t, DateTime.Now) : Tr.T("the game starts a new one");
+    public string NewestPlace => Newest is { } s && slotsRead.TryGetValue(s.Name, out var r) && r is { Unreadable: null, Place: { } p } ? p : "";
+    public string NewestHearts => Newest is { } s && slotsRead.TryGetValue(s.Name, out var r) && r is { Unreadable: null, Hearts: > 0 }
+        ? Tr.F("{0} ♥", SaveEditorText.Hearts(r.Hearts)) : "";
+    public bool HasNewestHearts => NewestHearts.Length > 0;
+    public bool HasNewestPlace => NewestPlace.Length > 0;
+
+    /// The last start: the version ("v3.1.0") and when ("yesterday 21:04"); before the first, "Not yet"
+    BuildItemViewModel? LastPlayedItem => Service.Profile.LastPlayedAt != null ? Builds.FirstOrDefault(b => b.Entry.Id == Service.Profile.LastPlayed) : null;
+    public string LastPlayedTitle => LastPlayedItem is { } b ? b.ShortVersion : Tr.T("Not yet");
+    public string LastPlayedWhen => LastPlayedItem != null && Service.Profile.LastPlayedAt is { } t ? Durations.When(t, DateTime.Now)
+        : Tr.T("Play is ready when you are");
 
     /// The picked track's build with a newer version: the one picked when it has one, else the track's default, else its first.
     /// Its newest version shows opposite the title, with What's new in it
-    BuildItemViewModel? TrackUpdateItem => HeroItem is { HasUpdate: true } h ? h
+    BuildItemViewModel? TrackUpdateItem => PickItem is { HasUpdate: true } h ? h
         : pickTrack == null ? null
         : Builds.Where(b => b.HasUpdate && !b.IsDeleting && VersionPick.TrackOf(b.Entry) == pickTrack).OrderByDescending(b => b.IsDefault).FirstOrDefault();
     public bool HasTrackUpdate => TrackUpdateItem != null;
@@ -533,9 +946,8 @@ public sealed class HomeViewModel : ViewModelBase
         ShowPick();
     }
 
-    /// A pull request's build, after its warnings (PullRequestWarningViewModel): tag at its head, now (a newer push since the list
-    /// was read is refused by PullRequestSource, which says so)
-    void AskPullRequest(string tag, JobKind kind, BuildEntry? replaces)
+    /// A pull request's build after its warnings (PullRequestWarningViewModel): new, or (Update) in replaces' place
+    public void AskPullRequest(string tag, JobKind kind, BuildEntry? replaces)
     {
         if (Versions.PullRequestOf(tag) is not { } n) return;
         // (a build of that very push again: the player agreed to its code already)
@@ -682,10 +1094,13 @@ public sealed class HomeViewModel : ViewModelBase
     void BusyChanged()
     {
         BuildCommand.Changed();
+        AddVersionCommand.Changed();
         CheckForUpdatesCommand.Changed();
         ChannelCommand.Changed();
         UpdateDefaultCommand.Changed();
         GoCommand.Changed();
+        HeroPlayCommand.Changed();
+        foreach (var b in Builds) b.BusyChanged();
         AddFolderCommand.Changed();
         UseInstalledCommand.Changed();
         RaiseAll(nameof(CanStartBuild), nameof(ShowCheckLine), nameof(ShowStatus), nameof(ShowStatusReport));
@@ -928,8 +1343,8 @@ public sealed class HomeViewModel : ViewModelBase
     /// The card's line: how many, where Move puts them, and that saves, settings and mods go with them (which folders: RenameMoves,
     /// under Which folders)
     public string RenameSummary => renames.Count == 0 ? "" :
-        Tr.P(renames.Count, "Your instance uses the old folder layout. Move puts it in {1}, with its saves, settings and mods.",
-             "{0} instances use the old folder layout. Move puts them in {1}, with their saves, settings and mods.",
+        Tr.P(renames.Count, "Your version uses the old folder layout. Move puts it in {1}, with its saves, settings and mods.",
+             "{0} versions use the old folder layout. Move puts them in {1}, with their saves, settings and mods.",
              Path.Combine("<track>", "<version>"));
 
     /// Which folders go where, one line each ("v3.0.0-rc.5 → stable/v3.0.0"), under Which folders
@@ -1068,8 +1483,7 @@ public sealed class HomeViewModel : ViewModelBase
         if (start.Problem != null) notes.Add(start.Problem);
         if (start.Folder != null && start.Kind == StartKind.Launch)
         {
-            try { Service.Ensure(start.Folder); }
-            catch (InvalidDataException e) when (NeedsNightlyLauncher.Is(e)) { notes.Add(e.Message); }
+            Service.Ensure(start.Folder);
         }
         Notice = notes.Count > 0 ? string.Join("\n", notes) : null;
         // (before the leftovers: the game a row takes back, or a game whose row went (#141), is no leftover)
@@ -1085,7 +1499,20 @@ public sealed class HomeViewModel : ViewModelBase
         OfferInstalled();
         OfferLeftovers();
         OfferRenames();
+        // (a Play that did not get to the game, or a profile's save folder the game could not use: said on Home under its button
+        // until the next Play, and as a toast on another page)
+        Service.PlayFailed += said => Ui.Post(() =>
+        {
+            PlayError = said;
+            if (!Main.IsHome) Main.ShowToast(said);
+        });
+        // (the versions longshot-builder built in a folder of their own: copied once into their version folders, then listed there)
+        // (then the version folders updates left that nothing uses any more: pruned, the last one replaced kept for going back;
+        // never while the move copies into one)
+        if (!Service.MoveToVersionFolders(() => { Refresh(); _ = Service.PruneVersions(); })) _ = Service.PruneVersions();
         Refresh();
+        // (what each version's builder says of it and of the profile's game: Home shows that, once they answered)
+        Service.RefreshInfos(Refresh);
     }
 
     public void Refresh()
@@ -1096,15 +1523,16 @@ public sealed class HomeViewModel : ViewModelBase
             Main.ShowToast(Tr.P(gone.Count, "1 version was deleted outside the launcher, so it is no longer listed.",
                                 "{0} versions were deleted outside the launcher, so they are no longer listed."));
         Builds.Clear();
-        var saves = Service.SaveSlots();
+        saves = Service.SaveSlots();
         foreach (var b in Service.Registry.Builds)
         {
-            var item = new BuildItemViewModel(this, b, Service.IsBuilt(b), Service.UpdateFor(b), saves, deleting.Contains(b.Id));
+            var item = new BuildItemViewModel(this, b, Service.IsBuilt(b), Service.UpdateFor(b), saves, deleting.Contains(b.Id), Service.IsOld(b));
             item.IsSelected = b.Id == selected;
             item.IsFirst = Builds.Count == 0;
             Builds.Add(item);
         }
         ShowPick();
+        RaiseHero();
         RaiseAll(nameof(HasBuilds), nameof(NoBuilds), nameof(Default), nameof(ShowLeftPanel), nameof(Footer), nameof(NewestDefault), nameof(NewestDefaultText), nameof(DefaultChannel), nameof(DefaultIsRelease),
                  nameof(DefaultIsNightly), nameof(KnowsNewest), nameof(CheckFailed), nameof(CheckWhy), nameof(HasCheckWhy), nameof(ShowCheckReport), nameof(ChannelEmpty), nameof(CheckFailedText), nameof(Checking), nameof(ShowCheckLine), nameof(HasLauncherUpdate),
                  nameof(LauncherUpdateText), nameof(LauncherUpdateHeading), nameof(LauncherUpdateButton));
@@ -1167,7 +1595,6 @@ public sealed class HomeViewModel : ViewModelBase
                         (Service.Releases.Unreachable ?? Service.Releases.Problem ?? checkProblem ?? "no version listed"));
         Refresh();
         Raise(nameof(ShowStatusReport));
-        Raise(nameof(ShowNeedsNightly));
         // (a check someone asked for answers even when nothing is new; an update shows itself: the banner, the Update buttons)
         if (wasAsked && any && !HasLauncherUpdate && !Builds.Any(b => b.HasUpdate))
             Status = Tr.F("Everything is up to date, the launcher too. Checked at {0}.", DateTime.Now.ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture));
@@ -1200,8 +1627,21 @@ public sealed class HomeViewModel : ViewModelBase
 
     public void Play(BuildItemViewModel b)
     {
+        // (the profile remembers what it played: the version, and when)
+        try { Service.MarkPlayed(b.Entry.Id); } catch (Exception e) when (e is ProfileFailure or IOException or UnauthorizedAccessException) { }
         try
         {
+            // (longshot-builder's game reads its files from the .nup where it is: gone, step 1 says why and asks for it where it is
+            // now, and the game is pointed at it there in seconds, longshot-builder index (RepointViewModel). Only another .nup than
+            // the one it was built from is built again from: a rebuild of the same row, so it finds its work folder
+            // (BuildRequest.WorkId) and its store. On a drive not connected, Play says to connect it: NupMovedException)
+            if (LongshotBuilder.MissingNup(b.Entry.Folder, b.Entry) is { DriveMissing: false } moved && b.Entry.Version is { } version
+                && CanStartBuild && !b.IsDeleting)
+            {
+                Main.StartWizard(JobKind.Rebuild, Versions.IsPullRequest(version) ? Versions.PullRequest : b.Channel, version, b.Entry,
+                                 movedNup: moved.Nup);
+                return;
+            }
             if (Service.Play(b.Entry) is { } said)
             {
                 Notice = said;
@@ -1210,6 +1650,7 @@ public sealed class HomeViewModel : ViewModelBase
             if (OperatingSystem.IsWindows() && !nvidiaCacheOffered && Service.NvidiaCacheNeedsAdmin is { } mb) OfferNvidiaCache(mb);
             Main.ShowToast(Tr.F("Starting Longshot, {0}…", b.Version));
         }
+        catch (OldVersionException e) { Notice = e.Message; }
         catch (Exception e) when (e is System.ComponentModel.Win32Exception or IOException or InvalidOperationException)
         {
             Notice = Tr.F("{0} could not start: {1}", b.Version, e.Message);
@@ -1266,13 +1707,12 @@ public sealed class HomeViewModel : ViewModelBase
             AskPullRequest(to, JobKind.Update, b.Entry);
             return;
         }
-        if (Refused(to)) return;
         Main.StartWizard(JobKind.Update, b.Channel, to, b.Entry);
     }
 
     public void StartBuild(string channel)
     {
-        if (Service.NewestOf(channel) is not { } version || Refused(version)) return;
+        if (Service.NewestOf(channel) is not { } version) return;
         var same = Service.Registry.Builds.FirstOrDefault(b => b.Version == version);
         Main.StartWizard(same != null ? JobKind.Rebuild : JobKind.Build, channel, version, same);
     }
@@ -1527,4 +1967,12 @@ public sealed class BuildFilesViewModel : ViewModelBase
         }
         finally { Main.Modal = null; }
     }
+}
+
+/// The version a first build makes, as Home's Version picker shows it with no version yet
+public sealed class BuildTargetChoice(string version, string channel, bool nightly)
+{
+    public string Version => version;
+    public string Channel => channel;
+    public bool IsNightly => nightly;
 }

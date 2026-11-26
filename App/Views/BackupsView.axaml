@@ -4,19 +4,33 @@
              xmlns:c="using:LongshotLauncher.Controls"
              x:Class="LongshotLauncher.Views.BackupsView"
              x:DataType="vm:BackupsViewModel">
-  <Grid RowDefinitions="Auto,*,Auto" RowSpacing="18">
-    <StackPanel>
-      <TextBlock Classes="heading" Text="{c:T 'Restore from a backup'}"/>
-      <TextBlock Classes="sub" TextWrapping="Wrap"
-                 Text="{c:T 'Every copy backs up the save it replaces first. Restore one to put its slots back: your saves now are backed up before.'}"/>
-    </StackPanel>
+  <Grid RowDefinitions="Auto,*" RowSpacing="18">
+    <Panel>
+      <StackPanel Margin="52,0,0,0">
+        <TextBlock Classes="heading" Text="{c:T 'Restore from a backup'}"/>
+        <TextBlock Classes="sub" TextWrapping="Wrap"
+                   Text="{c:T 'Every copy backs up the save it replaces first. Restore one to put its slots back: your saves now are backed up before.'}"/>
+        <Button Classes="link smaller soft" Command="{Binding FolderCommand}" HorizontalAlignment="Left" Margin="0,8,0,0" ToolTip.Tip="{Binding Where}">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <c:Icon Kind="folder" Width="13" Height="13"/>
+            <TextBlock Text="{c:T 'Open the backups folder'}"/>
+          </StackPanel>
+        </Button>
+      </StackPanel>
+      <Panel Classes="backslot">
+        <Button Classes="back" Command="{Binding BackCommand}" c:Pad.Back="True" ToolTip.Tip="{c:T 'Back to saves'}" AutomationProperties.Name="{c:T 'Back to saves'}">
+          <c:Icon Kind="arrowRight" RenderTransform="rotate(180deg)"/>
+        </Button>
+        <Border Classes="bglyph"><TextBlock Text="B"/></Border>
+      </Panel>
+    </Panel>
 
     <Grid Grid.Row="1" RowDefinitions="Auto,*" RowSpacing="10">
       <Grid ColumnDefinitions="*,Auto">
-        <TextBlock Classes="label" Text="{c:T 'BACKUPS, NEWEST FIRST'}" Margin="0" VerticalAlignment="Center"/>
+        <TextBlock Classes="label" Text="{c:T 'Backups, newest first'}" Margin="0" VerticalAlignment="Center"/>
         <TextBlock Grid.Column="1" Classes="faint" Text="{Binding Count}" VerticalAlignment="Center"/>
       </Grid>
-      <Border Grid.Row="1" Classes="card" Padding="0">
+      <Border Grid.Row="1" Classes="card" Padding="0" VerticalAlignment="Top">
         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
           <ItemsControl ItemsSource="{Binding Rows}">
             <ItemsControl.ItemTemplate>
@@ -33,7 +47,7 @@
                     </StackPanel>
                     <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                       <Button Classes="icon" Command="{Binding FolderCommand}" ToolTip.Tip="{c:T 'Open folder'}"><c:Icon Kind="folder"/></Button>
-                      <Button Classes="small" Command="{Binding RestoreCommand}" Content="{c:T 'Restore…'}"/>
+                      <Button Classes="small" Command="{Binding RestoreCommand}" Content="{c:T 'Restore…'}" c:Pad.First="True"/>
                     </StackPanel>
                   </Grid>
                 </Border>
@@ -44,15 +58,5 @@
       </Border>
     </Grid>
 
-    <Grid Grid.Row="2" ColumnDefinitions="*,Auto" ColumnSpacing="20">
-      <Button Classes="link smaller" Command="{Binding FolderCommand}" VerticalAlignment="Center" HorizontalAlignment="Left"
-              ToolTip.Tip="{Binding Where}">
-        <StackPanel Orientation="Horizontal" Spacing="6">
-          <c:Icon Kind="folder" Width="13" Height="13"/>
-          <TextBlock Text="{c:T 'Open the backups folder'}"/>
-        </StackPanel>
-      </Button>
-      <Button Grid.Column="1" Classes="primary" Content="{c:T 'Back to saves'}" Command="{Binding BackCommand}" c:Pad.Back="True"/>
-    </Grid>
   </Grid>
 </UserControl>

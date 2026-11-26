@@ -76,7 +76,7 @@ public static class NfcTags
         problem = null;
         if (file.Length is not (532 or 540 or 572))
         {
-            problem = $"it is {file.Length} bytes, and a .bin dump is 532, 540 or 572";
+            problem = Tr.F("it is {0} bytes, and a .bin dump is 532, 540 or 572", file.Length);
             return null;
         }
         var tag = new byte[TagBytes];
@@ -92,7 +92,7 @@ public static class NfcTags
         var text = Encoding.Latin1.GetString(file);
         if (!text.StartsWith("Filetype:", StringComparison.Ordinal))
         {
-            problem = "it is not a Flipper NFC file (it does not start with Filetype:)";
+            problem = Tr.T("it is not a Flipper NFC file (it does not start with Filetype:)");
             return null;
         }
         var tag = new byte[TagBytes];
@@ -113,16 +113,16 @@ public static class NfcTags
         }
         var pages = have.Count(h => h);
         if (pages >= FewestPages) return tag;
-        problem = pages == 0 ? "it has no pages" : $"it has {pages} of the tag's {Pages} pages, and a dump needs {FewestPages}";
+        problem = pages == 0 ? Tr.T("it has no pages") : Tr.F("it has {0} of the tag's {1} pages, and a dump needs {2}", pages, Pages, FewestPages);
         return null;
     }
 
     /// Why a tag is not a figure's, or null: an NTAG215's capability container (F1 10 FF EE at 0x0C) and the figure's 0x02 at 0x5B
     public static string? Check(byte[] tag)
     {
-        if (tag.Length != TagBytes) return "it is not an NTAG215 dump";
-        if (!tag.AsSpan(0x0C, 4).SequenceEqual(new byte[] { 0xF1, 0x10, 0xFF, 0xEE })) return "it is not an NTAG215 tag";
-        return tag[0x5B] != 0x02 ? "the tag has no figure on it" : null;
+        if (tag.Length != TagBytes) return Tr.T("it is not an NTAG215 dump");
+        if (!tag.AsSpan(0x0C, 4).SequenceEqual(new byte[] { 0xF1, 0x10, 0xFF, 0xEE })) return Tr.T("it is not an NTAG215 tag");
+        return tag[0x5B] != 0x02 ? Tr.T("the tag has no figure on it") : null;
     }
 
     /// The figure's model: the 8 bytes at 0x54, as 16 hex digits
@@ -137,12 +137,12 @@ public static class NfcTags
         var format = Format(fileName);
         if (format == null)
         {
-            problem = "it is not a .bin or .nfc file";
+            problem = Tr.T("it is not a .bin or .nfc file");
             return null;
         }
         if (IsKeyFile(fileName))
         {
-            problem = "it is a key file (key_…), not an NFC tag";
+            problem = Tr.T("it is a key file (key_…), not an NFC tag");
             return null;
         }
         var tag = format == ".bin" ? TagOfBin(file, out problem) : TagOfNfc(file, out problem);
@@ -159,9 +159,9 @@ public static class NfcTags
         var bin = Format(path) == ".bin";
         var file = ReadAtMost(path, bin ? 572 : LargestNfc);
         if (bin && file.Length is not (532 or 540 or 572))
-            problem = file.Length > 572 ? "it is more than 572 bytes, and a .bin dump is 532, 540 or 572"
-                : $"it is {file.Length} bytes, and a .bin dump is 532, 540 or 572";
-        else if (file.Length > LargestNfc) problem = "it is too large to be a Flipper NFC file";
+            problem = file.Length > 572 ? Tr.T("it is more than 572 bytes, and a .bin dump is 532, 540 or 572")
+                : Tr.F("it is {0} bytes, and a .bin dump is 532, 540 or 572", file.Length);
+        else if (file.Length > LargestNfc) problem = Tr.T("it is too large to be a Flipper NFC file");
         return problem == null ? file : null;
     }
 
@@ -207,7 +207,7 @@ public static class NfcTags
         {
             if (Load(path, out var tag, out problem) != null) return new NfcTagFile(path, name, format, Model(tag!), Uid(tag!), null);
         }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { problem = "it could not be read: " + e.Message; }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { problem = Tr.F("it could not be read: {0}", e.Message); }
         return new NfcTagFile(path, name, format, null, null, problem);
     }
 
@@ -270,7 +270,7 @@ public static class NfcTags
             }
             catch (Exception e) when (e is IOException or UnauthorizedAccessException)
             {
-                done.Add(new NfcTagAdded(source, NfcTagOutcome.Refused, null, "it could not be copied: " + e.Message));
+                done.Add(new NfcTagAdded(source, NfcTagOutcome.Refused, null, Tr.F("it could not be copied: {0}", e.Message)));
             }
         }
         return done;
@@ -279,7 +279,7 @@ public static class NfcTags
     /// A dump that is no file yet (one just scanned: NfcReader), added as a file of that name is: checked first, never over another
     public static NfcTagAdded AddBytes(string folder, string fileName, byte[] file)
     {
-        if (fileName != Path.GetFileName(fileName)) return new NfcTagAdded(fileName, NfcTagOutcome.Refused, null, "its name is not a file name");
+        if (fileName != Path.GetFileName(fileName)) return new NfcTagAdded(fileName, NfcTagOutcome.Refused, null, Tr.T("its name is not a file name"));
         if (Read(fileName, file, out var problem) == null) return new NfcTagAdded(fileName, NfcTagOutcome.Refused, null, problem);
         try
         {
@@ -288,7 +288,7 @@ public static class NfcTags
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
-            return new NfcTagAdded(fileName, NfcTagOutcome.Refused, null, "it could not be saved: " + e.Message);
+            return new NfcTagAdded(fileName, NfcTagOutcome.Refused, null, Tr.F("it could not be saved: {0}", e.Message));
         }
     }
 

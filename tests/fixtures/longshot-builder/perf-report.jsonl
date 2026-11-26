@@ -1,0 +1,3 @@
+{"v":1,"type":"perf_report","tick":true,"keep_sent":true,"waiting":1,"kept":0,"sent":0,"refused":0,"version":"v3.1.0","release":false,"relay":"https://data-services.magicbean.dev/telemetry/perf","busy_until":null}
+{"v":1,"type":"perf_report","tick":true,"keep_sent":false,"waiting":2,"kept":3,"sent":4,"refused":1,"version":"v4.0.0","release":true,"relay":"https://data-services.magicbean.dev/telemetry/perf","busy_until":1795000000,"a_later_field":1}
+{"v":1,"type":"perf_report","tick":false,"keep_sent":true,"waiting":0,"kept":0,"sent":0,"refused":0,"version":"v4.0.0","release":true,"relay":"","busy_until":null}

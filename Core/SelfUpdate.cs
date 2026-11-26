@@ -175,13 +175,24 @@ public static class SelfUpdate
         if (new FileInfo(to).Length != e.Length) throw new InvalidDataException($"The portable launcher's {entry} did not unpack whole.");
     }
 
+    /// Another AppImage's environment, without what says which AppImage this launcher runs from: APPIMAGE and APPDIR, which the
+    /// AppImage runtime sets for the program it starts, and TARGET_APPIMAGE, which AppImageLauncher's binfmt-bypass sets for the
+    /// runtime it starts. An AppImage's runtime mounts or unpacks TARGET_APPIMAGE when it is set, not itself: left in, the new
+    /// launcher's check would run this launcher again
+    public static void WithoutOurAppImage(IDictionary<string, string?> environment)
+    {
+        environment.Remove("APPIMAGE");
+        environment.Remove("APPDIR");
+        environment.Remove("TARGET_APPIMAGE");
+    }
+
     /// Starts staged with --self-check: true when it answers CheckLine(tag) and ends well within timeout
     public static async Task<bool> SelfCheckAsync(string staged, string tag, TimeSpan timeout)
     {
         var start = new ProcessStartInfo(staged) { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
         start.ArgumentList.Add(CheckArgument);
         // (its own AppImage, not this one's: under AppImageLauncher, TARGET_APPIMAGE would have it run this launcher again)
-        Toolchains.WithoutOurAppImage(start.Environment);
+        WithoutOurAppImage(start.Environment);
         using var cancel = new CancellationTokenSource(timeout);
         try
         {

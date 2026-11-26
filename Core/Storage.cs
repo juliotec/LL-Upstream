@@ -41,6 +41,7 @@ public static class Storage
         RecentCode, RecentTranslation, OlderCode, OlderTranslations, Unfinished,
         Builders, GraphicsLibraries, UnfinishedDownloads,
         Saves, ModsAndSettings, Logs,
+        BuilderFiles,
     }
 
     public sealed record KindInfo(Kind Kind, Group Group, string Name, string About, string? Cost);
@@ -66,6 +67,9 @@ public static class Storage
             Tr.N("Nothing for the next update: going back to an older version translates it again.")),
         new KindInfo(Kind.Unfinished, Group.FasterUpdates, Tr.N("Left by a build that stopped"), Tr.N("The game's program and a dump check, unpacked"),
             Tr.N("Nothing: the next build unpacks them again.")),
+        new KindInfo(Kind.BuilderFiles, Group.FasterUpdates, Tr.N("longshot-builder's work folders"),
+            Tr.N("Each version's translation and compiled code from its last build. Reused for what its next update leaves as it was"),
+            Tr.N("Each version's next update translates and compiles the game again: up to as long as a first build.")),
         new KindInfo(Kind.Builders, Group.BuildTools, Tr.N("Builders of installed versions"), Tr.N("Files they share are counted once"), null),
         new KindInfo(Kind.GraphicsLibraries, Group.BuildTools, Tr.N("Graphics libraries (DLSS, FSR, XeSS)"), Tr.N("Downloaded again by the next build that needs them"),
             Tr.N("The next build that uses them downloads them again.")),
@@ -86,9 +90,23 @@ public static class Storage
     public sealed record Game(string Id, string Name, string Folder, bool Unlisted = false, bool HoldsYours = false);
 
     /// Every place Longshot keeps something, from the launcher's state (Of) or the tests'
-    /// ShaderStore: the shader store every version shares (SaveEnvironment.ShaderStore; null: none)
+    /// ShaderStore: the shader store every version shares (SaveEnvironment.ShaderStore; null: none). Toolchains: an older
+    /// launcher's builders (LauncherHome.Toolchains). VersionFolders: the version folders (BuilderVersions), whose builder and its
+    /// record are Builders (their game folders are Games). Builder: longshot-builder's cache as the builder counts it (its storage
+    /// command), shown by its kinds in place of walking the cache's folders; null: they are walked
     public sealed record Places(string Work, string Toolchains, string LauncherLogs, IReadOnlyList<string> Sdks, IReadOnlyList<Game> Games,
-                                IReadOnlyList<string> SaveFolders, string? ShaderStore = null, IReadOnlyList<string>? SettingsFolders = null);
+                                IReadOnlyList<string> SaveFolders, string? ShaderStore = null, IReadOnlyList<string>? SettingsFolders = null,
+                                IReadOnlyList<string>? VersionFolders = null, BuilderStorage? Builder = null);
+
+    /// The build files folder's parts that are longshot-builder's cache, which its storage command counts (Places.Builder)
+    static bool InBuilderCache(string part) =>
+        part == Disk.LongshotWork || part == Disk.LongshotStore || Disk.LongshotKept.Contains(part);
+
+    /// What of a version folder is its builder: its program and its record (fetch's or from-source's)
+    static readonly IReadOnlySet<string> BuilderNames = new HashSet<string>(StringComparer.Ordinal)
+    {
+        BuilderVersions.ExeName(Platform.Windows), BuilderVersions.ExeName(Platform.Linux), Core.Toolchains.ReleaseRecord, Core.Toolchains.SourceRecord,
+    };
 
     /// What the page lists: one kind of thing (per version for a program or a shader cache: Game) on one drive (Drive:
     /// Disk.DriveName; null: wherever it is), its bytes (each file once), and what removing it frees (its files with no hard link
@@ -109,10 +127,17 @@ public static class Storage
     {
         (Kind.RecentCode, new[] { "objcache", "system_headers.txt" }),
         (Kind.RecentTranslation, new[] { "sa" }),
-        (Kind.OlderCode, new[] { Disk.ObjectStore }),
+        // (longshot-builder's store: the objects and lifts of every build, by key, kept for switching versions)
+        (Kind.OlderCode, new[] { Disk.ObjectStore, Disk.LongshotStore }),
         (Kind.OlderTranslations, new[] { Disk.LiftStore }),
         (Kind.Unfinished, new[] { "exefs", "probe" }),
+        // (longshot-builder's work folders, one per game folder: its lift, image and objects. Its releases' unpacked trees and
+        // tools and the vendors' files it downloaded are the builders', Disk.LongshotKept: only Remove everything takes them)
+        (Kind.BuilderFiles, new[] { Disk.LongshotWork }),
     };
+
+    /// The kinds of the build files folder's parts (WorkKinds): kept or not by Keep build files, and what a running build holds
+    public static bool IsWorkPart(Kind kind) => WorkKinds.Any(w => w.Kind == kind);
 
     public static IReadOnlyList<string> WorkPartsOf(Kind kind) => WorkKinds.FirstOrDefault(w => w.Kind == kind).Parts ?? Array.Empty<string>();
 
@@ -149,9 +174,17 @@ public static class Storage
             parts.Add((g.Folder, Kind.Programs, g, true));
         }
         foreach (var (kind, names) in WorkKinds)
-            foreach (var n in names)
+            foreach (var n in names.Where(n => p.Builder == null || !InBuilderCache(n)))
                 parts.Add((Path.Combine(p.Work, n), kind, null, false));
+        // (each version folder's builder: its program and record, the rest of it its game folders' or the player's)
+        var versionParts = new HashSet<int>();
+        foreach (var v in p.VersionFolders ?? [])
+        {
+            versionParts.Add(parts.Count);
+            parts.Add((v, Kind.Builders, null, false));
+        }
         parts.Add((p.Toolchains, Kind.Builders, null, false));
+        foreach (var kept in Disk.LongshotKept.Where(_ => p.Builder == null)) parts.Add((Path.Combine(p.Work, kept), Kind.Builders, null, false));
         foreach (var d in Unfinished(p.Toolchains)) parts.Add((d, Kind.UnfinishedDownloads, null, false));
         var sdkTargets = new List<string>();
         foreach (var s in p.Sdks)
@@ -201,6 +234,7 @@ public static class Storage
             : parts[i].Kind == Kind.Saves && parts[i].Game != null ? SettingsNames.Contains(name) || name == Mods
             : parts[i].Kind == Kind.Logs ? !(parts[i].Game == null ? LauncherLogName(name) : GameLog(name)) || Directory.Exists(Path.Combine(parts[i].Path, name))
             : parts[i].Kind == Kind.ShaderStore ? Directory.Exists(Path.Combine(parts[i].Path, name)) || !ShaderCaches.StoreNames.Any(n => name == n || name.StartsWith(n + ".", StringComparison.Ordinal))
+            : versionParts.Contains(i) ? !BuilderNames.Contains(name) || Directory.Exists(Path.Combine(parts[i].Path, name))
             : parts[i].Kind == Kind.Builders && IsUnfinished(name), IsRomfs);
         if (measured.Partial) partial?.Invoke();
         var sizes = measured.Sizes;
@@ -232,6 +266,12 @@ public static class Storage
                 continue;
             }
             Add(kind, game, drive, s.Counted, s.Frees);
+        }
+        // (longshot-builder's cache, as its storage command counts it: each of its kinds the page's, on the cache's drive)
+        if (p.Builder is { } builder)
+        {
+            var drive = Disk.DriveName(builder.Cache);
+            foreach (var part in builder.Kinds) Add(BuilderStorage.KindOf(part.Kind), null, drive, part.Bytes, part.Bytes);
         }
         // (a copy other folders link to as well: which, by its largest such file's names)
         var elsewhere = new Dictionary<string, IReadOnlyList<string>>();
@@ -279,15 +319,18 @@ public static class Storage
 
     /// Why an item cannot go now: Longshot runs (it holds its shader caches and logs, and no version is deleted while a game
     /// runs, as Home's delete), or a download runs (it holds the tools' staging, as LauncherService.PruneTools waits for), or
-    /// a folder no row lists holds something of the player's (HoldsYours)
-    public enum Refusal { None, Running, Downloading, NotRemovable, HoldsYours }
+    /// a folder no row lists holds something of the player's (HoldsYours), or a build runs (Building: it writes the build files,
+    /// the shader caches and the store)
+    public enum Refusal { None, Running, Downloading, NotRemovable, HoldsYours, Building }
 
-    /// Whether item may go now. running: Longshot runs; downloading: a tools fetch runs
-    public static Refusal CanRemove(Item item, bool running, bool downloading) =>
+    /// Whether item may go now. running: Longshot runs; downloading: a tools fetch runs; building: a build runs (this launcher's,
+    /// or longshot-builder's: Saves.BuilderRunning)
+    public static Refusal CanRemove(Item item, bool running, bool downloading, bool building = false) =>
         !item.Removable ? Refusal.NotRemovable
         : item.Kind == Kind.Unlisted && item.Game is { HoldsYours: true } ? Refusal.HoldsYours
         : running && item.Kind is Kind.ShaderCache or Kind.ShaderStore or Kind.Logs or Kind.Programs or Kind.Unlisted ? Refusal.Running
-        : downloading && item.Kind == Kind.UnfinishedDownloads ? Refusal.Downloading
+        : building && (IsWorkPart(item.Kind) || item.Kind is Kind.ShaderCache or Kind.ShaderStore) ? Refusal.Building
+        : downloading && item.Kind is Kind.UnfinishedDownloads ? Refusal.Downloading
         : Refusal.None;
 
     /// item let go: only what it is (a work part by name, a version's shader caches, the SDK folders, the tools' staging, the
@@ -296,11 +339,12 @@ public static class Storage
     /// cachesHeld: the tests' stand-in for the shader caches' own look at whether Longshot runs (ShaderCaches.Clear)
     /// deleteFolder: how a folder no row lists is deleted (the launcher's: LauncherService.DeleteLeftover, its save backed up
     /// first); none, it is not
+    /// building: a build runs (CanRemove)
     public static Refusal Remove(Item item, Places p, bool running, bool downloading, string? ownLog = null, Func<bool>? cachesHeld = null,
                                  Action<Game>? deleteFolder = null, Action<int, int, int>? logOutcome = null,
-                                 Action<int, int, int>? folderOutcome = null)
+                                 Action<int, int, int>? folderOutcome = null, bool building = false)
     {
-        var refusal = CanRemove(item, running, downloading);
+        var refusal = CanRemove(item, running, downloading, building);
         if (refusal != Refusal.None) return refusal;
         // (an item of one drive lets go only what is on it: the page's drive picked, never another's)
         bool On(string path) => item.Drive == null || SameDrive(Disk.DriveName(path), item.Drive);
@@ -319,7 +363,10 @@ public static class Storage
             case Kind.ShaderStore:
                 // (each version's caches see the store changed and start over: ShaderCaches.StoreNames)
                 if (p.ShaderStore is { } store && On(store)
-                    && ShaderCaches.ClearStore(store, running ? () => true : cachesHeld) == null) return Refusal.Running;
+                    && ShaderCaches.ClearStore(store, running ? () => true : cachesHeld, p.Games.Select(g => g.Folder)) == null) return Refusal.Running;
+                // (and the shader caches longshot-builder keeps in its cache for its games, by translator and driver: each game
+                // prepares its shaders again at its next start)
+                if (p.Builder is { } cached && On(cached.Cache)) DeleteFolder(Path.Combine(cached.Cache, BuilderStorage.Shaders));
                 break;
             case Kind.GraphicsLibraries:
                 int removedFolders = 0, skippedFolders = 0, failedFolders = 0;
@@ -353,7 +400,14 @@ public static class Storage
                 logOutcome?.Invoke(removed, skipped, failed);
                 break;
             default:
-                if (On(p.Work)) Disk.FreeWork(p.Work, WorkPartsOf(item.Kind), folderOutcome);
+                if (On(p.Work))
+                {
+                    // (a kind's parts the PC's builder never made, make_game.py's obj-store beside longshot-builder's store, are no target:
+                    // only the ones there go, so their absence is not said as skipped; with none there, the work went since the measure)
+                    var parts = WorkPartsOf(item.Kind);
+                    var there = parts.Where(part => Path.Exists(Path.Combine(p.Work, part)) || new FileInfo(Path.Combine(p.Work, part)).LinkTarget != null).ToList();
+                    Disk.FreeWork(p.Work, there.Count > 0 ? there : parts, folderOutcome);
+                }
                 break;
         }
         LauncherLog.Add($"storage: removed {item.Kind}{(item.Game is { } at ? " of " + at.Name : "")}{(item.Drive is { } on ? " on " + on : "")} ({item.Frees} bytes measured)");

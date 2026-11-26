@@ -18,15 +18,15 @@
   </UserControl.Styles>
   <Grid RowDefinitions="Auto,*" RowSpacing="18">
     <StackPanel>
-      <TextBlock Classes="heading" Text="NFC"/>
+      <TextBlock Classes="heading" Text="{c:T 'NFC'}"/>
       <TextBlock Classes="sub" TextWrapping="Wrap"
-                 Text="Dumps of figures you own, for the NFC tab of the game's Insert menu. Drop files or folders here to add them."/>
+                 Text="{c:T 'Dumps of figures you own, for the NFC tab of the game\'s Insert menu. Drop files or folders here to add them.'}"/>
     </StackPanel>
 
     <Grid Grid.Row="1" ColumnDefinitions="*,290" ColumnSpacing="24">
       <Grid RowDefinitions="Auto,Auto,*">
         <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8" Margin="0,0,0,10">
-          <TextBlock Classes="label" Text="YOUR NFC TAGS" Margin="0" VerticalAlignment="Center"/>
+          <TextBlock Classes="label" Text="{c:T 'Your NFC tags'}" Margin="0" VerticalAlignment="Center"/>
           <!-- past the game's 256: a chip, the why in its tooltip -->
           <Border Grid.Column="1" Classes="chip warn small" IsVisible="{Binding TooMany}" VerticalAlignment="Center"
                   ToolTip.Tip="{Binding TooManyText}">
@@ -41,7 +41,7 @@
               <Border Classes="boxicon">
                 <c:Icon Kind="alert" Width="13" Height="13" Foreground="{StaticResource Warn}"/>
               </Border>
-              <ItemsControl Grid.Column="1" ItemsSource="{Binding Report}">
+              <ItemsControl Grid.Column="1" ItemsSource="{Binding Report}" VerticalAlignment="Center">
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="x:String"><TextBlock Text="{Binding}" TextWrapping="Wrap"/></DataTemplate>
                 </ItemsControl.ItemTemplate>
@@ -50,12 +50,12 @@
           </Border>
         </ScrollViewer>
         <!-- the list scrolls inside its card, so the card always ends with its own edge -->
-        <Border Grid.Row="2" Classes="card" Padding="0" VerticalAlignment="Top" ClipToBounds="True">
+        <Border Grid.Row="2" Classes="card" Padding="0" VerticalAlignment="Top" ClipToBounds="True" Margin="0,0,0,32">
           <Panel>
             <StackPanel IsVisible="{Binding NoRows}" Spacing="6" Margin="16,26">
-              <TextBlock Text="No NFC tags yet" FontWeight="SemiBold"/>
+              <TextBlock Text="{c:T 'No NFC tags yet'}" FontWeight="SemiBold"/>
               <TextBlock Classes="note" TextWrapping="Wrap"
-                         Text="Add the dumps of your own figures: .bin files (a raw NTAG215 dump) or .nfc files (Flipper Zero). Each keeps its file name, which is the name the game shows."/>
+                         Text="{c:T 'Add the dumps of your own figures: .bin files (a raw NTAG215 dump) or .nfc files (Flipper Zero). Each keeps its file name, which is the name the game shows.'}"/>
             </StackPanel>
             <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" IsVisible="{Binding HasRows}">
               <ItemsControl ItemsSource="{Binding Rows}" Margin="16,8">
@@ -63,16 +63,16 @@
                   <DataTemplate x:DataType="vm:NfcRowViewModel">
                     <Border BorderBrush="{StaticResource GlassLine}" BorderThickness="{Binding Line}" Padding="0,7">
                       <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="10">
-                        <CheckBox Classes="tick" IsChecked="{Binding IsPicked}" VerticalAlignment="Center" AutomationProperties.Name="{Binding PickName}"/>
+                        <CheckBox Classes="tick" IsChecked="{Binding IsPicked}" VerticalAlignment="Center" AutomationProperties.Name="{Binding PickName}" c:Pad.First="True"/>
                         <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
                           <TextBlock Classes="ellipsis" Text="{Binding Name}" FontSize="13" FontWeight="SemiBold" ToolTip.Tip="{Binding Name}"/>
-                          <TextBlock Classes="faint mono" IsVisible="{Binding Valid}" Text="{Binding Model}" ToolTip.Tip="The figure's model ID"/>
+                          <TextBlock Classes="faint mono" IsVisible="{Binding Valid}" Text="{Binding Model}" ToolTip.Tip="{c:T 'The figure\'s model ID'}"/>
                           <TextBlock Classes="faint bad" IsVisible="{Binding Invalid}" Text="{Binding Problem}" TextWrapping="Wrap"/>
                         </StackPanel>
                         <Border Grid.Column="2" Classes="chip small" Classes.bad="{Binding Invalid}">
                           <TextBlock Text="{Binding Format}"/>
                         </Border>
-                        <Button Grid.Column="3" Classes="icon iconbad" Command="{Binding DeleteCommand}" ToolTip.Tip="Delete" AutomationProperties.Name="Delete">
+                        <Button Grid.Column="3" Classes="icon iconbad" Command="{Binding DeleteCommand}" ToolTip.Tip="{c:T 'Delete'}" AutomationProperties.Name="{c:T 'Delete'}">
                           <c:Icon Kind="trash"/>
                         </Button>
                       </Grid>
@@ -85,24 +85,24 @@
         </Border>
       </Grid>
 
-      <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" ClipToBounds="True">
+      <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="0,0,-12,0" Padding="0,0,12,32">
         <StackPanel Spacing="8">
-          <TextBlock Classes="label" Text="ADD NFC TAGS" Margin="0,0,0,2"/>
-          <Button Classes="transfer" Command="{Binding AddCommand}">
+          <TextBlock Classes="label" Text="{c:T 'Add NFC tags'}" Margin="0,0,0,2"/>
+          <Button Classes="transfer" Command="{Binding AddCommand}" c:Pad.First="True">
             <Grid ColumnDefinitions="20,*" ColumnSpacing="10">
               <c:Icon Kind="plus" Width="18" Height="18" VerticalAlignment="Center" Foreground="{StaticResource Brand}"/>
               <StackPanel Grid.Column="1" Spacing="3">
-                <TextBlock Classes="transferTitle" Text="Add files…"/>
-                <TextBlock Classes="faint" FontSize="11.5" Text="One .bin or .nfc file, or many at once"/>
+                <TextBlock Classes="transferTitle" Text="{c:T 'Add files…'}"/>
+                <TextBlock Classes="faint" FontSize="11.5" Text="{c:T 'One .bin or .nfc file, or many at once'}" TextWrapping="Wrap"/>
               </StackPanel>
             </Grid>
           </Button>
           <Button Classes="transfer" Command="{Binding ScanCommand}" IsVisible="{Binding NotScanning}"
-                  ToolTip.Tip="Reads a tag you own with a Switch 2 Pro Controller plugged in over USB. The tag is never written." ToolTip.ShowOnDisabled="True">
+                  ToolTip.Tip="{c:T 'Reads a tag you own with a Switch 2 Pro Controller plugged in over USB. The tag is never written.'}" ToolTip.ShowOnDisabled="True">
             <Grid ColumnDefinitions="20,*" ColumnSpacing="10">
               <c:Icon Kind="nfc" Width="18" Height="18" VerticalAlignment="Center"/>
               <StackPanel Grid.Column="1" Spacing="3">
-                <TextBlock Classes="transferTitle" Text="Scan a tag…"/>
+                <TextBlock Classes="transferTitle" Text="{c:T 'Scan a tag…'}"/>
                 <TextBlock Classes="faint" FontSize="11.5" Text="{Binding ScanHint}" TextWrapping="Wrap"/>
               </StackPanel>
             </Grid>
@@ -112,15 +112,15 @@
             <Grid ColumnDefinitions="20,*,Auto" ColumnSpacing="10">
               <c:Spinner VerticalAlignment="Center"/>
               <TextBlock Grid.Column="1" Classes="faint" Text="{Binding ScanText}" TextWrapping="Wrap" VerticalAlignment="Center"/>
-              <Button Grid.Column="2" Classes="link" Content="Cancel" Command="{Binding CancelScanCommand}" VerticalAlignment="Center"/>
+              <Button Grid.Column="2" Classes="link" Content="{c:T 'Cancel'}" Command="{Binding CancelScanCommand}" VerticalAlignment="Center"/>
             </Grid>
           </Border>
           <Button Classes="transfer" Command="{Binding AddFolderCommand}">
             <Grid ColumnDefinitions="20,*" ColumnSpacing="10">
               <c:Icon Kind="download" Width="18" Height="18" VerticalAlignment="Center"/>
               <StackPanel Grid.Column="1" Spacing="3">
-                <TextBlock Classes="transferTitle" Text="Add a folder…"/>
-                <TextBlock Classes="faint" FontSize="11.5" Text="Every .bin and .nfc file in it"/>
+                <TextBlock Classes="transferTitle" Text="{c:T 'Add a folder…'}"/>
+                <TextBlock Classes="faint" FontSize="11.5" Text="{c:T 'Every .bin and .nfc file in it'}" TextWrapping="Wrap"/>
               </StackPanel>
             </Grid>
           </Button>
@@ -131,31 +131,31 @@
               <TextBlock Grid.Column="1" Classes="faint" Text="{Binding AddingText}" TextWrapping="Wrap" VerticalAlignment="Center"/>
             </Grid>
           </Border>
-          <TextBlock Classes="label" Text="THE NFC FOLDER" Margin="0,10,0,2"/>
+          <TextBlock Classes="label" Text="{c:T 'The NFC folder'}" Margin="0,10,0,2"/>
           <Button Classes="transfer" Command="{Binding OpenCommand}" ToolTip.Tip="{Binding Folder}">
             <Grid ColumnDefinitions="20,*" ColumnSpacing="10">
               <c:Icon Kind="folder" Width="18" Height="18" VerticalAlignment="Center"/>
               <StackPanel Grid.Column="1" Spacing="3">
-                <TextBlock Classes="transferTitle" Text="Open the folder"/>
+                <TextBlock Classes="transferTitle" Text="{c:T 'Open the folder'}"/>
                 <TextBlock Classes="faint path" FontSize="11.5" Text="{Binding FolderShown}"/>
               </StackPanel>
             </Grid>
           </Button>
           <TextBlock Classes="faint" FontSize="11.5" TextWrapping="Wrap" Margin="2,0"
-                     Text="The dumps stay on this PC, in a folder every Longshot version shares."/>
-          <TextBlock Classes="label" Text="DELETE" Margin="0,10,0,2"/>
+                     Text="{c:T 'The dumps stay on this PC, in a folder every Longshot version shares.'}"/>
+          <TextBlock Classes="label" Text="{c:T 'Delete'}" Margin="0,10,0,2"/>
           <Button Classes="small" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Command="{Binding DeleteCommand}"
-                  ToolTip.Tip="Tick the files to delete" ToolTip.ShowOnDisabled="True">
+                  ToolTip.Tip="{c:T 'Tick the files to delete'}" ToolTip.ShowOnDisabled="True">
             <StackPanel Orientation="Horizontal" Spacing="8">
               <c:Icon Kind="trash" Width="14" Height="14"/>
               <TextBlock Text="{Binding DeleteLabel}"/>
             </StackPanel>
           </Button>
           <Button Classes="small" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Command="{Binding DeleteAllCommand}"
-                  ToolTip.Tip="Deletes every file in the list, after asking" ToolTip.ShowOnDisabled="True">
+                  ToolTip.Tip="{c:T 'Deletes every file in the list, after asking'}" ToolTip.ShowOnDisabled="True">
             <StackPanel Orientation="Horizontal" Spacing="8">
               <c:Icon Kind="trash" Width="14" Height="14"/>
-              <TextBlock Text="Delete all"/>
+              <TextBlock Text="{c:T 'Delete all'}"/>
             </StackPanel>
           </Button>
         </StackPanel>

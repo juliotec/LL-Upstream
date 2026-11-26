@@ -86,63 +86,21 @@ static partial class Program
 
     static void GameCheckChecks()
     {
-        var ok = GameCheck.Read(new[] { "reading", "@@check ok This is the version Longshot supports (build e0f3ccfa)." }, null, 0);
-        Require(ok.Ok && ok.Text.StartsWith("This is the version"), "@@check ok is the supported version.");
-        var bad = GameCheck.Read(new[] { "@@check bad This is build 12345678. Longshot supports build e0f3ccfa." }, "warn", 0);
-        Require(bad.Status == GameCheckStatus.OtherVersion && bad.Text.Contains("12345678"), "@@check bad is another version.");
-        const string incomplete = "nup.py stopped (exit status 1): the .nup file is incomplete: it is 9214 MB, its header says 25624 MB. Download or copy it again";
-        var err = GameCheck.Read(new[] { "@@error " + incomplete }, null, 1);
-        Require(err.Status == GameCheckStatus.Unreadable && err.Text == incomplete && err.Why!.StartsWith("This file is incomplete"),
-                "@@error from nup.py: the file can't be read, said in plain words: " + err.Why);
-        var said = GameCheck.Read(Array.Empty<string>(), "Traceback: boom", 1);
-        Require(said is { Status: GameCheckStatus.CheckFailed, Text: "Traceback: boom", ThisPc: false }
-                && GameCheck.Read(Array.Empty<string>(), null, 3).Text.Contains("exit code 3"), "Nothing said: stderr's last line, else the exit code.");
-        Require(said.Why!.StartsWith("The check stopped before it could tell anything about this file"), "Nothing said: not blamed on the file.");
-
-        // (which failures are the file's: the check tests this PC's compiler first, and its failures are not the file's)
-        foreach (var (error, status, why) in new[]
-                 {
-                     ("nup.py stopped (exit status 1): /d/x.nup: not a NUP package (magic b'PK\x03\x04')", GameCheckStatus.Unreadable, "This file is not a .nup or .nx package"),
-                     // (a .nx: nxar.py's words, MagicBeanDev/Longshot#685)
-                     ("nxar.py stopped (exit status 1): the .nx file is incomplete: it is 0 MB, its header says 24329 MB. Download or copy it again",
-                      GameCheckStatus.Unreadable, "This file is incomplete"),
-                     ("nxar.py stopped (exit status 1): D:\\oot.nx: romfs/a.bin is damaged in the archive (its SHA-256 differs). Copy or convert the file again",
-                      GameCheckStatus.Unreadable, "This file is damaged"),
-                     ("nxar.py stopped (exit status 1): D:\\oot.nx holds the game as NCA files (made by nxconvert pack from a DNSP or DXCI), which Longshot does not read.",
-                      GameCheckStatus.Unreadable, "This .nx file holds the game as NCA files"),
-                     ("nxar.py stopped (exit status 1): D:\\oot.nx: not a .nx archive (magic b'\\x00\\x00\\x00\\x00')", GameCheckStatus.Unreadable, "This file is not a .nup or .nx package"),
-                     ("nup.py stopped (exit status 1): ValueError: TOC SHA-256 mismatch", GameCheckStatus.Unreadable, "This file is damaged"),
-                     // (#205: a .nx archive given to build tools that read .nup files only: not damaged, another kind of file)
-                     ("nup.py stopped (exit status 1): C:\\x.nx: not a NUP package (magic b'NXAR')", GameCheckStatus.Unreadable, "This is a .nx archive"),
-                     // (#205: Python could not load its own .pyd, a folder too deep for Windows: this PC's, not the file's)
-                     ("nup.py stopped (exit status 1): ImportError: DLL load failed while importing backend_c: The filename or extension is too long.",
-                      GameCheckStatus.CheckFailed, "Windows can't load a program's parts from a path of 260 characters"),
-                     ("nup.py stopped (exit status 1): ImportError: DLL load failed while importing backend_c: Der Dateiname oder die Erweiterung ist zu lang.",
-                      GameCheckStatus.CheckFailed, "The file could not be checked, because of this PC"),
-                     (Problems.LongFolderWords + " the build tools' Python has files there whose path is 270 characters long (x)",
-                      GameCheckStatus.CheckFailed, "Windows can't load a program's parts"),
-                     ("The file main in this dump is not a game module (it starts 00000000). Try another dump", GameCheckStatus.Unreadable, "This dump's game code"),
-                     ("Your drive could not read D:\\x.nup: the drive reported an I/O error.", GameCheckStatus.Unreadable, "Your drive could not read"),
-                     ("The builder's own compiler (tools/llvm-mingw) could not build a test program: x", GameCheckStatus.CheckFailed, "The file could not be checked, because of this PC"),
-                     ("The builder stopped on an error it did not expect: KeyError: 'x'. Please send", GameCheckStatus.CheckFailed, "The check stopped before"),
-                 })
-        {
-            var answer = GameCheck.Read(new[] { "@@error " + error }, null, 1);
-            Require(answer.Status == status && answer.Why!.StartsWith(why, StringComparison.Ordinal), $"@@error {error}: {answer.Status}, {answer.Why}");
-        }
-        var other = GameCheck.Read(new[] { "@@check bad This is build 12345678. Longshot supports build e0f3ccfa." }, null, 0);
-        Require(other.Why!.StartsWith("Longshot needs the game with update 2.0.0") && ok.Why == null,
-                "Another version: the version Longshot needs, as the build's stop says it; a supported file says nothing.");
-
-        var home = new LauncherHome(Path.Combine(scratch, "check-home"));
-        var lin = new Toolchain("v3.0.0", Path.Combine(home.Toolchains, "v3.0.0"), ListKind.Linux, null);
-        var c = MakeGameCommand.ForCheck(lin, new BuildSource.Nup("/d/game.nup"), Platform.Linux, home, "/L");
-        Require(c.Arguments.SequenceEqual(new[] { "-I", lin.MakeGame, "--check", "--nup", "/d/game.nup", "--work", home.Work })
-                && c.FileName == lin.Python && c.Environment["LONGSHOT_TOOLS"] == lin.ToolsRoot && c.Environment["LONGSHOT_NGX_SDK"] == null,
-                "The check of a .nup: the tools' Python and environment, --work for its probe: " + string.Join(" ", c.Arguments));
-        var f = MakeGameCommand.ForCheck(lin, new BuildSource.Folders("/d/romfs", "/d/exefs"), Platform.Linux, home, "/L", work: "/w");
-        Require(f.Arguments.SequenceEqual(new[] { "-I", lin.MakeGame, "--check", "--exefs", "/d/exefs", "--work", "/w" }), "The check of folders: the exefs.");
-        Throws<ArgumentException>(() => MakeGameCommand.ForCheck(lin, new BuildSource.Update("/g"), Platform.Linux, home, "/L"), "A folder is not checked.");
+        // (longshot-builder check's answers, in the player's words: its codes the launcher's own, else the builder's words)
+        var ok = new GameCheck(GameCheckStatus.Supported, "This is the version Longshot supports (build e0f3ccfa).");
+        Require(ok.Ok && ok.Why == null, "A supported file says nothing.");
+        var incomplete = new GameCheck(GameCheckStatus.Unreadable, "the .nup file is incomplete: it is 9214 MB, its header says 25624 MB", Code: "nup_incomplete");
+        Require(incomplete.Why == Problems.FromCode("nup_incomplete")!.Detail, "A code the launcher has words for: those words: " + incomplete.Why);
+        var other = new GameCheck(GameCheckStatus.OtherVersion, "This is build 12345678. Longshot supports build e0f3ccfa.", Code: "unsupported_build");
+        Require(other.Why!.StartsWith("Longshot needs the game with update 2.0.0", StringComparison.Ordinal),
+                "Another version: the version Longshot needs, as the build's stop says it.");
+        var later = new GameCheck(GameCheckStatus.Unreadable, "the builder's own words", Code: "a_later_code");
+        Require(later.Why == "the builder's own words", "A file's code the launcher has no words for: the builder's.");
+        Require(new GameCheck(GameCheckStatus.Unreadable, "x").Why!.StartsWith("This file is damaged", StringComparison.Ordinal),
+                "Unreadable with no code: damaged, in plain words.");
+        Require(new GameCheck(GameCheckStatus.CheckFailed, "no compiler", ThisPc: true).Why!.StartsWith("The file could not be checked, because of this PC", StringComparison.Ordinal)
+                && new GameCheck(GameCheckStatus.CheckFailed, "boom").Why!.StartsWith("The check stopped before it could tell anything about this file", StringComparison.Ordinal),
+                "A check that could not run: this PC's, or neither the file's nor this PC's.");
     }
 
     static ProcessStartInfo Shell(string script) =>
@@ -170,13 +128,13 @@ static partial class Program
         var outLines = new List<string>();
         var errLines = new List<string>();
         var script = OperatingSystem.IsWindows()
-            ? "echo @@stage read Reading& echo @@progress 0.5& echo oops 1>&2& echo @@done C:\\g& exit 0"
-            : "echo '@@stage read Reading'; echo '@@progress 0.5'; echo oops >&2; echo '@@done /g'; exit 0";
+            ? "echo {\"v\":1,\"type\":\"stage\",\"stage\":\"read\"}& echo oops 1>&2& echo {\"v\":1,\"type\":\"progress\",\"stage\":\"read\",\"fraction\":0.5}& echo {\"v\":1,\"type\":\"done\",\"folder\":\"C:/g\"}& exit 0"
+            : "echo '{\"v\":1,\"type\":\"stage\",\"stage\":\"read\"}'; echo oops >&2; echo '{\"v\":1,\"type\":\"progress\",\"stage\":\"read\",\"fraction\":0.5}'; echo '{\"v\":1,\"type\":\"done\",\"folder\":\"/g\"}'; exit 0";
         var code = await MakeGameRun.RunAsync(Shell(script), l => { lock (outLines) outLines.Add(l.TrimEnd()); }, l => { lock (errLines) errLines.Add(l.TrimEnd()); });
-        Require(code == 0 && outLines.Count == 3 && outLines[0] == "@@stage read Reading" && errLines.SequenceEqual(new[] { "oops" }),
+        Require(code == 0 && outLines.Count == 3 && outLines[0] == "{\"v\":1,\"type\":\"stage\",\"stage\":\"read\"}" && errLines.SequenceEqual(new[] { "oops" }),
                 "A run hands over stdout and stderr line by line: " + string.Join(" | ", outLines));
         var p = new BuildProgress(download: false, shaders: false);
-        foreach (var l in outLines) p.Feed(l);
+        foreach (var l in outLines) Feed(p, l);
         Require(p.Finished, "The run's lines drive the bar.");
         Require(await MakeGameRun.RunAsync(Shell("exit 7"), _ => { }, _ => { }) == 7, "The exit code.");
 
@@ -209,12 +167,10 @@ static partial class Program
             var self = File.ReadAllText("/proc/self/stat");
             var selfNice = Nice(self[(self.LastIndexOf(')') + 2)..].Split(' ')[16]);
             Require(own.Count == 1 && Nice(own[0]) == selfNice, $"A run at full speed keeps the launcher's priority: {string.Join(" | ", own)}, not {selfNice}.");
-            var check = await MakeGameRun.CheckAsync(new MakeGameCommand("/bin/sh", new[] { "-c", "echo '@@check ok Supported.'" }, "/",
-                                                                          new Dictionary<string, string?>()), windows: false);
-            Require(check.Ok && check.Text == "Supported.", "A check run's answer.");
         }
-        var missing = await MakeGameRun.CheckAsync(new MakeGameCommand(Path.Combine(scratch, "no-python"), Array.Empty<string>(), scratch,
-                                                                        new Dictionary<string, string?>()), windows: false);
+        var noBuilder = new Toolchain("v4.0.0", scratch, "no-builder");
+        var missing = await new LongshotBuilder(noBuilder, noBuilder.BuilderExe, Platform.Linux, new LauncherHome(Path.Combine(scratch, "run-home")), "/L", _ => null)
+            .CheckAsync(new BuildSource.Nup("/d/game.nup"));
         Require(missing is { Status: GameCheckStatus.CheckFailed, ThisPc: true } && missing.Text.StartsWith("The build tools could not start"),
                 "Tools that do not start: this PC's, not the file's.");
     }
@@ -226,6 +182,17 @@ static partial class Program
         Require(Durations.About(30) == "Under a minute" && Durations.About(12 * 60 + 10) == "About 12 min" && Durations.About(80 * 60) == "About 1 h 20 min"
                 && Durations.About(120 * 60) == "About 2 h", "About N min.");
         Require(Durations.Roughly(10) == "~1 min" && Durations.Roughly(300) == "~5 min", "~N min.");
+        // (the ready page: a 5 s update said in seconds, not as 1 min; a minute and more in whole minutes)
+        Require(Durations.Done(TimeSpan.FromSeconds(5), "/g/L", "nightly-1") == "Updated from nightly-1 in 5 s, in /g/L."
+                && Durations.Done(TimeSpan.FromSeconds(0.2), "/g/L", "nightly-3", older: true) == "Went back from nightly-3 in 1 s, in /g/L."
+                && Durations.Done(TimeSpan.FromSeconds(59.4), "/g/L") == "Built in 59 s, in /g/L."
+                && Durations.Done(TimeSpan.FromSeconds(59.6), "/g/L") == "Built in 1 min, in /g/L."
+                && Durations.Done(TimeSpan.FromMinutes(12.4), "/g/L", "nightly-1") == "Updated from nightly-1 in 12 min, in /g/L.",
+                "The ready page says what took under a minute in seconds: " + Durations.Done(TimeSpan.FromSeconds(5), "/g/L", "nightly-1"));
+        Tr.Use("fr");
+        var fr = Durations.Done(TimeSpan.FromSeconds(5), "/g/L", "nightly-1");
+        Tr.Use(null);
+        Require(fr == "Mis à jour depuis nightly-1 en 5 s, dans /g/L.", "The seconds' line is translated: " + fr);
         var now = new DateTime(2026, 11, 12, 19, 4, 0);
         Require(Durations.When(new DateTime(2026, 11, 12, 18, 2, 0), now) == "today 18:02" && Durations.When(new DateTime(2026, 11, 11, 22, 14, 0), now) == "yesterday 22:14"
                 && Durations.When(new DateTime(2026, 11, 6, 9, 0, 0), now) == "6 Nov" && Durations.When(new DateTime(2025, 3, 2), now) == "2 Mar 2025",
@@ -234,6 +201,9 @@ static partial class Program
         Require(Durations.Size(41231686042) == "38.4 GB" && Durations.Size(340L << 20) == "340 MB", "Sizes.");
         Require(Durations.Size(125_633) == "122 KB" && Durations.Size(1) == "1 KB" && Durations.Size(0) == "0 MB" && Durations.Size(-5) == "0 MB",
                 "Sizes under 1 MB in KB, never shown as nothing; nothing as 0 MB.");
+        Require(Durations.Size(360_000) == "351 KB" && Durations.Size(100) == "1 KB" && Durations.Size((1L << 20) - 1) == "1023 KB"
+                && Durations.Size(1L << 20) == "1 MB" && Durations.Size(0) == "0 MB",
+                "Below a megabyte a size is in KB (a mod of 360 000 bytes is not \"0 MB\"), at least 1 KB; nothing is 0 MB: " + Durations.Size(360_000));
 
         // (the forecast: the reference PC's measured times; half the threads, about 1.8 times as long for the threaded stages)
         Require(Math.Abs(BuildForecast.Total(true, true, 24) - 825) < 1e-6 && Math.Abs(BuildForecast.Total(false, false, 24) - 504) < 1e-6,
@@ -244,7 +214,7 @@ static partial class Program
         Require(BuildForecast.Parallel("compile") && BuildForecast.Parallel("lift")
                 && !BuildForecast.Parallel("read") && !BuildForecast.Parallel("finish") && !BuildForecast.Parallel("nothing"),
                 "The worker count scales the translation and compile forecasts.");
-        Require(BuildForecast.Seconds(MakeGameProtocol.ShadersStage, 8) == BuildForecast.Seconds(MakeGameProtocol.ShadersStage, 24),
+        Require(BuildForecast.Seconds(BuildProgress.ShadersStage, 8) == BuildForecast.Seconds(BuildProgress.ShadersStage, 24),
                 "The shader prior is independent of the selected build workers.");
 
         var p = new BuildProgress(download: true, shaders: true);
@@ -254,10 +224,10 @@ static partial class Program
         Require(clock.SecondsLeft(p) == null && clock.Estimate(p, p.Stages.First(s => s.Id == "read")) == null
                 && clock.Of("download") == TimeSpan.Zero && clock.Of("read") == null,
                 "At the start, nothing of this PC measured: no time left, no stage's estimate (only one PC's forecast).");
-        p.Feed("@@stage read Reading");
+        p.Apply(new MakeGameLine.Stage("read", "Reading"));
         clock.Observe(p, TimeSpan.FromSeconds(30));
         Require(clock.SecondsLeft(p) == null, "The read just begun: still working it out.");
-        p.Feed("@@stage lift Translating");
+        p.Apply(new MakeGameLine.Stage("lift", "Translating"));
         clock.Observe(p, TimeSpan.FromSeconds(182));   // (the read took 152 s, twice the forecast's 76)
         Require(clock.Of("download") == TimeSpan.FromSeconds(30) && clock.Of("read") == TimeSpan.FromSeconds(152), "Each stage's time.");
         Require(clock.Settled(p) && clock.Pace(p, cpu: false) is double disk && Math.Abs(disk - 2) < 1e-9 && clock.Pace(p, cpu: true) == null,
@@ -268,94 +238,88 @@ static partial class Program
                 "A slow disk makes the disk's stages slower, not the CPU's.");
         Require(clock.SecondsLeft(p) == null && Math.Abs(clock.SecondsBeforeShaders(p)!.Value - (57 + 305 + 66 * 2)) < 1e-6,
                 "The partial estimate covers the remaining work through Finish at each stage's pace.");
-        p.Feed("@@stage compile Compiling");
-        p.Feed("@@eta 600");
+        p.Apply(new MakeGameLine.Stage("compile", "Compiling"));
+        p.Apply(new MakeGameLine.Eta(600));
         clock.Observe(p, TimeSpan.FromSeconds(300));   // (the lift took 118 s against 57)
         var cpu = 118 / 57.0;
         Require(Math.Abs(clock.Pace(p, cpu: true)!.Value - cpu) < 1e-9 && Math.Abs(clock.SecondsBeforeShaders(p)!.Value - (600 + 305 * 0.03 * cpu + 66 * 2)) < 1e-6,
                 "The compile ETA covers the compiler's countdown, linking, and finishing at disk pace.");
-        p.Feed("@@stage finish Finishing");
+        p.Apply(new MakeGameLine.Stage("finish", "Finishing"));
         clock.Observe(p, TimeSpan.FromSeconds(900));
-        p.Feed("@@progress 0.5");
+        p.Apply(new MakeGameLine.Progress(0.5));
         clock.Observe(p, TimeSpan.FromSeconds(940));
         // (the running finish counts for the disk's pace as far as it has gone: 80 s at its rate, half of it done)
         Require(Math.Abs(clock.Pace(p, cpu: false)!.Value - (152 + 80 * 0.5) / (76 + 66 * 0.5)) < 1e-9, "A running stage's rate counts for its kind's pace.");
         Require(Math.Abs(clock.SecondsBeforeShaders(p)!.Value - 40) < 1e-6, "A running stage counts down from its own progress.");
-        p.Feed("@@stage shaders Preparing shaders");
+        p.Apply(new MakeGameLine.Stage("shaders", "Preparing shaders"));
         clock.Observe(p, TimeSpan.FromSeconds(980));
         var cpuBeforeShaders = clock.Pace(p, cpu: true);
         var diskBeforeShaders = clock.Pace(p, cpu: false);
         Require(clock.SecondsLeft(p) == null && clock.SecondsBeforeShaders(p) == null &&
-                clock.Estimate(p, p.Stages.First(s => s.Id == MakeGameProtocol.ShadersStage)) == null,
+                clock.Estimate(p, p.Stages.First(s => s.Id == BuildProgress.ShadersStage)) == null,
                 "An opaque shader start shows neither a total ETA nor an unmeasured shader duration.");
-        p.Feed("@@progress 0.5");
+        p.Apply(new MakeGameLine.Progress(0.5));
         clock.Observe(p, TimeSpan.FromSeconds(1010));
         Require(clock.SecondsLeft(p) == 30 && clock.Pace(p, cpu: true) == cpuBeforeShaders && clock.Pace(p, cpu: false) == diskBeforeShaders,
                 "The shader rate comes from its own progress and does not calibrate CPU or disk work.");
-        p.Feed("@@done /g");
+        p.Apply(new MakeGameLine.Done("/g"));
         clock.Observe(p, TimeSpan.FromSeconds(1020));
         Require(clock.SecondsLeft(p) == 0 && clock.Elapsed == TimeSpan.FromSeconds(1020), "Done.");
 
-        // (build.py says @@eta only as a file ends, minutes apart for the biggest: the time left counts down between them)
-        var c = new BuildProgress(download: false, shaders: false);
+        // (the builder says its eta only as a file ends, minutes apart for the biggest: the time left counts down between them)
+        // (an update: its read of the files the folder kept says nothing of the disk's pace, and the translation is kept)
+        var c = new BuildProgress(download: false, shaders: false, update: true);
         var cc = new BuildClock(threads: 24);
-        c.Feed("@@stage read Reading");
+        c.Apply(new MakeGameLine.Stage("read", "Reading"));
         cc.Observe(c, TimeSpan.FromSeconds(0));
-        // (the read unpacks for a minute saying nothing, then checks the files: its progress is the check's, from when it moved)
         cc.Observe(c, TimeSpan.FromSeconds(60));
         Require(cc.SecondsLeft(c) == null, "A minute of the read with no progress: still working it out.");
-        c.Feed("@@progress 0.5");
+        c.Apply(new MakeGameLine.Progress(0.5));
         cc.Observe(c, TimeSpan.FromSeconds(80));
-        Require(Math.Abs(cc.SecondsLeft(c)!.Value - (20 + 57 + 305 + 66 * (100 * 0.5) / (76 * 0.5))) < 1e-6,
-                "The read's rest from the rate its check moves at, not from its start, and the finish at the disk's pace that says.");
-        c.Feed("the game was read from this .nup before: reading it again is skipped");
-        c.Feed("@@stage lift Translating");
-        cc.Observe(c, TimeSpan.FromSeconds(82));
-        c.Feed("the game was translated with these tools before: translating it again is skipped");
-        c.Feed("@@stage compile Compiling");
+        c.Apply(new MakeGameLine.Stage("compile", "Compiling"));
         cc.Observe(c, TimeSpan.FromSeconds(84));
         Require(cc.Pace(c, cpu: true) == null && cc.Pace(c, cpu: false) == null && cc.Settled(c),
                 "Stages that kept an earlier build's work say nothing of the pace; the time left, once said, stays.");
-        c.Feed("@@plan 300 579");
+        c.Apply(new MakeGameLine.Plan(300, 579));
         var compile = c.Stages.First(s => s.Id == "compile");
         Require(Math.Abs(cc.Estimate(c, compile)!.Value - 305 * 300 / 579.0) < 1e-6, "A compile of some files: their share of the forecast.");
-        c.Feed("@@eta 400");
+        c.Apply(new MakeGameLine.Eta(400));
         cc.Observe(c, TimeSpan.FromSeconds(90));
         cc.Observe(c, TimeSpan.FromSeconds(190));
-        Require(Math.Abs(cc.SecondsLeft(c)!.Value - (300 + 305 * 0.03 + 66)) < 1e-6, "The compile counts down from its last @@eta with time for linking and finishing.");
-        c.Feed("@@eta 310");
+        Require(Math.Abs(cc.SecondsLeft(c)!.Value - (300 + 305 * 0.03 + 66)) < 1e-6, "The compile counts down from its last eta with time for linking and finishing.");
+        c.Apply(new MakeGameLine.Eta(310));
         cc.Observe(c, TimeSpan.FromSeconds(200));
-        Require(Math.Abs(cc.SecondsLeft(c)!.Value - (310 + 305 * 0.03 + 66)) < 1e-6, "A new @@eta starts the countdown again.");
+        Require(Math.Abs(cc.SecondsLeft(c)!.Value - (310 + 305 * 0.03 + 66)) < 1e-6, "A new eta starts the countdown again.");
         cc.Observe(c, TimeSpan.FromSeconds(600));
         Require(cc.SecondsLeft(c) == null, "A compiler that substantially overruns its ETA needs a new signal.");
-        c.Feed("@@progress 0.8");
+        c.Apply(new MakeGameLine.Progress(0.8));
         cc.Observe(c, TimeSpan.FromSeconds(610));
         Require(Math.Abs(cc.SecondsLeft(c)!.Value - (526 / 0.8 * 0.2 + 305 * 0.03 + 66)) < 1e-6, "Then the compile's own progress says the rest, its rate from its start (its files work from there).");
-        c.Feed("@@stage finish Finishing");
+        c.Apply(new MakeGameLine.Stage("finish", "Finishing"));
         cc.Observe(c, TimeSpan.FromSeconds(1000));
         Require(cc.Pace(c, cpu: true) == null && Math.Abs(cc.SecondsLeft(c)!.Value - 66) < 1e-6, "A compile of some files is no pace either.");
-        c.Feed("@@plan 0 579");
+        c.Apply(new MakeGameLine.Plan(0, 579));
         Require(Math.Abs(cc.Estimate(c, compile)!.Value - 305 * 0.03) < 1e-6, "A compile of no files still has its link.");
 
         // (an update whose stages all keep what they did: nothing shows the pace, so the forecast is said after a while)
         var u = new BuildProgress(download: false, shaders: false, update: true);
         var uc = new BuildClock(threads: 24);
-        u.Feed("@@stage read Reading");
+        u.Apply(new MakeGameLine.Stage("read", "Reading"));
         uc.Observe(u, TimeSpan.FromSeconds(0));
         uc.Observe(u, TimeSpan.FromSeconds(119));
         Require(uc.SecondsLeft(u) == null, "Nothing measured for two minutes: still working it out.");
         uc.Observe(u, TimeSpan.FromSeconds(120));
         Require(uc.SecondsLeft(u) == null, "An overdue kept read cannot give a reliable countdown.");
-        u.Feed("@@stage lift Translating");
+        u.Apply(new MakeGameLine.Stage("lift", "Translating"));
         uc.Observe(u, TimeSpan.FromSeconds(120));
         Require(Math.Abs(uc.SecondsLeft(u)!.Value - (57 + 305 + 66)) < 1e-6,
                 "The next stage restores the forecast without learning pace from a kept read.");
 
-        // (make_game's @@eta is this PC's own measure, but not in the first seconds of make_game)
+        // (the builder's eta is this PC's own measure, but not in the first seconds of the build)
         var e = new BuildProgress(download: false, shaders: false);
         var ec = new BuildClock(threads: 24);
-        e.Feed("@@stage compile Compiling");
-        e.Feed("@@eta 200");
+        e.Apply(new MakeGameLine.Stage("compile", "Compiling"));
+        e.Apply(new MakeGameLine.Eta(200));
         ec.Observe(e, TimeSpan.FromSeconds(0));
         ec.Observe(e, TimeSpan.FromSeconds(19));
         Require(ec.SecondsLeft(e) == null, "The first seconds: still working it out.");
@@ -363,65 +327,19 @@ static partial class Program
         Require(Math.Abs(ec.SecondsLeft(e)!.Value - (180 + 305 * 0.03 + 66)) < 1e-6, "Then make_game's eta says it.");
 
         BuildEstimateReplay();
-        ShaderEtaReplay();
-    }
-
-    static void ShaderEtaReplay()
-    {
-        var build = new BuildProgress(download: false, shaders: true);
-        var clock = new BuildClock(threads: 24);
-        void At(int seconds, params string[] lines)
-        {
-            foreach (var line in lines)
-            {
-                build.Feed(line);
-                clock.Observe(build, TimeSpan.FromSeconds(seconds));
-            }
-            clock.Observe(build, TimeSpan.FromSeconds(seconds));
-        }
-
-        At(0, "@@stage compile Compiling", "@@eta 90", "@@shader_eta 8");
-        Require(build.ShaderTiming == null && build.Eta == 90, "A shader ETA outside its stage cannot change a compile estimate.");
-        At(40, "@@stage finish Installing");
-        At(56, "@@times 56 40 -1", "@@stage shaders Preparing shaders", "@@shader_eta unknown");
-        At(57, "@@shader_eta 37", "@@eta 999");
-        At(62);
-        Require(clock.SecondsLeft(build) == 32 && build.Eta == 90, "Use the fresh renderer countdown before a cumulative rate exists.");
-        At(73);
-        Require(clock.SecondsLeft(build) == null, "The shader countdown expires during a silent renderer.");
-        At(74, "@@shader_eta unknown");
-        At(94, "@@progress 0.5");
-        Require(clock.SecondsLeft(build) == null, "Unknown from a capable renderer suppresses the fraction-based fallback.");
-        At(94, "@@shader_eta 120");
-        Require(clock.SecondsLeft(build) == 20, "A slow local pocket cannot inflate the cumulative shader forecast.");
-        At(94, "@@shader_eta 2");
-        Require(clock.SecondsLeft(build) == 15, "A fast cache burst can shorten the cumulative shader forecast by only a quarter.");
-        At(94, "@@shader_eta 18");
-        Require(clock.SecondsLeft(build) == 18, "A plausible renderer forecast updates the countdown.");
-        At(116, "@@shader_eta 55");
-        Require(clock.SecondsLeft(build) == 55, "An exhausted cumulative estimate cannot limit a fresh renderer forecast.");
-        At(117, "@@shader_eta unknown");
-        Require(clock.SecondsLeft(build) == null, "A change in the renderer's work can withdraw the ETA immediately.");
-        At(118, "@@progress 1", "@@shader_eta saving");
-        Require(clock.SecondsLeft(build) == null && build.ShaderTiming is { Saving: true } && clock.Overall < 1,
-                "Saving after the last counted pipeline says nothing of time or build completion.");
-        At(121, "@@done /build");
-        Require(clock.SecondsLeft(build) == 0 && clock.Overall == 1, "Only the builder completion fills the bar.");
-        Require(MakeGameProtocol.Parse("@@shader_eta NaN") is MakeGameLine.Plain
-                && MakeGameProtocol.Parse("@@shader_eta -2") is MakeGameLine.Plain, "Invalid renderer countdowns are ignored.");
     }
 
     static void BuildEstimateReplay()
     {
         var build = new BuildProgress(download: false, shaders: true);
         var clock = new BuildClock(threads: 24);
-        void At(int seconds, params string[] lines)
+        void At(int seconds, params MakeGameLine[] lines)
         {
             var now = TimeSpan.FromSeconds(seconds);
             var before = clock.Overall;
             foreach (var line in lines)
             {
-                build.Feed(line);
+                build.Apply(line);
                 clock.Observe(build, now);
             }
             clock.Observe(build, now);
@@ -429,253 +347,107 @@ static partial class Program
                     "Visible progress cannot rewind and reaches 100% on completion.");
         }
 
-        At(0, "@@stage read Reading");
-        At(1, "title 0: package romfs 50000 files, 26.00 GB");
-        At(50, "  12400.0 MiB written (25000 files completed)");
+        At(0, new MakeGameLine.Stage("read", "Reading"));
+        At(50, new MakeGameLine.Progress(0.5));
         var coldRead = clock.Overall;
-        At(72, "@@progress 0.15");
-        Require(build.Fraction(build.Stages[0]) > 0.95 && clock.Overall > coldRead,
-                "The read check advances from unpacking instead of restarting the read percentage.");
-        At(80, "@@stage lift Translating");
-        At(140, "@@stage compile Compiling", "@@plan 600 600", "@@eta 280");
+        At(72, new MakeGameLine.Progress(0.95));
+        Require(build.Fraction(build.Stages[0]) > 0.9 && clock.Overall > coldRead, "The read's progress moves the bar.");
+        At(80, new MakeGameLine.Stage("lift", "Translating"));
+        At(140, new MakeGameLine.Stage("compile", "Compiling"), new MakeGameLine.Plan(600, 600), new MakeGameLine.Eta(280));
         var coldCompile = clock.Overall;
         var coldLeft = clock.SecondsBeforeShaders(build);
         At(200);
         Require(clock.Overall > coldCompile && clock.SecondsBeforeShaders(build) < coldLeft,
                 "The overall bar and ETA move during compilation without a new completion line.");
-        At(420, "@@eta 0", "compiled in 280s, 0 failed");
-        At(429, "@@stage finish Putting the game folder together");
+        At(420, new MakeGameLine.Eta(0));
+        At(429, new MakeGameLine.Stage("finish", "Putting the game folder together"));
         Require(clock.SecondsBeforeShaders(build) > 60 && clock.SecondsLeft(build) == null && clock.Overall < 0.75,
                 "After the compiler and linker, finishing has an estimate with shader work still unmeasured.");
-        At(485, "@@times 485 289 -1");
-        Require(build.Stages.First(s => s.Id == "finish").State == StageState.Done &&
-                clock.SecondsBeforeShaders(build) == null && clock.SecondsLeft(build) == null,
-                "The builder's times line ends the partial estimate while shader preparation is still ahead.");
-        At(490, "@@stage shaders Preparing shaders");
-        At(550, "@@progress 0.25");
+        At(490, new MakeGameLine.Stage("shaders", "Preparing shaders"));
+        At(550, new MakeGameLine.Progress(0.25));
         var shaderLeft = clock.SecondsLeft(build);
         At(580);
         Require(shaderLeft is > 0 && clock.SecondsLeft(build) == shaderLeft - 30,
                 "A shader progress observation counts down during silence.");
         At(850);
         Require(clock.SecondsLeft(build) == null, "An opaque shader overrun returns to working out the time.");
-        At(855, "@@progress 1.0");
+        At(855, new MakeGameLine.Progress(1.0));
         Require(clock.SecondsLeft(build) is > 0 and <= 3, "The shader bar reserves time for writing its cache.");
-        At(860, "@@done /build");
+        At(860, new MakeGameLine.Done("/build"));
 
         build = new BuildProgress(download: false, shaders: true, update: true);
         clock = new BuildClock(threads: 24);
-        At(0, "@@stage read Reading");
-        At(3, "@@stage lift Translating",
-           "the game was translated with these tools before (its compiled code kept): translating it again is skipped");
-        At(6, "@@stage compile Compiling", "@@plan 0 600", "@@eta 0", "compiled in 0s, 0 failed");
+        At(0, new MakeGameLine.Stage("read", "Reading"));
+        At(3, new MakeGameLine.Stage("lift", "Translating"));
+        At(6, new MakeGameLine.Stage("compile", "Compiling"), new MakeGameLine.Plan(0, 600), new MakeGameLine.Eta(0));
         Require(clock.Overall < coldCompile, "The update gives little credit for work it did not have to do.");
-        At(18, "@@stage finish Putting the game folder together");
-        At(21, "the shaders were not prepared now (already done): left to first start");
+        At(18, new MakeGameLine.Stage("finish", "Putting the game folder together"));
+        At(21, new MakeGameLine.NotPrepared("already done"));
         Require(clock.SecondsLeft(build) is > 0 and < 66 && clock.Overall < 1,
                 "A warm zero-file link still reserves finishing, and an explicit shader skip removes its whole forecast.");
-        At(24, "@@times 24 12 300");
-        Require(clock.SecondsLeft(build) == 0 && clock.Overall < 1,
-                "Once finishing and the skipped shaders are accounted for, only the final completion signal fills the bar.");
-        At(25, "@@done /build");
+        At(25, new MakeGameLine.Done("/build"));
 
         build = new BuildProgress(download: false, shaders: true, update: true);
         clock = new BuildClock(threads: 24);
-        At(0, "@@stage read Reading");
-        At(1, "@@stage lift Translating", "the game was translated with these tools before: translating it again is skipped");
-        At(2, "@@stage compile Compiling", "@@plan 0 600", "@@eta 0");
-        At(10, "@@stage finish Putting the game folder together");
-        At(13, "@@times 13 8 600");
-        At(14, "@@stage shaders Preparing shaders");
+        At(0, new MakeGameLine.Stage("read", "Reading"));
+        At(1, new MakeGameLine.Stage("lift", "Translating"));
+        At(2, new MakeGameLine.Stage("compile", "Compiling"), new MakeGameLine.Plan(0, 600), new MakeGameLine.Eta(0));
+        At(10, new MakeGameLine.Stage("finish", "Putting the game folder together"));
+        At(14, new MakeGameLine.Stage("shaders", "Preparing shaders"));
         At(24);
         Require(clock.SecondsLeft(build) == null && clock.SecondsBeforeShaders(build) == null,
                 "The old warmup turning over during a zero-file rebuild cannot expose a five-minute shader guess.");
-        At(26, "@@done /build");
+        At(26, new MakeGameLine.Done("/build"));
 
         build = new BuildProgress(download: false, shaders: false);
         clock = new BuildClock(threads: 24);
-        At(0, "@@stage compile Compiling", "@@plan 4 600", "@@eta 7", "@@progress 0.5");
-        At(8, "@@stage lift Translating");
-        At(38, "@@stage compile Compiling");
+        At(0, new MakeGameLine.Stage("compile", "Compiling"), new MakeGameLine.Plan(4, 600), new MakeGameLine.Eta(7), new MakeGameLine.Progress(0.5));
+        At(8, new MakeGameLine.Stage("lift", "Translating"));
+        At(38, new MakeGameLine.Stage("compile", "Compiling"));
         Require(build.Eta == null && build.FilesChanged == null && build.Fraction(build.Stages.First(s => s.Id == "compile")) == 0,
                 "Retrying a stale translation discards the previous compile's plan, ETA and progress.");
-        At(48, "@@plan 600 600", "@@eta 100");
+        At(48, new MakeGameLine.Plan(600, 600), new MakeGameLine.Eta(100));
         Require(clock.Of("compile") == TimeSpan.FromSeconds(18), "Compile time includes both attempts, with translation timed separately.");
-
-        build = new BuildProgress(download: false, shaders: false);
-        clock = new BuildClock(threads: 24);
-        At(0, "@@stage read Reading");
-        At(2, "the game files come from /installed, unpacked from this .nup before: linked, not read again");
-        Require(build.Stages[0].Kept, "Linking a previous package's files is evidence of a warm read.");
-        At(4, "linking the game files from /installed stopped (copy failed): this .nup is read",
-           "title 0: package romfs 50000 files, 26.00 GB");
-        Require(!build.Stages[0].Kept, "Falling back to unpacking counts as a cold read.");
-        At(80, "@@stage lift Translating",
-           "the game was translated with these tools in another work folder: its translation is copied (from the cache)");
-        Require(build.Stages[1].Kept, "Copying a stored translation is evidence of a warm lift.");
-        At(86, "@@stage compile Compiling", "@@plan 4 600", "@@eta 62");
-        Require(clock.SecondsLeft(build) is > 130 and < 150 && clock.Pace(build, cpu: true) == null,
-                "A partial compile can still take substantial time and does not calibrate the CPU for future full stages.");
     }
 
     static async Task ToolsSourceChecks()
     {
         var root = Folder("tools-source");
-        var gh = new FakeFetcher();
-        var tools = Zip(("nx2/make_game.py", "print('authored')\n", null, 0x1ED));
-        var python = Zip(("bin/python3", "#!/bin/sh\n", null, 0x1ED));
         var (key, trusted) = NewKey();
         var keys = new[] { trusted };
 
-        // (Linux: the release's AppImage, checked, then unpacked by its own --appimage-extract: here an authored one)
+        // (a release of longshot-builder's kind: its signed manifest for this system names its one file, downloaded and checked)
         var forge = new FakeForgejo(Product.Longshot);
-        var image = Encoding.UTF8.GetBytes("\x7fELF an authored AppImage");
-        forge.Add("v3.0.0", key, files: new() { [ReleaseManifest.BuilderFile("v3.0.0", "linux-x64")] = image });
-        var extracted = new List<string>();
-        Task Extract(string appImage, string folder, CancellationToken cancel)
+        var builder = Encoding.UTF8.GetBytes("\x7fELF an authored longshot-builder");
+        var fullName = $"longshot-builder-v4.0.0-linux-x64";
+        forge.Add("v4.0.0", key, files: new()
         {
-            extracted.Add(File.ReadAllText(appImage));
-            var tree = Path.Combine(folder, "squashfs-root");
-            Directory.CreateDirectory(Path.Combine(tree, "usr", "share", "longshot", "nx2"));
-            File.WriteAllText(Path.Combine(tree, "AppRun"), "#!/bin/sh\n");
-            File.WriteAllText(Path.Combine(tree, "usr", "share", "longshot", "nx2", "make_game.py"), "print('authored')\n");
-            return Task.CompletedTask;
-        }
+            [LongshotBuildRelease.ManifestName("v4.0.0", "linux-x64")] = Encoding.UTF8.GetBytes(Manifest("v4.0.0", "linux-x64", fullName, builder)),
+            [fullName] = builder,
+        });
         var releases = new Releases(forge.Server, Platform.Linux, keys, NoWait);
-        var chains = new Toolchains(Path.Combine(root, "toolchains"), forge.Server);
+        var chains = new Toolchains(Path.Combine(root, "versions"), Platform.Linux);
         var seen = new List<ToolsDownloadProgress>();
-        var t = await ToolsSource.EnsureAsync(chains, releases, "v3.0.0", seen.Add, default, Extract);
-        Require(File.Exists(t.MakeGame) && extracted.Single() == "\x7fELF an authored AppImage" && seen[0].Fraction == 0
-                && Math.Abs(seen[^1].Fraction - 1) < 1e-9 && !Directory.Exists(Path.Combine(root, "toolchains", "v3.0.0.part")),
-                "Linux: the version's AppImage, checked against the signed SHA256SUMS and unpacked.");
+        var t = await ToolsSource.EnsureAsync(chains, releases, "v4.0.0", seen.Add);
+        Require(File.ReadAllBytes(t.BuilderExe).SequenceEqual(builder) && Math.Abs(seen[^1].Fraction - 1) < 1e-9
+                && t.BuilderExe == Path.Combine(root, "versions", "v4.0.0", "Longshot.x86_64")
+                && !Directory.Exists(Path.Combine(root, "versions", "v4.0.0", Toolchains.Staging)),
+                "With no builder on this PC to fetch it, the first builder is downloaded whole, checked against its signed manifest, into its version folder.");
         forge.Server.Asked.Clear();
         seen.Clear();
-        await ToolsSource.EnsureAsync(chains, releases, "v3.0.0", seen.Add, default, Extract);
-        Require(forge.Server.Asked.Count == 0 && seen.Single().Fraction == 1, "Installed tools are not asked for again.");
-        // (AppImageLauncher's TARGET_APPIMAGE once had the builder's runtime unpack this launcher: refused, and a version that
-        // holds it is not installed, so it is installed again)
-        Task ExtractLauncher(string appImage, string folder, CancellationToken cancel)
-        {
-            var tree = Path.Combine(folder, "squashfs-root");
-            Directory.CreateDirectory(Path.Combine(tree, "usr", "bin"));
-            File.WriteAllText(Path.Combine(tree, "AppRun"), "#!/bin/sh\n");
-            File.WriteAllText(Path.Combine(tree, "usr", "bin", "LongshotLauncher"), "\x7fELF the launcher");
-            return Task.CompletedTask;
-        }
-        var launcherChains = new Toolchains(Path.Combine(root, "toolchains-launcher"), forge.Server);
-        await ThrowsAsync<InvalidDataException>(() => ToolsSource.EnsureAsync(launcherChains, releases, "v3.0.0", null, default, ExtractLauncher),
-                                                "The launcher, unpacked in place of the builder, was installed as it.");
-        Require(!launcherChains.IsInstalled("v3.0.0") && !Directory.Exists(Path.Combine(root, "toolchains-launcher", "v3.0.0.part")),
-                "The launcher, unpacked in place of the builder, left a version behind.");
-        var held = Path.Combine(chains.PathOf("v3.0.0"), "usr", "bin");
-        Directory.CreateDirectory(held);
-        File.WriteAllText(Path.Combine(held, "LongshotLauncher"), "\x7fELF the launcher");
-        Require(!chains.IsInstalled("v3.0.0") && !chains.Installed().Contains("v3.0.0"), "A version that holds the launcher counts as installed.");
-        var healed = await ToolsSource.EnsureAsync(chains, releases, "v3.0.0", null, default, Extract);
-        Require(File.Exists(healed.MakeGame) && !File.Exists(Path.Combine(held, "LongshotLauncher")) && chains.IsInstalled("v3.0.0"),
-                "A version that holds the launcher was not installed again.");
-        forge.Add("v3.0.1", key, files: new() { [ReleaseManifest.BuilderFile("v3.0.1", "linux-x64")] = image },
-                  sums: s => s.Replace(ShaOf(image), new string('0', 64)));
-        await ThrowsAsync<InvalidDataException>(() => ToolsSource.EnsureAsync(chains, new Releases(forge.Server, Platform.Linux, keys, NoWait),
-                                                                               "v3.0.1", null, default, Extract),
-                                                "An AppImage that is not the one its signed SHA256SUMS names was installed.");
+        await ToolsSource.EnsureAsync(chains, releases, "v4.0.0", seen.Add);
+        Require(forge.Server.Asked.Count == 0 && seen.Single().Fraction == 1, "An installed builder is not asked for again.");
 
-        // (Linux, a builder without its tools: the tools.lock inside the AppImage names them, linux-x64 lines, unpacked beside it
-        // at their dests as on Windows; the Windows lines are not taken. The next version keeps the ones it shares)
-        var clang = Zip(("emsdk/upstream/bin/clang-23", "#!/bin/sh\n", null, 0x1ED), ("emsdk/upstream/bin/clang", TestLinks.Available ? null : "#!/bin/sh\n", TestLinks.Available ? "clang-23" : null, 0x1FF));
-        var sdl = Zip(("sdl2/libSDL2-2.0.so.0", "\x7fELF sdl", null, 0x1A4));
-        var lnx = new FakeForgejo(Product.Longshot);
-        lnx.Server.Files["https://tools/clang.zip"] = clang;
-        lnx.Server.Files["https://tools/sdl2.zip"] = sdl;
-        string LinuxLock(byte[] c) =>
-            $"tool emsdk 23 linux-x64 {ShaOf(c)} {c.Length} usr/lib/longshot/emsdk emsdk https://tools-gone/c.zip https://tools/clang.zip\n" +
-            $"tool sdl2 2 linux-x64 {ShaOf(sdl)} {sdl.Length} usr/lib/longshot/sdl2 sdl2 https://tools/sdl2.zip\n" +
-            $"tool python 3 windows-x64 {new string('a', 64)} 10 LongshotBuilder/tools/python python https://tools/windows.zip\n";
-        var lockInside = LinuxLock(clang);
-        Task ExtractWithLock(string appImage, string folder, CancellationToken cancel)
-        {
-            var tree = Path.Combine(folder, "squashfs-root");
-            Directory.CreateDirectory(Path.Combine(tree, "usr", "share", "longshot", "nx2"));
-            File.WriteAllText(Path.Combine(tree, "AppRun"), "#!/bin/sh\n");
-            File.WriteAllText(Path.Combine(tree, "usr", "share", "longshot", "nx2", "make_game.py"), "print('authored')\n");
-            File.WriteAllText(Path.Combine(tree, "usr", "share", "longshot", "tools.lock"), lockInside);
-            return Task.CompletedTask;
-        }
-        lnx.Add("v3.4.0", key, files: new() { [ReleaseManifest.BuilderFile("v3.4.0", "linux-x64")] = image });
-        var lnxChains = new Toolchains(Path.Combine(root, "toolchains-linux-tools"), lnx.Server);
-        var lnxReleases = new Releases(lnx.Server, Platform.Linux, keys, NoWait);
-        seen.Clear();
-        var lt4 = await ToolsSource.EnsureAsync(lnxChains, lnxReleases, "v3.4.0", seen.Add, default, ExtractWithLock);
-        var lib = lt4.LibRoot;
-        Require(File.ReadAllText(Path.Combine(lib, "emsdk", "upstream", "bin", "clang")) == "#!/bin/sh\n"
-                && File.ReadAllText(Path.Combine(lib, "sdl2", "libSDL2-2.0.so.0")) == "\x7fELF sdl"
-                && !lnx.Server.Asked.Contains("https://tools/windows.zip") && !Directory.Exists(Path.Combine(lt4.Folder, "LongshotBuilder"))
-                && Math.Abs(seen[^1].Fraction - 1) < 1e-9 && seen.Zip(seen.Skip(1)).All(p => p.Second.Fraction >= p.First.Fraction - 1e-9),
-                "Linux: the AppImage's tools.lock tools unpacked beside it, from the mirror when the first link is gone.");
-        if (TestLinks.Available)
-            Require(new FileInfo(Path.Combine(lib, "emsdk", "upstream", "bin", "clang")).LinkTarget == "clang-23", "The Linux tool keeps its relative link.");
-        if (!OperatingSystem.IsWindows())
-            Require((File.GetUnixFileMode(Path.Combine(lib, "emsdk", "upstream", "bin", "clang-23")) & UnixFileMode.UserExecute) != 0,
-                    "A tool's executable keeps its mode.");
-        var l4 = MakeGameCommand.For(lt4, new BuildRequest(new BuildSource.Nup("/g.nup"), "/o"), Platform.Linux,
-                                     new LauncherHome(Path.Combine(root, "home-linux")), "/L/Longshot.AppImage");
-        Require(l4.Environment["LONGSHOT_SDL2"] == Path.Combine(lib, "sdl2", "libSDL2-2.0.so.0") && l4.Environment["EMSDK"] == Path.Combine(lib, "emsdk"),
-                "Linux: make_game.py is given tools.lock's tools.");
-        // (the next version: SDL2 the same archive, kept; a new clang downloaded)
-        var clang2 = Zip(("emsdk/upstream/bin/clang-23", "#!/bin/sh\n# 2\n", null, 0x1ED));
-        lnx.Server.Files["https://tools/clang.zip"] = clang2;
-        lockInside = LinuxLock(clang2);
-        lnx.Add("v3.4.1", key, files: new() { [ReleaseManifest.BuilderFile("v3.4.1", "linux-x64")] = image });
-        lnx.Server.Asked.Clear();
-        var lt5 = await ToolsSource.EnsureAsync(lnxChains, lnxReleases, "v3.4.1", null, default, ExtractWithLock);
-        Require(!lnx.Server.Asked.Contains("https://tools/sdl2.zip") && lnx.Server.Asked.Contains("https://tools/clang.zip")
-                && File.ReadAllText(Path.Combine(lt5.LibRoot, "sdl2", "libSDL2-2.0.so.0")) == "\x7fELF sdl"
-                && File.ReadAllText(Path.Combine(lt5.LibRoot, "emsdk", "upstream", "bin", "clang-23")) == "#!/bin/sh\n# 2\n",
-                "Linux: a tool another version has is kept, a changed one downloaded.");
-        // (a tool whose bytes differ from its line: nothing is installed)
-        lockInside = LinuxLock(Zip(("emsdk/upstream/bin/clang-23", "#!/bin/sh\n# 3\n", null, 0x1ED)));
-        lnx.Add("v3.4.2", key, files: new() { [ReleaseManifest.BuilderFile("v3.4.2", "linux-x64")] = image });
-        await ThrowsAsync<InvalidDataException>(() => ToolsSource.EnsureAsync(lnxChains, lnxReleases, "v3.4.2", null, default, ExtractWithLock),
-                                                "A build tool that is not the one the AppImage's tools.lock names was installed.");
-        Require(lnxChains.Find("v3.4.2") == null && !Directory.Exists(Path.Combine(root, "toolchains-linux-tools", "v3.4.2.part")),
-                "A failed install leaves nothing that looks installed.");
-
-        // (Windows: the builder's zip as it is, then tools.lock's tools: a prefix becomes the dest, a mirror stands in for upstream)
-        // (the zip has LongshotBuilder/tools/third_party, the repository's sources: the third-party tool's prebuilt files go among them)
-        var zip = Zip(("LongshotBuilder.exe", "MZ setup", null, 0x1A4), ("LongshotBuilder/LongshotBuilder.exe", "MZ builder", null, 0x1A4),
-                      ("LongshotBuilder/tools/nx2/make_game.py", "print('authored')\n", null, 0x1A4),
-                      ("LongshotBuilder/tools/third_party/a64-kit/lift/a64emit.cpp", "// source\n", null, 0x1A4));
-        var py = Zip(("HookshotBuilder/tools/python/python.exe", "MZ python", null, 0x1A4), ("HookshotBuilder/HookshotBuilder.exe", "not taken", null, 0x1A4));
-        var tp = Zip(("third_party/a64-kit/lift/a64emit.dll", "MZ a64emit", null, 0x1A4), ("third_party/sdl2/SDL3.dll", "MZ SDL3", null, 0x1A4));
-        var win = new FakeForgejo(Product.Longshot);
-        win.Server.Files["https://mirror/p.zip"] = py;
-        win.Server.Files["https://packages/tp.zip"] = tp;
-        var lockText = $"tool python 3.14 windows-x64 {ShaOf(py)} {py.Length} LongshotBuilder/tools/python HookshotBuilder/tools/python " +
-                       "https://upstream-gone/p.zip https://mirror/p.zip\n" +
-                       $"tool third-party hookshot-v2.1.0 windows-x64 {ShaOf(tp)} {tp.Length} LongshotBuilder/tools/third_party third_party " +
-                       "https://packages/tp.zip\n";
-        win.Add("v3.2.0", key, files: new() { [ReleaseManifest.BuilderFile("v3.2.0", "windows-x64")] = zip, ["tools.lock"] = Encoding.UTF8.GetBytes(lockText) });
-        var winChains = new Toolchains(Path.Combine(root, "toolchains-win"), win.Server);
-        var wt = await ToolsSource.EnsureAsync(winChains, new Releases(win.Server, Platform.Windows, keys, NoWait), "v3.2.0");
-        Require(wt.Kind == ListKind.Setup && File.ReadAllText(wt.MakeGame) == "print('authored')\n"
-                && File.ReadAllText(Path.Combine(wt.ToolsRoot, "python", "python.exe")) == "MZ python"
-                && !File.Exists(Path.Combine(wt.Folder, "LongshotBuilder", "tools", "HookshotBuilder", "HookshotBuilder.exe")),
-                "Windows: the builder's zip and its tools.lock's tools, from the mirror when upstream is gone.");
-        var thirdParty = Path.Combine(wt.ToolsRoot, "third_party");
-        Require(File.ReadAllText(Path.Combine(thirdParty, "a64-kit", "lift", "a64emit.cpp")) == "// source\n"
-                && File.ReadAllText(Path.Combine(thirdParty, "a64-kit", "lift", "a64emit.dll")) == "MZ a64emit"
-                && File.ReadAllText(Path.Combine(thirdParty, "sdl2", "SDL3.dll")) == "MZ SDL3",
-                "Windows: the third-party tool's files merged into the zip's third_party, its sources kept.");
-        // (the next version with the same tool: kept from the installed one, not downloaded again)
-        win.Add("v3.2.1", key, files: new() { [ReleaseManifest.BuilderFile("v3.2.1", "windows-x64")] = zip, ["tools.lock"] = Encoding.UTF8.GetBytes(lockText) });
-        win.Server.Asked.Clear();
-        await ToolsSource.EnsureAsync(winChains, new Releases(win.Server, Platform.Windows, keys, NoWait), "v3.2.1");
-        Require(!win.Server.Asked.Contains("https://mirror/p.zip") && !win.Server.Asked.Contains("https://packages/tp.zip"),
-                "A tool another version has was downloaded again.");
-        var tp2 = Path.Combine(winChains.Find("v3.2.1")!.ToolsRoot, "third_party");
-        Require(File.ReadAllText(Path.Combine(tp2, "a64-kit", "lift", "a64emit.cpp")) == "// source\n"
-                && File.ReadAllText(Path.Combine(tp2, "sdl2", "SDL3.dll")) == "MZ SDL3",
-                "Windows: the kept third-party files merged into the next version's third_party, its sources kept.");
+        // (a release made for make_game.py, the builder before: no manifest, refused in plain words, nothing downloaded)
+        forge.Add("v3.0.0", key, files: new() { [$"LongshotBuilder-v3.0.0-windows-x64.zip"] = Encoding.UTF8.GetBytes("PK"), ["Longshot-v3.0.0-x86_64.AppImage"] = builder });
+        forge.Server.Asked.Clear();
+        var said = "";
+        try { await ToolsSource.EnsureAsync(chains, new Releases(forge.Server, Platform.Linux, keys, NoWait), "v3.0.0"); }
+        catch (InvalidDataException e) { said = e.Message; }
+        Require(said == OldVersions.NotBuiltHere("v3.0.0") && said.Contains("stable Longshot Launcher", StringComparison.Ordinal)
+                && !forge.Server.Asked.Any(u => u.EndsWith(".AppImage", StringComparison.Ordinal) || u.EndsWith(".zip", StringComparison.Ordinal))
+                && !chains.IsInstalled("v3.0.0") && !Directory.Exists(chains.PathOf("v3.0.0")),
+                "A release of make_game.py's kind: the stable launcher's to build, said so, nothing of it downloaded: " + said);
     }
 
     static void BuildsFolderChecks()
@@ -877,23 +649,23 @@ static partial class Program
                 "A row's size is what deleting it frees, else its folder's bytes; nothing before it is measured.");
         const string at = @"D:\Games\Longshot";
         var two = new[] { nightly, stable };
-        Require(Disk.InstancesUse(two, 0, at) == @"2 instances use 48.2 GB in D:\Games\Longshot: 24.4 GB of it is the game's files, which they share.",
+        Require(Disk.InstancesUse(two, 0, at) == @"2 versions use 48.2 GB in D:\Games\Longshot: 24.4 GB of it is the game's files, which they share.",
                 "The total, then the game files they share: " + Disk.InstancesUse(two, 0, at));
         Require(Disk.InstancesUse(two, 35 * gb / 10, at)
-                == @"2 instances use 51.7 GB in D:\Games\Longshot: 24.4 GB of it is the game's files and 3.5 GB the shader store, which they share.",
+                == @"2 versions use 51.7 GB in D:\Games\Longshot: 24.4 GB of it is the game's files and 3.5 GB the shader store, which they share.",
                 "The shader store counted in the total, and said shared: " + Disk.InstancesUse(two, 35 * gb / 10, at));
         var apart = new[] { Entry(30 * gb, 30 * gb, 30 * gb), Entry(20 * gb, 20 * gb, 20 * gb) };
-        Require(Disk.InstancesUse(apart, 0, at) == @"2 instances use 50.0 GB in D:\Games\Longshot."
-                && Disk.InstancesUse(apart, 2 * gb, at) == @"2 instances use 52.0 GB in D:\Games\Longshot: 2.0 GB of it is the shader store, which they share.",
+        Require(Disk.InstancesUse(apart, 0, at) == @"2 versions use 50.0 GB in D:\Games\Longshot."
+                && Disk.InstancesUse(apart, 2 * gb, at) == @"2 versions use 52.0 GB in D:\Games\Longshot: 2.0 GB of it is the shader store, which they share.",
                 "Nothing shared: no more than the total, the store alone when there is one.");
         Require(Disk.InstancesUse(new[] { Entry(36 * gb, 36 * gb, 12 * gb) }, 0, at)
-                == @"1 instance uses 36.0 GB in D:\Games\Longshot: 24.0 GB of it is the game's files, which it shares with a folder not listed here.",
+                == @"1 version uses 36.0 GB in D:\Games\Longshot: 24.0 GB of it is the game's files, which it shares with a folder not listed here.",
                 "One build linked to a folder with no row (an update's old folder): what it shares said too.");
-        Require(Disk.InstancesUse(new[] { nightly, Entry(null, null, null) }, 0, at) == @"2 instances use 36.6 GB in D:\Games\Longshot: 24.4 GB of it is the game's files, which they share."
-                && Disk.InstancesUse(new[] { Entry(null, null, null) }, 0, at) == @"1 instance in D:\Games\Longshot.",
+        Require(Disk.InstancesUse(new[] { nightly, Entry(null, null, null) }, 0, at) == @"2 versions use 36.6 GB in D:\Games\Longshot: 24.4 GB of it is the game's files, which they share."
+                && Disk.InstancesUse(new[] { Entry(null, null, null) }, 0, at) == @"1 version in D:\Games\Longshot.",
                 "A build not measured yet counts nothing; with none measured, no size.");
         // (an older builds.json: sizes measured before Counted and Frees were: no share to say)
-        Require(Disk.InstancesUse(new[] { Entry(36 * gb, null, null), Entry(36 * gb, null, null) }, 0, at) == @"2 instances use 72.0 GB in D:\Games\Longshot.",
+        Require(Disk.InstancesUse(new[] { Entry(36 * gb, null, null), Entry(36 * gb, null, null) }, 0, at) == @"2 versions use 72.0 GB in D:\Games\Longshot.",
                 "Sizes with no Counted or Frees: the bytes, nothing said shared.");
     }
 
@@ -1230,13 +1002,13 @@ static partial class Program
                 && SystemRequirements.LogLine(null).StartsWith("vulkan: not read"),
                 "The launcher log says which GPU it estimates the game takes on Auto, and what Vulkan listed.");
         var upHome = new LauncherHome(Path.Combine(scratch, "upscalers-home"));
-        var upTools = new Toolchain("v3.3.0", Path.Combine(upHome.Toolchains, "v3.3.0"), ListKind.Setup, "LongshotBuilder/LongshotBuilder.exe");
+        var upTools = new Toolchain("v4.0.0", Path.Combine(upHome.Toolchains, "v4.0.0"), "longshot-builder.exe");
+        var upBuilder = new LongshotBuilder(upTools, upTools.BuilderExe, Platform.Windows, upHome, "L", _ => null);
         var upBase = new BuildRequest(new BuildSource.Nup("C:/g/game.nup"), "C:/Games/Longshot");
         var both = new LauncherSettings { Dlss = true, DlssLicense = true, Fsr = true, FsrLicense = true };
-        var onGtx = MakeGameCommand.For(upTools, Upscalers.Chosen(upBase, both, Platform.Windows), Platform.Windows, upHome, "L", _ => false);
-        Require(onGtx.Arguments.Contains("--fetch-ngx-sdk") && onGtx.Arguments.Contains("--accept-nvidia-license")
-                && onGtx.Arguments.Contains("--fsr") && onGtx.Arguments.Contains("--fetch-fsr-runtime") && onGtx.Arguments.Contains("--accept-amd-license")
-                && onGtx.Environment["LONGSHOT_NGX_SDK"] == upHome.NgxSdk && onGtx.Environment["LONGSHOT_FFX_SDK"] == upHome.FfxSdk,
+        var onGtx = upBuilder.Build(Upscalers.Chosen(upBase, both, Platform.Windows)).Command;
+        Require(onGtx.Arguments.SkipWhile(a => a != "--upscaler").Skip(1).First() == "dlss,fsr4"
+                && onGtx.Arguments.SkipWhile(a => a != "--accept-licenses").Skip(1).First() == "nvidia,amd",
                 "DLSS and FSR 4 switched on: fetched and built, whatever this PC's cards: " + string.Join(" ", onGtx.Arguments));
         var off = Upscalers.Chosen(upBase, new LauncherSettings(), Platform.Windows);
         var linuxNotice = Upscalers.Chosen(upBase, new LauncherSettings { Fsr = true, FsrLinuxNotice = true }, Platform.Linux);
@@ -1246,11 +1018,10 @@ static partial class Program
                 "Switched off: none; FSR 4's notice stands for AMD's licence on Linux only; the rest of the request is kept.");
         // (Intel XeSS the same, on Windows: switched on, Intel's library is fetched whatever this PC's cards, by tools that can)
         var xessOn = new LauncherSettings { Xess = true, XessLicense = true };
-        var upXess = Path.Combine(upTools.ToolsRoot, "scripts", "xess_sdk.py");
-        var xessOnGtx = MakeGameCommand.For(upTools, Upscalers.Chosen(upBase, xessOn, Platform.Windows), Platform.Windows, upHome, "L", _ => false,
-                                            f => f == upXess);
-        Require(xessOnGtx.Arguments.Contains("--fetch-xess-runtime") && xessOnGtx.Arguments.Contains("--accept-intel-license")
-                && xessOnGtx.Environment["LONGSHOT_XESS_SDK"] == upHome.XessSdk && !Upscalers.Chosen(upBase, new LauncherSettings(), Platform.Windows).Xess,
+        var xessOnGtx = upBuilder.Build(Upscalers.Chosen(upBase, xessOn, Platform.Windows)).Command;
+        Require(xessOnGtx.Arguments.SkipWhile(a => a != "--upscaler").Skip(1).First() == "xess"
+                && xessOnGtx.Arguments.SkipWhile(a => a != "--accept-licenses").Skip(1).First() == "intel"
+                && !Upscalers.Chosen(upBase, new LauncherSettings(), Platform.Windows).Xess,
                 "Intel XeSS switched on: fetched whatever this PC's cards; off: not. " + string.Join(" ", xessOnGtx.Arguments));
 
         // (Linux, AMD FSR 4: the player's library, checked and copied into the game folder)

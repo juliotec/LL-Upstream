@@ -1,0 +1,2 @@
+{"v":1,"type":"stage","stage":"read","text":"Reading your game files"}
+{"v":1,"type":"error","code":"license_not_accepted","text":"AMD FSR 4's runtime is AMD's, under AMD's license. Accept the license to build with it (--accept-licenses amd), or build without it."}

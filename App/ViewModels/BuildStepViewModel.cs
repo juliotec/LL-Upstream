@@ -42,14 +42,15 @@ public sealed class StageRowViewModel : ViewModelBase
     public bool IsFail => state == "fail";
 }
 
-/// Step 3: make_game.py run with the step's settings (MakeGameCommand), its @@ lines driving one overall bar and the stages'
-/// rows (BuildProgress, BuildClock); the log under Show details; Cancel stops it and everything it started
+/// Step 3: the version's builder run with the step's settings (LongshotBuilder: its events),
+/// its output driving one overall bar and the stages' rows (BuildProgress, BuildClock); the log under Show details; Cancel stops
+/// it and everything it started
 public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
 {
     static readonly Dictionary<string, string> Names = new()
     {
         ["download"] = Tr.N("Download tools"), ["read"] = Tr.N("Read the game files"), ["lift"] = Tr.N("Translate"), ["compile"] = Tr.N("Compile"),
-        ["finish"] = Tr.N("Finish"), [MakeGameProtocol.ShadersStage] = Tr.N("Prepare shaders"),
+        ["finish"] = Tr.N("Finish"), [BuildProgress.ShadersStage] = Tr.N("Prepare shaders"),
     };
 
     readonly BuildProgress progress;
@@ -117,10 +118,8 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
 
     public double Overall => clock.Overall;
     public string Percent => (int)Math.Floor(Overall * 100) + "%";
-    public bool ShowPercent => progress.Current != MakeGameProtocol.ShadersStage || clock.SecondsLeft(progress) != null;
-    public string Left => progress.Current == MakeGameProtocol.ShadersStage && progress.ShaderTiming is { Saving: true }
-        ? Tr.T("Saving the pipeline cache")
-        : clock.SecondsLeft(progress) is double secs ? Tr.F("{0} left", Durations.About(secs))
+    public bool ShowPercent => progress.Current != BuildProgress.ShadersStage || clock.SecondsLeft(progress) != null;
+    public string Left => clock.SecondsLeft(progress) is double secs ? Tr.F("{0} left", Durations.About(secs))
         : clock.SecondsBeforeShaders(progress) is double before ? Tr.F("{0} left before shaders", Durations.About(before))
         : Tr.T("Working out the time left");
 
@@ -166,36 +165,59 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
     public Command CancelCommand { get; }
 
     string? buildWork;
-    MakeGameCommand? started;   // (the build's make_game.py, for what its failure says of its folder: MakeGameRun.TooDeep)
+    string? workId;   // (the row's id longshot-builder's work folder is named for: Run, Complete)
+    /// The version's builder (Builders.For), from when the build starts; null before, and in the screenshots' replays
+    LongshotBuilder? builder;
+    /// The profile a version folder's build is for (build --profile), whose game folder its builder's info then says
+    string? buildProfile;
 
     void Run()
     {
         var job = Job;
         var s = job.Service.Settings;
         var file = job.Picked!;
-        // (an update's or a go-back's folder renamed to its new version's first, so make_game.py builds in the folder the row will have)
+        // (a release of longshot-builder's kind: its version folder, versions/<v>, holds its builder as Longshot.exe, which builds
+        // the current profile's game in builds/default and writes the profile's game copy and upscalers. BuilderVersions)
+        job.Place();
+        builder = null;
+        string? profile = null;
+        if (job.Service.VersionFolderFor(job.Version) is { } version
+            && Builders.For(job.Tools!, job.Service.Platform, job.Service.Home, LauncherService.LauncherPath) is var release)
+            try
+            {
+                BuilderVersions.Install(version, release.Exe, job.Service.Platform);
+                builder = release.In(version);
+                profile = buildProfile = job.Service.ProfileFolder;
+                Directory.CreateDirectory(ProfileStore.SavesOf(profile));
+                job.Service.SaveSettings();   // (its profile.json there, the builder's to write its game copy into)
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                Fail(e.Message);
+                return;
+            }
+        // (an update's or a go-back's folder renamed to its new version's first, so the builder builds in the folder the row will have)
         if (!RenameFolder()) return;
-        // (a version you have already built from this .nup gives the new one its game files: BuildRegistry.SameGameFiles. Not
-        // for a cold build: they are read from the .nup again)
-        var romfsFrom = !job.Cold && file.Source is BuildSource.Nup nup ? job.Service.Registry.SameGameFiles(nup.Path, job.InstallDir)?.Folder : null;
+        // (the row this build is of, whose id names longshot-builder's work folder: the same however an update renames its folder,
+        // so the update finds its last build's work. A new row takes the id made here: Complete)
+        workId = job.Replaces?.Id ?? job.Service.Registry.FindByFolder(job.InstallDir)?.Id ?? workId ?? BuildRegistry.NewId();
         // (DLSS, FSR 4 and XeSS as the player chose them, whatever this PC's cards: Upscalers.Chosen)
         var request = Upscalers.Chosen(
             new BuildRequest(file.Source, job.InstallDir, s.Language, job.Service.Work, SystemInfo.Workers(s.BuildWorkers), s.MemoryGb, true,
-                             RomfsFrom: romfsFrom, LowPriority: SystemInfo.LowPriority(s.BuildWorkers), IntelCompiles: job.Service.IntelCompilesApply ? s.IntelCompiles : GamePlay.IntelCompilesAuto,
-                             IntelLongerLimits: s.IntelLongerLimits && job.Service.IntelCompilesApply),
+                             LowPriority: SystemInfo.LowPriority(s.BuildWorkers), IntelCompiles: job.Service.IntelCompilesApply ? s.IntelCompiles : GamePlay.IntelCompilesAuto,
+                             IntelLongerLimits: s.IntelLongerLimits && job.Service.IntelCompilesApply, WorkId: workId, Profile: profile,
+                             SendStatistics: s.SendPerformanceStatistics),
             s, job.Service.Platform);
         buildWork = job.Service.Work;
-        dlss = request.Dlss && request.DlssLicense;
         MakeGameCommand command;
         try
         {
-            command = MakeGameCommand.For(job.Tools!, request, job.Service.Platform, job.Service.Home, LauncherService.LauncherPath);
-            fsr = command.Arguments.Contains("--fsr");
-            if (request.Fsr && request.FsrLicense && !fsr)   // (Linux only: MakeGameCommand.FsrBuilds is always true on Windows)
-                log.Add("AMD FSR 4: this version's tools carry no AMD FSR API headers, so it is built without FSR 4.");
-            xess = command.Arguments.Contains("--fetch-xess-runtime");
-            if (request.Xess && request.XessLicense && !xess && !job.Main.Linux)   // (MakeGameCommand.XessBuilds)
-                log.Add("Intel XeSS: this version's tools can't fetch Intel's library, so the game folder gets none from this build.");
+            builder ??= Builders.For(job.Tools!, job.Service.Platform, job.Service.Home, LauncherService.LauncherPath);
+            var run = builder.Build(request);
+            command = run.Command;
+            (dlss, fsr, xess) = (run.Dlss, run.Fsr, run.Xess);
+            log.Add($"builder: longshot-builder ({command.FileName})");
+            foreach (var note in run.Notes) log.Add(note);
             Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(job.InstallDir))!);
             // (Longshot#1010: tools under a folder Windows lets no program list stop at their first compile, unexplained)
             if (MakeGameRun.Blocked(command, job.Service.Platform == Platform.Windows) is { } blocked)
@@ -204,7 +226,6 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
                 Fail(blocked);
                 return;
             }
-            started = command;
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException)
         {
@@ -275,7 +296,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
 
     /// An update starts with the shader caches of the build it replaces (ShaderCaches.Keep: all of them when both versions translate
     /// shaders the same way with the same compiler, else the pipeline side): moved, or copied from another drive, into the new folder's cache/
-    /// before make_game.py starts. make_game.py keeps a cache/ it finds in its folder, as a rebuild keeps its own, and its
+    /// before the builder starts. The builder keeps a cache/ it finds in its folder, as a rebuild keeps its own, and its
     /// prepare (Prepare shaders, which every build runs: no switch leaves it to the game's first start) then finds them
     /// and has little left to do; after the build it would find caches of its own there already. Run on a pool thread;
     /// null: none taken (said in the log). Cancel stops a copy (OperationCanceledException), and the build is not started
@@ -346,7 +367,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
         return kept is { What: CachesKept.Kept } taken ? new Seeded(old.Folder, job.InstallDir, taken) : null;
     }
 
-    /// A completely cold build's start (BuildJob.Cold, ColdBuild.Clear): what earlier builds kept deleted before make_game.py
+    /// A completely cold build's start (BuildJob.Cold, ColdBuild.Clear): what earlier builds kept deleted before the builder
     /// starts, said in the log. Run on a pool thread; false: the build fails, nothing started (Longshot runs, or a file could not
     /// be deleted)
     bool ClearForCold()
@@ -379,8 +400,11 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
 
     public void Line(string line)
     {
-        var parsed = progress.Feed(line);
+        // (longshot-builder's events, as the progress takes them)
+        var parsed = LongshotBuilder.Read(line);
+        if (parsed != null)
         {
+            progress.Apply(parsed);
             switch (parsed)
             {
                 case MakeGameLine.Plain p:
@@ -390,10 +414,16 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
                     log.Add($"[{Names.GetValueOrDefault(st.Id, st.Id)}] {st.Text}");
                     break;
                 case MakeGameLine.Error e:
-                    log.Add("error: " + e.Text);
+                    log.Add("error: " + (e.Code != null ? $"{e.Text} ({e.Code})" : e.Text));
+                    break;
+                case MakeGameLine.Warning w:
+                    log.Add($"warning: {w.Text} ({w.Code})");
                     break;
                 case MakeGameLine.NotPrepared n:
-                    log.Add(line);
+                    log.Add("warning: " + n.Reason);
+                    break;
+                case MakeGameLine.Done { Seconds: double secs } d:
+                    log.Add(BuildEvents.DoneLine(secs, d.CompileSeconds ?? 0, d.PreviousSeconds));
                     break;
             }
         }
@@ -402,8 +432,10 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
 
     void ErrorLine(string line)
     {
-        // (the message a stopped build quotes: a line the details show by default, not a game's debug or trace line)
-        if (!string.IsNullOrWhiteSpace(line) && LogLevels.Of(line) <= LogLevel.Info) lastError = line.Trim();
+        // (the message a stopped build quotes: a line the details show by default, not a game's debug or trace line; the last, or
+        // longshot-builder's own line of why it did not start, before its usage: LongshotBuilder.WhyFrom)
+        if (!string.IsNullOrWhiteSpace(line) && LogLevels.Of(line) <= LogLevel.Info)
+            lastError = LongshotBuilder.WhyFrom(lastError, line);
         log.Add(line);
         if (showLog && following) Raise(nameof(LogText));
     }
@@ -424,22 +456,26 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
             return;
         }
         // (.NET gives a child a signal ended 128 + the signal: 143 is SIGTERM, from outside the launcher, whose own Stop is a
-        // cancel. A step the system killed is make_game's own error, "the system stopped it", and a failure)
+        // cancel. A step the system killed is the builder's own error, and a failure)
         var terminated = code == 128 + 15;
         // (the page says why in the player's language; the summary in English, so one failure is one signature in every language)
         var told = progress.Error ?? lastError;
-        // (#205: Python could not load its own parts, a folder too deep for Windows: said as such, with the path measured)
-        if (told != null && started != null && MakeGameRun.TooDeep(started, told, Job.Service.Platform == Platform.Windows) is { } deep) told = deep;
+        // (longshot-builder's error code: the launcher's own words for it on the problem page, Problems.FromCode)
+        var errorCode = progress.ErrorCode;
         var why = told ?? (terminated
-            ? Tr.T("make_game.py was stopped by a signal (SIGTERM) from outside the launcher.")
-            : Tr.F("make_game.py stopped with exit code {0} without saying why.", code));
+            ? Tr.T("longshot-builder was stopped by a signal (SIGTERM) from outside the launcher.")
+            : Tr.F("longshot-builder stopped with exit code {0} without saying why.", code));
         var reported = told ?? (terminated
-            ? Tr.N("make_game.py was stopped by a signal (SIGTERM) from outside the launcher.")
-            : English("make_game.py stopped with exit code {0} without saying why.", code));
+            ? Tr.N("longshot-builder was stopped by a signal (SIGTERM) from outside the launcher.")
+            : English("longshot-builder stopped with exit code {0} without saying why.", code));
+        if (errorCode != null) reported = $"{errorCode}: {reported}";
         var outcome = terminated ? BuildReports.Terminated : BuildReports.Failed;
+        // (the builder's own end is its to report: only a builder that died without saying why, no error event, is the launcher's
+        // to summarize, BuildReports' fallback)
+        died = progress.Error == null && errorCode == null;
         if (seeded == null && renamed == null)
         {
-            Fail(why, outcome, reported);
+            Fail(why, outcome, reported, errorCode);
             return;
         }
         // (put back on a pool thread: Undo may wait up to ShaderCaches.UndoWait for a file something the build started still
@@ -457,7 +493,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
             Finalizing = false;
             if (CloseAfterFinalizing != null) { SetRunning(false); CloseAfterFinalizing(); return; }
             if (t.IsCompletedSuccessfully && t.Result is { } n) log.Add(Seeded.Said(n));
-            Fail(why, outcome, reported);
+            Fail(why, outcome, reported, errorCode);
         }), TaskScheduler.Default);
     }
 
@@ -488,8 +524,8 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
         old.Folder = job.InstallDir;   // (the row the job holds, if the list was read again since)
         renamed = move;
         log.Add($"instance folder: {from} renamed to {job.InstallDir}");
-        // (game files picked in the folder itself, its romfs and .longshot_exefs: read from where they are now, or make_game.py
-        // finds nothing at the old path. InstanceFolders.Follow)
+        // (game files picked in the folder itself: read from where they are now, or the builder finds nothing at the old path.
+        // InstanceFolders.Follow)
         if (job.Picked is { } picked && picked.Follow(from, job.InstallDir) is var moved && moved != picked)
         {
             job.Picked = moved;
@@ -544,7 +580,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
                     row.State = "run";
                     var frac = progress.Fraction(st);
                     row.Detail = st.Note ?? (st.Id == "finish" ? Tr.T("Writing the game folder")
-                        : st.Id == MakeGameProtocol.ShadersStage && frac == 0 ? "" : $"{(int)(frac * 100)}%");
+                        : st.Id == BuildProgress.ShadersStage && frac == 0 ? "" : $"{(int)(frac * 100)}%");
                     row.Time = took is { } r ? Durations.Clock(r) : "";
                     row.TimeFaint = clock.Estimate(progress, st) is double est ? " / " + Durations.Roughly(est) : "";
                     break;
@@ -579,7 +615,6 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
         ticker?.Stop();
         Finalizing = true;
         CancelCommand.Changed();
-        Summarize(BuildReports.Cancelled, "");
         cancel.Cancel();
     }
 
@@ -595,16 +630,17 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
     }
 
     /// The problem page, why in the player's language; reported: why as the statistics' summary says it, in English (Tr.N), why
-    /// itself when it is make_game's own line
-    void Fail(string why, string outcome = BuildReports.Failed, string? reported = null)
+    /// itself when it is the builder's own line
+    /// code: longshot-builder's error code, whose problem the page says in the launcher's words (Problems.FromCode)
+    void Fail(string why, string outcome = BuildReports.Failed, string? reported = null, string? code = null)
     {
         SetRunning(false);
         ticker?.Stop();
-        Summarize(outcome, reported ?? why);
+        if (died) Summarize(outcome, reported ?? why);
         var at = progress.Stages.FirstOrDefault(s => s.Id == progress.Current) ?? progress.Stages.LastOrDefault(s => s.State == StageState.Done);
         var name = at != null ? Tr.T(Names.GetValueOrDefault(at.Id, at.Title)) : Tr.T("the build");
         var pct = (int)Math.Floor(Overall * 100);
-        Job.Main.Navigate(new ProblemViewModel(this, why, name, pct, outcome));
+        Job.Main.Navigate(new ProblemViewModel(this, why, name, pct, outcome, code));
     }
 
     async void Complete()
@@ -612,16 +648,18 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
         Finalizing = true;
         Job.Main.Modal = null;
         CancelCommand.Changed();
-        Summarize(BuildReports.Completed, "");
         var job = Job;
         var service = job.Service;
         var registry = service.Registry;
         var file = job.Picked!;
         var s = service.Settings;
         var wasEmpty = registry.Builds.Count == 0;
+        // (an update of a builder's version into another version folder: the one it leaves is kept for going back to it, and the
+        // ones before it that nothing uses go once this one is saved, LauncherService.PruneVersions)
+        var left = job.Kind == JobKind.Update && job.Replaces is { } was ? service.VersionFolderOf(was) : null;
         BuildEntry entry = job.Kind == JobKind.Update && job.Replaces != null && registry.Find(job.Replaces.Id) != null
             ? registry.Replace(job.Replaces.Id, job.InstallDir, job.Version, job.Channel)
-            : registry.Add(job.InstallDir, job.Version, job.Channel, name: job.Version, makeDefault: wasEmpty);
+            : registry.Add(job.InstallDir, job.Version, job.Channel, name: job.Version, makeDefault: wasEmpty, id: workId);
         if (file.Source is BuildSource.Folders f)
         {
             entry.Nup = null;
@@ -633,9 +671,22 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
             entry.Nup = file.Path;
             entry.Romfs = entry.Exefs = null;
         }
+        // (the upscalers it built in, which an update of a folder may keep from before, not only what was asked: as the version
+        // folder's builder says (info, which Home's state reads too, BuilderInfos), else the record of a folder outside one)
+        var versionFolder = service.VersionFolderFor(job.Version);
+        if (versionFolder != null) BuilderInfos.Forget(versionFolder);
+        var info = builder != null && versionFolder != null && buildProfile != null ? await builder.InfoAsync(buildProfile) : null;
+        if (info != null) BuilderInfos.Set(versionFolder!, info);
+        var built = info?.Build.Upscalers ?? (builder != null ? LongshotBuilder.ReadRecord(job.InstallDir)?.Upscalers : null);
+        if (built != null)
+            (dlss, fsr, xess) = (built.Contains("dlss"), built.Contains("fsr4"), built.Contains("xess") && !job.Main.Linux);
         entry.Dlss = dlss;
         entry.Fsr = fsr;
         entry.Xess = xess;
+        // (longshot-builder's game reads its files from the .nup where it is: the Ready page says to keep it there, and Play checks
+        // it is, LongshotBuilder.MissingNup)
+        var inPlace = builder != null && file.Source is BuildSource.Nup;
+        entry.NupInPlace = inPlace ? true : null;
         entry.Unmeasured();
         string? problem = null;
         try { registry.Save(); }
@@ -650,7 +701,16 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
                 problem ??= Tr.F("Your FSR 4 library was not copied into the game folder: {0}", e.Message);
             }
         }
+        // (longshot-builder's warnings the player should see once it is done, in the launcher's words: Problems.FromWarning)
+        foreach (var code in progress.Warnings)
+            if (Problems.FromWarning(code) is { } warned) problem = problem == null ? Tr.T(warned) : problem + "\n" + Tr.T(warned);
         service.PruneTools();
+        if (left != null && service.VersionFolderOf(entry) is { } now && !BuildRegistry.SameFolder(left, now))
+        {
+            s.RollbackVersion = Path.GetFileName(left);
+            try { service.SaveSettings(); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+            await service.PruneVersions();
+        }
         // (Keep the build's work and capped stores, or remove them when keeping is off. Off the window's thread.)
         var work = buildWork ?? service.Work;
         var keep = s.KeepBuildFiles;
@@ -667,7 +727,8 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
         }
 
         // (no saves to move: every build shares them, SaveEnvironment.LongshotUser)
-        job.Main.Navigate(new ReadyViewModel(job.Main, entry, job.Kind, job.From, clock.Elapsed + job.ToolsTime, problem, job.Older));
+        job.Main.Navigate(new ReadyViewModel(job.Main, entry, job.Kind, job.From, clock.Elapsed + job.ToolsTime, problem, job.Older,
+                                             inPlace ? file.Path : null));
     }
 
     /// For the screenshots: the lines a build would have said so far, with the clock at elapsed
@@ -683,6 +744,10 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
     public void ReplayExit(int code) => Exited(code);
 
     public bool Running => running;
+
+    /// longshot-builder's work folder of the build running (LongshotBuilder.WorkFolder), which a change of the build files folder
+    /// leaves alone (LauncherService.LeaveWork); null with none running
+    public string? RunningWorkFolder => running && buildWork != null && workId != null ? LongshotBuilder.WorkFolder(buildWork, workId) : null;
     public bool Finalizing { get; private set; }
     public Action? CloseAfterFinalizing { get; set; }
 
@@ -742,9 +807,13 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
     public static BuildStepViewModel? Current { get; private set; }
     public static BuildReports.Shutdown Shutdown { get; } = new();
     readonly BuildReports.Once summarized = new();
+    /// The builder ended without an error event (Exited): it died, and its summary is the launcher's to send
+    bool died;
 
     /// With Settings' "Send performance statistics" ticked: how the build ended, sent on its own (BuildReports, Auto), once a
-    /// build. Not for the screenshots' replays. On the window's thread
+    /// build, only when the builder process itself died (no error event: a crash, a signal) or the launcher was stopped while it
+    /// built. A build's own end is the builder's to send (play's --send-build-statistics). Not for the screenshots' replays. On
+    /// the window's thread
     void Summarize(string outcome, string why)
     {
         if (Summary(outcome, why) is { } json) Shutdown.Track(BuildReports.SendAsync(BuildReports.Http, json, CancellationToken.None));
@@ -799,15 +868,22 @@ public sealed class StopBuildViewModel(BuildStepViewModel build) : ViewModelBase
 public sealed class ReadyViewModel : ViewModelBase, IWizardPage
 {
     // the three shortcuts start ticked: an install should leave something to press. The Steam
-    // one only shows where there is a Steam to add to (SteamShortcuts.Locate says so), and starts
-    // from the player's last answer when there is one (steam, in the constructor)
+    // one only shows where there is a Steam to add to (SteamTile.Present) and a version folder's
+    // builder to make the tile, and starts from the player's last answer when there is one (steam,
+    // in the constructor)
     bool desktop = true, menu = true, steam;
     bool steamAsked;                        // whether the user ever moved the Steam tick: only then may a Remove be written
-    SteamShortcuts.Placement? steamPlacement;   // the tile this screen can make (null: nothing to add to)
+    LongshotBuilder? steamBuilder;          // the version folder's builder that makes the tile (null: nothing to add to)
+    bool steamBusy;                         // a steam-shortcut runs: the tick waits for its answer
 
-    public ReadyViewModel(MainViewModel main, BuildEntry entry, JobKind kind, string? from, TimeSpan took, string? problem, bool older = false)
+    /// keepNup: the .nup the game reads its files from where it is (longshot-builder's), which the page asks the player to keep there
+    public ReadyViewModel(MainViewModel main, BuildEntry entry, JobKind kind, string? from, TimeSpan took, string? problem, bool older = false,
+                          string? keepNup = null)
     {
         Main = main;
+        KeepNup = keepNup == null ? null
+            : Tr.F("The game reads its files from your .nup, {0}. Keep it there: if you move or delete it, the game can't start until you pick it again.",
+                   ShownPath.Of(keepNup));
         Entry = entry;
         Kind = kind;
         From = from;
@@ -837,16 +913,19 @@ public sealed class ReadyViewModel : ViewModelBase, IWizardPage
         LocateSteam();
         // the Steam tick starts from the player's last answer when there is one: an untick that took
         // the tile away is not undone by the next build (LauncherSettings.SteamTile). With no answer
-        // it starts ticked on a launcher that owns its shortcuts, and from what Steam's library
-        // already holds on a portable one, which writes nothing by itself
-        steam = Main.Service.Settings.SteamTile
-                ?? (made || (steamPlacement != null && SteamShortcuts.InLibrary(steamPlacement)));
+        // it starts ticked on a launcher that owns its shortcuts; a portable one writes nothing by itself
+        steam = Main.Service.Settings.SteamTile ?? made;
         if (made)
         {
             desktop = menu = true;
             WriteShortcuts();
         }
-        else (desktop, menu) = OwnShortcuts();
+        else
+        {
+            (desktop, menu) = OwnShortcuts();
+            // (a portable launcher writes nothing by itself, but the player's yes to the tile stands: it follows this version)
+            if (Main.Service.Settings.SteamTile == true) WriteSteamTile();
+        }
     }
 
     public MainViewModel Main { get; }
@@ -862,11 +941,11 @@ public sealed class ReadyViewModel : ViewModelBase, IWizardPage
 
     public string Version => Entry.Version ?? Entry.Name;
     public string Heading => Tr.F("{0} is ready", Version);
-    public string Sub => Kind == JobKind.Update && From != null
-        ? Tr.F(Older ? "Went back from {0} in {1} min, in {2}." : "Updated from {0} in {1} min, in {2}.",
-               From, Math.Max(1, (int)Math.Round(Took.TotalMinutes)), ShownPath.Of(Entry.Folder))
-        : Tr.F("Built in {0} min, in {1}.", Math.Max(1, (int)Math.Round(Took.TotalMinutes)), ShownPath.Of(Entry.Folder));
+    public string Sub => Durations.Done(Took, ShownPath.Of(Entry.Folder), Kind == JobKind.Update ? From : null, Older);
     public bool HasProblem => Problem != null;
+    /// Keep the .nup where it is (longshot-builder's game reads its files from it); null for a game that has its own copy
+    public string? KeepNup { get; }
+    public bool HasKeepNup => KeepNup != null;
     public string MenuLabel => Main.Linux ? Tr.T("Applications menu entry") : Tr.T("Start menu entry");
     public bool ShowDefaultTick => Main.Service.Registry.Builds.Count > 1;
 
@@ -890,7 +969,7 @@ public sealed class ReadyViewModel : ViewModelBase, IWizardPage
 
     /// The Deck and any Linux desktop with Steam: the tile that makes the game playable in Gaming
     /// mode. Found once, quietly: no Steam to add to means no tick and no fuss
-    public bool ShowSteamTick => steamPlacement != null;
+    public bool ShowSteamTick => steamBuilder != null;
     public bool SteamTickVisible => ShowSteamTick;
 
     public bool Steam
@@ -898,7 +977,11 @@ public sealed class ReadyViewModel : ViewModelBase, IWizardPage
         get => steam;
         set
         {
-            if (steamPlacement == null) return;
+            if (steamBuilder == null || steamBusy)
+            {
+                Raise(nameof(Steam));
+                return;
+            }
             if (Set(ref steam, value)) { steamAsked = true; RememberSteamTile(value); WriteShortcuts(); }
         }
     }
@@ -950,7 +1033,6 @@ public sealed class ReadyViewModel : ViewModelBase, IWizardPage
         // ignores .png in its icon field; both files sit in the launcher's home)
         shortcutsFailed = false;
         var logo = EnsureLogo();
-        steamLogoIco = EnsureLogoIco();
         try
         {
             var left = Main.Linux ? Shortcuts.WriteLinux(LauncherService.LauncherPath, null, desktop, menu, logo)
@@ -967,9 +1049,7 @@ public sealed class ReadyViewModel : ViewModelBase, IWizardPage
     }
 
     bool shortcutsFailed;       // a failed desktop/menu write this pass: it outranks the restart notice
-    string? steamLogoIco;       // the .ico the Steam tile names; null: the write failed, art stays as it is
     static byte[]? logoBytes;
-    static byte[]? logoIcoBytes;
 
     /// The logo the desktop and applications-menu shortcuts point at: the embedded Longshot.png
     /// written into the launcher's own home, where the desktop and the menu can read it (KDE draws
@@ -983,39 +1063,15 @@ public sealed class ReadyViewModel : ViewModelBase, IWizardPage
         byte[] png;
         try { png = logoBytes ??= ReadEmbeddedLogo(); }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return null; }
-        var path = SteamShortcuts.LogoPath();
+        var path = Shortcuts.LogoPath();
         try { if (File.Exists(path) && File.ReadAllBytes(path).SequenceEqual(png)) return path; }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return null; }
-        return SteamShortcuts.TryWriteLogo(png) ? path : null;
-    }
-
-    /// The logo the Steam Gaming-mode tile points at: the embedded longshot.ico. Steam ignores a
-    /// .png in the icon field — the tile naming longshot.png showed the blank default on the Deck
-    /// after a clean Steam restart (hardware, 2026-11-15) — while every tile in the Deck's own
-    /// library that draws art names a .ico. Same repair rule as EnsureLogo
-    string? EnsureLogoIco()
-    {
-        if (!Main.Linux) return null;
-        byte[] ico;
-        try { ico = logoIcoBytes ??= ReadEmbeddedLogoIco(); }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return null; }
-        var path = SteamShortcuts.LogoIcoPath();
-        try { if (File.Exists(path) && File.ReadAllBytes(path).SequenceEqual(ico)) return path; }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return null; }
-        return SteamShortcuts.TryWriteLogoIco(ico) ? path : null;
+        return Shortcuts.TryWriteLogo(png) ? path : null;
     }
 
     static byte[] ReadEmbeddedLogo()
     {
         using var src = Avalonia.Platform.AssetLoader.Open(new Uri("avares://LongshotLauncher/Assets/longshot.png"));
-        using var ms = new MemoryStream();
-        src.CopyTo(ms);
-        return ms.ToArray();
-    }
-
-    static byte[] ReadEmbeddedLogoIco()
-    {
-        using var src = Avalonia.Platform.AssetLoader.Open(new Uri("avares://LongshotLauncher/Assets/longshot.ico"));
         using var ms = new MemoryStream();
         src.CopyTo(ms);
         return ms.ToArray();
@@ -1039,136 +1095,75 @@ public sealed class ReadyViewModel : ViewModelBase, IWizardPage
         ("_logo", "png", ReadEmbeddedAsset("logo_998x323.png")),    // the detail page's logo
     ];
 
-    /// The Steam tile, made or taken away with its tick. The core only ever touches the tile whose
-    /// appid its own launcher path computes (or the id its marker recorded): a tile the user made in
-    /// Steam's own dialog is another id and is never in reach, whatever it is called. Steam holds its
-    /// library in memory and writes the file back when it quits, so a caller that asked the user may
-    /// pass takeDown; this screen never stops Steam on its own (downloads and all). The placement is
-    /// looked up once: no Steam on this machine means the tick was never offered.
+    /// The Steam tile, made or taken away with its tick, by the version folder's builder (SteamTile: steam-shortcut --profile <the
+    /// profile's folder>, or --remove): it only ever touches its own tile, so a tile the user made in Steam's own dialog under the
+    /// same name is left as it is (steam_name_taken). Steam holds its library in memory and writes the file back when it quits; the
+    /// builder writes anyway and says Steam runs, and this screen never stops Steam on its own (downloads and all).
     ///
-    /// The tick starts like the desktop and menu ticks: on, because on a Deck the tile is how the
-    /// game gets played from the couch, and the whole point is that installing leaves something to
-    /// press. It is the one shortcut on this screen whose file Steam also owns, so the write goes
-    /// through Steam's own id rule rather than "whatever is called Longshot".
-    bool TrySteamWrite(bool asked = false)
+    /// The tick starts like the desktop and menu ticks: on, because on a Deck the tile is how the game gets played from the couch,
+    /// and the whole point is that installing leaves something to press. The tile plays this version's folder with the current
+    /// profile, so it is made again from each Ready screen of the default version (an update's new folder takes it over)
+    async void TrySteamWrite()
     {
-        if (steamPlacement is not { } p) return false;
-        // Remove is only ever written when the user asked: a failed Add must not leave a later
-        // desktop-or-menu checkbox change taking a tile away that sits in the library right now
-        steamAsked |= asked;
-        try
+        if (steamBuilder is not { } builder || steamBusy) return;
+        var add = steam;
+        // Remove is only ever written when the user asked: a failed Add must not leave a later desktop-or-menu checkbox change
+        // taking a tile away that sits in the library right now
+        if (!add && !steamAsked) return;
+        steamBusy = true;
+        SteamTile.Result result;
+        try { result = await SteamTile.RunAsync(builder, Main.Service.ProfileFolder, remove: !add, name: SteamTile.NameFor(Main.Service.Profile)); }
+        finally { steamBusy = false; }
+        if (!result.Done)
         {
-            var wrote = false;
-            if (steam)
-            {
-                // Add false with no tile of ours in the library means it refused: a tile called
-                // Longshot the user made themselves, which the launcher leaves exactly as it is.
-                // The tick goes back to the truth and says why
-                wrote = SteamShortcuts.Add(p);
-                if (!wrote && !SteamShortcuts.InLibrary(p))
-                {
-                    steam = false;
-                    Raise(nameof(Steam));
-                    Main.ShowToast(Tr.T("Steam already has a shortcut called Longshot that this launcher did not make, so it stays exactly as you made it."));
-                }
-            }
-            else if (steamAsked)
-            {
-                wrote = SteamShortcuts.Remove(p);    // false: there was never ours to take away
-            }
-            // the tile's capsule artwork: only missing files are written, a capsule the user
-            // chose in Steam stays; runs whether the tile was just made or already sat there
-            if (steam) WriteTileArt(p);
-            // Steam reads its library when it starts, checked on the Deck 2026-11-15: while Steam
-            // runs, Gaming mode shows what it loaded at its own start, and a change made here waits
-            // for a Steam restart to show. The launcher never restarts Steam itself (downloads and
-            // all), so the notice says what to do rather than doing it. It never talks over a
-            // failure it should have seen instead: one toast shows at a time, and an error about
-            // shortcuts that could not be written outranks a note about restarting
-            if (wrote && SteamShortcuts.SteamUp() && !shortcutsFailed)
-                Main.ShowToast(Tr.T("Restart the console to see Steam shortcut changes in Gaming mode."));
-            return true;
-        }
-        catch (Exception e) when (e is InvalidOperationException or IOException or UnauthorizedAccessException or InvalidDataException)
-        {
-            // the tick goes back to what the library actually holds, whatever the write did or did not do
-            steam = steamPlacement != null && SteamShortcuts.InLibrary(steamPlacement);
+            // the tick goes back to what the library holds: an add refused left no tile, a remove refused left it
+            steam = !add;
             Raise(nameof(Steam));
-            Main.ShowToast(Tr.F("The Steam shortcut could not be changed: {0}", e.Message));
-            return false;
+            Main.ShowToast(result.Code == "steam_name_taken"
+                ? Tr.T("Steam already has a shortcut called Longshot that this version did not make (yours, or an older launcher's), so it stays as it is. To get this one, remove that shortcut in Steam, then tick it again.")
+                : Tr.F("The Steam shortcut could not be changed: {0}", result.Text ?? ""));
+            return;
         }
+        // the tile's capsule artwork: only missing files are written, a capsule the user chose in Steam stays; runs whether the
+        // tile was just made or already sat there
+        if (result.InLibrary && result.Library is { Length: > 0 } library) WriteTileArt(library, result.AppId);
+        // Steam reads its library when it starts, checked on the Deck 2026-11-15: while Steam runs, Gaming mode shows what it
+        // loaded at its own start, and a change made here waits for a Steam restart to show. The notice says what to do rather
+        // than doing it, and never talks over a failure of the desktop or menu shortcuts
+        if (result.Action is "added" or "updated" or "removed" && result.SteamRunning && !shortcutsFailed)
+            Main.ShowToast(Tr.T("Restart the console to see Steam shortcut changes in Gaming mode."));
     }
 
-    /// The tile's capsule artwork beside its shortcuts.vdf, in Steam's grid/ folder keyed by the
-    /// tile's appid read unsigned. Only files that are not there get written: a capsule the user
-    /// chose in Steam's own UI, or one a previous run put down, is left exactly as it is. A fault
-    /// is silent — a tile without art beats no tile, and the tile itself is the thing that matters.
-    /// The hero slot goes to the game folder's own banner (SteamShortcuts.GameHero) when that
-    /// build's folder has one: what nx2/game_hero.py made there from the player's own copy.
-    void WriteTileArt(SteamShortcuts.Placement p)
+    /// The tile's capsule artwork beside the library the builder wrote, in Steam's grid/ folder keyed by the tile's appid. Only
+    /// files that are not there get written. A fault is silent: a tile without art beats no tile
+    void WriteTileArt(string library, uint appId)
     {
-        try
-        {
-            var folder = SteamShortcuts.GameHero(Entry.Folder);
-            SteamShortcuts.WriteArtwork(p.Vdf, SteamShortcuts.TileAppId(p),
-                                        SteamShortcuts.WithGameHero(Capsules(), Entry.Folder));
-            // an install from before the marked hero kept this launcher's generated logo in the
-            // grid, and WriteArtwork never overwrites: beside a folder hero that file is a second
-            // mark over the first, so retire our own copy of it (and only our own: a capsule the
-            // user chose in Steam's UI stays, whosever bytes it is)
-            if (folder != null)
-                SteamShortcuts.RetireGeneratedLogo(p.Vdf, SteamShortcuts.TileAppId(p),
-                                                   Capsules().First(c => c.suffix == "_logo").bytes);
-        }
+        try { SteamTile.WriteArtwork(library, appId, Capsules()); }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
     }
 
-    /// The tile this launcher can make, found once, quietly: no Steam to add to means no tick and
-    /// no fuss. Locate touches the folders Steam owns and can fault for ordinary reasons, so a
-    /// fault here hides the tick rather than taking the Ready screen down
+    /// The builder that can make this version's tile, found once, quietly: on Linux, with a Steam to add to (SteamTile.Present),
+    /// the version folder's builder of a version that has one. No Steam, or no version folder, means no tick and no fuss
     void LocateSteam()
     {
-        if (!Main.Linux || steamPlacement != null) return;
+        if (!Main.Linux || steamBuilder != null) return;
         try
         {
-            // the icon path is offered only when the .ico really landed: naming a file that was
-            // never written would point the tile at nothing, and an iconless tile beats a broken one
-            steamPlacement = steamLogoIco is { } ico
-                ? SteamShortcuts.Locate(LauncherService.LauncherPath, ico)
-                : SteamShortcuts.Locate(LauncherService.LauncherPath);
+            // (a builder whose info says it has no steam-shortcut offers none; one not asked yet is tried, and says so if not)
+            if (SteamTile.Present() && Main.Service.VersionFolderOf(Entry) is { } version && BuilderVersions.Is(version, Main.Service.Platform)
+                && BuilderInfos.OfVersion(version)?.Can("steam_shortcut") != false)
+                steamBuilder = Main.Service.BuilderOf(version);
         }
-        catch (Exception e) when (e is InvalidOperationException or IOException or UnauthorizedAccessException or InvalidDataException)
-        {
-            steamPlacement = null;
-        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException) { steamBuilder = null; }
     }
 
     void WriteSteamTile()
     {
         if (!Main.Linux) return;
-        // Locate and the first InLibrary read run outside the write's catch: they touch the same
-        // folders Steam owns and can fault for the same ordinary reasons, and a fault here would
-        // take the whole Ready screen down instead of just hiding the tick
-        try
-        {
-            LocateSteam();
-            if (steamPlacement is not { } offered) return;
-            // the cached placement can predate this screen's .ico: EnsureLogoIco failing once and
-            // succeeding now must retarget the offered tile at the file that actually landed —
-            // naming an .ico that was never written is the broken tile the line above exists to
-            // avoid. An .ico offered by an earlier attempt stays offered: that write put its file
-            // on disk, and the tile names that path
-            if (steamLogoIco is { } now && offered.Entry.Icon != now)
-                steamPlacement = offered with { Entry = offered.Entry with { Icon = now } };
-            Raise(nameof(ShowSteamTick));
-            TrySteamWrite();
-        }
-        catch (Exception e) when (e is InvalidOperationException or IOException or UnauthorizedAccessException or InvalidDataException)
-        {
-            steamPlacement = null;      // no tick offered; the desktop and menu shortcuts stand alone
-            Raise(nameof(ShowSteamTick));
-            Main.ShowToast(Tr.F("The Steam shortcut could not be made: {0}", e.Message));
-        }
+        LocateSteam();
+        Raise(nameof(ShowSteamTick));
+        // (made again from the default version's Ready screen, or when the player moved the tick)
+        if (steamBuilder != null && (steamAsked || Entry.Default)) TrySteamWrite();
     }
 
     public Command PlayCommand { get; }
@@ -1180,10 +1175,11 @@ public sealed class ReadyViewModel : ViewModelBase, IWizardPage
 public sealed class ProblemViewModel : ViewModelBase, IWizardPage
 {
     readonly BuildStepViewModel build;
-    readonly string outcome;   // (failed, or terminated: make_game.py ended by SIGTERM, BuildReports)
+    readonly string outcome;   // (failed, or terminated: the builder ended by SIGTERM, BuildReports)
     bool showLog;
 
-    public ProblemViewModel(BuildStepViewModel build, string why, string stage, int percent, string outcome = BuildReports.Failed)
+    /// code: longshot-builder's error code: its problem in the launcher's words (Problems.FromCode), else the builder's text as said
+    public ProblemViewModel(BuildStepViewModel build, string why, string stage, int percent, string outcome = BuildReports.Failed, string? code = null)
     {
         this.build = build;
         this.outcome = outcome;
@@ -1197,9 +1193,11 @@ public sealed class ProblemViewModel : ViewModelBase, IWizardPage
         SeeCommand = new Command(() => { if (answer?.Link is { } link) build.Job.Main.Host?.Open(link); });
         BackCommand = new Command(() => build.Job.Main.Navigate(build.Job.Settings ?? new SettingsStepViewModel(build.Job)));
         RetryCommand = new Command(() => build.Job.Main.Navigate(new BuildStepViewModel(build.Job)));
-        Problem = Problems.FromBuild(why);
+        Code = code;
+        Problem = Problems.FromCode(code) ?? Problems.FromBuild(why);
         // (Build again is the screen's own button; the others go to the step that has the choice)
-        Offer = Problem.Fixes.FirstOrDefault(f => f.Kind is FixKind.PickOtherFiles or FixKind.ChooseOtherFolder or FixKind.LowerBuildMemory);
+        Offer = Problem.Fixes.FirstOrDefault(f => f.Kind is FixKind.PickOtherFiles or FixKind.ChooseOtherFolder or FixKind.LowerBuildMemory
+                                                  or FixKind.AcceptLicence);
         OfferCommand = new Command(TakeOffer, () => Offer != null);
         ColdCommand = new Command(TryCold, () => CanCold);
     }
@@ -1218,8 +1216,10 @@ public sealed class ProblemViewModel : ViewModelBase, IWizardPage
         job.Main.Navigate(settings);
     }
 
-    /// What went wrong in plain words (launcher/Core/Problems.cs), from make_game.py's last message
+    /// What went wrong in plain words (launcher/Core/Problems.cs), from the builder's error code or last message
     public Problem Problem { get; }
+    /// longshot-builder's error code (null when it said none)
+    public string? Code { get; }
     /// The fix this screen has a button for besides Build again: step 1 for other game files, step 2 for another folder or less
     /// build memory (its Advanced opened); null for none
     public Fix? Offer { get; }
@@ -1233,8 +1233,8 @@ public sealed class ProblemViewModel : ViewModelBase, IWizardPage
     /// The general advice, under a message the launcher doesn't know (a known one has its own)
     public bool Unknown => !Known;
     public bool Memory => Unknown && Why.Contains("memory", StringComparison.OrdinalIgnoreCase);
-    public string Head => Known ? Tr.T(Problem.Headline) : Tr.T("make_game.py stopped");
-    /// What make_game.py said: the file, the folder, the build ids it names
+    public string Head => Known ? Tr.T(Problem.Headline) : Tr.T("The build stopped");
+    /// What the builder said: the file, the folder, the build ids it names
     public string Said => Tr.F("Building {0} stopped in {1}, {2}% of the way through. It said: {3}", build.Job.Shown, Stage, Percent, Why);
     public string Body => Known ? Tr.T(Problem.Detail) : Said;
     public string OfferLabel => Offer is { } offer ? Tr.T(offer.Label) : "";
@@ -1268,6 +1268,15 @@ public sealed class ProblemViewModel : ViewModelBase, IWizardPage
                 var settings = job.Settings ?? new SettingsStepViewModel(job);
                 settings.AdvancedOpen = true;
                 job.Main.Navigate(settings);
+                break;
+            // (longshot-builder's license_not_accepted: the licence its error names shown over step 2, and the build again once
+            // accepted; declined, step 2 stays, where the upscaler can be turned off)
+            case FixKind.AcceptLicence:
+                var step = job.Settings ?? new SettingsStepViewModel(job);
+                job.Main.Navigate(step);
+                if (LongshotBuilder.LicenceOf(Why) is { } vendor)
+                    step.AskLicence(vendor switch { "nvidia" => LicenceOf.Nvidia, "amd" => LicenceOf.Amd, _ => LicenceOf.Intel },
+                                    () => job.Main.Navigate(new BuildStepViewModel(job)));
                 break;
         }
     }
@@ -1328,27 +1337,3 @@ public sealed record LogLevelChoice(LogLevel Level, string Name)
     public override string ToString() => Name;
 }
 
-/// "Needs the nightly launcher": a version built with the new builder was picked, built or updated to. Its button switches the
-/// launcher's own update channel to nightly and starts the launcher's update (LauncherService.SwitchLauncherToNightlyAsync, then
-/// the home's own Update the launcher command)
-public sealed class NeedsNightlyLauncherViewModel(MainViewModel main) : ViewModelBase
-{
-    public string Sub => NeedsNightlyLauncher.Text;
-    public Command CloseCommand { get; } = new(() => main.Modal = null);
-    public Command SwitchCommand { get; } = new(() => _ = Switch(main));
-
-    static async Task Switch(MainViewModel main)
-    {
-        main.Modal = null;
-        main.ShowHome();
-        try { main.Service.SwitchLauncherToNightly(); }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-            main.ShowToast(Tr.F("The settings could not be saved: {0}", e.Message));
-            return;
-        }
-        await main.Home.CheckReleasesAsync();
-        if (main.Home.HasLauncherUpdate) main.Home.UpdateLauncherCommand.Execute(null);
-        else main.ShowToast(Tr.T("The launcher is on its nightly channel, but no newer launcher is out there yet."));
-    }
-}

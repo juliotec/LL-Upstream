@@ -219,6 +219,13 @@ static partial class Program
         Storage.Remove(new Storage.Item(Storage.Kind.OlderCode, 10, 10), missingWork, false, false,
             folderOutcome: (removed, skipped, failed) => folderResult = (removed, skipped, failed));
         Require(folderResult.Removed == 0 && folderResult.Skipped > 0, "Storage: vanished work is reported as skipped.");
+        // (longshot-builder's store alone: make_game.py's obj-store, never made on this PC, is not said as skipped)
+        var builderWork = places with { Work = Path.Combine(root, "builder-work") };
+        Touch(Path.Combine(builderWork.Work, Disk.LongshotStore, "compile", "o"), "object");
+        Storage.Remove(new Storage.Item(Storage.Kind.OlderCode, 6, 6), builderWork, false, false,
+            folderOutcome: (removed, skipped, failed) => folderResult = (removed, skipped, failed));
+        Require(folderResult == (1, 0, 0) && !Directory.Exists(Path.Combine(builderWork.Work, Disk.LongshotStore)),
+                "Storage: longshot-builder's store goes, and make_game.py's absent obj-store is not reported as skipped.");
 
         var imported = Path.Combine(root, "imported");
         Touch(Path.Combine(imported, "logs"), "not a directory");

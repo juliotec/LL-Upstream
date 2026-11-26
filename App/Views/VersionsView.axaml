@@ -1,0 +1,142 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:LongshotLauncher.ViewModels"
+             xmlns:c="using:LongshotLauncher.Controls"
+             xmlns:views="using:LongshotLauncher.Views"
+             x:Class="LongshotLauncher.Views.VersionsView"
+             x:DataType="vm:VersionsViewModel">
+  <!-- The Versions page: every version on this PC as a card (its state, size, when it was built, and what is done to it), Add
+       version (AddVersionViewModel), adding a folder built already and the update check. A
+       tab: B is the title bar's Home. Its model is the home's (VersionsViewModel.Home): Home plays, this page manages -->
+  <DockPanel DataContext="{Binding Home}" x:DataType="vm:HomeViewModel">
+    <!-- the header: the page's name, and what reaches every version: the update check, a folder built already -->
+    <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" ColumnSpacing="20" Margin="0,0,0,16">
+      <StackPanel>
+        <TextBlock Classes="heading" Text="{c:T 'Versions'}"/>
+        <TextBlock Classes="sub" Text="{c:T 'The versions of Longshot on this PC, shared by every profile, and building another. Play them from Home.'}"/>
+      </StackPanel>
+      <WrapPanel Grid.Column="1" ItemSpacing="18" LineSpacing="4" VerticalAlignment="Bottom" HorizontalAlignment="Right" IsVisible="{Binding HasBuilds}">
+        <!-- another version: Stable or Nightly, and under Advanced main or a pull request (AddVersionViewModel) -->
+        <Button Classes="small primary" Command="{Binding AddVersionCommand}">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <c:Icon Kind="plus" Width="13" Height="13"/>
+            <TextBlock Text="{c:T 'Add version…'}"/>
+          </StackPanel>
+        </Button>
+        <Button Classes="link" Command="{Binding AddFolderCommand}" ToolTip.Tip="{c:T 'A game folder, a folder of them, or a portable launcher\'s LongshotLauncher-data: listed where it is'}">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <c:Icon Kind="folder" Width="14" Height="14"/>
+            <TextBlock Text="{c:T 'Add a build folder…'}"/>
+          </StackPanel>
+        </Button>
+        <Button Classes="link" Command="{Binding CheckForUpdatesCommand}" ToolTip.Tip="{c:T 'Look for a new Longshot on your versions\' channels, and a new launcher'}">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <c:Icon Kind="refresh" Width="14" Height="14"/>
+            <TextBlock Text="{c:T 'Check for updates'}"/>
+          </StackPanel>
+        </Button>
+      </WrapPanel>
+    </Grid>
+    <!-- a problem to read (a delete that failed, a version that could not start) -->
+    <Border DockPanel.Dock="Top" Classes="warnbox" IsVisible="{Binding HasNotice}" Margin="0,0,0,12">
+      <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+        <Border Classes="boxicon"><c:Icon Kind="alert" Width="13" Height="13" Foreground="{StaticResource Warn}"/></Border>
+        <TextBlock Grid.Column="1" Text="{Binding Notice}" TextWrapping="Wrap" VerticalAlignment="Center"/>
+        <Button Grid.Column="2" Classes="link soft smaller" Content="{c:T 'Dismiss'}" Command="{Binding DismissProblemCommand}" VerticalAlignment="Center"/>
+      </Grid>
+    </Border>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="0,0,-14,0" Padding="0,0,14,32">
+      <StackPanel Spacing="10">
+        <!-- no version yet: the first build's card, as Home shows it -->
+        <views:BuildCardView IsVisible="{Binding NoBuilds}"/>
+
+        <!-- each version: its card -->
+        <ItemsControl ItemsSource="{Binding Builds}" IsVisible="{Binding HasBuilds}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate><StackPanel Spacing="10"/></ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:BuildItemViewModel">
+              <Border Classes="vcard" Classes.default="{Binding IsDefault}">
+                <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" ColumnSpacing="16" RowSpacing="12">
+                  <Border Grid.RowSpan="2" Classes="vtile">
+                    <Image Source="avares://LongshotLauncher/Assets/longshot.png" Width="28" Height="28" RenderOptions.BitmapInterpolationMode="HighQuality"/>
+                  </Border>
+                  <!-- what it is: its name, channel, whether it is the default, its state; when it was built and what it holds -->
+                  <StackPanel Grid.Column="1" Spacing="4">
+                    <WrapPanel ItemSpacing="8" LineSpacing="4">
+                      <TextBlock Text="{Binding Version}" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                      <Border Classes="tag" Classes.nightly="{Binding IsNightly}" Classes.pr="{Binding IsPullRequest}" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Channel}"/>
+                      </Border>
+                      <Border Classes="chip quiet small" IsVisible="{Binding IsDefault}" VerticalAlignment="Center"
+                              ToolTip.Tip="{c:T 'Your default: the Play button starts this one'}"><TextBlock Text="{c:T 'Default'}"/></Border>
+                      <Border Classes="chip small" Classes.go="{Binding StateReady}" Classes.update="{Binding StateUpdate}" Classes.warn="{Binding IsMissing}"
+                              Classes.bad="{Binding IsOld}"
+                              VerticalAlignment="Center">
+                        <TextBlock Text="{Binding StateText}"/>
+                      </Border>
+                    </WrapPanel>
+                    <TextBlock Classes="faint" Text="{Binding Meta}" IsVisible="{Binding ShowMeta}" TextTrimming="CharacterEllipsis"/>
+                    <!-- (built by Longshot's old builder: this launcher neither plays nor updates it) -->
+                    <TextBlock Classes="note" Foreground="{StaticResource Warn}" Text="{Binding OldText}" IsVisible="{Binding ShowOld}" TextWrapping="Wrap"/>
+                    <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding IsDeleting}">
+                      <c:Spinner Width="12" Height="12" VerticalAlignment="Center"/>
+                      <TextBlock Classes="faint" Text="{Binding DeletingText}"/>
+                    </StackPanel>
+                  </StackPanel>
+                  <!-- what is done to it: its update (and What's new) or Build again first, then the rest; Delete last. A controller's first
+                       press lands on the first card's first action (c:Pad.First on each: the first one shown wins), not the header's -->
+                  <Grid Grid.Row="1" Grid.Column="1" ColumnDefinitions="*,Auto" ColumnSpacing="8" IsVisible="{Binding !IsDeleting}">
+                    <WrapPanel ItemSpacing="8" LineSpacing="8" VerticalAlignment="Center">
+                      <Button Classes="small primary" Command="{Binding UpdateToCommand}" IsVisible="{Binding ShowUpdateTo}" c:Pad.First="True">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                          <c:Icon Kind="arrowUp" Width="13" Height="13"/>
+                          <TextBlock Text="{Binding UpdateToText}"/>
+                        </StackPanel>
+                      </Button>
+                      <Button Classes="link smaller" Command="{Binding WhatsNewCommand}" IsVisible="{Binding ShowUpdateTo}" Content="{c:T 'What\'s new'}"/>
+                      <Button Classes="small primary" Command="{Binding RebuildCommand}" IsVisible="{Binding ShowRebuild}" c:Pad.First="True">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                          <c:Icon Kind="refresh" Width="13" Height="13"/>
+                          <TextBlock Text="{c:T 'Build it again'}"/>
+                        </StackPanel>
+                      </Button>
+                      <Button Classes="small primary" Command="{Binding StableCommand}" IsVisible="{Binding ShowOld}" c:Pad.First="True">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                          <c:Icon Kind="arrowUp" Width="13" Height="13"/>
+                          <TextBlock Text="{c:T 'Switch to the stable launcher'}"/>
+                        </StackPanel>
+                      </Button>
+                      <Button Classes="small" Command="{Binding SetDefaultCommand}" IsVisible="{Binding ShowSetDefault}" c:Pad.First="True">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                          <c:Icon Kind="starLine" Width="13" Height="13"/>
+                          <TextBlock Text="{c:T 'Set as default'}"/>
+                        </StackPanel>
+                      </Button>
+                    </WrapPanel>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                      <Button Classes="icon" Command="{Binding FolderCommand}" ToolTip.Tip="{c:T 'Open folder'}" AutomationProperties.Name="{c:T 'Open folder'}"><c:Icon Kind="folder"/></Button>
+                      <Button Classes="icon iconbad" Command="{Binding DeleteCommand}" ToolTip.Tip="{c:T 'Delete'}" AutomationProperties.Name="{c:T 'Delete'}"><c:Icon Kind="trash"/></Button>
+                    </StackPanel>
+                  </Grid>
+                </Grid>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <!-- what they take together (Disk.InstancesUse), and the update check's words -->
+        <TextBlock Classes="faint" Text="{Binding Footer}" TextWrapping="Wrap" IsVisible="{Binding HasBuilds}" Margin="4,2,0,0"/>
+        <TextBlock Classes="faint" Text="{Binding Status}" TextWrapping="Wrap" Margin="4,0,0,0" IsVisible="{Binding ShowStatus}"/>
+        <Button Classes="link soft" HorizontalAlignment="Left" Margin="4,0,0,0" Content="{c:T 'Copy for a bug report'}"
+                Command="{Binding CopyCheckReportCommand}" IsVisible="{Binding ShowStatusReport}"/>
+        <StackPanel Orientation="Horizontal" Spacing="6" Margin="4,0,0,0" IsVisible="{Binding CheckCommand.IsBusy}">
+          <c:Spinner Width="12" Height="12" VerticalAlignment="Center"/>
+          <TextBlock Classes="faint" Text="{Binding CheckCommand.Status}"/>
+        </StackPanel>
+
+      </StackPanel>
+    </ScrollViewer>
+  </DockPanel>
+</UserControl>

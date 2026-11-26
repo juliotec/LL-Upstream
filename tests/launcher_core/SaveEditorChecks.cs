@@ -149,35 +149,16 @@ static partial class Program
                 "A command that printed no answer: argparse's or Python's last line, its exit code, or 'not in a form'.");
         Throws<SaveFailure>(() => SaveEditorAnswer.Of(new SaveEditorRun(1, Shown("set.json"), ""), "set").Dispose(), "An ok answer from a command that exited 1 is not taken.");
 
-        // ---- which build, which tools: the folder's own version's, with the editor's script and the game's files ----
+        // ---- which build: longshot-builder's versions carry no editor yet (it ran with make_game.py's tools' Python over their romfs) ----
         var root = Folder("save-editor");
-        var toolchains = new Toolchains(Path.Combine(root, "tools"), new FakeFetcher());
         var game = Path.Combine(root, "ゲーム Zélda", "v3.4.0");
         Game(game, "v3.4.0");
-        var build = new BuildEntry { Folder = game, Version = "v3.4.0" };
-        Require(SaveEditing.Find(null, toolchains).Why == SaveEditorWhy.NoBuild && SaveEditing.Find(new BuildEntry { Folder = Path.Combine(root, "gone") }, toolchains).Why == SaveEditorWhy.NoBuild,
-                "No build, or a folder that is gone: build first.");
-        Require(SaveEditing.Find(build, toolchains).Why == SaveEditorWhy.NoGameFiles, "No romfs in the build's folder: the editor has no game to read.");
         Directory.CreateDirectory(Path.Combine(game, "romfs"));
-        Require(SaveEditing.Find(build, toolchains).Why == SaveEditorWhy.NoTools, "No tools installed for the build's version.");
-        var other = PerfTools(Path.Combine(root, "tools"), "v3.5.0");
-        Touch(SaveEditing.ScriptOf(other)); Touch(Path.Combine(other.ToolsRoot, "scripts", "oot_savefile.py")); Touch(other.Python);
-        Require(SaveEditing.Find(build, toolchains).Why == SaveEditorWhy.NoTools, "Another version's tools, with the editor, are not this build's.");
-        var own = PerfTools(Path.Combine(root, "tools"), "v3.4.0");
-        Require(SaveEditing.Find(build, toolchains).Why == SaveEditorWhy.NoTools, "The version's tools without their Python: none.");
-        Touch(own.Python);
-        Require(SaveEditing.Find(build, toolchains).Why == SaveEditorWhy.NoEditor, "A version whose tools have no save editor.");
-        Touch(SaveEditing.ScriptOf(own));
-        Require(SaveEditing.Find(build, toolchains).Why == SaveEditorWhy.NoEditor, "The script without the save file code beside it: no editor.");
-        Touch(Path.Combine(own.ToolsRoot, "scripts", "oot_savefile.py"));
-        var (tool, why) = SaveEditing.Find(build, toolchains);
-        Require(why == SaveEditorWhy.Ready && tool == new SaveEditorTool(own.Python, SaveEditing.ScriptOf(own), own.ToolsRoot, game), "The build's own version's Python and editor, and the build's folder as the game.");
-        Require(SaveEditing.Find(new BuildEntry { Folder = game, Version = null }, toolchains).Why == SaveEditorWhy.Ready,
-                "(the version is the folder's stamp, not the registry's)");
-        var plain = Folder("save-editor-no-stamp");
-        Directory.CreateDirectory(Path.Combine(plain, "romfs"));
-        Require(SaveEditing.Find(new BuildEntry { Folder = plain }, toolchains).Why == SaveEditorWhy.NoTools, "A folder the launcher did not build (no version stamp): no tools to use.");
-        foreach (var w in new[] { SaveEditorWhy.NoSave, SaveEditorWhy.NoBuild, SaveEditorWhy.NoGameFiles, SaveEditorWhy.NoTools, SaveEditorWhy.NoEditor })
+        var build = new BuildEntry { Folder = game, Version = "v3.4.0" };
+        Require(SaveEditing.Find(null).Why == SaveEditorWhy.NoBuild && SaveEditing.Find(new BuildEntry { Folder = Path.Combine(root, "gone") }).Why == SaveEditorWhy.NoBuild,
+                "No build, or a folder that is gone: build first.");
+        Require(SaveEditing.Find(build) is (null, SaveEditorWhy.NoEditor), "A build: no editor in its builder, said so.");
+        foreach (var w in new[] { SaveEditorWhy.NoSave, SaveEditorWhy.NoBuild, SaveEditorWhy.NoEditor })
             Require(SaveEditing.Say(w).Length > 20, "Each reason is said: " + w);
         Require(SaveEditing.Say(SaveEditorWhy.NoEditor) is var noEditor && !noEditor.Contains("A newer version has it") && noEditor.Contains("3.0.0")
                 && noEditor.Contains("update Longshot"), "No editor: no released version has it yet (#217), so it says up to which version none has, and to update once one does, not that a newer one has it.");
@@ -186,10 +167,11 @@ static partial class Program
         var save = Path.Combine(root, "data", "save", "5a3c9e1f0b7d24680000000000000001");
         var data = Path.Combine(root, "data");
         var env = new SaveEnvironment(Platform.Linux, k => k switch { "XDG_DATA_HOME" => data, "HOME" => root, _ => null });
-        var start = SaveEditing.Command(tool!, Platform.Linux, save, env.BackupRoot, ["report", "--json"],
+        var tool = new SaveEditorTool(Path.Combine(root, "py", "python3"), Path.Combine(root, "t", "scripts", "longshot_save_editor.py"), Path.Combine(root, "t"), game);
+        var start = SaveEditing.Command(tool, Platform.Linux, save, env.BackupRoot, ["report", "--json"],
                                         new Dictionary<string, string> { ["PATH"] = "/usr/bin", ["LD_LIBRARY_PATH"] = "/tmp/appimage", ["PYTHONHOME"] = "/x", ["LONGSHOT_GAME"] = "/other" });
-        Require(start.FileName == own.Python && start.WorkingDirectory == own.ToolsRoot
-                && start.ArgumentList.SequenceEqual(new[] { "-I", "-B", SaveEditing.ScriptOf(own), "--game", game, "--save", save, "--backup-dir", env.BackupRoot, "report", "--json" }),
+        Require(start.FileName == tool.Python && start.WorkingDirectory == tool.ToolsRoot
+                && start.ArgumentList.SequenceEqual(new[] { "-I", "-B", tool.Script, "--game", game, "--save", save, "--backup-dir", env.BackupRoot, "report", "--json" }),
                 "The tools' Python, isolated and writing nothing, the script, the game, the save, the launcher's backup folder, then the command.");
         Require(!start.UseShellExecute && start.CreateNoWindow && start.RedirectStandardOutput && start.RedirectStandardError, "No window, the output read.");
         Require(start.Environment["PYTHONIOENCODING"] == "utf-8" && start.Environment["PATH"] == "/usr/bin" && !start.Environment.ContainsKey("LD_LIBRARY_PATH")

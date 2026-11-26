@@ -34,12 +34,24 @@ public sealed record SlotViewModel(int Number, string Name, string Saved);
 /// the reason when there is no editor for the default build
 public sealed class SlotRowViewModel
 {
-    public SlotRowViewModel(SlotViewModel slot, Command progress, string? why)
+    public SlotRowViewModel(SlotViewModel slot, Command progress, string? why, IReadOnlyList<SlotMoveViewModel>? moves = null,
+                            bool starts = false, Command? startHere = null)
     {
         Slot = slot;
         ProgressCommand = progress;
         Why = why;
+        Moves = moves ?? Array.Empty<SlotMoveViewModel>();
+        Starts = starts;
+        StartHereCommand = startHere;
     }
+
+    /// Copy to and Move to each other profile (LauncherProfiles.CopySlot); none with one profile
+    public IReadOnlyList<SlotMoveViewModel> Moves { get; }
+    public bool CanMove => Moves.Count > 0;
+    /// The save Play starts on for the profile (its start slot), and the button that makes this one it
+    public bool Starts { get; }
+    public bool CanStartHere => !Starts && StartHereCommand != null;
+    public Command? StartHereCommand { get; }
 
     public SlotViewModel Slot { get; }
     public int Number => Slot.Number;
@@ -49,6 +61,13 @@ public sealed class SlotRowViewModel
 
     /// Why the button is off, for its tooltip (null: it is on)
     public string? Why { get; }
+}
+
+/// One of a slot's Copy to / Move to: the other profile and the two commands
+public sealed record SlotMoveViewModel(string Profile, Command CopyCommand, Command MoveCommand)
+{
+    public string CopyText => Tr.F("Copy to {0}", Profile);
+    public string MoveText => Tr.F("Move to {0}", Profile);
 }
 
 static class SaveViews
@@ -75,7 +94,7 @@ static class SaveViews
 
 /// Saves: Longshot's slots, which every build shares, every other save found on this PC (the emulators'), and the copies: import
 /// from and export to an emulator or another folder. Each copy is confirmed first and backs up what it replaces
-public sealed class SavesViewModel : ViewModelBase
+public sealed partial class SavesViewModel : ViewModelBase
 {
     public SavesViewModel(MainViewModel main)
     {
@@ -102,7 +121,8 @@ public sealed class SavesViewModel : ViewModelBase
     public bool HasSlots => Slots.Count > 0;
     public bool NoSlots => Slots.Count == 0;
 
-    public string Sub => Tr.T("All your Longshot versions share these saves.");
+    /// The current profile's saves: every version plays them under this profile
+    public string Sub => Tr.F("{0}'s saves. Every version plays them under this profile.", LauncherProfilesText.Name(Service.Profile));
     public string EmptyHint => Tr.T("Import saves from an emulator or Hookshot. They will be available to every Longshot version.");
     public string SlotCount => Tr.P(Slots.Count, "1 save slot", "{0} save slots");
     public IReadOnlyList<SaveRowViewModel> OtherSaves => Rows.Where(r => r.IsRow && !r.IsThis && !r.Dim).ToList();
@@ -168,15 +188,54 @@ public sealed class SavesViewModel : ViewModelBase
         Slots = SaveViews.Slots(slots);
         var (editing, why) = Service.SaveEditor();
         var note = editing == null ? SaveEditing.Say(why) : null;
+        var others = Service.Profiles.Where(p => p.Id != Service.Profile.Id).ToList();
+        var starts = Service.Profile.StartSlot;
         SlotRows = slots.Select(s => new SlotRowViewModel(SaveViews.Slot(s),
             new Command(() => Main.Navigate(new SaveEditorViewModel(this, editing!, s.Name)), () => editing != null && s.Saved != null),
-            note ?? (s.Saved == null ? Tr.T("This slot has no progress.sav yet.") : null))).ToList();
+            note ?? (s.Saved == null ? Tr.T("This slot has no progress.sav yet.") : null),
+            others.Select(o => new SlotMoveViewModel(LauncherProfilesText.Name(o), new Command(() => MoveSlot(s.Name, o, false)),
+                                                     new Command(() => MoveSlot(s.Name, o, true)))).ToList(),
+            starts == s.Name, s.Saved != null ? new Command(() => StartHere(s.Name)) : null)).ToList();
         EditorNote = slots.Count > 0 ? note : null;
         Backups = SaveBackups.List(Env);
         BackupsCommand.Changed();
         RaiseAll(nameof(Backups), nameof(BackupsHint), nameof(Rows), nameof(Slots), nameof(HasSlots), nameof(NoSlots), nameof(SlotCount), nameof(OtherSaves), nameof(HasOtherSaves),
                  nameof(OtherSavesLabel), nameof(ExportHint), nameof(SlotRows), nameof(EditorNote), nameof(HasEditorNote));
         ExportCommand.Changed();
+    }
+}
+
+public sealed partial class SavesViewModel
+{
+    /// A slot copied or moved to another profile's saves, refused while a game runs (it could write the save again)
+    void MoveSlot(string slot, LauncherProfile to, bool move)
+    {
+        try
+        {
+            if (Saves.Running(Service.Platform) is { Count: > 0 } running)
+            {
+                Main.ShowToast(Tr.F("{0} is running: close it, then try again.", running[0]));
+                return;
+            }
+        }
+        catch (Exception e) when (e is InvalidOperationException or System.ComponentModel.Win32Exception or UnauthorizedAccessException) { }
+        try
+        {
+            var name = LauncherProfiles.CopySlot(Service.SaveEnv, Service.Profile.Id, to.Id, slot, move);
+            Main.ShowToast(Tr.F(move ? "Moved slot {0} to {1} (slot {2} there)." : "Copied slot {0} to {1} (slot {2} there).",
+                                SaveText.Number(slot), LauncherProfilesText.Name(to), SaveText.Number(name)));
+        }
+        catch (Exception e) when (e is ProfileFailure or IOException or UnauthorizedAccessException) { Main.ShowToast(e.Message); }
+        Reload();
+    }
+
+    /// The save Play starts on for this profile (its profile.json's start_slot; a version that takes one starts on it)
+    void StartHere(string slot)
+    {
+        try { Service.SetStartSlot(slot); }
+        catch (Exception e) when (e is ProfileFailure or IOException or UnauthorizedAccessException) { Main.ShowToast(e.Message); return; }
+        Main.ShowToast(Tr.F("Play starts on slot {0}, in a version that can.", SaveText.Number(slot)));
+        Reload();
     }
 }
 

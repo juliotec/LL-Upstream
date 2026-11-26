@@ -10,7 +10,7 @@ static partial class Program
         var calls = new Dictionary<string, int>();
         var gates = new Dictionary<string, TaskCompletionSource>();
         var failNext = false;
-        var chain = new Toolchain("v3.0.0", Path.GetTempPath(), ListKind.Setup, null);
+        var chain = new Toolchain("v3.0.0", Path.GetTempPath(), null);
         var prefetch = new ToolsPrefetch(async (tag, progress, cancel) =>
         {
             lock (calls) calls[tag] = calls.GetValueOrDefault(tag) + 1;

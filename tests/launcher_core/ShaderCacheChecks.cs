@@ -1,43 +1,16 @@
-using System.Text;
 using LongshotLauncher.Core;
 
-/// The shader caches an update keeps (Core/ShaderCaches.cs): what a version's tools translate shaders with, and the copy from the
-/// build an update replaces, over authored files (no game's caches)
+/// The shader caches an update keeps (Core/ShaderCaches.cs): what a version's builder translates shaders with (its manifest's
+/// stamps), and the copy from the build an update replaces, over authored files (no game's caches)
 static partial class Program
 {
-    static readonly string Llvm = new('1', 64), OtherLlvm = new('2', 64), Python = new('3', 64), Cpm = new('d', 64);
-
-    /// A version's tools as far as the shader caches go (the Windows builder's): nx2/translator_files.py and the sources its
-    /// stamp is made of, and the record of its parts with llvm-mingw's SHA-256 (compiler; null: no record) and cpm's
-    static Toolchain TranslatorTools(string name, string shader = "translate();\n", string recipe = "DIRS = ()\n", string? compiler = null,
-                                     bool record = true)
+    /// A version's builder as far as the shader caches go: its version folder's record's stamps, its release's manifest's (the
+    /// translator's and its compiler's: Toolchains.BuilderStamp); record: false, a folder with no record
+    static Toolchain TranslatorTools(string name, string translator = "7a11", string compiler = "c0ffee", bool record = true)
     {
-        var chain = new Toolchain("v3.0.0", Folder(name), ListKind.Setup, ToolsLock.Run);
-        var tools = chain.ToolsRoot;
-        Touch(Path.Combine(tools, "nx2", "translator_files.py"), recipe);
-        Touch(Path.Combine(tools, "gpu", "vk", "eden", "b.cpp"), "b\n");
-        Touch(Path.Combine(tools, "gpu", "vk", "eden", "a", "z.h"), "z\n");
-        Touch(Path.Combine(tools, "gpu", "vk", "eden", "a.cpp"), "a\n");
-        Touch(Path.Combine(tools, "gpu", "vk", "sirit", "s.cpp"), "s\n");
-        Touch(Path.Combine(tools, "gpu", "vk", "compat", "c.h"), "c\n");
-        Touch(Path.Combine(tools, "gpu", "vk", "vk_shader.cpp"), shader);
-        Touch(Path.Combine(tools, "gpu", "vk", "vk_bank.cpp"), "bank\n");
-        Touch(Path.Combine(tools, "gpu", "vk", "vk_state.h"), "state\n");
-        Touch(Path.Combine(tools, "gpu", "vk", "vk_draw.cpp"), "draw\n");   // (not the translator's)
-        if (record) ToolsRecord(chain.Folder, "Setup", ("LongshotBuilder/tools", "llvm-mingw", compiler ?? Llvm), ("LongshotBuilder/tools", "cpm", Cpm),
-                                ("LongshotBuilder/tools", "python", Python));
+        var chain = new Toolchain("v4.0.0", Folder(name), "Longshot.x86_64");
+        if (record) ReleaseRecord(chain.Folder, "v4.0.0", translator, compiler);
         return chain;
-    }
-
-    /// A version folder's record of its parts (Toolchains.RecordName), as an install writes it: each part's dest, the folder
-    /// its prefix became (to; null: the whole archive at dest) and its SHA-256
-    static void ToolsRecord(string folder, string kind, params (string Dest, string? To, string Sha)[] parts)
-    {
-        static string Text(string? s) => s == null ? "null" : "\"" + s + "\"";
-        var list = string.Join(",", parts.Select(p => $"{{\"sha\":\"{p.Sha}\",\"size\":1,\"dest\":\"{p.Dest}\",\"from\":{Text(p.To == null ? null : p.To + "-1")}," +
-                                                      $"\"to\":{Text(p.To)},\"url\":\"https://example.invalid/a.zip\",\"entries\":[]}}"));
-        Directory.CreateDirectory(folder);
-        File.WriteAllText(Path.Combine(folder, Toolchains.RecordName), $"{{\"format\":1,\"tag\":\"v3.0.0\",\"kind\":\"{kind}\",\"run\":null,\"parts\":[{list}]}}");
     }
 
     static void ShaderCacheChecks()
@@ -48,90 +21,20 @@ static partial class Program
                 && !ShaderCaches.IsCache("longshot_vk_pipelines_play_1.bin.tmp") && !ShaderCaches.IsCache("longshot_vk_pipelines_play_x.bin")
                 && !ShaderCaches.IsCache("longshot_log.txt"), "Not a file being written, nor anything else in the folder.");
 
-        // (the stamp: sha1 of each file's path below gpu/vk and its bytes with Unix line ends, the folders' files sorted by
-        // path, then the three files: what nx2/translator_files.py answers for this tree)
-        var tools = TranslatorTools("caches-tools").ToolsRoot;
-        var key = ShaderCaches.Translator(tools);
-        var order = new[] { "compat/c.h", "eden/a.cpp", "eden/a/z.h", "eden/b.cpp", "sirit/s.cpp" };
-        var text = new Dictionary<string, string>
-        {
-            ["compat/c.h"] = "c\n", ["eden/a.cpp"] = "a\n", ["eden/a/z.h"] = "z\n", ["eden/b.cpp"] = "b\n", ["sirit/s.cpp"] = "s\n",
-            ["vk_shader.cpp"] = "translate();\n", ["vk_bank.cpp"] = "bank\n", ["vk_state.h"] = "state\n",
-        };
-        var all = string.Concat(order.Concat(new[] { "vk_shader.cpp", "vk_bank.cpp", "vk_state.h" }).Select(n => n + text[n]));
-        var expected = Convert.ToHexStringLower(System.Security.Cryptography.SHA1.HashData(Encoding.UTF8.GetBytes(all)))[..16];
-        Require(key != null && key.StartsWith(expected + "-", StringComparison.Ordinal) && key.Length == 33,
-                "The translator's stamp, as nx2/translator_files.py makes it, then its recipe's.");
-        File.WriteAllText(Path.Combine(tools, "gpu", "vk", "vk_draw.cpp"), "another draw\n");
-        Require(ShaderCaches.Translator(tools) == key, "A source that translates nothing keeps the stamp.");
-        File.WriteAllText(Path.Combine(tools, "gpu", "vk", "eden", "a.cpp"), "a\r\n");
-        Require(ShaderCaches.Translator(tools) == key, "Windows line ends are stamped as Unix ones.");
-        Require(ShaderCaches.Translator(TranslatorTools("caches-tools-shader", shader: "translate(2);\n").ToolsRoot) != key, "Another translator.");
-        var recipe = ShaderCaches.Translator(TranslatorTools("caches-tools-recipe", recipe: "DIRS = ('eden',)\n").ToolsRoot);
-        Require(recipe != key && recipe != null && recipe.StartsWith(expected + "-", StringComparison.Ordinal),
-                "The same sources stamped by another recipe never compare equal.");
-        var none = TranslatorTools("caches-tools-none");
-        File.Delete(Path.Combine(none.ToolsRoot, "nx2", "translator_files.py"));
-        Require(ShaderCaches.Translator(none.ToolsRoot) == null && ShaderCaches.Stamp(none) == null && ShaderCaches.Translator(Path.Combine(scratch, "caches-no-tools")) == null,
-                "Tools with no recipe say nothing of their translator.");
-        File.Delete(Path.Combine(tools, "gpu", "vk", "vk_bank.cpp"));
-        Require(ShaderCaches.Translator(tools) == null, "Nor do tools that lack one of its sources.");
-
-        // (what compiles the translator: the SHA-256 of the compiler's tools.lock parts, as each version's record names them)
-        var first = TranslatorTools("caches-compiler-a");
-        var second = TranslatorTools("caches-compiler-b");
-        ToolsRecord(second.Folder, "Setup", ("LongshotBuilder/tools", "python", new string('4', 64)), ("LongshotBuilder/tools", "cpm", Cpm),
-                    ("LongshotBuilder/tools", "llvm-mingw", Llvm));
-        var llvm = TranslatorTools("caches-compiler-llvm", compiler: OtherLlvm);
-        Require(ShaderCaches.Compiler(first) is { Length: 16 } compiler && ShaderCaches.Compiler(second) == compiler
-                && ShaderCaches.Stamp(first) == ShaderCaches.Translator(first.ToolsRoot) + "-" + compiler && ShaderCaches.Stamp(second) == ShaderCaches.Stamp(first),
-                "The same llvm-mingw: the same compiler, whatever else of the tools changed.");
-        Require(ShaderCaches.Translator(llvm.ToolsRoot) == ShaderCaches.Translator(first.ToolsRoot) && ShaderCaches.Compiler(llvm) != ShaderCaches.Compiler(first)
-                && ShaderCaches.Stamp(llvm) != ShaderCaches.Stamp(first), "Another llvm-mingw: the same translator, compiled otherwise.");
-        var headers = TranslatorTools("caches-compiler-cpm");
-        ToolsRecord(headers.Folder, "Setup", ("LongshotBuilder/tools", "llvm-mingw", Llvm), ("LongshotBuilder/tools", "cpm", new string('e', 64)),
-                    ("LongshotBuilder/tools", "python", Python));
-        Require(ShaderCaches.Compiler(headers) is { } cpmCompiler && cpmCompiler != ShaderCaches.Compiler(first) && ShaderCaches.Stamp(headers) != ShaderCaches.Stamp(first),
-                "Another cpm: the same llvm-mingw, other Vulkan and SPIR-V headers, another compiler.");
-        var unread = TranslatorTools("caches-compiler-unread", record: false);
-        var noLlvm = TranslatorTools("caches-compiler-none");
-        ToolsRecord(noLlvm.Folder, "Setup", ("LongshotBuilder/tools", "cpm", Cpm), ("LongshotBuilder/tools", "python", Python));
-        var noCpm = TranslatorTools("caches-compiler-no-cpm");
-        ToolsRecord(noCpm.Folder, "Setup", ("LongshotBuilder/tools", "llvm-mingw", Llvm), ("LongshotBuilder/tools", "python", Python));
-        Require(ShaderCaches.Compiler(unread) == null && ShaderCaches.Stamp(unread) == null && ShaderCaches.Compiler(noLlvm) == null
-                && ShaderCaches.Stamp(noLlvm) == null && ShaderCaches.Compiler(noCpm) == null && ShaderCaches.Stamp(noCpm) == null,
-                "Tools whose compiler cannot be read say nothing of it, nor do Windows tools without cpm.");
-        // (the Linux builder's: its AppImage, then emsdk's clang, the sysroot and cpm. A builder that carried its tools has none of them)
-        var linux = new Toolchain("v3.0.0", Folder("caches-compiler-linux"), ListKind.Linux, null);
-        (string, string?, string)[] linuxParts =
-        {
-            (".", null, new string('5', 64)), ("usr/lib/longshot", "emsdk", new string('6', 64)), ("usr/lib/longshot", "sysroot", new string('7', 64)),
-            ("usr/share/longshot", "cpm", new string('8', 64)), ("usr/lib/longshot", "ffmpeg", new string('9', 64)),
-        };
-        ToolsRecord(linux.Folder, "Linux", linuxParts);
-        var shas = Toolchains.PartShas(linux.Folder);
-        Require(shas != null && shas["."] == new string('5', 64) && shas["usr/lib/longshot/sysroot"] == new string('7', 64)
-                && shas["usr/share/longshot/cpm"] == new string('8', 64) && Toolchains.PartShas(Path.Combine(scratch, "caches-no-tools")) == null,
-                "Each part by the folder it became.");
-        var linuxCompiler = ShaderCaches.Compiler(linux);
-        linuxParts[0].Item3 = new string('a', 64);
-        linuxParts[4].Item3 = new string('b', 64);
-        ToolsRecord(linux.Folder, "Linux", linuxParts);
-        Require(linuxCompiler is { Length: 16 } && ShaderCaches.Compiler(linux) == linuxCompiler, "Linux: another AppImage or FFmpeg, the same compiler.");
-        foreach (var i in new[] { 1, 2, 3 })
-        {
-            var changed = (((string, string?, string)[])linuxParts.Clone());
-            changed[i].Item3 = new string('c', 64);
-            ToolsRecord(linux.Folder, "Linux", changed);
-            Require(ShaderCaches.Compiler(linux) is { } c && c != linuxCompiler, "Linux: another " + changed[i].Item2 + ", another compiler.");
-        }
-        ToolsRecord(linux.Folder, "Linux", linuxParts[0], linuxParts[1], linuxParts[2]);
-        Require(ShaderCaches.Compiler(linux) == null, "Linux: tools without cpm say nothing of their compiler.");
+        // (the stamp: the translator's and its compiler's, as the version's release names them; two versions share caches only with both)
+        Require(ShaderCaches.Stamp(TranslatorTools("caches-stamp")) == "longshot-builder-7a11-c0ffee"
+                && ShaderCaches.Stamp(TranslatorTools("caches-stamp-translator", translator: "7a12")) != ShaderCaches.Stamp(TranslatorTools("caches-stamp-2"))
+                && ShaderCaches.Stamp(TranslatorTools("caches-stamp-compiler", compiler: "c0ffef")) != ShaderCaches.Stamp(TranslatorTools("caches-stamp-3"))
+                && ShaderCaches.Stamp(TranslatorTools("caches-stamp-none", record: false)) == null,
+                "The stamp: the manifest's translator and compiler; another of either, another stamp; no record, none.");
 
         // ---- the copy ----
         var same = TranslatorTools("caches-same");
         var same2 = TranslatorTools("caches-same-2");
-        var other = TranslatorTools("caches-other", shader: "translate(3);\n");
+        var other = TranslatorTools("caches-other", translator: "7a13");
+        var none = TranslatorTools("caches-none", record: false);
+        var llvm = TranslatorTools("caches-llvm", compiler: "c0fff0");
+        var unread = TranslatorTools("caches-unread", record: false);
         var games = Folder("caches-games");
         string old = Path.Combine(games, "v3.0.0"), next = Path.Combine(games, "v3.0.1");
         string Old(string name) => Path.Combine(old, "cache", name);
@@ -168,7 +71,7 @@ static partial class Program
                 && ShaderCaches.Keep(old, next, unread, same2, roomy, idle).What == CachesKept.OtherTranslator,
                 "Nor are they kept for another compiler, or one that cannot be read.");
         Require(ShaderCaches.Keep(old, next, same, same2, roomy, () => true).What == CachesKept.Running, "Not while Longshot runs.");
-        Require(ShaderCaches.Room(bytes) == bytes + Disk.BuildBytes + ShaderCaches.Margin, "A copy made before the build leaves it its room.");
+        Require(ShaderCaches.Room(bytes) == bytes + Disk.LongshotGameBytes + Disk.LongshotWorkBytes + ShaderCaches.Margin, "A copy made before the build leaves it its room.");
         var tight = ShaderCaches.Keep(old, next, same, same2, _ => ShaderCaches.Room(bytes) - 1, idle, link: otherDrive);
         Require(tight.What == CachesKept.NoSpace && tight.Bytes == bytes, "Another drive: not without room for the copy, the build and the margin.");
         Require(!Directory.EnumerateFiles(Path.Combine(next, "cache")).Any(), "Nothing was written by a copy that did not happen.");

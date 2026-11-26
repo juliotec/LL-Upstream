@@ -43,14 +43,20 @@ public sealed class MainViewModel : ViewModelBase
         Home = new HomeViewModel(this);
         page = Home;
         Home.Open(start);
+        // (two or more profiles: the launcher opens on Who's playing?; one goes straight in)
+        if (start.Kind == StartKind.Window && service.Profiles.Count > 1 && page == Home) page = new WhoViewModel(this);
         MinimizeCommand = new Command(() => Host?.Minimize());
         CloseCommand = new Command(() => Host?.Close());
         // (the title bar's tabs: the one shown does nothing)
         GoHomeCommand = new Command(() => { if (!IsHome) ShowHome(); });
+        GoVersionsCommand = new Command(() => { if (Shown != Section.Versions) ShowVersions(); });
         GoSavesCommand = new Command(() => { if (Shown != Section.Saves) ShowSaves(); });
-        GoNfcCommand = new Command(() => { if (Shown != Section.Nfc) ShowNfc(); });
-        StorageCommand = new Command(() => { if (Shown != Section.Storage) ShowStorage(); });
+        GoNfcCommand = new Command(() => { if (page is not NfcViewModel) ShowNfc(); });
+        StorageCommand = new Command(() => { if (page is not StorageViewModel) ShowStorage(); });
         SettingsCommand = new Command(() => { if (Shown != Section.Settings) ShowSettings(); });
+        ProfileMenuCommand = new Command(() => ProfileMenuOpen = !ProfileMenuOpen);
+        ManageProfilesCommand = new Command(() => { ProfileMenuOpen = false; ShowProfiles(); });
+        NewProfileCommand = new Command(() => { ProfileMenuOpen = false; ShowProfiles(create: true); });
         if (start.Kind == StartKind.Window) OfferCrash();
     }
 
@@ -104,8 +110,10 @@ public sealed class MainViewModel : ViewModelBase
 
     public Command MinimizeCommand { get; }
     public Command CloseCommand { get; }
-    /// The title bar's tabs, in their order: Home, Saves, NFC tags, Storage, Settings
+    /// The title bar's tabs, in their order: Home, Saves (the current profile's), Versions, Settings (the PC's: Storage and NFC
+    /// tags are under it)
     public Command GoHomeCommand { get; }
+    public Command GoVersionsCommand { get; }
     public Command GoSavesCommand { get; }
     public Command GoNfcCommand { get; }
     public Command StorageCommand { get; }
@@ -113,23 +121,23 @@ public sealed class MainViewModel : ViewModelBase
 
     /// The pages the title bar's tabs move between; None: another page (the wizard, a build, a transfer's steps), which keeps
     /// its own way back and shows no tabs
-    public enum Section { None, Home, Saves, Nfc, Storage, Settings }
+    public enum Section { None, Home, Saves, Versions, Profiles, Settings }
 
     public Section Shown => page switch
     {
         HomeViewModel => Section.Home,
+        VersionsViewModel => Section.Versions,
         SavesViewModel => Section.Saves,
-        NfcViewModel => Section.Nfc,
-        StorageViewModel => Section.Storage,
-        SettingsViewModel => Section.Settings,
+        ProfilesViewModel => Section.Profiles,
+        NfcViewModel or StorageViewModel or SettingsViewModel => Section.Settings,
         _ => Section.None,
     };
 
     /// The tabs, on their pages only; the one shown lit
     public bool ShowsTabs => Shown != Section.None;
+    public bool IsVersionsShown => Shown == Section.Versions;
     public bool IsSavesShown => Shown == Section.Saves;
-    public bool IsNfcShown => Shown == Section.Nfc;
-    public bool IsStorageShown => Shown == Section.Storage;
+    public bool IsProfilesShown => Shown == Section.Profiles;
     public bool IsSettingsShown => Shown == Section.Settings;
 
     public IReadOnlyList<StepItem> Steps { get; } = new[] { new StepItem(1, Tr.N("Game files")), new StepItem(2, Tr.N("Settings")), new StepItem(3, Tr.N("Build")) };
@@ -145,7 +153,8 @@ public sealed class MainViewModel : ViewModelBase
             if (was is ILeavingPage left) left.Left();
             RefreshSteps();
             RaiseAll(nameof(IsHome), nameof(InWizard), nameof(AcceptsDrop), nameof(DropText), nameof(Shown), nameof(ShowsTabs),
-                     nameof(IsSavesShown), nameof(IsNfcShown), nameof(IsStorageShown), nameof(IsSettingsShown));
+                     nameof(IsVersionsShown), nameof(IsSavesShown), nameof(IsProfilesShown), nameof(IsSettingsShown));
+            ProfileMenuOpen = false;
         }
     }
 
@@ -279,12 +288,57 @@ public sealed class MainViewModel : ViewModelBase
 
     public void ShowSaves() => Navigate(new SavesViewModel(this));
 
+    /// Every version on this PC and what is done to them: the title bar's Versions tab, or Home's Manage versions…
+    public void ShowVersions() => Navigate(new VersionsViewModel(this));
+
     public void ShowNfc() => Navigate(new NfcViewModel(this));
 
-    /// The wizard for a version: a new build, building one you have again, or an update of a build (replaces)
-    public FilesStepViewModel StartWizard(JobKind kind, string channel, string version, BuildEntry? replaces = null, bool tools = true)
+    // ---- the profile chip in the title bar: the current profile (its avatar and name), its menu: every profile, then Manage
+    // profiles… and New profile… (LauncherProfiles)
+
+    public void ShowProfiles(bool create = false) => Navigate(new ProfilesViewModel(this, create));
+
+    bool profileMenuOpen;
+    public bool ProfileMenuOpen
     {
-        var job = new BuildJob(this, kind, channel, version, replaces);
+        get => profileMenuOpen;
+        set
+        {
+            if (Set(ref profileMenuOpen, value) && value) Raise(nameof(ProfileItems));
+        }
+    }
+    public Command ProfileMenuCommand { get; }
+    public Command ManageProfilesCommand { get; }
+    public Command NewProfileCommand { get; }
+    public string ProfileName => LauncherProfilesText.Name(Service.Profile);
+    public string ProfileInitial => LauncherProfilesText.Initial(Service.Profile);
+    public Avalonia.Media.IBrush ProfileColour => Avalonia.Media.Brush.Parse(Service.Profile.Color);
+    public IReadOnlyList<ProfileCardViewModel> ProfileItems => Service.Profiles.Select(p => new ProfileCardViewModel(this, p)).ToList();
+
+    public void RaiseProfile() => RaiseAll(nameof(ProfileName), nameof(ProfileInitial), nameof(ProfileColour), nameof(ProfileItems));
+
+    /// The launcher on another profile: every page shows its content; home: then go to Home (Who's playing?, a profile's card)
+    public void SwitchProfile(string id, bool home = false)
+    {
+        ProfileMenuOpen = false;
+        if (id != Service.Profile.Id)
+        {
+            Service.SwitchProfile(id);
+            ShowToast(Tr.F("Playing as {0}.", ProfileName));
+        }
+        RaiseProfile();
+        Service.RefreshInfos(Home.Refresh);
+        if (home || page is HomeViewModel or WhoViewModel) ShowHome();
+        else if (page is SavesViewModel) ShowSaves();
+        else if (page is ProfilesViewModel pv) pv.Reload();
+    }
+
+    /// The wizard for a version: a new build, building one you have again, or an update of a build (replaces). movedNup: the .nup
+    /// the build's game read its files from, gone from where it was (BuildJob.MovedNup)
+    public FilesStepViewModel StartWizard(JobKind kind, string channel, string version, BuildEntry? replaces = null, bool tools = true,
+                                          string? movedNup = null)
+    {
+        var job = new BuildJob(this, kind, channel, version, replaces) { MovedNup = movedNup };
         var step = new FilesStepViewModel(job, tools);
         Navigate(step);
         return step;

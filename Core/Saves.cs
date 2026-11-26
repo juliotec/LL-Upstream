@@ -110,9 +110,20 @@ public sealed record SaveEnvironment(Platform Platform, Func<string, string?> Ge
         : Platform == Platform.Windows ? (Getenv("LOCALAPPDATA") is { Length: > 0 } l ? Path.GetFullPath(Path.Combine(l, "Longshot", "shaders")) : null)
         : Path.GetFullPath(Path.Combine(Getenv("XDG_CACHE_HOME") is { Length: > 0 } c && Path.IsPathFullyQualified(c) ? c : Path.Combine(Home, ".cache"), "longshot", "shaders"));
 
-    /// Longshot's save folder, the one every build shares: save\<user id>\ in LongshotUser (Open saves folder, the .zip's top
-    /// folder, ImportTarget's parent)
-    public string SaveFolder => Path.Combine(LongshotUser, "save");
+    /// Longshot's save folder, the current profile's: save\<user id>\ in SavesUser (Open saves folder, the .zip's top folder,
+    /// ImportTarget's parent)
+    public string SaveFolder => Path.Combine(SavesUser, "save");
+
+    /// The current profile's folder of saves in place of LongshotUser (LauncherProfiles.SavesHome: its folder's saves/); null:
+    /// LongshotUser itself (no profiles' folders)
+    public string? SavesHome { get; init; }
+
+    /// The profiles' folders (&lt;launcher data&gt;/profiles: ProfileStore): every profile's saves are its folder's saves/, the
+    /// default's too; null: none (the saves are the user folder's)
+    public string? ProfilesRoot { get; init; }
+
+    /// The folder that holds save\ for the current profile: SavesHome, else LongshotUser
+    public string SavesUser => SavesHome ?? LongshotUser;
 
     /// Where the launcher's backups go: one folder, save-backups, in %LOCALAPPDATA%\Longshot on Windows and in
     /// $XDG_DATA_HOME/longshot on Linux (beside the user folder, never in it), or a portable launcher's own folder (its
@@ -357,7 +368,7 @@ public static class Saves
     /// Longshot's saves, the same for every build: in SaveEnvironment.LongshotUser (save\&lt;user id&gt;)
     public static SaveSet Shared(SaveEnvironment env)
     {
-        var user = env.LongshotUser;
+        var user = env.SavesUser;
         var found = Directory.Exists(user) ? Find(user) : Array.Empty<SaveProfile>();
         return new SaveSet("longshot", "Longshot", user, found, found.Count == 0 ? $"No Longshot save in {user} yet." : null);
     }
@@ -469,7 +480,31 @@ public static class Saves
     }
 
     /// The games running on this PC now, this launcher left out (its AppImage may be named Longshot-...AppImage)
-    public static IReadOnlyList<string> Running(Platform platform, Func<string, string?>? getenv = null)
+    public static IReadOnlyList<string> Running(Platform platform, Func<string, string?>? getenv = null) =>
+        RunningFrom(platform, Candidates(platform, getenv));
+
+    /// Whether a longshot-builder program runs, from the processes' names: longshot-builder, longshot-builder.exe or a release's
+    /// file name, longshot-builder-&lt;version&gt;-&lt;system&gt;, in any case. Any of its commands: a build, or a check or perf-report,
+    /// which write nothing of the game's (BuilderRunning tells them apart). Not a game: Running leaves it out, so the saves never
+    /// wait for a build
+    public static bool BuilderAmong(IEnumerable<string> candidates) => candidates.Any(c =>
+    {
+        var low = c.ToLowerInvariant();
+        if (low.EndsWith(".exe", StringComparison.Ordinal)) low = low[..^4];
+        return low == LongshotBuilder.Name || low.StartsWith(LongshotBuilder.Name + "-", StringComparison.Ordinal);
+    });
+
+    /// Whether longshot-builder is building one of these game folders now (build, update or prepare, which write the folder, its
+    /// shader caches and the shader store), not merely running (check, perf-report): it holds the folder's lock
+    /// (LongshotBuilder.Building), looked at only while a longshot-builder program runs (BuilderAmong). candidates, building: the
+    /// tests' stand-ins
+    public static bool BuilderRunning(Platform platform, IEnumerable<string> folders, Func<string, string?>? getenv = null,
+                                      IReadOnlyList<string>? candidates = null, Func<string, bool>? building = null) =>
+        BuilderAmong(candidates ?? Candidates(platform, getenv)) && folders.Any(building ?? LongshotBuilder.Building);
+
+    /// The names of the processes running on this PC now, this launcher and its own AppImage runtime left out: Windows' image
+    /// names; Linux's comm and argv[0]'s file name of each
+    public static IReadOnlyList<string> Candidates(Platform platform, Func<string, string?>? getenv = null)
     {
         var own = Environment.ProcessId;
         // (#118: the launcher's pid is never a game, but its AppImage runtime is a DIFFERENT process, and Gear Lever's
@@ -502,7 +537,7 @@ public static class Saves
                 catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
             }
         }
-        return RunningFrom(platform, candidates);
+        return candidates;
     }
 
     // ---- the copy (longshot_saves.run, copy_saves, refuse_links) ----

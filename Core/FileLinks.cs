@@ -5,7 +5,7 @@ using Microsoft.Win32.SafeHandles;
 namespace LongshotLauncher.Core;
 
 /// A file's identity on its disk: the device and the inode on Linux, the volume's serial and the file's id on Windows. Two
-/// paths with one identity are hard links of one file (a build's game files linked from another's: BuildRegistry.SameGameFiles)
+/// paths with one identity are hard links of one file (an older launcher's builds' game files linked from one another's)
 readonly record struct FileId(ulong Volume, ulong File);
 
 /// Hard links and junctions, which .NET has no call for: a part kept from another installed version takes no second copy on the

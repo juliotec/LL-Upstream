@@ -3,17 +3,94 @@ namespace LongshotLauncher.Core;
 /// Space on the disk: what a folder holds, what is free where a build goes, and what a build needs
 public static class Disk
 {
-    /// What a build needs free while it builds. The same about-60-GB figure as Longshot's requirements and as the
-    /// advisory check (SystemRequirements): step 2 stops Build below it. The 2.x builders said 45 GB; that let Build
-    /// start while the requirements card already said about 60 GB was needed. The stores (MakeGameCommand) add at most
-    /// a new translation's copy while it runs (~1.6 GB): what they keep is on the disk already.
+    /// The free space Longshot's requirements ask for (the advisory check, SystemRequirements): about 60 GB, room for a dump of
+    /// the game beside the builds. What a build itself needs is Needs'
     public const long BuildBytes = 60L << 30;
+
+    /// What longshot-builder writes, by Longshot's build.md ("about 5 GB free" for a first build): about 4 GB on the work
+    /// folder's drive (its low_disk_space 3 GB for the objects and the executable, the lift keeps no texts, and the ~0.6 GB a
+    /// release's first run unpacks into --cache, its sources and tools, LongshotKept), the game folder about 1 GB (the game,
+    /// ~0.6 GB, and the romfs's index). Its game reads the .nup in place: no game files are copied
+    public const long LongshotWorkBytes = 4L << 30, LongshotGameBytes = 1L << 30;
+
+    /// What a build needs free, by the folder whose drive must have it: LongshotGameBytes where the game goes and LongshotWorkBytes
+    /// where its build files go (work), added up when both are on one drive. drive: the tests' stand-in for DriveName
+    public static IReadOnlyList<(string Folder, long Bytes)> Needs(string game, string work, Func<string, string>? drive = null)
+    {
+        drive ??= DriveName;
+        return Storage.SameDrive(drive(game), drive(work)) ? [(game, LongshotGameBytes + LongshotWorkBytes)]
+            : [(game, LongshotGameBytes), (work, LongshotWorkBytes)];
+    }
+
+    /// longshot-builder's cache in the work folder (its --cache: LongshotBuilder; build-driver's layout.rs): a work folder per
+    /// game folder (work/), the object and lift stores every one shares (store/), and what is kept for every later build
+    /// (LongshotKept): each release's carried tree and tools unpacked (sources/, tools/) and the vendors' files it downloaded
+    /// under the licences accepted (runtimes/)
+    public const string LongshotBuildCache = "longshot-builder";
+    public static readonly string LongshotWork = Path.Combine(LongshotBuildCache, "work"), LongshotStore = Path.Combine(LongshotBuildCache, "store");
+    public static readonly IReadOnlyList<string> LongshotKept = [Path.Combine(LongshotBuildCache, "sources"), Path.Combine(LongshotBuildCache, "tools"),
+                                                                 Path.Combine(LongshotBuildCache, "runtimes")];
+
+    /// The launcher's rows' work folders (LongshotBuilder.WorkFolder, launcher-&lt;id&gt;) left in the build files folder the player
+    /// moved away from (oldWork; newWork the one now), deleted: no build of the launcher's looks there any more, and a work folder
+    /// is a gigabyte or more. The rest of oldWork's cache (its stores, what releases unpacked) stays for the Storage page, and a
+    /// developer's own work folders there (not launcher-) are never touched. Skipped: a folder whose lock a build holds
+    /// (LongshotBuilder.WorkLockFile: one running from it, the launcher's or not), one building names (the launcher's own build,
+    /// between its runs, which hold no lock), any that is or holds newWork, and any reached through a link. Nothing when the two
+    /// are one folder. Returns the folders deleted; failed: one that could not be (still in use)
+    public static IReadOnlyList<string> LeaveLongshotWork(string oldWork, string newWork, IReadOnlyCollection<string> building,
+                                                          Action<string, Exception>? failed = null)
+    {
+        var gone = new List<string>();
+        if (BuildRegistry.SameFolder(oldWork, newWork)) return gone;
+        var cache = Path.Combine(oldWork, LongshotBuildCache);
+        var works = Path.Combine(oldWork, LongshotWork);
+        try
+        {
+            if (!Directory.Exists(works) || new DirectoryInfo(cache).LinkTarget != null || new DirectoryInfo(works).LinkTarget != null) return gone;
+            foreach (var dir in Directory.EnumerateDirectories(works, "launcher-*"))
+            {
+                try
+                {
+                    if (new DirectoryInfo(dir).LinkTarget != null || building.Any(b => BuildRegistry.SameFolder(b, dir)) || Within(Path.GetFullPath(newWork), Path.GetFullPath(dir))
+                        || LongshotBuilder.Held(Path.Combine(dir, LongshotBuilder.WorkLockFile)))
+                        continue;
+                    Toolchains.DeleteTree(dir);
+                    gone.Add(dir);
+                }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.Security.SecurityException) { failed?.Invoke(dir, e); }
+            }
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.Security.SecurityException) { failed?.Invoke(works, e); }
+        return gone;
+    }
 
     /// What a build makes in its build files folder (make_game.py --work) that Free up space lets go, as the 2.x Builder's
     /// Storage.Freeable: the compiled objects and their system headers' stamp, the translation, the unpacked exefs and the check's
-    /// probe; and the launcher's object and lift stores in it (MakeGameCommand: LONGSHOT_OBJ_STORE, LONGSHOT_LIFT_STORE). Never the
-    /// folder itself: the player may have chosen one that holds other things
-    public static readonly IReadOnlyList<string> WorkParts = new[] { "objcache", "sa", "exefs", "probe", "system_headers.txt", ObjectStore, LiftStore };
+    /// probe; and the launcher's object and lift stores in it (MakeGameCommand: LONGSHOT_OBJ_STORE, LONGSHOT_LIFT_STORE); and of
+    /// longshot-builder's cache its work folders and stores (LongshotWork, LongshotStore), never what its releases unpacked and
+    /// downloaded there (LongshotKept), which only Remove everything takes (AllParts). Never the folder itself: the player may
+    /// have chosen one that holds other things
+    public static readonly IReadOnlyList<string> WorkParts = new[] { "objcache", "sa", "exefs", "probe", "system_headers.txt", ObjectStore, LiftStore, LongshotWork, LongshotStore };
+
+    /// WorkParts and the whole of longshot-builder's cache: what Remove everything lets go in the build files folder
+    public static readonly IReadOnlyList<string> AllParts = [.. WorkParts, LongshotBuildCache];
+
+    /// What only make_game.py's builds use in the build files folder: its objects, translation, exefs, check's probe and
+    /// headers' stamp, and its object and lift stores
+    public static readonly IReadOnlyList<string> MakeGameParts = ["objcache", "sa", "exefs", "probe", "system_headers.txt", ObjectStore, LiftStore];
+
+    /// make_game.py's build files (MakeGameParts) and the SDKs it fetched (sdks: the launcher's ngx-sdk, ffx-sdk and xess-sdk)
+    /// let go once no old version is listed (oldListed: OldVersions; the stable launcher builds and updates those, and an older
+    /// launcher's build files and SDKs serve it after going back to it). longshot-builder carries its own and fetches the vendors'
+    /// files into its cache. False, and nothing touched, while one is
+    public static bool PruneMakeGame(string work, IEnumerable<string> sdks, bool oldListed)
+    {
+        if (oldListed) return false;
+        if (MakeGameParts.Any(p => Path.Exists(Path.Combine(work, p)))) FreeWork(work, MakeGameParts);
+        foreach (var sdk in sdks) Toolchains.DeleteTreeIfPresent(sdk);
+        return true;
+    }
 
     /// The object store's and the lift store's folders in the work folder (Longshot's nx2/object_store.py, lift_store.py)
     public const string ObjectStore = "obj-store";
@@ -61,19 +138,26 @@ public static class Disk
     /// WorkParts let go (a link among them is removed, never followed); the rest of work stays
     public static void FreeWork(string work) => FreeWork(work, WorkParts);
 
-    /// Some of WorkParts let go (the Storage page: one group at a time); a name that is not one of WorkParts is never touched,
-    /// so nothing else in a folder the player chose can go this way
+    /// Some of WorkParts let go (the Storage page: one group at a time; Remove everything: AllParts); a name that is not one of
+    /// AllParts is never touched, so nothing else in a folder the player chose can go this way. A part inside longshot-builder's
+    /// cache is not looked for through a link in its place
     public static void FreeWork(string work, IEnumerable<string> parts, Action<int, int, int>? outcome = null)
     {
         var gone = new List<string>();
         int skipped = 0, failed = 0;
         try
         {
-            foreach (var p in parts.Where(WorkParts.Contains).Distinct())
+            foreach (var p in parts.Where(AllParts.Contains).Distinct())
             {
                 var path = Path.Combine(work, p);
                 try
                 {
+                    if (p != LongshotBuildCache && p.StartsWith(LongshotBuildCache + Path.DirectorySeparatorChar, StringComparison.Ordinal)
+                        && new DirectoryInfo(Path.Combine(work, LongshotBuildCache)).LinkTarget != null)
+                    {
+                        skipped++;
+                        continue;
+                    }
                     var attributes = File.GetAttributes(path);
                     if ((attributes & FileAttributes.Directory) != 0)
                     {
@@ -121,7 +205,7 @@ public static class Disk
 
     /// What a folder holds, measured with the others (Measure). Bytes: its files' bytes, as FolderBytes. Counted: its share of
     /// what the folders take on the disk, a file hard-linked into several (a build's game files linked from another's,
-    /// BuildRegistry.SameGameFiles) counted in the first only, so that the Counted of all the folders add up to what they take.
+    /// an older launcher's builds of one .nup) counted in the first only, so that the Counted of all the folders add up to what they take.
     /// Frees: what deleting it frees, its files with no hard link outside it
     public readonly record struct FolderSize(long Bytes, long Counted, long Frees);
 
@@ -248,18 +332,18 @@ public static class Disk
         var total = measured.Sum(b => b.Counted ?? b.Bytes!.Value);
         var games = Math.Max(0, total - measured.Sum(b => Own(b)!.Value));
         total += store;
-        if (total <= 0) return Tr.P(n, "1 instance in {1}.", "{0} instances in {1}.", folder);
+        if (total <= 0) return Tr.P(n, "1 version in {1}.", "{0} versions in {1}.", folder);
         string Size(long b) => Durations.Size(b);
         return games > 0 && store > 0
-            ? Tr.P(n, "1 instance uses {1} in {2}: {3} of it is the game's files, which it shares with a folder not listed here, and {4} the shader store.",
-                   "{0} instances use {1} in {2}: {3} of it is the game's files and {4} the shader store, which they share.", Size(total), folder, Size(games), Size(store))
+            ? Tr.P(n, "1 version uses {1} in {2}: {3} of it is the game's files, which it shares with a folder not listed here, and {4} the shader store.",
+                   "{0} versions use {1} in {2}: {3} of it is the game's files and {4} the shader store, which they share.", Size(total), folder, Size(games), Size(store))
             : games > 0
-            ? Tr.P(n, "1 instance uses {1} in {2}: {3} of it is the game's files, which it shares with a folder not listed here.",
-                   "{0} instances use {1} in {2}: {3} of it is the game's files, which they share.", Size(total), folder, Size(games))
+            ? Tr.P(n, "1 version uses {1} in {2}: {3} of it is the game's files, which it shares with a folder not listed here.",
+                   "{0} versions use {1} in {2}: {3} of it is the game's files, which they share.", Size(total), folder, Size(games))
             : store > 0
-            ? Tr.P(n, "1 instance uses {1} in {2}: {3} of it is the shader store.",
-                   "{0} instances use {1} in {2}: {3} of it is the shader store, which they share.", Size(total), folder, Size(store))
-            : Tr.P(n, "1 instance uses {1} in {2}.", "{0} instances use {1} in {2}.", Size(total), folder);
+            ? Tr.P(n, "1 version uses {1} in {2}: {3} of it is the shader store.",
+                   "{0} versions use {1} in {2}: {3} of it is the shader store, which they share.", Size(total), folder, Size(store))
+            : Tr.P(n, "1 version uses {1} in {2}.", "{0} versions use {1} in {2}.", Size(total), folder);
     }
 
     /// Each file under folder: its path, its bytes, its identity (null: unknown) and its hard links (0: unknown). Links are not

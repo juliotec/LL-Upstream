@@ -42,7 +42,7 @@
             <Border Classes="boxicon">
               <c:Icon Kind="alert" Width="13" Height="13" Foreground="{StaticResource Warn}"/>
             </Border>
-            <TextBlock Grid.Column="1" Text="{Binding SavesWarning}" FontSize="13" TextWrapping="Wrap"/>
+            <TextBlock Grid.Column="1" Text="{Binding SavesWarning}" FontSize="13" TextWrapping="Wrap" VerticalAlignment="Center"/>
           </Grid>
         </Border>
       </StackPanel>

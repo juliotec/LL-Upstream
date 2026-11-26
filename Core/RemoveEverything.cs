@@ -4,7 +4,8 @@ namespace LongshotLauncher.Core;
 /// uninstaller's "remove everything else" tick. What goes: every version's folder and the ones no row lists (each as Home's delete
 /// does it, its save brought out and backed up first: BuildRegistry.DeleteGame, Leftovers.Delete), the build files (only what
 /// make_game made: Disk.FreeWork), the builders and the graphics libraries, the shader store (only its own files), the game's
-/// caches, the logs, and the launcher's own home and cache folders (its list, its settings, its logos). What stays: the saves,
+/// caches, the logs, and the launcher's own home and cache folders (its list, its settings, its logos, longshot-builder's
+/// notes of the licences accepted: LauncherHome.BuilderData, which the launcher's builds are given as LONGSHOT_DATA). What stays: the saves,
 /// their backups, the game's settings and the NFC tags, unless the player ticks for them too (Saves: then they go with nothing
 /// copied first, as asked: the page says so and offers Saves > Export before); a folder the player chose (the builds folder, the
 /// build files folder) when it holds other things; a folder no row lists that holds mods of theirs; and Hookshot's folders,
@@ -12,9 +13,11 @@ namespace LongshotLauncher.Core;
 public static class RemoveEverything
 {
     /// Where everything is: the launcher's home, the listed versions' folders, the builds folder and the build files folder (and
-    /// whether the player chose them: a chosen one is never deleted itself, only what Longshot made in it), the NFC folder
+    /// whether the player chose them: a chosen one is never deleted itself, only what Longshot made in it), the NFC folder.
+    /// EarlierWork: build files folders chosen before (LauncherSettings.EarlierWork), whose build files go too; Launcher: this
+    /// launcher's program, whose kept previous version (SelfUpdate.Backup, &lt;name&gt;.old) goes
     public sealed record Places(SaveEnvironment Saves, LauncherHome Home, IReadOnlyList<string> Versions, string BuildsFolder, bool BuildsChosen,
-                                string Work, bool WorkChosen, string? Nfc = null)
+                                string Work, bool WorkChosen, string? Nfc = null, IReadOnlyList<string>? EarlierWork = null, string? Launcher = null)
     {
         public Platform Platform => Saves.Platform;
     }
@@ -58,7 +61,7 @@ public static class RemoveEverything
             Storage.Kind.ModsAndSettings when i.Game != null => Line.Versions,
             Storage.Kind.ShaderCache or Storage.Kind.ShaderStore => Line.ShaderCaches,
             Storage.Kind.RecentCode or Storage.Kind.RecentTranslation or Storage.Kind.OlderCode or Storage.Kind.OlderTranslations
-                or Storage.Kind.Unfinished => Line.BuildFiles,
+                or Storage.Kind.Unfinished or Storage.Kind.BuilderFiles => Line.BuildFiles,
             Storage.Kind.Builders or Storage.Kind.GraphicsLibraries or Storage.Kind.UnfinishedDownloads => Line.BuildTools,
             Storage.Kind.Logs => Line.Logs,
             _ => Line.Saves,
@@ -72,9 +75,12 @@ public static class RemoveEverything
     /// Saves.Running). saves: the saves, their backups, the game's settings and the NFC tags too, as the player ticked. A file that
     /// cannot be deleted is one Left with its reason; the rest goes on. The launcher's log is let go before its home goes
     /// (LauncherLog.CloseFile): nothing is logged after
-    public static Done Run(Places p, bool saves, Func<IReadOnlyList<string>> running, Func<DateTime>? now = null)
+    /// building: whether Longshot's builder runs (Saves.BuilderRunning; none: not asked), which writes the shader store and
+    /// the build files: refused too
+    public static Done Run(Places p, bool saves, Func<IReadOnlyList<string>> running, Func<DateTime>? now = null, Func<bool>? building = null)
     {
         if (running().Contains(Saves.Longshot.Display)) throw new IOException("Close Longshot first: nothing is removed while it runs.");
+        if (building?.Invoke() == true) throw new IOException(Tr.T("A Longshot build is running: nothing is removed until it ends."));
         var env = p.Saves;
         var kept = new List<Left>();
         var backups = new List<string>();
@@ -121,15 +127,24 @@ public static class RemoveEverything
         // (the build files: only what make_game made, never the folder when the player chose it)
         Try(p.Work, () =>
         {
-            if (Exists(p.Work) && !IsLink(p.Work)) Disk.FreeWork(p.Work);
+            if (Exists(p.Work) && !IsLink(p.Work)) Disk.FreeWork(p.Work, Disk.AllParts);
             if (!p.WorkChosen) DeleteIfEmpty(p.Work);
         });
+        // (the build files of folders chosen before: only what Longshot made in them, each kept itself)
+        foreach (var earlier in (p.EarlierWork ?? []).Where(w => !Same(w, p.Work)).Distinct())
+            Try(earlier, () => { if (Exists(earlier) && !IsLink(earlier)) Disk.FreeWork(earlier, Disk.AllParts); });
+        // (longshot-builder's own default cache, when the launcher's runs left one: LongshotBuilder.LauncherLeftDefaultCache)
+        if (LongshotBuilder.DefaultCache(p.Platform, env.Getenv) is { } builderCache && LongshotBuilder.LauncherLeftDefaultCache(builderCache))
+            Try(builderCache, () => Toolchains.DeleteTreeIfPresent(builderCache));
+        // (the launcher's previous version, kept for --rollback beside it)
+        if (p.Launcher is { Length: > 0 } launcher && SelfUpdate.Backup(launcher) is var old && File.Exists(old))
+            Try(old, () => File.Delete(old));
         foreach (var sdk in new[] { p.Home.NgxSdk, p.Home.FfxSdk, p.Home.XessSdk }) Try(sdk, () => Toolchains.DeleteTreeIfPresent(sdk));
         // (the shader store: its own files only, LONGSHOT_SHADER_STORE may name a folder holding other things)
         if (env.ShaderStore is { } store)
             Try(store, () =>
             {
-                if (Exists(store) && !IsLink(store) && ShaderCaches.ClearStore(store, () => running().Contains(Saves.Longshot.Display)) == null)
+                if (Exists(store) && !IsLink(store) && ShaderCaches.ClearStore(store, () => running().Contains(Saves.Longshot.Display) || building?.Invoke() == true) == null)
                     throw new IOException("Longshot is running.");
             });
 
@@ -208,7 +223,7 @@ public static class RemoveEverything
 
     /// The Linux shortcuts the launcher made that start it (or a launcher no longer there): the game's on the desktop and in the
     /// applications menu (Shortcuts.WriteLinux, both unticked: one starting another launcher stays), and the launcher's own menu
-    /// entry with its icon. Steam's tile and the Windows ones are the window's (SteamShortcuts.Remove, WindowsShortcuts)
+    /// entry with its icon. Steam's tile and the Windows ones are the window's (SteamTile, WindowsShortcuts)
     public static void RemoveLinuxShortcuts(string launcher, Func<string, string?>? getenv = null)
     {
         Shortcuts.WriteLinux(launcher, null, desktop: false, menu: false, getenv: getenv);

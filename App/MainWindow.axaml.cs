@@ -17,8 +17,14 @@ namespace LongshotLauncher;
 /// it, the toast; and what the view models ask of it (IWindowHost)
 public sealed partial class MainWindow : Window, IWindowHost
 {
-    /// The size the pages are drawn for; the TV view and a window that fills the screen scale them up to it, keeping their shape
-    const double DesignWidth = 1040, DesignHeight = 680;
+    /// The window's size: 1200x760 (MainWindow.axaml), roomy on a 1080p or 1440p screen. On a smaller screen (a 1366x768 laptop,
+    /// whose taskbar leaves about 720) it opens as big as the screen's free area allows, down to its minimum (MinWidth, MinHeight);
+    /// the smallest size, 1040x680, is the one every page is laid out for too
+    public const double DefaultWidth = 1200, DefaultHeight = 760, SmallestWidth = 1040, SmallestHeight = 680;
+
+    /// What the TV view and a window that fills the screen scale the pages up from: the smallest size, so the TV's text stays as
+    /// big as a 10-foot view needs, keeping their shape
+    const double DesignWidth = SmallestWidth, DesignHeight = SmallestHeight;
 
     /// The TV view (Core/TvMode: Steam's Gaming Mode and Big Picture, gamescope): full screen, scaled up, square corners, no
     /// Minimize
@@ -30,8 +36,9 @@ public sealed partial class MainWindow : Window, IWindowHost
     /// A controller's press, as if made on one (tools/screenshots)
     public void Press(PadAction action) => (pad ??= new PadInput(this, read: false)).Do(action);
 
-    /// Where a controller's moves stay (PadInput): the dialog while one is open, else null (the whole window)
-    internal Control? PadScope => (DataContext as MainViewModel)?.HasModal == true ? Dialog : null;
+    /// Where a controller's moves stay (PadInput): the dialog while one is open, else a page's question while one is shown
+    /// (c:Pad.Scope), else null (the whole window)
+    internal Control? PadScope => (DataContext as MainViewModel)?.HasModal == true ? Dialog : Controls.Pad.ShownScope(Pages);
     /// The page, for a controller's first press and its B
     internal Control PadPage => Pages;
     /// The title bar's tabs: their Home is B on a page with no Back of its own
@@ -42,6 +49,7 @@ public sealed partial class MainWindow : Window, IWindowHost
         InitializeComponent();
         if (tv)
         {
+            Classes.Add("pad");
             WindowState = WindowState.FullScreen;
             MinimizeButton.IsVisible = false;
         }
@@ -60,6 +68,13 @@ public sealed partial class MainWindow : Window, IWindowHost
         // (F11: full screen and back, as in a browser; the TV view starts in it)
         KeyDown += (_, e) =>
         {
+            // (Esc: the page's or the dialog's Back, Cancel or Keep, as a controller's B; a list or a text box takes it first)
+            if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None && !e.Handled)
+            {
+                (pad ??= new PadInput(this, read: false)).GoBack();
+                e.Handled = true;
+                return;
+            }
             if (e.Key != Key.F11 || e.KeyModifiers != KeyModifiers.None) return;
             WindowState = WindowState != WindowState.FullScreen ? WindowState.FullScreen : WindowState.Normal;
             e.Handled = true;
@@ -130,14 +145,16 @@ public sealed partial class MainWindow : Window, IWindowHost
         Scaler.LayoutTransform = Math.Abs(scale - 1) < 0.01 ? null : new ScaleTransform(scale, scale);
     }
 
-    /// A screen smaller than the window (a laptop's, scaled up): the window opens within its work area, no smaller than its
-    /// minimum; the pages lay out in the room they have, and scroll
+    /// The default size, or less on a screen whose free area (its taskbar and panels left out) is smaller, down to the window's
+    /// minimum (MinWidth, MinHeight); the pages lay out in the room they have, and scroll. Nothing to fit without a screen
+    /// (tools/screenshots)
     void FitScreen()
     {
-        if (Screens.Primary is not { } screen) return;
-        var area = screen.WorkingArea.Size.ToSize(screen.Scaling);
-        Width = Math.Max(MinWidth, Math.Min(Width, area.Width));
-        Height = Math.Max(MinHeight, Math.Min(Height, area.Height));
+        if (Screens?.Primary is not { } screen || screen.Scaling <= 0) return;
+        var free = screen.WorkingArea.Size.ToSize(screen.Scaling);
+        // (a few pixels clear of the area's edges, so the window's border shows whole)
+        Width = Math.Clamp(free.Width - 16, MinWidth, DefaultWidth);
+        Height = Math.Clamp(free.Height - 16, MinHeight, DefaultHeight);
     }
 
     /// The window's edges and corners, each a strip a press on which resizes the window from there (the window draws its own

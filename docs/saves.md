@@ -1,8 +1,15 @@
 # Saves
 
 What the launcher does with your saves: where Longshot keeps them (one place, shared by every build), importing them from
-emulators and from Hookshot, and exporting them. Everything is on the **Saves** page (the *Saves* link on the home, under
-the default version). Every copy backs up the save it replaces first, and every copy is refused while Longshot, Hookshot or
+emulators and from Hookshot, and exporting them. Everything is on the **Saves** page (the *Saves* tab, or
+Home's *Manage saves…*). Saves are a **profile's**: the page shows the current profile's slots, each with *Copy or move…*
+to another profile. Every profile's saves, the default's too, are its folder's `saves/`
+(`<launcher data>/profiles/<id>/saves/save/<user id>`; README, "Versions → profiles → saves"), copied there once from
+where they were, the originals kept. Every version this launcher plays is a builder's, which plays them with `--profile`
+(an older version, one Longshot's old builder made, is the stable launcher's to play).
+Home's **Save slot** picker lists the profile's slots, the newest picked, and the game starts on the one picked (its
+`profile.json`'s `start_slot`, which the game reads itself); with no save yet it says *New game*, and a version whose game
+plays no profile asks on its title screen. Every copy backs up the save it replaces first, and every copy is refused while Longshot, Hookshot or
 an emulator is running, since a running game can write its save again and undo the copy.
 
 The save files are the same in Longshot, Hookshot and the emulators and ports that run the game: `account.sav`,
@@ -63,6 +70,43 @@ one to another, and the old folders are only read, never written or emptied:
 | Longshot's `scripts/longshot_saves.py`, the game's own (Longshot#1428), until they write to `save-backups` too | the same | `$XDG_DATA_HOME/oot-save-backups` |
 
 The backups page shows and opens `save-backups` once there is one, else the old folder.
+
+## Profiles
+
+A profile is a player or a setup, with its own saves and game settings. Each is a folder in the launcher's data,
+`profiles/<id>/` (`default` for the first, `p-` and 8 hex digits for the others), laid out as Longshot's builder reads it from
+`--profile` (Longshot's `docs/dev/reference/build.md`, "Play: the version folder and the profile"):
+
+| | What it is |
+|---|---|
+| `profile.json` | Version 1: `name`, `color`, `game` (the .nup, or the dump folder, it builds from), `upscalers` (`dlss`, `fsr4`, `xess`), `version` (the version it played last), `start_slot`, `last_played`, `copy_of`. A key the launcher does not know (the Mod API's `mods`, a newer launcher's) is kept as it is; a file of a newer format is never written over |
+| `settings.ini` | The game's settings |
+| `saves/` | Its saves: `save/<user id>/slot_NN`, and `save-work/` (a save the game finishes writing at its next start) |
+
+The profile chip in the title bar shows who is playing; its menu switches profile, and opens **Manage profiles** (new,
+rename, colour, copy, delete) and **New profile**. With two or more profiles the launcher opens on **Who's playing?**. The
+Saves page shows the current profile's saves; a slot's **Copy or move** puts it in another profile (into the same slot when
+it is free there, else the first free one), and **Start here** makes it the save Play starts on, in a version that can
+(`start_slot` in `profile.json`). Deleting a profile moves its whole folder into the save backups
+(`profile-<id>-<time>`); the default profile cannot be deleted (`Core/LauncherProfiles.cs`, `Core/ProfileStore.cs`).
+
+A version of the new builder's kind is a folder of its own, `versions/<version>/` in the launcher's data, with the release's
+builder as `Longshot.exe` (`Longshot.x86_64` on Linux) and the game it builds in `builds/default/`. Play starts
+`Longshot.exe --profile profiles/<id> --output json --cache <the launcher's build files>/longshot-builder`: the builder
+checks the game is the profile's, updates it when it is not, and starts it with the profile, its saves and settings. An
+older version (built with `make_game.py`, Longshot's old builder) is not played by the nightly launcher: its card says to
+use the stable Longshot Launcher, which reads saves from the `--user` folder above. Switching the launcher's own channel
+from nightly to stable offers to copy the current profile's `saves/save` and `saves/save-work` back there first
+(`Core/StableSwitch.cs`'s `SavesCopyBack`): a copy, the profile keeps its own, and a file there newer than the profile's is
+kept unless the player ticks *Replace the newer files too*.
+
+**The move, once.** At its first start with profiles the launcher makes `profiles/default/` (and a folder for each profile
+an earlier launcher listed in its settings): `profile.json` names the game copy and upscalers of the version it played last
+(else the default version, else the game file last picked), `settings.ini` is a copy of the shared folder's
+`longshot_options.ini`, and `saves/` gets a copy of the shared folder's `save/` and `save-work/`. Then each version the new
+builder built in a folder of its own is copied into `versions/<version>/builds/default/` (its `user/` left out: the saves are
+the profiles'), off the window's thread and not while a game runs, and its row in the list names the copy. Nothing is moved
+or deleted: every original stays where it was (`profiles/.migrated-v1` marks the first part done).
 
 ## Saves from before (Windows)
 

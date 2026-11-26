@@ -1,0 +1,34 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:LongshotLauncher.ViewModels"
+             xmlns:c="using:LongshotLauncher.Controls"
+             x:Class="LongshotLauncher.Views.WhoView"
+             x:DataType="vm:WhoViewModel">
+  <!-- Who's playing?: the launcher's first page with two or more profiles. A card per profile (its avatar, name, its saves),
+       then New; a controller's first press is the first card -->
+  <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="28">
+    <StackPanel Spacing="6" HorizontalAlignment="Center">
+      <TextBlock FontSize="36" FontWeight="Bold" Text="{c:T 'Who\'s playing?'}" HorizontalAlignment="Center"/>
+      <TextBlock Classes="note" FontSize="14" HorizontalAlignment="Center" Text="{c:T 'Each profile has its own saves and game settings.'}"/>
+    </StackPanel>
+    <ItemsControl ItemsSource="{Binding Cards}" HorizontalAlignment="Center">
+      <ItemsControl.ItemsPanel>
+        <ItemsPanelTemplate><WrapPanel ItemSpacing="16" LineSpacing="16" HorizontalAlignment="Center"/></ItemsPanelTemplate>
+      </ItemsControl.ItemsPanel>
+      <ItemsControl.ItemTemplate>
+        <DataTemplate x:DataType="vm:ProfileCardViewModel">
+          <Button Classes="whocard" Command="{Binding PickCommand}" AutomationProperties.Name="{Binding Name}">
+            <StackPanel Spacing="10" HorizontalAlignment="Center">
+              <Border Classes="avatar big" Background="{Binding Colour}" HorizontalAlignment="Center"><TextBlock Text="{Binding Initial}"/></Border>
+              <TextBlock Text="{Binding Name}" FontSize="16" FontWeight="Bold" HorizontalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+              <TextBlock Classes="faint" Text="{Binding SavesLine}" HorizontalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+            </StackPanel>
+          </Button>
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+    <Button Classes="link" Command="{Binding NewCommand}" HorizontalAlignment="Center">
+      <StackPanel Orientation="Horizontal" Spacing="6"><c:Icon Kind="plus" Width="14" Height="14"/><TextBlock Text="{c:T 'New profile…'}"/></StackPanel>
+    </Button>
+  </StackPanel>
+</UserControl>

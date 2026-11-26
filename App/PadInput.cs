@@ -107,6 +107,8 @@ sealed class PadInput : IDisposable
         }
         padAt = now;
         padKey = key;
+        // (a controller in use: the pages' Back show B's glyph)
+        window.Classes.Set("pad", true);
 
         var scope = window.PadScope;
         var focused = window.FocusManager?.GetFocusedElement() as Control;
@@ -142,19 +144,25 @@ sealed class PadInput : IDisposable
         if (back != null) Send(back, Key.Enter, KeyModifiers.None);
     }
 
-    /// The first press with nothing focused: the dialog's Keep or Cancel (or its first control), or the page's Play, its main button, its first control
+    /// Esc on the keyboard: what B does (an open list has closed itself first)
+    public void GoBack() => Back(window.FocusManager?.GetFocusedElement() as Control, window.PadScope);
+
+    /// The first press with nothing focused: the dialog's Keep or Cancel (or its first control), or the page's Play, its main
+    /// button, the control marked as its first (c:Pad.First: its main list, its first setting), its first control but Back
     void First(Control? scope)
     {
         if (scope != null)
         {
-            // (its safe button first: Keep, Cancel, Decline)
-            var safe = scope.GetVisualDescendants().OfType<Button>().FirstOrDefault(b => Pad.GetBack(b) && Usable(b));
-            (safe ?? FocusManager.FindFirstFocusableElement(scope) as Control)?.Focus(NavigationMethod.Directional);
+            // (the control it marks first, else its safe button: Keep, Cancel, Decline)
+            (Pad.SafeIn(scope) ?? FocusManager.FindFirstFocusableElement(scope) as Control)?.Focus(NavigationMethod.Directional);
             return;
         }
         var page = window.PadPage;
         var buttons = page.GetVisualDescendants().OfType<Button>().Where(Usable).ToList();
         var pick = buttons.FirstOrDefault(b => b.Classes.Contains("go")) ?? buttons.FirstOrDefault(b => b.Classes.Contains("primary"))
+            ?? page.GetVisualDescendants().OfType<Control>().FirstOrDefault(c => Pad.GetFirst(c) && c.Focusable && c.IsEffectivelyVisible && c.IsEffectivelyEnabled)
+            ?? page.GetVisualDescendants().OfType<Control>().FirstOrDefault(c => c.Focusable && c.IsEffectivelyVisible && c.IsEffectivelyEnabled
+                                                                               && !(c is Button b && b.Classes.Contains("back")))
             ?? FocusManager.FindFirstFocusableElement(page) as Control;
         pick?.Focus(NavigationMethod.Directional);
     }

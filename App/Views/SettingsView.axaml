@@ -4,27 +4,51 @@
              xmlns:c="using:LongshotLauncher.Controls"
              x:Class="LongshotLauncher.Views.SettingsView"
              x:DataType="vm:SettingsViewModel">
+  <UserControl.Styles>
+    <!-- a section of the page: its name, with room above it -->
+    <Style Selector="TextBlock.section">
+      <Setter Property="FontSize" Value="16"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="Margin" Value="0,30,0,12"/>
+    </Style>
+    <!-- a tick's explanation, under its words -->
+    <Style Selector="TextBlock.tickhelp">
+      <Setter Property="FontSize" Value="12"/>
+      <Setter Property="Foreground" Value="{StaticResource InkFaintText}"/>
+      <Setter Property="TextWrapping" Value="Wrap"/>
+      <Setter Property="Margin" Value="28,0,0,0"/>
+      <Setter Property="MaxWidth" Value="760"/>
+      <Setter Property="HorizontalAlignment" Value="Left"/>
+    </Style>
+    <Style Selector="TextBlock.section.first">
+      <Setter Property="Margin" Value="0,14,0,12"/>
+    </Style>
+  </UserControl.Styles>
   <DockPanel>
-    <Grid DockPanel.Dock="Bottom" ColumnDefinitions="*,Auto" Margin="0,14,0,0">
-      <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-        <TextBlock Classes="faint" Text="{Binding Version}" VerticalAlignment="Center"/>
-        <Ellipse Width="3" Height="3" Fill="{StaticResource InkFaint}" Margin="12,0" VerticalAlignment="Center"/>
-        <Button Classes="link soft" Content="{c:T 'Release notes'}" Command="{Binding ReleaseNotesCommand}"/>
-      </StackPanel>
-    </Grid>
-    <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="-8,0" Padding="8,0,8,4">
+    <!-- the header: the page's name, fixed over the sections that scroll beneath it (a line under it once they do). A tab: B
+         is the title bar's Home -->
+    <Panel DockPanel.Dock="Top" Margin="0,0,0,14">
       <StackPanel>
         <TextBlock Classes="heading" Text="{c:T 'Settings'}"/>
         <TextBlock Classes="sub" Text="{c:T 'For the launcher. Each version keeps its own build settings.'}"/>
-        <TextBlock Classes="label" Text="{c:T 'LAUNCHER LANGUAGE'}"/>
-        <ComboBox Classes="dd" ItemsSource="{Binding Languages}" SelectedItem="{Binding Language}" MinWidth="240"
+      </StackPanel>
+    </Panel>
+    <c:ScrollEdge DockPanel.Dock="Top" Target="{Binding #Scroll}"/>
+    <ScrollViewer Name="Scroll" VerticalScrollBarVisibility="Auto" ClipToBounds="True" Margin="-8,0" Padding="8,0,8,32">
+      <StackPanel>
+        <!-- the page in sections: the launcher's words, its updates, its folders, the applications menu (Linux), and what is
+             shared with the team -->
+        <TextBlock Classes="section first" Text="{c:T 'Launcher language'}"/>
+        <ComboBox Classes="dd" ItemsSource="{Binding Languages}" SelectedItem="{Binding Language}" MinWidth="240" c:Pad.First="True"
                   AutomationProperties.Name="{c:T 'Launcher language'}">
           <ComboBox.ItemTemplate>
             <DataTemplate x:DataType="vm:SettingsViewModel+UiLanguageChoice"><TextBlock Text="{Binding Name}"/></DataTemplate>
           </ComboBox.ItemTemplate>
         </ComboBox>
         <TextBlock Classes="hint" Text="{c:T 'The launcher\'s own words. The game\'s language is a build setting.'}"/>
-        <TextBlock Classes="label" Text="{c:T 'CHANNEL FOR NEW BUILDS'}"/>
+
+        <TextBlock Classes="section" Text="{c:T 'Updates'}"/>
+        <TextBlock Classes="label" Text="{c:T 'Channel for new builds'}" Margin="0,0,0,10"/>
         <ItemsControl ItemsSource="{Binding Channels}">
           <ItemsControl.ItemsPanel>
             <ItemsPanelTemplate><UniformGrid Columns="3" ColumnSpacing="8"/></ItemsPanelTemplate>
@@ -42,7 +66,7 @@
         </ItemsControl>
         <TextBlock Classes="hint" Text="{Binding ChannelHint}"/>
         <Grid ColumnDefinitions="Auto,*">
-          <TextBlock Classes="label" Text="{c:T 'LAUNCHER UPDATES'}"/>
+          <TextBlock Classes="label" Text="{c:T 'Launcher updates'}"/>
           <!-- a change of channel is checked at once -->
           <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" Margin="10,0,0,10" VerticalAlignment="Bottom"
                       IsVisible="{Binding CheckCommand.IsBusy}">
@@ -63,17 +87,18 @@
           </ItemsControl.ItemTemplate>
         </ItemsControl>
         <TextBlock Classes="hint" Text="{Binding LauncherHint}"/>
-        <StackPanel IsVisible="{Binding ShowMenu}">
-          <TextBlock Classes="label" Text="{c:T 'APPLICATIONS MENU'}"/>
-          <StackPanel Orientation="Horizontal" Spacing="10">
-            <Button Content="{Binding AddToMenuText}" Command="{Binding AddToMenuCommand}"/>
-            <Button Content="{c:T 'Remove'}" Command="{Binding RemoveFromMenuCommand}" IsVisible="{Binding InMenu}"/>
+        <StackPanel Spacing="12" Margin="0,18,0,0">
+          <CheckBox Classes="tick" Content="{c:T 'Check for updates at start'}" IsChecked="{Binding CheckUpdates}"/>
+          <StackPanel Spacing="3">
+            <CheckBox Classes="tick" Content="{c:T 'Download updates early'}" IsChecked="{Binding DownloadUpdatesEarly}" IsEnabled="{Binding CheckUpdates}"/>
+            <TextBlock Classes="tickhelp" Text="{c:T 'An update\'s build tools (about 500 MB) download as soon as it is out. Nothing updates until you choose to.'}"/>
           </StackPanel>
-          <TextBlock Classes="hint" Text="{Binding MenuHint}"/>
         </StackPanel>
-        <Grid ColumnDefinitions="*,*" ColumnSpacing="20" Margin="0,0,0,22">
+
+        <TextBlock Classes="section" Text="{c:T 'Folders'}"/>
+        <Grid ColumnDefinitions="*,*" ColumnSpacing="24">
           <StackPanel>
-            <TextBlock Classes="label" Text="{c:T 'BUILDS FOLDER'}"/>
+            <TextBlock Classes="label" Text="{c:T 'Builds folder'}" Margin="0,0,0,8"/>
             <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
               <TextBox Classes="path" Text="{Binding BuildsFolder}"/>
               <Button Grid.Column="1" Content="{c:T 'Change'}" Command="{Binding ChangeBuildsCommand}"/>
@@ -84,7 +109,7 @@
             <TextBlock Classes="hint" Text="{Binding BuildsHint}" TextWrapping="Wrap"/>
           </StackPanel>
           <StackPanel Grid.Column="1">
-            <TextBlock Classes="label" Text="{c:T 'BUILD FILES'}"/>
+            <TextBlock Classes="label" Text="{c:T 'Build files'}" Margin="0,0,0,8"/>
             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
               <TextBox Classes="path" Text="{Binding Work}"/>
               <Button Grid.Column="1" Content="{c:T 'Change'}" Command="{Binding ChangeWorkCommand}"/>
@@ -97,37 +122,61 @@
           </StackPanel>
         </Grid>
         <!-- the Storage page: all that Longshot keeps, by kind, across both folders above and the games' -->
-        <TextBlock Classes="label" Text="{c:T 'STORAGE'}"/>
-        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="16" Margin="0,0,0,22">
+        <TextBlock Classes="label" Text="{c:T 'Storage'}" Margin="0,16,0,8"/>
+        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="16">
           <Button Content="{c:T 'Manage storage'}" Command="{Binding StorageCommand}" VerticalAlignment="Center"/>
           <TextBlock Grid.Column="1" Classes="hint" Margin="0" Text="{Binding StorageHint}" TextWrapping="Wrap" VerticalAlignment="Center"/>
         </Grid>
-        <StackPanel IsVisible="{Binding ShowGamescope}" Spacing="4" Margin="0,0,0,12">
-          <TextBlock Classes="label" Text="{c:T 'GAMESCOPE'}"/>
-          <CheckBox Classes="tick" Content="{c:T 'Start the game through gamescope'}" IsChecked="{Binding Gamescope}"/>
-          <TextBox Classes="path" Text="{Binding GamescopeOptions}" IsEnabled="{Binding Gamescope}"
-                   PlaceholderText="-W 3840 -H 2160 -r 164 -f --hdr-enabled"
-                   AutomationProperties.Name="{c:T 'Gamescope options'}"/>
-          <TextBlock Classes="hint" Text="{Binding GamescopeHint}" TextWrapping="Wrap"/>
+        <!-- what this PC keeps for every profile: the NFC tags the game reads -->
+        <TextBlock Classes="label" Text="{c:T 'On this PC, for every profile'}" Margin="0,16,0,8"/>
+        <WrapPanel ItemSpacing="12" LineSpacing="8">
+          <Button Command="{Binding NfcCommand}">
+            <StackPanel Orientation="Horizontal" Spacing="8"><c:Icon Kind="nfc" Width="14" Height="14"/><TextBlock Text="{c:T 'NFC tags'}"/></StackPanel>
+          </Button>
+        </WrapPanel>
+
+        <StackPanel IsVisible="{Binding ShowMenu}">
+          <TextBlock Classes="section" Text="{c:T 'Applications menu'}"/>
+          <StackPanel Orientation="Horizontal" Spacing="10">
+            <Button Content="{Binding AddToMenuText}" Command="{Binding AddToMenuCommand}"/>
+            <Button Content="{c:T 'Remove'}" Command="{Binding RemoveFromMenuCommand}" IsVisible="{Binding InMenu}"/>
+          </StackPanel>
+          <TextBlock Classes="hint" Text="{Binding MenuHint}"/>
         </StackPanel>
-        <CheckBox Classes="tick" Content="{c:T 'Check for updates when the launcher starts'}" IsChecked="{Binding CheckUpdates}"/>
-        <CheckBox Classes="tick" Content="{c:T 'Download the build tools of an update as soon as it is out (about 500 MB). Nothing updates until you choose to.'}"
-                  IsChecked="{Binding DownloadUpdatesEarly}" IsEnabled="{Binding CheckUpdates}"/>
-        <StackPanel Spacing="4">
-          <CheckBox Classes="tick" Content="{c:T 'Send performance statistics'}" IsChecked="{Binding SendPerformanceStatistics}"/>
-          <TextBlock FontSize="12" Foreground="{StaticResource InkSoft}" TextWrapping="Wrap" Margin="28,0,0,0"
-                     Text="{c:T 'How your frames went in each area, and how each build ended and how long its steps took, with your GPU, CPU, OS and settings, so the team can see where Longshot stutters or builds slowly. No user name, game files or saves. Sent for a game when it next starts, for a build when it ends.'}"/>
-          <CheckBox Classes="tick" Margin="28,4,0,0" Content="{c:T 'Keep a copy of what was sent'}"
-                    IsChecked="{Binding KeepSentPerformanceStatistics}" IsEnabled="{Binding SendPerformanceStatistics}"/>
-          <TextBlock FontSize="12" Foreground="{StaticResource InkSoft}" TextWrapping="Wrap" Margin="56,0,0,0"
-                     Text="{c:T 'In perf_sent, in the game folder, so you can read exactly what went to the team.'}"/>
+
+        <StackPanel IsVisible="{Binding ShowGamescope}">
+          <TextBlock Classes="section" Text="{c:T 'Gamescope'}"/>
+          <StackPanel Spacing="4">
+            <CheckBox Classes="tick" Content="{c:T 'Start the game through gamescope'}" IsChecked="{Binding Gamescope}"/>
+            <TextBox Classes="path" Text="{Binding GamescopeOptions}" IsEnabled="{Binding Gamescope}"
+                     PlaceholderText="-W 3840 -H 2160 -r 164 -f --hdr-enabled"
+                     AutomationProperties.Name="{c:T 'Gamescope options'}"/>
+            <TextBlock Classes="hint" Text="{Binding GamescopeHint}" TextWrapping="Wrap"/>
+          </StackPanel>
         </StackPanel>
-        <StackPanel Spacing="4">
-          <CheckBox Classes="tick" Content="{c:T 'Send crash reports automatically'}" IsChecked="{Binding SendCrashReportsAutomatically}"/>
-          <TextBlock FontSize="12" Foreground="{StaticResource InkSoft}" TextWrapping="Wrap" Margin="28,0,0,0"
-                     Text="{c:T 'After a crash, the game sends its report to the Longshot team without showing its crash window: the version, your GPU, CPU, OS and settings, and the end of the log, with no paths or names. Only the team can read it. If it cannot be sent, the window shows as usual.'}"/>
+
+        <TextBlock Classes="section" Text="{c:T 'Sharing with the team'}"/>
+        <StackPanel Spacing="14">
+          <StackPanel Spacing="3">
+            <CheckBox Classes="tick" Content="{c:T 'Send performance statistics'}" IsChecked="{Binding SendPerformanceStatistics}"/>
+            <TextBlock Classes="tickhelp" Text="{c:T 'Frame times in each area and how each build went, with your GPU, CPU, OS and settings, sent at the next start or a build\'s end. No user name, game files or saves.'}"/>
+            <CheckBox Classes="tick" Margin="28,8,0,0" Content="{c:T 'Keep a copy of what was sent'}"
+                      IsChecked="{Binding KeepSentPerformanceStatistics}" IsEnabled="{Binding SendPerformanceStatistics}"/>
+            <TextBlock Classes="tickhelp" Margin="56,0,0,0" Text="{c:T 'In perf_sent, in the game folder.'}"/>
+          </StackPanel>
+          <StackPanel Spacing="3">
+            <CheckBox Classes="tick" Content="{c:T 'Send crash reports automatically'}" IsChecked="{Binding SendCrashReportsAutomatically}"/>
+            <TextBlock Classes="tickhelp" Text="{c:T 'After a crash, the game sends its report to the Longshot team without showing its crash window: the version, your GPU, CPU, OS and settings, and the end of the log, with no paths or names. Only the team can read it. If it cannot be sent, the window shows as usual.'}"/>
+          </StackPanel>
         </StackPanel>
-        <Button Classes="link" HorizontalAlignment="Left" Content="{c:T 'Privacy ↗'}" Command="{Binding PrivacyCommand}"/>
+        <Button Classes="link" HorizontalAlignment="Left" Margin="0,10,0,0" Content="{c:T 'Privacy ↗'}" Command="{Binding PrivacyCommand}"/>
+
+        <!-- about: the launcher's version and its release notes -->
+        <TextBlock Classes="section" Text="{c:T 'About'}"/>
+        <StackPanel Orientation="Horizontal" Spacing="14">
+          <TextBlock Classes="note" Text="{Binding Version}" VerticalAlignment="Center"/>
+          <Button Classes="link smaller" Content="{c:T 'Release notes'}" Command="{Binding ReleaseNotesCommand}"/>
+        </StackPanel>
       </StackPanel>
     </ScrollViewer>
   </DockPanel>

@@ -96,13 +96,31 @@ static partial class Program
         foreach (var file in Directory.GetFiles(views, "*.axaml"))
         {
             var name = Path.GetFileNameWithoutExtension(file);
-            // (the pages the title bar's tabs move between: their B is the tabs' Home, checked below)
-            if (name is "HomeView" or "SettingsView" or "SavesView" or "NfcView" or "StorageView") continue;
+            // (the pages the title bar's tabs move between: their B is the tabs' Home, checked below; BuildCardView is a part of two
+            // of them, Home's and the Versions page's)
+            if (name is "HomeView" or "VersionsView" or "BuildCardView" or "SettingsView" or "SavesView" or "NfcView" or "StorageView"
+                or "ProfilesView" or "WhoView") continue;
             var text = File.ReadAllText(file);
             if (!Regex.IsMatch(text, "<Button\\b")) continue;
             Require(text.Contains("c:Pad.Back=\"True\""), name + " has no button a controller's B presses (c:Pad.Back).");
+            // (a page's Back is the arrow in its header, which B and Esc press; no page keeps a Done at its foot)
+            foreach (Match back in Regex.Matches(text, "<Button[^>]*Classes=\"back\"[^>]*>"))
+                Require(back.Value.Contains("c:Pad.Back=\"True\"") && back.Value.Contains("AutomationProperties.Name="),
+                    name + "'s Back arrow is not B's (c:Pad.Back) or has no name for a screen reader.");
+            Require(!Regex.IsMatch(text, "Content=\"\\{c:T 'Done'\\}\"[^>]*c:Pad.Back"), name + " still has a Done for B: a page goes back by its header's arrow.");
         }
         var window = File.ReadAllText(Path.Combine(repo, "App", "MainWindow.axaml"));
+        // (Home plays, the Versions tab manages: Home's Play is a controller's first press, the go button; the Versions page is a tab)
+        var homeView = File.ReadAllText(Path.Combine(views, "HomeView.axaml"));
+        Require(Regex.IsMatch(homeView, "<Button Classes=\"go bigplay\" Command=\"\\{Binding HeroPlayCommand\\}\"")
+                && window.Contains("Command=\"{Binding GoVersionsCommand}\"") && window.Contains("<views:VersionsView/>"),
+                "Home's Play is the go button a controller's first press focuses, and Versions is a tab of the title bar.");
+        // (the Versions page's first press: the first card's first action, not the header's Add a build folder…)
+        var versionsView = File.ReadAllText(Path.Combine(views, "VersionsView.axaml"));
+        Require(Regex.Matches(versionsView, "c:Pad.First=\"True\"").Count == 4
+                && Regex.IsMatch(versionsView, "Command=\"\\{Binding SetDefaultCommand\\}\" IsVisible=\"\\{Binding ShowSetDefault\\}\" c:Pad.First=\"True\"")
+                && !Regex.IsMatch(versionsView, "(AddFolderCommand|AddVersionCommand)\\}\"[^>]*c:Pad.First"),
+                "The Versions page's first press lands on the first version card's first action.");
         Require(Regex.IsMatch(window, "Command=\"\\{Binding GoHomeCommand\\}\"[^>]*c:Pad\\.Back=\"True\""),
                 "The title bar's Home tab is not a controller's B on the pages the tabs move between (c:Pad.Back).");
         // (#113: a window too narrow for a longer translation, or too tall for a laptop's screen, can be resized; it has no system
@@ -112,5 +130,15 @@ static partial class Program
                 && window.Contains("<Panel Name=\"Grips\"/>") && !code.Contains("CanResize = false")
                 && code.Contains("BeginResizeDrag(side, e)") && code.Contains("Grips.IsVisible = !fills;") && code.Contains("FitScreen();"),
                 "The window cannot be resized by its edges, or has no minimum size, or does not open within a smaller screen.");
+        // (the pages a page leads to go back by the arrow in their header; the tabs' pages by the title bar's Home)
+        foreach (var page in new[] { "BackupsView", "SaveEditorView", "ProblemPageView" })
+            Require(File.ReadAllText(Path.Combine(views, page + ".axaml")).Contains("Classes=\"back\""), page + " has no Back arrow in its header.");
+        // (Home's Play starts the version shown; a Play that did not get to the game is said on its status line)
+        var homeVm = File.ReadAllText(Path.Combine(repo, "App", "ViewModels", "HomeViewModel.cs"));
+        var homeXaml = File.ReadAllText(Path.Combine(views, "HomeView.axaml"));
+        Require(Regex.IsMatch(homeVm, @"case \{ \} h:\s*(//[^\n]*\s*)*Play\(h\);"), "Home's Play starts the version shown.");
+        Require(homeXaml.Contains("Text=\"{Binding StatusLine}\"") && homeVm.Contains("public bool ShowSavePicker => NoBuilds || HeroStartsOnSlot;")
+                && Regex.IsMatch(homeVm, @"Service\.PlayFailed \+= said => Ui\.Post\(\(\) =>\s*\{\s*PlayError = said;"),
+                "A Play that did not get to the game is said on Home's status line, and the Save picker shows for a version that starts on a slot.");
     }
 }

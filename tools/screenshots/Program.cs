@@ -3,7 +3,7 @@ using Avalonia.VisualTree;
 // The launcher's screens drawn without a display, into PNGs: each scene sets up a launcher of its own (a home in a temporary
 // folder, no game files, no network) and the page it shows, and the window is rendered by Skia through Avalonia.Headless.
 //
-//   dotnet run --project tools/screenshots -- [--lang <code>] [--size <width>x<height>] [out folder] [scene ...]
+//   dotnet run --project tools/screenshots -- [--small] [--lang <code>] [--size <width>x<height>] [out folder] [scene ...]
 //
 // --lang: the launcher's language (Tr.All's codes, de for German): long translations are where a screen runs out of room.
 // --size: the window resized to that (its smallest is MainWindow's MinWidth and MinHeight). Out folder: default work/screenshots. No scene named: every scene. The scenes are below (Scenes); a pull request that changes
@@ -23,22 +23,21 @@ static class Program
     /// what is opened over the page: a dialog)
     sealed record Scene(string Name, string Shows, Platform Platform, Action<LauncherService>? Setup, Func<MainViewModel, object?> Page,
                         Action<MainViewModel>? Then = null, bool ScrollToEnd = false, int OpenDropdown = -1, double ScrollDown = 0,
-                        bool PressDetails = false, bool Tv = false, PadAction[]? Presses = null);
+                        bool PressDetails = false, bool Tv = false, PadAction[]? Presses = null, bool Missing = false);
 
-    // (a build's first lines, as make_game.py says them, with when: the build page's rows, bar, time and details)
+    // (a build's first events, as longshot-builder says them (--output json), with when: the build page's rows, bar, time and details)
     static readonly (string Line, double At)[] Transcript =
     [
-        ("@@stage read Reading your game files", 2),
-        ("Ocarina of Time.nup: 25.02 GB, 1 titles, 601 dirs, 186592 files", 2.2),
-        ("title 0: 0400486024dec000 v131072  exefs 5 files (main 29953289)  romfs 186587 files, 26.24 GB", 2.2),
-        ("extracting title 0 (v131072) to /home/player/Games/Longshot/v3.0.0/.game (356 GB free)", 2.3),
-        ("  494.6 MiB written (4329 files completed)", 4.3),
-        ("[hos host] [debug] nup: 40588 romfs files with two different sizes", 5),
-        ("  4296.5 MiB written (22151 files completed)", 11.4),
-        ("[hos host] [warn] nup: Tex/CmnTex_Map_Soil_FairyFountain_Floor_D_Nrm.bntx.zs is damaged: a similar file is used", 12),
-        ("  9512.0 MiB written (90000 files completed)", 40),
-        ("[hos host] [trace] nup: 1024 directory entries read", 41),
-        ("  12902.3 MiB written (121904 files completed)", 52.1),
+        ("{\"v\":1,\"type\":\"stage\",\"stage\":\"read\",\"text\":\"Reading your game files\"}", 2),
+        ("{\"v\":1,\"type\":\"log\",\"text\":\"Ocarina of Time.nup: 25.02 GB, 1 titles, 601 dirs, 186592 files\"}", 2.2),
+        ("{\"v\":1,\"type\":\"log\",\"text\":\"title 0: 0400486024dec000 v131072  exefs 5 files (main 29953289)  romfs 186587 files, 26.24 GB\"}", 2.2),
+        ("{\"v\":1,\"type\":\"progress\",\"stage\":\"read\",\"fraction\":0.04,\"overall\":0.006}", 4.3),
+        ("{\"v\":1,\"type\":\"log\",\"text\":\"[hos host] [debug] nup: 40588 romfs files with two different sizes\"}", 5),
+        ("{\"v\":1,\"type\":\"progress\",\"stage\":\"read\",\"fraction\":0.16,\"overall\":0.024}", 11.4),
+        ("{\"v\":1,\"type\":\"log\",\"text\":\"[hos host] [warn] nup: Tex/CmnTex_Map_Soil_FairyFountain_Floor_D_Nrm.bntx.zs is damaged: a similar file is used\"}", 12),
+        ("{\"v\":1,\"type\":\"progress\",\"stage\":\"read\",\"fraction\":0.35,\"overall\":0.052}", 40),
+        ("{\"v\":1,\"type\":\"log\",\"text\":\"[hos host] [trace] nup: 1024 directory entries read\"}", 41),
+        ("{\"v\":1,\"type\":\"progress\",\"stage\":\"read\",\"fraction\":0.48,\"overall\":0.072}", 52.1),
     ];
 
     static readonly Scene[] Scenes =
@@ -54,10 +53,10 @@ static class Program
             s => s.GpuCards = [new Gpu(SystemInfo.Amd)], m => Settings(m),
             m => m.Modal = new LicenceViewModel(m, LicenceOf.Amd, true, () => { }, () => { }), Tv: true,
             Presses: [PadAction.Down, PadAction.Left, PadAction.Down, PadAction.Down]),
-        new("launcher-settings", "The launcher's Settings: an update's build tools downloaded early, when chosen", Platform.Windows,
+        new("launcher-settings", "The launcher's Settings on Windows: an update's build tools downloaded early, when chosen", Platform.Windows,
             s => { s.Settings.CheckUpdates = true; s.Settings.DownloadUpdatesEarly = true; }, m => new SettingsViewModel(m), ScrollToEnd: true),
         // (the two folders, each with what it holds: the builds folder's instances, and the build files every build reuses)
-        new("launcher-settings-folders", "The launcher's Settings: the builds folder and the build files, each with what it holds", Platform.Windows,
+        new("launcher-settings-folders", "The launcher's Settings on Windows: the builds folder and the build files, each with what it holds", Platform.Windows,
             null, m => new SettingsViewModel(m), ScrollDown: 300),
         new("settings-linux", "Step 2, the build settings, on Linux with an AMD GPU", Platform.Linux,
             s => { s.GpuCards = [new Gpu(SystemInfo.Amd)]; s.Settings.Fsr = true; s.Settings.FsrLinuxNotice = true; },
@@ -168,16 +167,9 @@ static class Program
         new("files-not-usable", "Step 1, game files that can't be used: why under each, Check again, Copy for a bug report", Platform.Linux, null,
             m => Files(m, null,
                 ("/home/player/Games/Ocarina of Time/0400486024dec000_v131072.nup", new GameCheck(GameCheckStatus.Unreadable,
-                    "nup.py stopped (exit status 1): the .nup file is incomplete: it is 9214 MB, its header says 25624 MB. Download or copy it again")),
+                    "the .nup file is incomplete: it is 9214 MB, its header says 25624 MB", Code: "nup_incomplete")),
                 ("/home/player/Downloads/Ocarina of Time.nup", new GameCheck(GameCheckStatus.OtherVersion,
-                    "This is build 7c1a33b0. Longshot supports build e0f3ccfa.")))),
-        new("files-nx-not-usable", "Step 1, .nx files that can't be used: one holding NCA files, one damaged (nxar.py's words)", Platform.Linux, null,
-            m => Files(m, null, NxCheck("/home/player/Games/Ocarina of Time/Ocarina of Time (DNSP).nx",
-                                        "nxar.py stopped (exit status 1): /home/player/Games/Ocarina of Time/Ocarina of Time (DNSP).nx holds the game as " +
-                                        "NCA files (made by nxconvert pack from a DNSP or DXCI), which Longshot does not read."),
-                                NxCheck("/home/player/Downloads/Ocarina of Time.nx",
-                                        "nxar.py stopped (exit status 1): romfs/Pack/ZsDic.pack.zs is damaged in the archive (its SHA-256 differs). " +
-                                        "Copy or convert the file again"))),
+                    "This is build 7c1a33b0. Longshot supports build e0f3ccfa.", Code: "unsupported_build")))),
         new("files-not-checked", "Step 1, a check that could not run because of this PC: not said to be the file's", Platform.Linux, null,
             m => Files(m, null,
                 ("/home/player/Games/Ocarina of Time/0400486024dec000_v131072.nup", new GameCheck(GameCheckStatus.CheckFailed,
@@ -190,62 +182,114 @@ static class Program
                                                          "exception_access_violation longshot.exe"), m.ShowHome, crashed: true)),
         // (What's new: a v3.0.0 build, the stable channel at v3.2.0, the release list's pages as scripts/release.py writes them)
         new("home-update", "The home with an update: What's new beside it", Platform.Linux, UpdateOffered, _ => null),
+        // (Home: a version of the builder's kind, and the profile's three slots)
+        new("home-play", "Home: the brand's band, the Version picker (a builder's version), the Save picker on the slot Play starts on, and Play",
+            Platform.Windows, s => { PlayInstance(s); EditorReady(s); PlayedBefore(s, "slot_00"); }, _ => null),
+        new("home-no-saves", "Home for a profile with no save yet: the Save dropdown says New game, Play starts one", Platform.Windows,
+            s => PlayInstance(s), _ => null),
+        new("home-old-version", "Home on a version that cannot start on a slot (no start_slot): no Save dropdown, one quiet line in its place",
+            Platform.Windows, s => { PlayInstance(s); OldStamp(s); PlayedBefore(s, "slot_00"); }, _ => null),
+        new("home-build-versions", "Home with no version yet, its Version picker open: the version a build makes, Manage versions… and New version…",
+            Platform.Windows, null, _ => null, OpenDropdown: 1),
+        new("home-play-saves", "Home's Save dropdown open: each of the profile's slots with its place, time and hearts, the newest picked, then Manage saves…", Platform.Windows,
+            s => { PlayInstance(s); EditorReady(s); }, _ => null, OpenDropdown: 2),
+        new("home-play-versions", "Home's Version picker open: the versions on this PC, each with its channel, then Manage versions…", Platform.Windows,
+            s =>
+            {
+                PlayInstance(s);
+                EditorReady(s);
+                s.Registry.Add(@"C:\Users\Player\Games\Longshot\nightly\nightly-189-aa95d35f", "nightly-189-aa95d35f", Versions.Nightly);
+            }, _ => null, OpenDropdown: 0),
+        new("versions-play", "The Versions page: a builder's version, beside a nightly", Platform.Windows,
+            s =>
+            {
+                PlayInstance(s);
+                s.Registry.Add(@"C:\Users\Player\Games\Longshot\nightly\nightly-189-aa95d35f", "nightly-189-aa95d35f", Versions.Nightly);
+            }, m => new VersionsViewModel(m)),
+        new("versions-add", "Add version: Stable and Nightly, each with its newest, the nightly's older versions in the list; Advanced closed",
+            Platform.Linux, PullRequestsListed, m => new VersionsViewModel(m), m => m.Modal = new AddVersionViewModel(m, Versions.Nightly)),
+        new("versions-add-advanced", "Add version with Advanced open: Build main (its newest commit) and Build a pull request, a WIP one picked, with the warning",
+            Platform.Linux, PullRequestsListed, m => new VersionsViewModel(m), m =>
+            {
+                var add = new AddVersionViewModel(m, Versions.Nightly) { MainHead = "4f2c9e1a7b3d5f6081a2b3c4d5e6f708192a3b4c" };
+                m.Modal = add;
+                add.AdvancedOpen = true;
+                add.Kind = Versions.PullRequest;
+                add.PickedPull = add.Pulls.First(p => p.IsDraft);
+            }),
+        new("versions-notice", "The Versions page with a notice: the icon, the text and Dismiss on one line, centred", Platform.Windows, NightliesListed,
+            m => new VersionsViewModel(m), m => m.Home.Notice = "Close Longshot first: Nightly 189 \u00b7 aa95d35f is not deleted while a game runs."),
+        new("versions-empty", "The Versions page with no version yet: the first build's card", Platform.Linux, null, m => new VersionsViewModel(m)),
+        // (the clean break: a version built by Longshot's old builder, beside a builder's version: not supported, with the way to
+        // the stable launcher, which plays it)
+        new("versions-old", "The Versions page: a version built by Longshot's old builder, not supported here, with the way to the stable launcher",
+            Platform.Windows, OldVersionListed, m => new VersionsViewModel(m)),
+        new("home-old", "Home on a version built by Longshot's old builder: not supported, the stable launcher offered in Play's place",
+            Platform.Windows, OldVersionListed, _ => null),
+        // (the launcher's channel switched from nightly to stable: the offer, the profile's saves copied back first, a newer file kept)
+        new("stable-offer", "Switching the launcher to stable: replace it with the stable launcher, the profile's saves copied back to the folder it reads first",
+            Platform.Windows, StableOffer, m => new SettingsViewModel(m), m => m.Modal = new StableLauncherViewModel(m, canReplace: true)),
+        new("versions-missing", "The Versions page: a version whose game is gone from its folder, Build it again", Platform.Windows,
+            s => s.Registry.Add(@"C:\Users\Player\Games\Longshot\stable\v3.0.0", "v3.0.0", Versions.Stable, makeDefault: true),
+            m => new VersionsViewModel(m), Missing: true),
+        new("tv-versions", "The TV view of the Versions page, a controller's first press", Platform.Linux, NightliesListedAndStable,
+            m => new VersionsViewModel(m), Tv: true, Presses: [PadAction.Down]),
+        new("home-missing", "A version whose game is gone from its folder: Game missing, and Build it again", Platform.Windows,
+            s => s.Registry.Add(@"C:\Users\Player\Games\Longshot\stable\v3.0.0", "v3.0.0", Versions.Stable, makeDefault: true), _ => null,
+            Missing: true),
+        new("tv-home-play", "The TV view of the Play card, a controller's first press on Play", Platform.Linux,
+            s => { PlayInstance(s); ThreeSlots(s); }, _ => null, Tv: true, Presses: [PadAction.Down]),
         new("whats-new", "What's new, from the build's version to the update, newest first", Platform.Linux, UpdateOffered, _ => null,
             m => m.Home.ShowNotes(m.Home.Default!)),
         new("whats-new-launcher", "What's new in the launcher the banner offers", Platform.Linux, LauncherOffered, _ => null,
             m => m.Home.LauncherNotesCommand.Execute(null)),
         // (two builds whose game files are hard links of each other's: each row says what it holds of its own, the footer the
         // total and what of it they share; then with the shader store too)
-        new("home-shared-sizes", "Two builds sharing their game files: each row its own size, the footer what they share", Platform.Windows,
-            s => SharedSizes(s, 0), _ => null),
-        new("home-shared-store", "The same with the shader store: the footer counts it, and says they share it", Platform.Windows,
-            s => SharedSizes(s, 3_758_096_384), _ => null),
+        new("versions-shared-sizes", "Two builds sharing their game files: each row its own size, the footer what they share", Platform.Windows,
+            s => SharedSizes(s, 0), m => new VersionsViewModel(m)),
+        new("versions-shared-store", "The same with the shader store: the footer counts it, and says they share it", Platform.Windows,
+            s => SharedSizes(s, 3_758_096_384), m => new VersionsViewModel(m)),
         // (the Track and Version dropdowns: a nightly build, the newest 5 nightlies on the server, its own the newest)
-        new("home-row-opened", "A version's row opened: Saves, Open folder, Delete", Platform.Windows, NightliesListed, _ => null,
+        new("versions-default", "A version's row opened: Saves, Open folder, Delete", Platform.Windows, NightliesListed, m => new VersionsViewModel(m),
             m => m.Home.Select(m.Home.Builds[0])),
-        new("home-row-opened-second", "A second version's row opened: Play this version, Set as default; the dropdowns on it", Platform.Windows,
+        new("versions", "A second version's row opened: Play this version, Set as default; the dropdowns on it", Platform.Windows,
             s =>
             {
                 NightliesListed(s);
                 s.Registry.Add(@"C:\Users\Player\Games\Longshot\stable", "v3.0.0", Versions.Stable, makeDefault: true);
             },
-            _ => null, m => m.Home.Select(m.Home.Builds.First(b => !b.IsDefault))),
-        new("home-versions", "The Version dropdown open: the nightly track's versions, a check beside the installed one",
-            Platform.Windows, NightliesListed, _ => null, OpenDropdown: 1),
-        // (a stable launcher and the newest nightlies built with the new builder: marked, and picking one opens the dialog)
-        new("home-versions-needs-nightly", "The Version dropdown open: the newest nightlies are built with the new builder, marked Needs the nightly launcher",
-            Platform.Linux, NewBuilderListed, _ => null, OpenDropdown: 1),
-        new("needs-nightly-launcher", "A version built with the new builder picked: the dialog with the way out", Platform.Linux, NewBuilderListed,
-            _ => null, m => m.Modal = new NeedsNightlyLauncherViewModel(m)),
-        new("home-tracks", "The Track dropdown open: the tracks by name", Platform.Windows,
+            m => new VersionsViewModel(m), m => m.Home.Select(m.Home.Builds.First(b => !b.IsDefault))),
+        new("versions-version-list", "The Version dropdown open: the nightly track's versions, a check beside the installed one",
+            Platform.Windows, NightliesListed, m => new VersionsViewModel(m), OpenDropdown: 1),
+        new("versions-tracks", "The Track dropdown open: the tracks by name", Platform.Windows,
             s =>
             {
                 NightliesListed(s);
                 s.Registry.Add(@"C:\Users\Player\Games\Longshot\stable", "v3.0.0", Versions.Stable);
             },
-            _ => null, OpenDropdown: 0),
+            m => new VersionsViewModel(m), OpenDropdown: 0),
         // (a newer version shown once in each place: the nightly build behind its track's newest, Update available beside the
         // version and on its row, Update beside Play, the newest and What's new opposite the title; a row on another track too)
         new("home-nightly-update", "A nightly build with a newer nightly out: Update beside Play, Update available, What's new opposite the title",
             Platform.Windows, NightlyBehind, _ => null),
-        new("home-versions-update", "The Version dropdown open on a track whose build has a newer version: Update available on its row",
-            Platform.Windows, NightlyBehind, _ => null, OpenDropdown: 1),
-        new("home-row-update", "A build on another track with a newer version: only Update available on its row", Platform.Windows,
+        new("versions-update-list", "The Version dropdown open on a track whose build has a newer version: Update available on its row",
+            Platform.Windows, NightlyBehind, m => new VersionsViewModel(m), OpenDropdown: 1),
+        new("versions-update", "A build on another track with a newer version: only Update available on its row", Platform.Windows,
             s =>
             {
                 NightlyBehind(s);
                 s.Registry.Add(@"C:\Users\Player\Games\Longshot\stable\v3.0.0", "v3.0.0", Versions.Stable, makeDefault: true);
                 s.SetNewest(Versions.Stable, "v3.0.0");
             },
-            _ => null),
+            m => new VersionsViewModel(m)),
         // (the Pull request track: a pull request's build behind its newer push, and Beanstalk's list of open ones)
-        new("home-pr-track", "The Pull request track: a pull request's build with a newer push, who wrote it, Read it, Find a pull request",
-            Platform.Linux, PullRequestsListed, _ => null, m => m.Home.PickTrack = m.Home.Tracks.First(t => t.Id == Versions.PullRequest)),
-        new("home-pr-versions", "The Version dropdown on the Pull request track: the installed one, then the ones a BigBean wrote or approved",
-            Platform.Linux, PullRequestsListed, _ => null, m => m.Home.PickTrack = m.Home.Tracks.First(t => t.Id == Versions.PullRequest),
+        new("versions-pr-track", "The Pull request track: a pull request's build with a newer push, who wrote it, Read it, Find a pull request",
+            Platform.Linux, PullRequestsListed, m => new VersionsViewModel(m), m => m.Home.PickTrack = m.Home.Tracks.First(t => t.Id == Versions.PullRequest)),
+        new("versions-pr-list", "The Version dropdown on the Pull request track: the installed one, then the ones a BigBean wrote or approved",
+            Platform.Linux, PullRequestsListed, m => new VersionsViewModel(m), m => m.Home.PickTrack = m.Home.Tracks.First(t => t.Id == Versions.PullRequest),
             OpenDropdown: 1),
-        new("home-pr-switch", "Another pull request picked: Switch to it, built in the place of the one installed", Platform.Linux,
-            PullRequestsListed, _ => null, m =>
+        new("versions-pr-switch", "Another pull request picked: Switch to it, built in the place of the one installed", Platform.Linux,
+            PullRequestsListed, m => new VersionsViewModel(m), m =>
             {
                 m.Home.PickTrack = m.Home.Tracks.First(t => t.Id == Versions.PullRequest);
                 m.Home.PickVersion = m.Home.TrackVersions.First(v => v.Tag.StartsWith("pr-1563-", StringComparison.Ordinal));
@@ -260,18 +304,18 @@ static class Program
             m => m.Modal = new PullRequestFindViewModel(m) { Text = "https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/1571" }),
         new("build-files-left", "The last version deleted: its build files offered to go too, or kept for Storage to free later", Platform.Linux,
             null, _ => null, m => m.Modal = new BuildFilesViewModel(m, m.Service.Work, 23L << 30)),
-        new("home-go-back", "An older nightly picked: Go back to it, built in the nightly build's place", Platform.Windows, NightliesListed,
-            _ => null, m => m.Home.PickVersion = m.Home.TrackVersions.First(v => v.Tag == "nightly-187-9e6f231d")),
-        new("home-build-track", "A track with no build picked: Build its newest, into a folder of its own", Platform.Windows,
+        new("versions-go-back", "An older nightly picked: Go back to it, built in the nightly build's place", Platform.Windows, NightliesListed,
+            m => new VersionsViewModel(m), m => m.Home.PickVersion = m.Home.TrackVersions.First(v => v.Tag == "nightly-187-9e6f231d")),
+        new("versions-build-track", "A track with no build picked: Build its newest, into a folder of its own", Platform.Windows,
             s =>
             {
                 NightliesListed(s);
                 s.SetNewest(Versions.Stable, "v3.1.0");
                 s.Releases.Listed = [.. s.Releases.Listed!, new("v3.1.0", false, false,
                     DateTimeOffset.Parse("2026-11-12T12:00:00Z", System.Globalization.CultureInfo.InvariantCulture),
-                    ReleaseNotes.PageOf(Product.Longshot, "v3.1.0"), "", [])];
+                    ReleaseNotes.PageOf(Product.Longshot, "v3.1.0"), "", BuilderFiles("v3.1.0"))];
             },
-            _ => null, m => m.Home.PickTrack = m.Home.Tracks.First(t => t.Id == Versions.Stable)),
+            m => new VersionsViewModel(m), m => m.Home.PickTrack = m.Home.Tracks.First(t => t.Id == Versions.Stable)),
         new("settings-go-back", "Step 2 going back to an older nightly: its folder takes that version's name when the build starts", Platform.Windows, NightliesListed,
             m => new SettingsStepViewModel(new BuildJob(m, JobKind.Update, Versions.Nightly, "nightly-187-9e6f231d", m.Service.Registry.Builds[0]))
                  { Free = 412L << 30 }),
@@ -362,8 +406,18 @@ static class Program
                 return step;
             }, ScrollToEnd: true),
         // (the Saves page: Longshot's save, made here from made-up files, three slots saved at different times)
-        new("saves", "The Saves page: the slots every build shares, and the ways in and out", Platform.Windows, ThreeSlots,
-            m => new SavesViewModel(m)),
+        new("saves", "The Saves page: the profile's slots, each with Progress and Copy or move…, and the ways in and out", Platform.Windows,
+            s => { ThreeSlots(s); Profiles(s); }, m => new SavesViewModel(m)),
+        new("profiles", "The Profiles page: a card per profile, its saves and settings at a glance, and its actions", Platform.Windows,
+            s => { PlayInstance(s); EditorReady(s); Profiles(s); }, m => new ProfilesViewModel(m)),
+        new("profiles-folders", "The Profiles page with the profiles' folders: each card's game copy and upscalers from its profile.json", Platform.Windows,
+            s => { PlayInstance(s); ProfileFolders(s); }, m => new ProfilesViewModel(m)),
+        new("profiles-who", "Who's playing?: the first page with several profiles", Platform.Windows,
+            s => { PlayInstance(s); EditorReady(s); Profiles(s); }, m => new WhoViewModel(m)),
+        new("profiles-menu", "The profile chip's menu: every profile, Manage profiles… and New profile…", Platform.Windows,
+            s => { PlayInstance(s); EditorReady(s); Profiles(s); PlayedBefore(s, "slot_00"); }, m => m.Home, m => m.ProfileMenuOpen = true),
+        new("home-profile", "Home as another profile (Ana): her own saves, which the version's game plays with her profile", Platform.Windows,
+            s => { PlayInstance(s); EditorReady(s); Profiles(s); s.SwitchProfile(s.Profiles.First(p => p.Name == "Ana").Id); }, m => m.Home),
         new("saves-export-pick", "Export saves: an emulator, another folder, or a .zip file", Platform.Windows, ThreeSlots,
             m => new SavesViewModel(m), m => m.Modal = new SavePickViewModel((SavesViewModel)m.Page!, SaveMode.Export)),
         new("saves-import-pick", "Import saves: an emulator, another folder, or a .zip file", Platform.Windows, ThreeSlots,
@@ -439,6 +493,46 @@ static class Program
             s => EditorReady(s, tells: _ => EditorRefuses("report", "damaged", "slot_00/progress.sav is 23 bytes: not a save file")),
             m => Editor(m)),
     ];
+
+    /// The game folder of PlayInstance's version: its builds/default
+    static string PlayGame(LauncherService service) =>
+        BuilderVersions.GameFolderOf(BuilderVersions.FolderOf(service.Home.Root, "v3.1.0"));
+
+    static void WriteFile(string path, string text)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, text);
+    }
+
+    /// A version of the builder's kind on this PC (BuilderVersions: versions/v3.1.0 in the launcher's data, its builder and its
+    /// game in builds/default), the default, whose game starts on a save slot (its builder's info says it plays a profile:
+    /// BuilderInfos); the scene's home as $HOME
+    static void PlayInstance(LauncherService service)
+    {
+        var game = PlayGame(service);
+        WriteFile(Path.Combine(game, GameFolder.StampName), "version=v3.1.0\nfeatures=start_slot\n");
+        var version = BuilderVersions.FolderOf(service.Home.Root, "v3.1.0");
+        WriteFile(BuilderVersions.ExeOf(version, service.Platform), "made up for the screenshots\n");
+        BuilderInfos.Set(version, new BuilderInfo("v3.1.0", Versions.Stable, new HashSet<string> { "play", "info", "steam_shortcut", "storage" },
+                                                  new HashSet<string> { "profile", "save_dir" },
+                                                  new BuilderInfo.BuildState(game, true, true, null, "v3.1.0", [])));
+        service.Registry.Add(game, "v3.1.0", Versions.Stable, makeDefault: true);
+        // (ShownPath: the player's folders under ~, as on the player's PC; Shoot puts $HOME back)
+        Environment.SetEnvironmentVariable("HOME", service.SaveEnv.Getenv("HOME"));
+    }
+
+    /// The window's jobs run until done says so (what a page reads off the window's thread is in), for at most 10 seconds
+    static void Settle(Func<bool> done)
+    {
+        var until = DateTime.UtcNow.AddSeconds(10);
+        while (!done())
+        {
+            if (DateTime.UtcNow > until) throw new TimeoutException("the page did not settle");
+            Dispatcher.UIThread.RunJobs();
+            Thread.Sleep(10);
+        }
+        Dispatcher.UIThread.RunJobs();
+    }
 
     /// Longshot's shared save and Lichii's, both with slots and game settings, for the export confirm screens
     static void SavesFixture(LauncherService service) => SavesFixture(service, settings: true);
@@ -656,7 +750,8 @@ static class Program
         var folder = SeedSlots(service);
         // (the build's game folder, with its version's stamp: the page says whose game files it reads)
         var game = Directory.CreateDirectory(Path.Combine(service.SaveEnv.Getenv("HOME")!, "Games", "Longshot", "v3.1.0")).FullName;
-        File.WriteAllText(Path.Combine(game, GameFolder.StampName), "version=v3.1.0\n");
+        // (kept when the scene made the version already, PlayInstance: its stamp names its features)
+        if (!File.Exists(Path.Combine(game, GameFolder.StampName))) File.WriteAllText(Path.Combine(game, GameFolder.StampName), "version=v3.1.0\n");
         var tool = EditorTool with { Game = game };
         // (the folder the backups go to, as the player's would be, not the scene's own home)
         service.SaveEnv = service.SaveEnv with { BackupFolder = "/home/player/.local/share/longshot/save-backup" };
@@ -678,7 +773,7 @@ static class Program
         const string downloads = "# 🎮 To play, get the Longshot Launcher\n\n### [🪟 &nbsp;Download the launcher for Windows](https://longshot.magicbean.dev/download/launcher/stable/windows)\n\n---\n\n";
         ListedRelease Release(string tag, string day, string notes) =>
             new(tag, false, false, DateTimeOffset.Parse(day + "T12:00:00Z", System.Globalization.CultureInfo.InvariantCulture),
-                ReleaseNotes.PageOf(Product.Longshot, tag), "", [], downloads + notes);
+                ReleaseNotes.PageOf(Product.Longshot, tag), "", BuilderFiles(tag), downloads + notes);
         service.Releases.Listed =
         [
             Release("v3.0.0", "2026-10-20", "## v3.0.0 (2026-10-20)\n\n- The first stable"),
@@ -777,12 +872,98 @@ static class Program
         service.ShaderStoreOverride = () => store;
     }
 
+    /// The nightlies listed, a nightly build and a stable one beside it (the Versions page's cards on two channels)
+    /// Play started the version yesterday evening, on the save slot given (null: the newest)
+    static void PlayedBefore(LauncherService service, string? slot)
+    {
+        service.Profile.LastPlayed = service.Registry.Builds[0].Id;
+        service.Profile.LastPlayedAt = DateTime.Today.AddDays(-1).AddHours(21).AddMinutes(4);
+        service.Profile.StartSlot = slot;
+    }
+
+    /// The instance's version from before start_slot: its stamp lists no features
+    static void OldStamp(LauncherService service)
+    {
+        WriteFile(Path.Combine(PlayGame(service), GameFolder.StampName), "version=v3.1.0\n");
+        // (its builder says its game plays no profile)
+        var version = BuilderVersions.FolderOf(service.Home.Root, "v3.1.0");
+        if (BuilderInfos.OfVersion(version) is { } info) BuilderInfos.Set(version, info with { Game = new HashSet<string>() });
+    }
+
+    /// The profiles as folders (ProfileStore): Charlie (the default) with DLSS and FSR 4; Ana on a dump folder with
+    /// XeSS; Sam with no upscaler
+    static void ProfileFolders(LauncherService service)
+    {
+        var root = ProfileStore.Root(service.Home.Root);
+        service.SaveEnv = service.SaveEnv with { ProfilesRoot = root };
+        void Make(string id, string name, string color, string game, string[] ups)
+        {
+            var f = new ProfileFile { Name = name, Color = color, Game = game };
+            f.Upscalers = ups;
+            ProfileStore.Save(ProfileStore.Dir(root, id), f);
+        }
+        Make(LauncherProfiles.DefaultId, "Charlie", "#7CC242", @"C:\Users\Player\Games\Zelda OoT.nup", ["dlss", "fsr4"]);
+        Make("p-00000a0a", "Ana", "#F3C24F", @"D:\Dumps\OoT", ["xess"]);
+        Make("p-00000b0b", "Sam", "#D9783A", @"C:\Users\Player\Games\Zelda OoT.nup", []);
+        service.SaveEnv = service.SaveEnv with { SavesHome = LauncherProfiles.SavesHome(service.SaveEnv, LauncherProfiles.DefaultId) };
+    }
+
+    /// Two more profiles beside the default (renamed Charlie): Ana, with two saves of her own, and Sam, with none
+    static void Profiles(LauncherService service)
+    {
+        // (the profiles are the folders under the launcher's profiles/, as a launcher of this kind has them)
+        if (service.SaveEnv.ProfilesRoot == null)
+            service.SaveEnv = service.SaveEnv with { ProfilesRoot = ProfileStore.Root(service.Home.Root) };
+        LauncherProfiles.Rename(service.SaveEnv, LauncherProfiles.DefaultId, "Charlie");
+        var ana = LauncherProfiles.Create(service.SaveEnv, "Ana");
+        LauncherProfiles.Create(service.SaveEnv, "Sam");
+        var slots = LauncherProfiles.SlotsFolder(service.SaveEnv, ana.Id);
+        foreach (var (n, ago) in new[] { (0, TimeSpan.FromHours(5)), (2, TimeSpan.FromDays(4)) })
+        {
+            var slot = Directory.CreateDirectory(Path.Combine(slots, $"slot_{n:00}")).FullName;
+            File.WriteAllText(Path.Combine(slot, "progress.sav"), "x");
+            File.SetLastWriteTime(Path.Combine(slot, "progress.sav"), DateTime.Now - ago);
+        }
+    }
+
+    /// A stable version built by Longshot's old builder (make_game.py: OldVersions), the default, beside a nightly of the builder's
+    static void OldVersionListed(LauncherService service)
+    {
+        service.Registry.Add(@"C:\Users\Player\Games\Longshot\stable\v3.0.0", "v3.0.0", Versions.Stable, makeDefault: true);
+        service.Registry.Add(@"C:\Users\Player\Games\Longshot\nightly\nightly-189-aa95d35f", "nightly-189-aa95d35f", Versions.Nightly);
+        service.SetNewest(Versions.Nightly, "nightly-189-aa95d35f");
+        service.IsOldOverride = b => b.Version == "v3.0.0";
+    }
+
+    /// A profile's saves to copy back to the --user folder for the stable launcher: three slots, one of them newer in that folder
+    static void StableOffer(LauncherService service)
+    {
+        // (a nightly launcher: the radio the player pressed stays on Nightly behind the offer)
+        service.Settings.LauncherChannel = Versions.Nightly;
+        service.SaveEnv = service.SaveEnv with { ProfilesRoot = ProfileStore.Root(service.Home.Root) };
+        // (ShownPath: the player's folders under ~, as on the player's PC; Shoot puts $HOME back)
+        Environment.SetEnvironmentVariable("HOME", service.SaveEnv.Getenv("HOME"));
+        LauncherProfiles.Ensure(service.SaveEnv);
+        var profile = LauncherProfiles.SavesHome(service.SaveEnv, service.Profile.Id)!;
+        FakeSave(Path.Combine(profile, "save", Saves.UserId), DateTime.Now, "slot_00", "slot_01", "slot_02");
+        var played = Path.Combine(service.SaveEnv.LongshotUser, "save", Saves.UserId, "slot_02", "progress.sav");
+        Directory.CreateDirectory(Path.GetDirectoryName(played)!);
+        File.WriteAllText(played, "played since with the stable launcher");
+    }
+
+    static void NightliesListedAndStable(LauncherService service)
+    {
+        NightliesListed(service);
+        service.Registry.Add(service.Platform == Platform.Windows ? @"C:\Users\Player\Games\Longshot\stable\v3.0.0" : "/home/player/Games/Longshot/stable/v3.0.0",
+                             "v3.0.0", Versions.Stable);
+    }
+
     static void NightliesListed(LauncherService service)
     {
         service.Registry.Add(@"C:\Users\Player\Games\Longshot\nightly\nightly-189-aa95d35f", "nightly-189-aa95d35f", Versions.Nightly, makeDefault: true);
         service.SetNewest(Versions.Nightly, "nightly-189-aa95d35f");
         ListedRelease Nightly(string tag, string at) =>
-            new(tag, false, true, DateTimeOffset.Parse(at, System.Globalization.CultureInfo.InvariantCulture), ReleaseNotes.PageOf(Product.Longshot, tag), "", []);
+            new(tag, false, true, DateTimeOffset.Parse(at, System.Globalization.CultureInfo.InvariantCulture), ReleaseNotes.PageOf(Product.Longshot, tag), "", BuilderFiles(tag));
         service.Releases.Listed =
         [
             Nightly("nightly-189-aa95d35f", "2026-11-15T11:10:00Z"),
@@ -791,26 +972,6 @@ static class Program
             Nightly("nightly-182-5274fb72", "2026-11-14T08:07:00Z"),
             Nightly("nightly-179-70087604", "2026-11-13T07:01:00Z"),
         ];
-    }
-
-    /// The nightly releases NightliesListed has, two of them built with the new builder (their manifest in the list)
-    static void NewBuilderListed(LauncherService service)
-    {
-        // (a folder that exists, or the home drops the build as deleted outside the launcher)
-        var folder = Path.Combine(Path.GetTempPath(), "needs-nightly-shot", "nightly-189-aa95d35f");
-        Directory.CreateDirectory(folder);
-        service.Registry.Add(folder, "nightly-189-aa95d35f", Versions.Nightly, makeDefault: true);
-        service.SetNewest(Versions.Nightly, "nightly-189-aa95d35f");
-        ListedRelease Nightly(string tag, string at) =>
-            new(tag, false, true, DateTimeOffset.Parse(at, System.Globalization.CultureInfo.InvariantCulture), ReleaseNotes.PageOf(Product.Longshot, tag), "", []);
-        service.Releases.Listed =
-        [
-            Nightly("nightly-189-aa95d35f", "2026-11-15T11:10:00Z"),
-            Nightly("nightly-188-a00c485c", "2026-11-15T10:10:00Z"),
-            Nightly("nightly-187-9e6f231d", "2026-11-15T09:22:00Z"),
-        ];
-        service.Releases.Listed = service.Releases.Listed!.Select(r => r.Tag is "nightly-189-aa95d35f" or "nightly-188-a00c485c"
-            ? r with { Assets = [(ReleaseManifest.BuilderManifestName(r.Tag, "linux-x64"), "https://git.magicbean.dev/x.json", 10)] } : r).ToList();
     }
 
     /// The nightly releases NightliesListed has, with the build two nightlies behind: its track's newest is out
@@ -819,7 +980,7 @@ static class Program
         service.Registry.Add(@"C:\Users\Player\Games\Longshot\nightly\nightly-187-9e6f231d", "nightly-187-9e6f231d", Versions.Nightly, makeDefault: true);
         service.SetNewest(Versions.Nightly, "nightly-189-aa95d35f");
         ListedRelease Nightly(string tag, string at) =>
-            new(tag, false, true, DateTimeOffset.Parse(at, System.Globalization.CultureInfo.InvariantCulture), ReleaseNotes.PageOf(Product.Longshot, tag), "", []);
+            new(tag, false, true, DateTimeOffset.Parse(at, System.Globalization.CultureInfo.InvariantCulture), ReleaseNotes.PageOf(Product.Longshot, tag), "", BuilderFiles(tag));
         service.Releases.Listed =
         [
             Nightly("nightly-189-aa95d35f", "2026-11-15T11:10:00Z"),
@@ -830,12 +991,16 @@ static class Program
         ];
     }
 
+    /// A Longshot release's files as one of longshot-builder's kind lists them: its manifests (ReleaseManifest.Supported)
+    static (string, string, long)[] BuilderFiles(string tag) =>
+        [.. new[] { "windows-x64", "linux-x64" }.Select(p => (LongshotBuildRelease.ManifestName(tag, p), "https://example.invalid/" + tag, 1000L))];
+
     /// A launcher on its stable channel offered, with its release page's notes
     static void LauncherOffered(LauncherService service)
     {
         UpdateOffered(service);
         var none = new Dictionary<string, FileRef>();
-        service.SetLauncherUpdate(new ReleaseInfo("launcher", "v1.1.0", "", DateTimeOffset.Now, null, none, none, none));
+        service.SetLauncherUpdate(new ReleaseInfo("launcher", "v1.1.0", "", DateTimeOffset.Now, null, none));
         service.LauncherReleases.Listed =
         [
             new("v1.1.0", false, false, DateTimeOffset.Now, ReleaseNotes.PageOf(Product.Launcher, "v1.1.0"), "", [],
@@ -856,9 +1021,6 @@ static class Program
             page.ShowFile(new FoundGameFile(path, "Found", 25L << 30, DateTime.Now, false), check);
         return page;
     }
-
-    /// A game file whose check stopped with make_game.py's @@error text: the status the launcher gives it (GameCheck.Of)
-    static (string, GameCheck) NxCheck(string path, string error) => (path, new GameCheck(GameCheck.Of(error), error));
 
     /// A Steam of the scene's own (its userdata, loginusers.vdf and steam.sh) and two builds, so the
     /// Ready screen shows all four ticks: Steam is read from $XDG_DATA_HOME, and the shortcuts the
@@ -906,29 +1068,38 @@ static class Program
 
     /// --size: the window's, for every scene that is not the TV view
     static (double Width, double Height)? size;
+    static bool small;
+    static string lang = Tr.English;
 
     [STAThread]
     static int Main(string[] args)
     {
         if (args.Length == 1 && args[0] == "--check-vulkan") return VulkanChecks.Run();
-        var lang = Tr.English;
-        while (args.Length >= 2 && args[0] is "--lang" or "--size")
+        // (--small: the window at the smallest size the pages are laid out for, 1040x680, to see a page still fits; --size
+        // <width>x<height>: the window at that size; --lang <code>: the launcher in that language, to see translated texts fit.
+        // --small and --lang each add to the PNG's name: mods-small.png, mods-de.png)
+        var rest = new List<string>();
+        for (var i = 0; i < args.Length; i++)
         {
-            if (args[0] == "--lang") lang = Tr.Pick(args[1]) ?? throw new ArgumentException("no language " + args[1]);
-            else
+            if (args[i] == "--small") small = true;
+            else if (args[i] == "--lang" && i + 1 < args.Length) lang = Tr.Pick(args[++i]) ?? throw new ArgumentException("no language " + args[i]);
+            else if (args[i] == "--size" && i + 1 < args.Length)
             {
-                var wh = args[1].Split('x');
+                var wh = args[++i].Split('x');
                 size = (double.Parse(wh[0], System.Globalization.CultureInfo.InvariantCulture),
                         double.Parse(wh[1], System.Globalization.CultureInfo.InvariantCulture));
             }
-            args = args[2..];
+            else rest.Add(args[i]);
         }
-        var outDir = Path.GetFullPath(args.Length > 0 ? args[0] : Path.Combine("work", "screenshots"));
-        var wanted = args.Skip(1).ToHashSet(StringComparer.Ordinal);
+        var outDir = Path.GetFullPath(rest.Count > 0 ? rest[0] : Path.Combine("work", "screenshots"));
+        var wanted = rest.Skip(1).ToHashSet(StringComparer.Ordinal);
+        var failed = 0;
+        var suffix = (small ? "-small" : "") + (lang != Tr.English ? "-" + lang : "");
         var unknown = wanted.Where(w => Scenes.All(s => s.Name != w)).ToList();
         if (unknown.Count > 0)
         {
-            Console.Error.WriteLine("no scene " + string.Join(", ", unknown) + "; the scenes: " + string.Join(", ", Scenes.Select(s => s.Name)));
+            Console.Error.WriteLine("no scene " + string.Join(", ", unknown) + "; the scenes: "
+                                    + string.Join(", ", Scenes.Select(s => s.Name)));
             return 2;
         }
         Directory.CreateDirectory(outDir);
@@ -937,11 +1108,18 @@ static class Program
         Tr.Use(lang);
         foreach (var scene in Scenes.Where(s => wanted.Count == 0 || wanted.Contains(s.Name)))
         {
-            var path = Path.Combine(outDir, scene.Name + ".png");
-            Shoot(scene, path);
+            var path = Path.Combine(outDir, scene.Name + suffix + ".png");
+            // (a scene that fails is said, and the others are still drawn)
+            try { Shoot(scene, path); }
+            catch (Exception e)
+            {
+                Console.Error.WriteLine($"{scene.Name}: failed: {e}");
+                failed++;
+                continue;
+            }
             Console.WriteLine($"{path}: {scene.Shows}");
         }
-        return 0;
+        return failed > 0 ? 1 : 0;
     }
 
     static void Shoot(Scene scene, string path)
@@ -952,8 +1130,12 @@ static class Program
         var realHome = Environment.GetEnvironmentVariable("HOME");
         var realData = Environment.GetEnvironmentVariable("XDG_DATA_HOME");
         var realLauncherHome = Environment.GetEnvironmentVariable("LONGSHOT_LAUNCHER_HOME");
+        var ownDir = Environment.CurrentDirectory;
         try
         {
+            // (a scene's Windows paths, C:\Users\Player\..., are one name relative to the current folder on the Linux PCs the
+            // screenshots are drawn on: they resolve in a folder of the scene's own, never this checkout)
+            Environment.CurrentDirectory = Directory.CreateDirectory(Path.Combine(home.FullName, "pc")).FullName;
             var service = LauncherService.Open(scene.Platform, new LauncherHome(home.FullName));
             // (a player's folders, as the screens show them: nothing is written there)
             var windows = scene.Platform == Platform.Windows;
@@ -978,6 +1160,11 @@ static class Program
             // (Vulkan not read: the scene's GpuCards are the cards the switches judge, unless the scene says which the game takes)
             service.VulkanProbe = () => Task.FromResult<IReadOnlyList<GpuRequirement>?>(null);
             scene.Setup?.Invoke(service);
+            // (the made-up builds' folders, made so they are there: the home takes a build whose folder is gone off its list)
+            foreach (var b in service.Registry.Builds.Where(b => BuildRegistry.Gone(b.Folder)))
+                Directory.CreateDirectory(b.Folder);
+            // (and built, as a player's are: the home plays them; a scene about a game gone from its folder says none is)
+            service.IsBuiltOverride = _ => !scene.Missing;
             var main = new MainViewModel(service, StartRequest.Parse([]));
             // (the TV view: as Steam's Gaming Mode asks for it, on a 1080p screen)
             Environment.SetEnvironmentVariable("LONGSHOT_LAUNCHER_TV", scene.Tv ? "1" : "0");
@@ -991,6 +1178,11 @@ static class Program
             {
                 window.Width = resized.Width;
                 window.Height = resized.Height;
+            }
+            else if (small)
+            {
+                window.Width = MainWindow.SmallestWidth;
+                window.Height = MainWindow.SmallestHeight;
             }
             window.Show();
             if (scene.Page(main) is { } page) main.Navigate(page);
@@ -1051,6 +1243,7 @@ static class Program
         finally
         {
             // (whatever a scene pointed these at: the run's own, so the next scene starts clean)
+            Environment.CurrentDirectory = ownDir;
             Environment.SetEnvironmentVariable("HOME", realHome);
             Environment.SetEnvironmentVariable("XDG_DATA_HOME", realData);
             Environment.SetEnvironmentVariable("LONGSHOT_LAUNCHER_HOME", realLauncherHome);

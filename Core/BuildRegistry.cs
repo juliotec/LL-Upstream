@@ -23,11 +23,14 @@ public sealed class BuildEntry
     public bool? Fsr { get; set; }
     /// Built with Intel's XeSS library fetched into its folder (null: not by this launcher, or before it could)
     public bool? Xess { get; set; }
+    /// Built by longshot-builder from Nup, which its game reads its files from where it is (LongshotBuilder.NupInPlace): the .nup
+    /// must stay there. Null: built by make_game.py, which unpacked them into the folder
+    public bool? NupInPlace { get; set; }
     /// Its folder's size in bytes when it was last measured; null: not yet
     public long? Bytes { get; set; }
     /// Of Bytes, measured with the other builds' folders (Disk.Measure): its share of what they take on the disk, a game file
     /// hard-linked into several builds counted once (the home's total), and what deleting it frees, its files with no link
-    /// outside its folder (another build of the same .nup may share its game files: BuildRegistry.SameGameFiles); null: not yet
+    /// outside its folder (an older launcher's builds of the same .nup shared their game files); null: not yet
     public long? Counted { get; set; }
     public long? Frees { get; set; }
 
@@ -118,7 +121,8 @@ public sealed class BuildRegistry
         catch (Exception e) when (e is JsonException or IOException or UnauthorizedAccessException or NotSupportedException) { return []; }
     }
 
-    static string NewId() => Guid.NewGuid().ToString("N")[..12];
+    /// A row's id: 12 hex digits, never reused (a build's work folder is named for it too: BuildRequest.WorkId)
+    public static string NewId() => Guid.NewGuid().ToString("N")[..12];
 
     public static bool SameFolder(string a, string b)
     {
@@ -188,53 +192,10 @@ public sealed class BuildRegistry
 
     public BuildEntry? FindByFolder(string folder) => builds.FirstOrDefault(b => SameFolder(b.Folder, folder));
 
-    /// Another build made from this .nup, whose game files a new build of it can take by hard links (make_game's
-    /// LONGSHOT_ROMFS_FROM): one whose folder has what make_game's romfs_from_build wants before it links, its romfs/, its
-    /// kept .longshot_exefs/ and a .longshot_romfs stamp of this .nup (UnpackStamp), so that a folder make_game would pass
-    /// over (and the whole .nup read again) is not chosen while another would do. That stamp, the .nup's name and size, is
-    /// all romfs_from_build compares, so the build's own record of where its .nup was (BuildEntry.Nup) is not: a .nup moved
-    /// or copied to another folder still shares, as does a build listed again without that record. Of those, one on the new
-    /// build's drive first (a hard link does not cross drives: make_game would copy the ~25 GB), then the one updated last;
-    /// never the new build's own folder; null when there is none, the .nup is not there, or the new build's folder has them
-    /// already (an update in its own folder: BuildRegistry.FolderOf). driveOf: the tests' stand-in for Disk.DriveName
-    public BuildEntry? SameGameFiles(string nup, string folder, Func<string, string>? driveOf = null)
-    {
-        if (UnpackStamp(nup) is not { } stamp || Unpacked(folder, stamp)) return null;
-        driveOf ??= Disk.DriveName;
-        var drive = driveOf(folder);
-        var drives = OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
-        return builds.Where(b => !SameFolder(b.Folder, folder) && Unpacked(b.Folder, stamp))
-                     .OrderByDescending(b => drives.Equals(driveOf(b.Folder), drive))
-                     .ThenByDescending(b => b.Updated).FirstOrDefault();
-    }
-
-    /// The stamp make_game writes in .longshot_romfs for a romfs it unpacked from nup ("unpacked by this builder: <name> <size>",
-    /// make_game.py's main), which romfs_from_build compares with the other folder's; null when the .nup cannot be read
-    public static string? UnpackStamp(string nup)
-    {
-        try
-        {
-            var file = new FileInfo(nup);
-            return file.Exists ? $"unpacked by this builder: {Path.GetFileName(nup)} {file.Length.ToString(CultureInfo.InvariantCulture)}" : null;
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException) { return null; }
-    }
-
-    /// folder holds a romfs make_game unpacked from the .nup of stamp, with the exefs it kept (romfs_from_build's checks)
-    static bool Unpacked(string folder, string stamp)
-    {
-        try
-        {
-            var mark = Path.Combine(folder, ".longshot_romfs");
-            return Directory.Exists(Path.Combine(folder, "romfs")) && Directory.Exists(Path.Combine(folder, ".longshot_exefs"))
-                   && File.Exists(mark) && File.ReadAllText(mark).Trim() == stamp;
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException) { return false; }
-    }
-
     /// A folder added, or the one already listed brought up to date (its id, name and default kept). makeDefault: it becomes the
     /// default; the first build is the default anyway
-    public BuildEntry Add(string folder, string? version, string? channel, string? name = null, bool makeDefault = false)
+    /// id: the new row's (the one its build's work folder was named for: BuildRequest.WorkId); a row already of that folder keeps its own
+    public BuildEntry Add(string folder, string? version, string? channel, string? name = null, bool makeDefault = false, string? id = null)
     {
         var at = now();
         var entry = FindByFolder(folder);
@@ -242,7 +203,7 @@ public sealed class BuildRegistry
         {
             entry = new BuildEntry
             {
-                Id = NewId(),
+                Id = id is { Length: > 0 } && Find(id) == null ? id : NewId(),
                 Folder = folder,
                 Name = name ?? DefaultName(folder),
                 Created = at,

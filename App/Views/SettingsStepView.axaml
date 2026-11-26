@@ -28,10 +28,9 @@
       <Setter Property="Foreground" Value="{StaticResource Bad}"/>
     </Style>
     <Style Selector="TextBlock.glabel">
-      <Setter Property="FontSize" Value="12"/>
+      <Setter Property="FontSize" Value="13"/>
       <Setter Property="FontWeight" Value="SemiBold"/>
       <Setter Property="Foreground" Value="{StaticResource InkSoft}"/>
-      <Setter Property="LetterSpacing" Value="0.48"/>
       <Setter Property="Margin" Value="0,12,0,6"/>
     </Style>
     <Style Selector="Border.card.on">
@@ -86,7 +85,7 @@
 
         <!-- saves: every build shares them -->
         <StackPanel IsVisible="{Binding ShowSharedSaves}">
-          <TextBlock Classes="glabel" Text="{c:T 'SAVES'}" Margin="0,8,0,6"/>
+          <TextBlock Classes="glabel" Text="{c:T 'Saves'}" Margin="0,8,0,6"/>
           <Border Classes="card">
             <Grid Classes="srow" ColumnDefinitions="*,Auto">
               <StackPanel VerticalAlignment="Center" Spacing="1">
@@ -106,7 +105,7 @@
         <Grid ColumnDefinitions="*,*" ColumnSpacing="20">
           <!-- upscaling -->
           <StackPanel>
-            <TextBlock Classes="glabel" Text="{c:T 'UPSCALING'}"/>
+            <TextBlock Classes="glabel" Text="{c:T 'Upscaling'}"/>
             <Border Classes="card">
               <StackPanel>
                 <Grid Classes="srow" ColumnDefinitions="*,Auto">
@@ -144,7 +143,7 @@
                                  IsVisible="{Binding ShowFsrLine}"/>
                     </WrapPanel>
                   </StackPanel>
-                  <ToggleButton Grid.Column="1" Classes="switch" IsChecked="{Binding Fsr}" IsEnabled="{Binding FsrEnabled}" VerticalAlignment="Center"/>
+                  <ToggleButton Grid.Column="1" Classes="switch" IsChecked="{Binding Fsr}" VerticalAlignment="Center"/>
                 </Grid>
                 <!-- (Linux, FSR 4 on: the player's own library, copied into the game folder with each build) -->
                 <StackPanel IsVisible="{Binding ShowFsrLibrary}">
@@ -186,14 +185,14 @@
 
           <!-- install -->
           <StackPanel Grid.Column="1">
-            <TextBlock Classes="glabel" Text="{c:T 'INSTALL'}"/>
+            <TextBlock Classes="glabel" Text="{c:T 'Where it installs'}"/>
             <Border Classes="card" Classes.short="{Binding Short}">
               <StackPanel>
                 <Grid Classes="srow" ColumnDefinitions="*,Auto">
                   <StackPanel VerticalAlignment="Center" Spacing="1">
                     <TextBlock Classes="rtitle" Text="{c:T 'Builds folder'}"/>
                     <TextBlock Classes="mono path" Foreground="{StaticResource InkSoft}" Text="{Binding BuildsFolder}" ToolTip.Tip="{Binding BuildsFolderFull}" Margin="0,2,0,0"/>
-                    <TextBlock Classes="rdesc" Text="{c:T 'Your instances live here, one folder per track and version. The same setting as in Settings.'}" TextWrapping="Wrap"/>
+                    <TextBlock Classes="rdesc" Text="{c:T 'Your versions live here, one folder per track and version. The same setting as in Settings.'}" TextWrapping="Wrap"/>
                     <!-- this build's folder, worked out from it: builds/<track>/<version>; an update's or a go-back's rename (BuildJob.RenameFrom) -->
                     <TextBlock Classes="note" Text="{Binding Destination}" ToolTip.Tip="{Binding InstallDirFull}" TextWrapping="Wrap" Margin="0,4,0,0"/>
                   </StackPanel>
@@ -214,7 +213,7 @@
 
         <!-- (Windows, Intel graphics) how many shaders Intel's compiler is given at once: the build's and the game's -->
         <StackPanel IsVisible="{Binding ShowIntelCompiles}">
-          <TextBlock Classes="glabel" Text="{c:T 'INTEL GRAPHICS'}"/>
+          <TextBlock Classes="glabel" Text="{c:T 'Intel graphics'}"/>
           <Border Classes="card">
             <StackPanel>
               <Grid Classes="srow" ColumnDefinitions="*,Auto">
@@ -246,7 +245,7 @@
         </StackPanel>
 
         <!-- the game -->
-        <TextBlock Classes="glabel" Text="{c:T 'THE GAME'}"/>
+        <TextBlock Classes="glabel" Text="{c:T 'The game'}"/>
         <Border Classes="card">
           <Grid Classes="srow" ColumnDefinitions="*,Auto">
             <StackPanel VerticalAlignment="Center" Spacing="1">

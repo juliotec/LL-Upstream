@@ -4,16 +4,20 @@
              xmlns:c="using:LongshotLauncher.Controls"
              x:Class="LongshotLauncher.Views.ProblemPageView"
              x:DataType="vm:ProblemPageViewModel">
-  <DockPanel>
-    <Grid DockPanel.Dock="Bottom" ColumnDefinitions="*,Auto" Margin="0,14,0,0">
-      <Button Classes="link soft" VerticalAlignment="Center" Content="{c:T 'Copy for a bug report'}" Command="{Binding CopyCommand}"/>
-      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
-        <Button Content="{c:T 'Close'}" Command="{Binding CloseCommand}" c:Pad.Back="True"/>
-      </StackPanel>
-    </Grid>
-    <StackPanel>
-      <TextBlock Classes="heading" Text="{Binding Headline}"/>
-      <TextBlock Classes="sub" Text="{Binding Sub}"/>
+  <StackPanel>
+      <!-- the header: Back (what Close did), the headline and what it means -->
+      <Panel>
+        <StackPanel Margin="52,0,0,0">
+          <TextBlock Classes="heading" Text="{Binding Headline}"/>
+          <TextBlock Classes="sub" Text="{Binding Sub}"/>
+        </StackPanel>
+        <Panel Classes="backslot">
+          <Button Classes="back" Command="{Binding CloseCommand}" c:Pad.Back="True" ToolTip.Tip="{c:T 'Close'}" AutomationProperties.Name="{c:T 'Close'}">
+            <c:Icon Kind="arrowRight" RenderTransform="rotate(180deg)"/>
+          </Button>
+          <Border Classes="bglyph"><TextBlock Text="B"/></Border>
+        </Panel>
+      </Panel>
       <Border Margin="0,22,0,0" Padding="24,22" CornerRadius="10" BorderBrush="#55E2776B" BorderThickness="1">
         <Border.Background>
           <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
@@ -29,9 +33,12 @@
             <TextBlock Text="{c:T 'What you can do'}" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center"/>
           </StackPanel>
           <TextBlock Text="{Binding Detail}" Foreground="{StaticResource InkSoft}" TextWrapping="Wrap" MaxWidth="680" HorizontalAlignment="Left"/>
-          <Button HorizontalAlignment="Left" Content="{Binding FixLabel}" Command="{Binding FixCommand}" IsVisible="{Binding Fix, Converter={x:Static ObjectConverters.IsNotNull}}"/>
+          <!-- what to do: the fix the launcher knows, and the report for the team -->
+          <StackPanel Orientation="Horizontal" Spacing="18" Margin="0,4,0,0">
+            <Button Classes="primary" Content="{Binding FixLabel}" Command="{Binding FixCommand}" IsVisible="{Binding Fix, Converter={x:Static ObjectConverters.IsNotNull}}"/>
+            <Button Classes="link soft" VerticalAlignment="Center" Content="{c:T 'Copy for a bug report'}" Command="{Binding CopyCommand}"/>
+          </StackPanel>
         </StackPanel>
       </Border>
-    </StackPanel>
-  </DockPanel>
+  </StackPanel>
 </UserControl>

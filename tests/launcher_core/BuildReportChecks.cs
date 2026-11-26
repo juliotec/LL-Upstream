@@ -143,31 +143,31 @@ static partial class Program
     {
         var at = new DateTime(2026, 11, 16, 1, 0, 0, DateTimeKind.Utc);
         var p = new BuildProgress(download: false, shaders: false) { Now = () => at };
-        p.Feed("@@stage read Reading your game files");
+        Feed(p, StageEvent("read"));
         at = at.AddSeconds(200);
-        p.Feed("@@stage lift Translating the game to PC code");
+        Feed(p, StageEvent("lift"));
         at = at.AddSeconds(100);
-        p.Feed("@@stage compile Compiling");
-        p.Feed("@@progress 0.25");
+        Feed(p, StageEvent("compile"));
+        Feed(p, ProgressEvent("compile", 0.25));
         at = at.AddSeconds(60.04);
         var times = p.Times();
         Require(times["read"] == (1, 200, false) && times["lift"] == (1, 100, false),
             "A stage that ended: all of it, and its time from its start to the next one's: " + string.Join(", ", times));
         Require(times["compile"].Progress == 0.25 && times["compile"].Seconds == 60, "The running stage: how far it is, its time until now.");
         Require(times["finish"] == (0, 0, false), "A stage not started: none of it, no time.");
-        p.Feed("@@error compile failed");
+        Feed(p, Event("error", ("code", "tool_failed"), ("text", "compile failed")));
         at = at.AddSeconds(30);
         Require(p.Times()["compile"].Seconds == 60, "A stage the build stopped in: its time stops with it.");
 
-        // (a stage make_game runs again: its runs added up, not the stages between them)
+        // (a stage the builder runs again: its runs added up, not the stages between them)
         var q = new BuildProgress(download: false, shaders: false) { Now = () => at };
-        q.Feed("@@stage read Reading your game files");
+        Feed(q, StageEvent("read"));
         at = at.AddSeconds(50);
-        q.Feed("@@stage lift Translating the game to PC code");
+        Feed(q, StageEvent("lift"));
         at = at.AddSeconds(100);
-        q.Feed("@@stage read Reading your game files");
+        Feed(q, StageEvent("read"));
         at = at.AddSeconds(20);
-        q.Feed("@@stage lift Translating the game to PC code");
+        Feed(q, StageEvent("lift"));
         at = at.AddSeconds(10);
         var again = q.Times();
         Require(again["read"].Seconds == 70 && again["lift"].Seconds == 110,
@@ -309,6 +309,9 @@ static partial class Program
         var build = File.ReadAllText(Path.Combine(repo, "App", "ViewModels", "BuildStepViewModel.cs"));
         Require(build.Contains("void Summarize(string outcome, string why)") && build.Contains("string? Summary(string outcome, string why)"),
             "A build's summary is always given why it ended.");
+        Require(build.Contains("died = progress.Error == null && errorCode == null;") && build.Contains("if (died) Summarize(outcome, reported ?? why);")
+                && !build.Contains("Summarize(BuildReports.Completed") && !build.Contains("Summarize(BuildReports.Cancelled"),
+            "The launcher summarizes only a builder that died without an error event; a build's own end is the builder's to send.");
         Require(build.Contains("Summarize(BuildReports.Terminated, BuildReports.LauncherStopped)"),
             "The launcher's SIGTERM: the summary says the launcher was stopped.");
         Require(build.Contains("Shutdown.Track(BuildReports.SendAsync") &&
@@ -319,9 +322,9 @@ static partial class Program
             "Another SIGTERM cannot bypass the held shutdown after the current build is cleared.");
         Require(!System.Text.RegularExpressions.Regex.IsMatch(build, @"Summar(?:ize|y)\([^;\n]*Tr\.[TFP]\("),
             "No summary is given a translated why (Tr.T, Tr.F, Tr.P).");
-        Require(build.Contains("? Tr.N(\"make_game.py was stopped by a signal (SIGTERM) from outside the launcher.\")") &&
-                build.Contains(": English(\"make_game.py stopped with exit code {0} without saying why.\", code));") &&
-                build.Contains("Fail(why, outcome, reported);"),
+        Require(build.Contains("? Tr.N(\"longshot-builder was stopped by a signal (SIGTERM) from outside the launcher.\")") &&
+                build.Contains(": English(\"longshot-builder stopped with exit code {0} without saying why.\", code));") &&
+                build.Contains("Fail(why, outcome, reported, errorCode);"),
             "A build that stopped without saying why: the summary says so in English, the page in the player's language.");
     }
 }
