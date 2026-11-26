@@ -79,8 +79,8 @@ has the set-up).
    `main` and a line of the next release's notes.
 3. Start the description with why the pull request is needed, in one or two plain sentences, then what changed and how it
    was tested. Include screenshots when the change shows on screen.
-4. CI is on CircleCI ([docs/ci.md](docs/ci.md)); locally run `mise run ci:smoke` before you push. Forgejo Actions
-   (`.forgejo/workflows/ci.yml`) still mirror the compile-and-test checks until maintainers retire them.
+4. CI runs on Forgejo Actions (`.forgejo/workflows/`: lint, compile and test, and the packaging check when it is needed)
+   and on CircleCI ([docs/ci.md](docs/ci.md) has both); locally run `mise run ci:smoke` before you push.
 
 A maintainer reviews and squash-merges it. Releases are tags on `main` ([RELEASING.md](RELEASING.md)): `vX.Y.Z`, on
 a tested nightly's commit, and every merge makes a nightly. The title decides the next version: CI refuses a tag lower than the titles

@@ -1,85 +1,296 @@
-# The checks of every pull request to main and every push to it (docs/releases.md, "CI"; the same structure as
-# MagicBeanDev/Longshot's ci.yml): the pull request's title, then the launcher compiled with warnings as errors from the
-# packages its lock files pin, and its tests (no game, no network but the package restore and Longshot's checkout, which the
-# core tests compare the launcher's copies against: make_game.py's languages, the SDK licence commits).
+# The checks of every pull request to main and every push to it (docs/ci.md, Forgejo Actions; the same structure as
+# MagicBeanDev/Longshot's ci.yml): lint (actionlint, ShellCheck, gitleaks, the JSON files); the launcher compiled with
+# warnings as errors from the packages its lock files pin, the core's tests (against the Longshot commit tests/longshot.ref
+# pins) and Tooling's release script's tests on this repository; and, when the change touches what the published programs
+# are made from, scripts/package.sh's three files with the Windows program started under Wine. The title is pr-title.yml's.
+# No game data is involved, and no secret.
+#
+# The tools are no CI image: the jobs run on the runners' own image (Ubuntu 24.04 with Python, git and curl), and what
+# they add is downloaded from pinned addresses, each file checked by its hash every time it is used (scripts/ci_dotnet.sh:
+# the .NET SDK by Microsoft's SHA-512; scripts/ci_lint_tools.sh: mise.lock's actionlint, ShellCheck and gitleaks).
+# Caches are read by every run and written only by a push to main, so a pull request never writes what another reads
+# (docs/ci.md, Caches): those downloads, NuGet's packages, the pinned Longshot checkout, the AppImage tools. A pull
+# request that changes only the docs skips build-test and package (job changes, scripts/ci_changes.py, the base's); a push
+# to main runs every job. A pull request's newer push cancels its older run.
 name: CI
+
 on:
   pull_request:
+    branches: [main]
   push:
     branches: [main]
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 concurrency:
   group: ci-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+defaults:
+  run:
+    shell: bash
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  DOTNET_NOLOGO: '1'
+
 jobs:
-  # (a squash-merged pull request's title is its commit on main, a line of the next release's notes, and what decides the next
-  # version: a Conventional Commit, by Tooling's scripts/release.py's TITLE. Only the title is read, from the event)
-  title:
-    name: Conventional Commit title
-    if: github.event_name == 'pull_request'
+  # (whether build-test and package are needed: on a pull request, not when it changes only the docs, and package only
+  # when a packaging file changes (scripts/ci_changes.py, the base's, so a pull request can't skip its own checks; a base
+  # from before the script runs everything). A push or a run by hand runs everything. A job not needed shows as skipped,
+  # which Forgejo and forge.py count as passed)
+  changes:
+    name: What the change needs
     runs-on: quick  # (a quick job: the runner kept free for these takes it, or any runner with room)
     timeout-minutes: 5
+    outputs:
+      code: ${{ steps.files.outputs.code || 'true' }}
+      package: ${{ steps.files.outputs.package || 'true' }}
     steps:
-      - uses: https://github.com/actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.event.pull_request.base.sha }}
-          persist-credentials: false
-          sparse-checkout: .tooling-rev
-      # (the rule is main's, Tooling's release.py at main's .tooling-rev, so a pull request cannot loosen it for itself; only
-      # while main has no .tooling-rev yet, the pull request that adds it, is it read from the pull request)
-      - if: hashFiles('.tooling-rev') == ''
+      - name: Check out the base's scripts (in base/)
+        if: github.event_name == 'pull_request'
         uses: https://github.com/actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: base
           persist-credentials: false
-          sparse-checkout: .tooling-rev
-      - name: Tooling's release.py, at the commit .tooling-rev names
-        run: |
-          git clone -q https://git.magicbean.dev/MagicBeanDev/Tooling.git "$RUNNER_TEMP/tooling"
-          git -C "$RUNNER_TEMP/tooling" checkout -q --detach "$(cat .tooling-rev)"
-      - name: The title
+          sparse-checkout: scripts
+      - name: The pull request's files, by the base's script
+        id: files
+        if: github.event_name == 'pull_request'
         env:
-          TITLE: ${{ github.event.pull_request.title }}
+          FORGEJO_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          python3 -I - <<'PY'
-          import importlib.util, os, sys
-          spec = importlib.util.spec_from_file_location("release", os.path.join(os.environ["RUNNER_TEMP"], "tooling", "scripts", "release.py"))
-          release = importlib.util.module_from_spec(spec)
-          spec.loader.exec_module(release)
-          title = os.environ["TITLE"]
-          if title.startswith("WIP: "):
-              title = title[5:]
-          if not release.TITLE.match(title) or len(title.split(": ", 1)[-1].strip()) == 0:
-              print("::error::the title must be a Conventional Commit, type(scope): description (CONTRIBUTING.md): %r" % title)
-              sys.exit(1)
-          print("ok: %s" % title)
-          PY
+          if [ -f base/scripts/ci_changes.py ]; then
+            python3 -I base/scripts/ci_changes.py --server "${{ github.server_url }}" --repo "${{ github.repository }}" --pr "$PR_NUMBER"
+          else
+            echo "a base from before scripts/ci_changes.py: every job runs"
+            printf 'code=true\npackage=true\n' >> "$GITHUB_OUTPUT"
+          fi
 
-  # (not on pull requests for now, as on Longshot: pull requests run only the title check, and carry their own test results;
-  # it runs on pushes to main and by hand, Actions > CI > Run workflow)
-  checks:
+  # (`mise run lint`'s checks and the workflows': actionlint (.actionlint.yml), ShellCheck on every script under scripts/,
+  # gitleaks on the tree (.circleci/gitleaks.toml), and the JSON files parse. Always run: they read the whole tree)
+  lint:
+    name: Lint (actionlint, ShellCheck, gitleaks)
+    runs-on: quick  # (a quick job: the runner kept free for these takes it, or any runner with room)
+    timeout-minutes: 10
+    steps:
+      - name: Check out source
+        uses: https://github.com/actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # (mise.lock's archives, each checked by its SHA-256 when used: read by every run, written by a push to main when
+      # missing)
+      - name: Restore the lint tools' downloads
+        id: tools-cache
+        uses: https://github.com/actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/lint-downloads
+          key: lint-tools-${{ hashFiles('mise.lock') }}
+      - name: actionlint, ShellCheck and gitleaks (mise.lock's)
+        run: scripts/ci_lint_tools.sh "$RUNNER_TEMP/lint-downloads" "$RUNNER_TEMP/lint-bin"
+      - name: actionlint (the workflows)
+        run: actionlint -color -config-file .actionlint.yml .forgejo/workflows/*.yml
+      - name: ShellCheck (scripts/)
+        if: ${{ !cancelled() }}
+        run: |
+          mapfile -d '' files < <(find scripts -type f -name '*.sh' -print0)
+          shellcheck -x "${files[@]}"
+      - name: gitleaks
+        if: ${{ !cancelled() }}
+        run: gitleaks dir . --config .circleci/gitleaks.toml --redact --no-banner
+      - name: The JSON files parse
+        if: ${{ !cancelled() }}
+        run: |
+          mapfile -d '' files < <(git ls-files -z '*.json')
+          python3 -I -c 'import json, sys
+          for f in sys.argv[1:]:
+              json.load(open(f, encoding="utf-8"))
+          print("%d JSON files parse" % (len(sys.argv) - 1))' "${files[@]}"
+      - name: Save the lint tools' downloads
+        if: ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.tools-cache.outputs.cache-hit != 'true' }}
+        uses: https://github.com/actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/lint-downloads
+          key: lint-tools-${{ hashFiles('mise.lock') }}
+
+  # (the launcher compiled with warnings as errors, from the packages its lock files pin (locked mode); the core's tests,
+  # their C# checks and the app-level ones (--strict), against the Longshot commit tests/longshot.ref pins (--pinned:
+  # make_game.py's languages, the SDK licence commits, the builder's codes); Tooling's tests/test_release.py, at the
+  # commit .tooling-rev names, on this checkout)
+  build-test:
     name: Compile and test
-    if: github.event_name != 'pull_request'
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: https://github.com/actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Check out source
+        uses: https://github.com/actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0
           persist-credentials: false
-      - uses: https://github.com/actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+      # (the SDK's archive, checked by its SHA-512 when used (scripts/ci_dotnet.sh): read by every run, written by a push
+      # to main when missing)
+      - name: Restore the .NET SDK's download
+        id: sdk-cache
+        uses: https://github.com/actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          dotnet-version: '10.0.x'
-      - name: Longshot's main (what the launcher copies from it)
-        run: git clone --depth 1 https://git.magicbean.dev/MagicBeanDev/Longshot.git "$RUNNER_TEMP/longshot"
+          path: ${{ runner.temp }}/dotnet-download
+          key: dotnet-sdk-${{ hashFiles('global.json', 'scripts/ci_dotnet.sh') }}
+      - name: The .NET SDK (global.json's)
+        run: scripts/ci_dotnet.sh "$RUNNER_TEMP/dotnet-download" "$RUNNER_TEMP/dotnet"
+      # (NuGet's packages folder, for the lock files: the restore checks each package against its lock file's hash. One
+      # entry per set of locks, the newest restored when they change; written by a push to main)
+      - name: NuGet's packages folder
+        run: echo "NUGET_PACKAGES=$RUNNER_TEMP/nuget" >> "$GITHUB_ENV"
+      - name: Restore NuGet's packages
+        id: nuget-cache
+        uses: https://github.com/actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/nuget
+          key: nuget-${{ hashFiles('global.json', 'Directory.Packages.props', '**/packages.lock.json') }}
+          restore-keys: nuget-
+      # (the commit tests/longshot.ref pins, only the folders the core's tests read, without history or other files'
+      # contents: one entry per pin)
+      - name: Restore the pinned Longshot checkout
+        id: longshot-cache
+        uses: https://github.com/actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/longshot
+          key: longshot-${{ hashFiles('tests/longshot.ref') }}
+      - name: Longshot at tests/longshot.ref
+        run: |
+          set -euo pipefail
+          pin=$(grep -vE '^[[:space:]]*(#|$)' tests/longshot.ref | head -1 | tr -d '[:space:]')
+          [[ $pin =~ ^[0-9a-f]{40}$ ]] || { echo "::error::tests/longshot.ref names no commit: '$pin'"; exit 1; }
+          dest=$RUNNER_TEMP/longshot
+          if [[ $(git -C "$dest" rev-parse HEAD 2> /dev/null) == "$pin" ]]; then
+            echo "Longshot $pin from the cache"
+            exit 0
+          fi
+          rm -rf "$dest"
+          git init -q "$dest"
+          git -C "$dest" remote add origin https://git.magicbean.dev/MagicBeanDev/Longshot.git
+          git -C "$dest" sparse-checkout set --no-cone /nx2/ /scripts/ /host/ /tests/ /builder/crates/build-driver/ \
+            /docs/dev/reference/ /tools.lock
+          git -C "$dest" fetch -q --depth 1 --filter=blob:none origin "$pin"
+          git -C "$dest" checkout -q FETCH_HEAD
+          echo "Longshot at $(git -C "$dest" rev-parse HEAD)"
+      - name: Tooling at .tooling-rev
+        run: |
+          set -euo pipefail
+          git init -q "$RUNNER_TEMP/tooling"
+          git -C "$RUNNER_TEMP/tooling" fetch -q --depth 1 https://git.magicbean.dev/MagicBeanDev/Tooling.git "$(cat .tooling-rev)"
+          git -C "$RUNNER_TEMP/tooling" checkout -q FETCH_HEAD
       - name: Compile
         run: dotnet build LongshotLauncher.slnx --configuration Release -p:RestoreLockedMode=true
-      - name: The core's tests
-        run: python3 -I -B tests/test_launcher_core.py --strict --longshot "$RUNNER_TEMP/longshot"
-      - name: The release script's tests (Tooling's, at .tooling-rev, on this repository)
+      - name: The core's tests (test_launcher_core.py --strict --pinned)
+        run: python3 -I -B tests/test_launcher_core.py --strict --longshot "$RUNNER_TEMP/longshot" --pinned
+      - name: The release script's tests (Tooling's test_release.py, on this repository)
+        if: ${{ !cancelled() }}
+        run: LAUNCHER="$PWD" python3 -I -B "$RUNNER_TEMP/tooling/tests/test_release.py"
+      - name: Save the .NET SDK's download
+        if: ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.sdk-cache.outputs.cache-hit != 'true' }}
+        uses: https://github.com/actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/dotnet-download
+          key: dotnet-sdk-${{ hashFiles('global.json', 'scripts/ci_dotnet.sh') }}
+      - name: Save NuGet's packages
+        if: ${{ success() && github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.nuget-cache.outputs.cache-hit != 'true' }}
+        uses: https://github.com/actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/nuget
+          key: nuget-${{ hashFiles('global.json', 'Directory.Packages.props', '**/packages.lock.json') }}
+      - name: Save the pinned Longshot checkout
+        if: ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.longshot-cache.outputs.cache-hit != 'true' }}
+        uses: https://github.com/actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/longshot
+          key: longshot-${{ hashFiles('tests/longshot.ref') }}
+
+  # (scripts/package.sh as a release runs it, with a version name of its own: the Windows setup, the portable zip and the
+  # AppImage (whose Linux program it starts with --self-check), then the Windows program started under Wine, as
+  # release.yml's build does. Only when a packaging file changes (scripts/ci_changes.py's PACKAGE); a push to main runs
+  # it. Nothing is uploaded: the files are this check's alone)
+  package:
+    name: Package (setup, portable zip, AppImage; Wine self-check)
+    needs: changes
+    if: needs.changes.outputs.package == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      TAG: ci-check
+    steps:
+      - name: Check out source
+        uses: https://github.com/actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # (Wine for the check below, about 20 s of apt, installed in the background while package.sh builds; the check
+      # waits for it. Detached (setsid, every descriptor elsewhere), so this step ends at once; its status is written
+      # last, by mv)
+      - name: Wine (installed in the background)
         run: |
-          git clone -q https://git.magicbean.dev/MagicBeanDev/Tooling.git "$RUNNER_TEMP/tooling"
-          git -C "$RUNNER_TEMP/tooling" checkout -q --detach "$(cat .tooling-rev)"
-          LAUNCHER="$PWD" python3 -I -B "$RUNNER_TEMP/tooling/tests/test_release.py"
+          sudo=; [[ $(id -u) == 0 ]] || sudo=sudo
+          # shellcheck disable=SC2016   # (the inner script's $0 and $1 are its own arguments, expanded there)
+          DEBIAN_FRONTEND=noninteractive setsid nohup bash -c '$0 dpkg --add-architecture i386 || true
+            $0 apt-get update -qq && $0 apt-get install -y -qq --no-install-recommends wine wine64
+            echo $? > "$1.tmp" && mv "$1.tmp" "$1.status"' "${sudo:-env}" "$RUNNER_TEMP/wine-apt" \
+            > "$RUNNER_TEMP/wine-apt.log" 2>&1 < /dev/null &
+      - name: Restore the .NET SDK's download
+        uses: https://github.com/actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/dotnet-download
+          key: dotnet-sdk-${{ hashFiles('global.json', 'scripts/ci_dotnet.sh') }}
+      - name: The .NET SDK (global.json's)
+        run: scripts/ci_dotnet.sh "$RUNNER_TEMP/dotnet-download" "$RUNNER_TEMP/dotnet"
+      # (the single-file publishes add the runtime packs to build-test's packages: this job keeps its own entry, starting
+      # from build-test's when it has none; written by a push to main)
+      - name: NuGet's packages folder
+        run: echo "NUGET_PACKAGES=$RUNNER_TEMP/nuget" >> "$GITHUB_ENV"
+      - name: Restore NuGet's packages (with the runtime packs)
+        id: nuget-cache
+        uses: https://github.com/actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/nuget
+          key: nuget-package-${{ hashFiles('global.json', 'Directory.Packages.props', '**/packages.lock.json') }}
+          restore-keys: |
+            nuget-package-
+            nuget-
+      # (package.sh's pinned appimagetool and runtime, which it checks by their SHA-256)
+      - name: Restore the AppImage tools
+        id: appimage-cache
+        uses: https://github.com/actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .appimagetool
+          key: appimagetool-${{ hashFiles('scripts/package.sh') }}
+      - name: The Windows setup, the portable zip and the AppImage
+        env:
+          WINE_CHECK_EXE: ${{ runner.temp }}/wine-check/LongshotLauncher.exe
+        run: scripts/package.sh "$TAG" dist
+      - name: The Windows program starts (--self-check, under Wine)
+        run: |
+          echo "waiting for Wine's background install to end (at most 10 minutes)"
+          for _ in $(seq 600); do [[ -f $RUNNER_TEMP/wine-apt.status ]] && break; sleep 1; done
+          status=$(cat "$RUNNER_TEMP/wine-apt.status" 2>/dev/null || echo "no end in 10 minutes")
+          [[ $status == 0 ]] || { cat "$RUNNER_TEMP/wine-apt.log"; echo "::error::Wine's install failed ($status)"; exit 1; }
+          wine=$(command -v wine64 || command -v wine)
+          export WINEDEBUG=-all WINEPREFIX="$RUNNER_TEMP/wine"
+          "$wine" wineboot --init >/dev/null 2>&1 || true
+          out=$("$wine" "$RUNNER_TEMP/wine-check/LongshotLauncher.exe" --self-check | tr -d '\r')
+          echo "$out"
+          grep -qxF "LongshotLauncher $TAG" <<<"$out" || { echo "::error::the Windows launcher does not answer --self-check with $TAG"; exit 1; }
+      - name: Save NuGet's packages (with the runtime packs)
+        if: ${{ success() && github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.nuget-cache.outputs.cache-hit != 'true' }}
+        uses: https://github.com/actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/nuget
+          key: nuget-package-${{ hashFiles('global.json', 'Directory.Packages.props', '**/packages.lock.json') }}
+      - name: Save the AppImage tools
+        if: ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.appimage-cache.outputs.cache-hit != 'true' }}
+        uses: https://github.com/actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .appimagetool
+          key: appimagetool-${{ hashFiles('scripts/package.sh') }}

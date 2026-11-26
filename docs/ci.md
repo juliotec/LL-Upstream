@@ -6,6 +6,66 @@ fork doorbell, cache, commit subjects, policy check, and release sign/publish us
 
 PR **title and description** checks run on **Forgejo** (`.forgejo/workflows/`); CircleCI does not duplicate them.
 
+## Forgejo Actions
+
+Forgejo's own workflows, in `.forgejo/workflows/`, on the same runners and with the same rules as MagicBeanDev/Longshot's
+(its docs/dev/reference/ci.md). `release.yml` is the live publisher.
+
+| Workflow | When | What it does |
+|---|---|---|
+| `ci.yml` | Pull request, push to `main`, by hand | `changes` (*What the change needs*): whether the build jobs run; `lint`: actionlint (`.actionlint.yml`), ShellCheck on `scripts/`, gitleaks (`.circleci/gitleaks.toml`), the JSON files parse; `build-test` (*Compile and test*): `dotnet build` in locked mode, `tests/test_launcher_core.py --strict --pinned` against the Longshot commit `tests/longshot.ref` pins, Tooling's `tests/test_release.py` at `.tooling-rev` with `LAUNCHER` this checkout; `package`: `scripts/package.sh` (setup, portable zip, AppImage), then the Windows program's `--self-check` under Wine, as a release builds them |
+| `pr-title.yml` | Pull request (opened, edited, pushed) | The title is a Conventional Commit, by Tooling's `release.py` at main's `.tooling-rev`. Not in `ci.yml`, so a title edit doesn't cancel the code's checks |
+| `release.yml` | Push to `main`, tag `v*` | The nightly or the stable: the version, the launcher (`scripts/package.sh`, the Wine check), sign and publish ([releases](releases.md), [RELEASING.md](../RELEASING.md)) |
+
+Runner labels: `quick` (`changes`, `lint`, the title: a few minutes, on a runner kept free for them), `ubuntu-latest`
+(`build-test`, `package`: no secrets), `release` (the release's build, only the server's release runner) and `deploy`
+(the release's version and publish, on the seal broker's network). A pull request's code never runs on `release` or
+`deploy`.
+
+### What a pull request runs
+
+`changes` reads the pull request's files from the API with the **base's** `scripts/ci_changes.py` (a pull request can't
+skip its own checks; a base without the script runs everything). `build-test` and `package` are skipped when every
+changed file is in its `DOCS_ONLY` (`docs/`, the top-level documents, `.circleci/`, `.chunk/`, the forge's templates and
+`pr-title.yml`); `package` runs only when a file of its `PACKAGE` changes (`scripts/package.sh`, the app's project,
+manifest and Windows code, the packages and the SDK, the CI's own files). `lint` always runs. A push to `main` or a run
+by hand runs everything, and so does anything unsure (an API that doesn't answer). A skipped job counts as passed. A
+pull request's newer push cancels its older run.
+
+### Caches
+
+Each runner keeps its own cache. `ci.yml`'s jobs read it on every run and write it only on a push to `main`, so a pull
+request never writes what another run reads.
+
+| Cache (key) | What it holds | Who reads it |
+|---|---|---|
+| `dotnet-sdk-<global.json, ci_dotnet.sh>` | the .NET SDK's archive, checked by its SHA-512 every time it is used ([scripts/ci_dotnet.sh](../scripts/ci_dotnet.sh)) | `build-test`, `package` |
+| `nuget-<global.json, Directory.Packages.props, packages.lock.json>` | NuGet's packages folder (`NUGET_PACKAGES`), each package checked against its lock file by the locked restore; the newest entry restored when the locks change | `build-test` |
+| `nuget-package-<the same>` | the same, with the runtime packs the single-file publishes add; starts from `nuget-` when it has no entry | `package` |
+| `longshot-<tests/longshot.ref>` | the pinned Longshot commit, the folders the core's tests read (sparse, depth 1, no other blobs); `--pinned` checks its commit | `build-test` |
+| `lint-tools-<mise.lock>` | mise.lock's actionlint, ShellCheck and gitleaks archives, checked by mise.lock's SHA-256 every time they are used ([scripts/ci_lint_tools.sh](../scripts/ci_lint_tools.sh)) | `lint` |
+| `appimagetool-<scripts/package.sh>` | `package.sh`'s pinned appimagetool and runtime, which it checks by their SHA-256 | `package` |
+
+**The release's cache.** `release.yml`'s build keeps `release-downloads-<global.json, ci_dotnet.sh, package.sh>`: the
+SDK's archive and the AppImage tools, the downloads only, each checked by its hash every time it is used, so a cache can
+cost a download but never change what is built and signed. It is restored and saved only by a run of `main` or a `v*`
+tag, on the release runner. Nothing unpacked or compiled is kept, and NuGet's packages are not cached for a release
+(their check rests on files the cache itself would hold). The sign and publish job reads no cache.
+
+**Why no CI image.** Longshot's jobs run in images (`longshot-ci-checks`, `longshot-ci-lite`) because they install
+compilers, Rust and pre-commit's hooks, gigabytes, in every job. Here a job adds only the .NET SDK (one archive) and
+three small linters to the runners' own Ubuntu 24.04, which already has Python, git and curl; with those downloads
+cached and checked, an image would save seconds a job, and cost a second workflow, a registry token and the
+image-or-fallback logic to keep. Wine (the `package` job and the release's build) is installed in the background while
+`package.sh` builds, so it costs no wait.
+
+### Uploads
+
+The release's build uploads its files through the server's own address first (`RELEASE_UPLOAD_API`'s host, given to
+upload-artifact as `ACTIONS_RESULTS_URL`), not recompressed (`compression-level: 0`), then through the public address
+behind Cloudflare, then once more. The publish job fetches them from the server's own address first (`release.py
+artifacts`), then by download-artifact.
+
 ## How it flows
 
 ```mermaid

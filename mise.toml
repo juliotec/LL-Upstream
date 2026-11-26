@@ -20,7 +20,8 @@ description = "CI lint tier (contributor pre-push)"
 shell = "bash -c"
 run = """
 set -euo pipefail
-shellcheck -x scripts/package.sh
+shellcheck -x scripts/*.sh
+actionlint -config-file .actionlint.yml .forgejo/workflows/*.yml
 gitleaks dir . --config .circleci/gitleaks.toml --redact --no-banner
 """
 
