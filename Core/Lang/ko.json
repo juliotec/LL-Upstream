@@ -1412,5 +1412,12 @@
   "Where it goes": "보관 위치",
   "Remove Longshot from this PC": "이 PC에서 Longshot 제거",
   "Remove everything…": "모두 제거…",
-  "Steam is starting this build through its tile, so its controller mapping applies.": "Steam이 이 빌드를 바로 가기를 통해 시작하므로 Steam의 컨트롤러 매핑이 적용됩니다."
+  "Steam is starting this build through its tile, so its controller mapping applies.": "Steam이 이 빌드를 바로 가기를 통해 시작하므로 Steam의 컨트롤러 매핑이 적용됩니다.",
+  "No version for this launcher is out on {0} yet.": "이 런처용 버전이 아직 {0}에 나오지 않았습니다.",
+  "Pick {0} instead": "대신 {0} 선택",
+  "Your {0} versions were built by Longshot's old builder, which this launcher doesn't run. Add a version to play here. The stable launcher still plays the old ones.": {"other": "버전 {0}개가 Longshot의 이전 빌더로 빌드되어 이 런처에서는 실행되지 않습니다. 여기서 플레이하려면 버전을 추가하세요. 안정 버전 런처에서는 계속 이전 버전을 플레이할 수 있습니다."},
+  "No version yet": "아직 버전 없음",
+  "Add a version to play here": "여기서 플레이하려면 버전 추가",
+  "Stable launcher…": "안정 버전 런처…",
+  "Add a version…": "버전 추가…"
 }

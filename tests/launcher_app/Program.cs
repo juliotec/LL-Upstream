@@ -32,6 +32,7 @@ try
         throw new Exception("The saved escaped final space did not reach the gamescope argument.");
 
     NfcDeleteAll(root, service, main);
+    AfterTheCleanBreak(service, main);
 }
 finally
 {
@@ -134,4 +135,70 @@ static void NfcDeleteAll(string root, LauncherService service, MainViewModel mai
             "the folder itself, the key file and the other file stay");
     page.DeleteAllCommand.Execute(null);
     Require(main.Modal == null, "with an empty list Delete all asks nothing");
+}
+
+// After the clean break: Stable has only make_game.py releases (none for this launcher) and Nightly has one of longshot-builder's.
+// Add a version opens on Nightly rather than on an empty Stable; Stable picked says why it is empty and offers Nightly; and with
+// every version an old one, the home's card says a version has to be added again.
+static void AfterTheCleanBreak(LauncherService service, MainViewModel main)
+{
+    static void Require(bool ok, string what)
+    {
+        if (!ok) throw new Exception("After the clean break: " + what);
+    }
+    const string nightly = "nightly-500-aaaaaaaa";
+    service.Settings.DefaultChannel = Versions.Stable;
+    IReadOnlyList<ListedRelease> listed =
+    [
+        new ListedRelease(nightly, false, true, null, null, "c", [(LongshotBuildRelease.ManifestName(nightly, "linux-x64"), "https://e/m", 10)]),
+        new ListedRelease("v3.0.0", false, false, null, null, "c", []),
+    ];
+    service.Releases.Listed = listed;
+    Require(service.VersionsOn(Versions.Stable).Count == 0, "the make_game.py stable is listed");
+
+    var add = new AddVersionViewModel(main);
+    Require(add.Kind == Versions.Nightly && add.HasChannelVersions && add.PickedVersion?.Tag == nightly,
+            $"Add a version opened on {add.Kind}, not on Nightly's {nightly}.");
+    Require(!add.ShowOther && add.EmptyText.Length == 0, "Nightly, which has a version, says it is empty.");
+    add.Kind = Versions.Stable;
+    Require(!add.HasChannelVersions && add.EmptyText.Contains("Stable") && add.PickNote == add.EmptyText,
+            "an empty Stable does not say why: " + add.PickNote);
+    Require(add.ShowOther && add.OtherText.Contains("Nightly"), "an empty Stable does not offer Nightly.");
+    add.OtherCommand.Execute(null);
+    Require(add.Kind == Versions.Nightly && add.HasChannelVersions, "Pick Nightly instead did not pick it.");
+    Require(new AddVersionViewModel(main, Versions.Stable).Kind == Versions.Stable, "a channel asked for is not the one opened.");
+
+    service.Releases.Listed = null;
+    var waiting = new AddVersionViewModel(main);
+    Require(waiting.Kind == Versions.Stable && waiting.EmptyText == Tr.T("Its versions show once git.magicbean.dev answers."),
+            "before the server answered, the empty list does not say it is waiting.");
+
+    Require(!main.Home.ShowOldOnly, "the old-versions card shows with no version.");
+    // (since the split, the old versions are in the stable launcher's builds.json, not this launcher's list: the card counts them)
+    var stableList = BuildRegistry.Load(service.Home.StableBuilds);
+    stableList.Add(Path.Combine(service.Home.Root, "stable-old-1"), "v3.0.0", Versions.Stable);
+    stableList.Add(Path.Combine(service.Home.Root, "stable-old-2"), "v3.1.0", Versions.Stable);
+    stableList.Save();
+    main.Home.Refresh();
+    Require(main.Home.ShowOldOnly && main.Home.OldOnlyText.StartsWith("Your 2 versions", StringComparison.Ordinal),
+            "the stable launcher's versions do not bring the card: " + main.Home.OldOnlyText);
+    File.Delete(service.Home.StableBuilds);
+    main.Home.Refresh();
+    Require(!main.Home.ShowOldOnly, "the card stays with no version anywhere.");
+    // (a built game, as an old version is one: a stand-in program, never a real game file)
+    var old = Path.Combine(service.Home.Root, "old");
+    Directory.CreateDirectory(Path.GetDirectoryName(GameFolder.ExePath(old, Platform.Linux))!);
+    File.WriteAllText(GameFolder.ExePath(old, Platform.Linux), "stand-in");
+    service.Registry.Add(old, "v3.0.0", Versions.Stable, makeDefault: true);
+    service.IsOldOverride = b => b.Version == "v3.0.0";
+    main.Home.Refresh();
+    // (the old stable installed is not one of Stable's versions here: not "on this PC already", and Nightly still opens)
+    service.Releases.Listed = listed;
+    var withOld = new AddVersionViewModel(main);
+    Require(withOld.Kind == Versions.Nightly, "with an old stable installed, Add a version opened on " + withOld.Kind);
+    withOld.Kind = Versions.Stable;
+    Require(!withOld.HasChannelVersions && withOld.ShowOther, "the old stable installed is offered in Add a version.");
+    Require(main.Home.ShowOldOnly && main.Home.OldOnlyText.Contains("old builder"), "every version old, the home does not say to add one.");
+    main.Home.OldOnlyNotNowCommand.Execute(null);
+    Require(!main.Home.ShowOldOnly, "Not now did not hide the old-versions card.");
 }

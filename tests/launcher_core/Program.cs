@@ -121,6 +121,7 @@ static partial class Program
         RemoveEverythingChecks();
         OldVersionChecks(Path.GetFullPath(Path.Combine(fixtures, "..", "..")));
         StableSwitchChecks(Path.GetFullPath(Path.Combine(fixtures, "..", "..")));
+        VersionListChecks(Path.GetFullPath(Path.Combine(fixtures, "..", "..")));
         checks += SavesChecks.Count;
         checks += SaveArchiveChecks.Count;
         checks += SaveBackupsChecks.Count;

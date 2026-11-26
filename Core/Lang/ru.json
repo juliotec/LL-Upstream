@@ -1520,5 +1520,12 @@
   "Remove everything…": "Удалить всё…",
   "Keeping the prepared shaders": "Сохранение подготовленных шейдеров",
   "Keeping the prepared shaders: {0}%": "Сохранение подготовленных шейдеров: {0}%",
-  "Steam is starting this build through its tile, so its controller mapping applies.": "Steam запускает эту сборку через свой ярлык, поэтому применяется раскладка контроллера Steam."
+  "Steam is starting this build through its tile, so its controller mapping applies.": "Steam запускает эту сборку через свой ярлык, поэтому применяется раскладка контроллера Steam.",
+  "No version for this launcher is out on {0} yet.": "На канале «{0}» пока нет ни одной версии для этого лаунчера.",
+  "Pick {0} instead": "Выбрать «{0}»",
+  "Your {0} versions were built by Longshot's old builder, which this launcher doesn't run. Add a version to play here. The stable launcher still plays the old ones.": {"one": "Ваша {0} версия собрана старым сборщиком Longshot, который этот лаунчер не запускает. Добавьте версию, чтобы играть здесь. Стабильный лаунчер по-прежнему запускает старые.", "few": "Ваши {0} версии собраны старым сборщиком Longshot, который этот лаунчер не запускает. Добавьте версию, чтобы играть здесь. Стабильный лаунчер по-прежнему запускает старые.", "many": "Ваши {0} версий собраны старым сборщиком Longshot, который этот лаунчер не запускает. Добавьте версию, чтобы играть здесь. Стабильный лаунчер по-прежнему запускает старые.", "other": "Ваши {0} версии собраны старым сборщиком Longshot, который этот лаунчер не запускает. Добавьте версию, чтобы играть здесь. Стабильный лаунчер по-прежнему запускает старые."},
+  "No version yet": "Пока нет версий",
+  "Add a version to play here": "Добавьте версию, чтобы играть здесь",
+  "Stable launcher…": "Стабильный лаунчер…",
+  "Add a version…": "Добавить версию…"
 }

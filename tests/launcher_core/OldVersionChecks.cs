@@ -36,9 +36,10 @@ static partial class Program
                 && refused < play.IndexOf("PlayVersion(folder, entry)", StringComparison.Ordinal)
                 && refused < play.IndexOf("GatherSaves()", StringComparison.Ordinal),
                 "Play of an old version is refused before its saves are gathered or anything starts.");
-        Require(service.Contains("IsOld(b) ? null") && service.Contains("var oldListed = Registry.Builds.Any(IsOld);")
+        Require(service.Contains("IsOld(b) ? null") && service.Contains("var oldListed = Registry.Builds.Any(IsOld) || stable.Count > 0;")
+                && service.Contains("Registry.Builds.Concat(stable).Select(x => x.Version)")
                 && service.Contains("Disk.PruneMakeGame(work, sdks, oldListed)"),
-                "No update is offered to an old version, and make_game.py's build files and SDKs stay while one is listed.");
+                "No update is offered to an old version, and make_game.py's build files, SDKs and tools stay while one is listed, here or in the stable launcher's list.");
         var home = File.ReadAllText(Path.Combine(repo, "App", "ViewModels", "HomeViewModel.cs"));
         Require(home.Contains("() => IsBuilt && !IsOld && !IsDeleting") && home.Contains("Update = IsOld ? null : update;")
                 && home.Contains("DeleteCommand = new Command(() => home.AskDelete(this), () => !IsDeleting);")

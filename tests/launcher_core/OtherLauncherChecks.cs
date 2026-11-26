@@ -43,7 +43,7 @@ static partial class Program
         var games = Path.Combine(root, "home", "Games", "Longshot");
         var stable = Built(Path.Combine(games, "stable"), "v3.0.0");
         var night = Built(Path.Combine(games, "nightly"), "nightly-150-aaaaaaaa");
-        var installedList = BuildRegistry.Load(Path.Combine(installedHome, "builds.json"));
+        var installedList = BuildRegistry.Load(Path.Combine(installedHome, VersionLists.OwnFile));
         installedList.Add(stable, "v3.0.0", Versions.Stable);
         installedList.Add(night, "nightly-150-aaaaaaaa", Versions.Nightly, makeDefault: true);
         installedList.Add(Path.Combine(games, "gone"), "v2.9.0", Versions.Stable);
@@ -61,7 +61,7 @@ static partial class Program
                 "A portable launcher finds the installed one's builds whose game is there, and its saves: " + Names(other?.Builds.Select(b => b.Folder) ?? []));
         Require(OtherLauncher.InstalledOne(p, Getenv, installedHome) == null, "The installed launcher is no other launcher to itself.");
 
-        var reg = BuildRegistry.Load(Path.Combine(portableHome, "builds.json"));
+        var reg = BuildRegistry.Load(Path.Combine(portableHome, VersionLists.OwnFile));
         var taken = other!.TakeInto(reg, portableEnv, () => []);
         Require(Names(taken.Added.Select(b => b.Folder)) == "nightly stable" && reg.Default?.Folder == night
                 && reg.Builds.Single(b => b.Folder == stable) is { Version: "v3.0.0", Channel: Versions.Stable },
@@ -86,12 +86,12 @@ static partial class Program
         var env2 = new SaveEnvironment(p, Getenv) { UserFolder = Path.Combine(portable2, "user") };
         Directory.CreateDirectory(Path.Combine(env2.LongshotUser, "save", uid));
         File.WriteAllText(Path.Combine(env2.LongshotUser, "save", uid, "option.sav"), "mine");
-        var kept = other.TakeInto(BuildRegistry.Load(Path.Combine(portable2, "builds.json")), env2, () => []);
+        var kept = other.TakeInto(BuildRegistry.Load(Path.Combine(portable2, VersionLists.OwnFile)), env2, () => []);
         Require(!kept.SavesCopied && kept.SavesLeft != null && Tree(Path.Combine(env2.LongshotUser, "save")) == $"{uid}{Path.DirectorySeparatorChar}option.sav=mine",
                 "A save folder with any file in it is left as it is.");
         var portable3 = Path.Combine(root, "usb3", LauncherLayout.PortableData);
         var env3 = new SaveEnvironment(p, Getenv) { UserFolder = Path.Combine(portable3, "user") };
-        var running = other.TakeInto(BuildRegistry.Load(Path.Combine(portable3, "builds.json")), env3, () => ["Longshot"]);
+        var running = other.TakeInto(BuildRegistry.Load(Path.Combine(portable3, VersionLists.OwnFile)), env3, () => ["Longshot"]);
         Require(running.Added.Count == 2 && !running.SavesCopied && running.SavesLeft != null && !Directory.Exists(Path.Combine(env3.LongshotUser, "save")),
                 "While Longshot runs, the builds are listed and the saves not copied.");
 
@@ -115,7 +115,7 @@ static partial class Program
                 "A game's channel is its track folder's (or, before that layout, its own folder's name), only for a version on that channel.");
         Require(OtherLauncher.At(installedHome, p, Getenv) is { Installed: true, User: var u } && u == Path.GetFullPath(installedUser),
                 "The installed launcher's home, picked: its saves are %APPDATA%\\Longshot.");
-        Require(OtherLauncher.At(games, p, Getenv) == null, "A folder with no builds.json is no launcher's.");
+        Require(OtherLauncher.At(games, p, Getenv) == null, "A folder with no list of versions is no launcher's.");
         var hookshot = Built(Path.Combine(games, "hookshot"), "v2.9.0");   // (Hookshot's numbers: no Longshot game, a clean break)
         var dev = Built(Path.Combine(games, "dev"), "dev");
         var oldRc = Built(Path.Combine(games, "old-rc"), "v3.0.0-rc.5");   // (an old release candidate: no version now)
@@ -127,8 +127,8 @@ static partial class Program
         // (a list that cannot be read is no list, and nothing is written beside it, as Load would)
         var brokenHome = Path.Combine(root, "broken", LauncherLayout.PortableData);
         Directory.CreateDirectory(brokenHome);
-        File.WriteAllText(Path.Combine(brokenHome, "builds.json"), "{ not json");
-        Require(OtherLauncher.At(brokenHome, p, Getenv) is { Builds.Count: 0 } && !File.Exists(Path.Combine(brokenHome, "builds.json.broken")),
+        File.WriteAllText(Path.Combine(brokenHome, VersionLists.OwnFile), "{ not json");
+        Require(OtherLauncher.At(brokenHome, p, Getenv) is { Builds.Count: 0 } && !File.Exists(Path.Combine(brokenHome, VersionLists.OwnFile + ".broken")),
                 "Another launcher's broken list reads as none, and is never touched.");
 
         // (a gather cut short between its two renames: no save\, the player's in .save.longshot-old beside it. That is a save to
@@ -140,7 +140,7 @@ static partial class Program
         Directory.Move(Path.Combine(env4.LongshotUser, "save"), aside);
         var asideTree = Tree(aside);
         Require(!other.SavesFitIn(env4), "A save a gather cut short set aside is a save: none offered over it.");
-        var cut = other.TakeInto(BuildRegistry.Load(Path.Combine(portable4, "builds.json")), env4, () => []);
+        var cut = other.TakeInto(BuildRegistry.Load(Path.Combine(portable4, VersionLists.OwnFile)), env4, () => []);
         Require(!cut.SavesCopied && cut.SavesLeft != null && !Directory.Exists(aside) && Tree(Path.Combine(env4.LongshotUser, "save")) == asideTree,
                 "A save a gather cut short set aside is put back in its place, nothing copied over it.");
 
@@ -152,7 +152,7 @@ static partial class Program
         {
             using (Saves.HoldGatherLock(env5))
             {
-                var locked = other.TakeInto(BuildRegistry.Load(Path.Combine(portable5, "builds.json")), env5, () => []);
+                var locked = other.TakeInto(BuildRegistry.Load(Path.Combine(portable5, VersionLists.OwnFile)), env5, () => []);
                 Require(!locked.SavesCopied && locked.Busy && locked.SavesLeft != null && !Directory.Exists(Path.Combine(env5.LongshotUser, "save")),
                         "While another holds the gather lock, the saves are not copied, and it says to try again.");
             }
@@ -164,22 +164,22 @@ static partial class Program
         Saves.Fault = s => { if (s == "file") throw new IOException("disk full"); };
         try
         {
-            var full = other.TakeInto(BuildRegistry.Load(Path.Combine(portable5, "builds.json")), env5, () => []);
+            var full = other.TakeInto(BuildRegistry.Load(Path.Combine(portable5, VersionLists.OwnFile)), env5, () => []);
             var (staging, _) = Saves.Beside(Path.Combine(env5.LongshotUser, "save"));
             Require(!full.SavesCopied && full.SavesLeft != null && !Directory.Exists(staging) && Directory.Exists(Path.Combine(env5.LongshotUser, "save", "empty")),
                     "A copy that fails part way leaves the save folder as it was and no staging folder.");
         }
         finally { Saves.Fault = null; }
-        var copied = other.TakeInto(BuildRegistry.Load(Path.Combine(portable5, "builds.json")), env5, () => []);
+        var copied = other.TakeInto(BuildRegistry.Load(Path.Combine(portable5, VersionLists.OwnFile)), env5, () => []);
         Require(copied.SavesCopied && !Directory.Exists(Path.Combine(env5.LongshotUser, "save", "empty")),
                 "A save folder with only empty folders in it is no save: the copy takes its place.");
 
         // (another launcher's list with no builds, or a row with no folder: no list, no crash)
         var odd = Path.Combine(root, "odd", LauncherLayout.PortableData);
         Directory.CreateDirectory(odd);
-        File.WriteAllText(Path.Combine(odd, "builds.json"), "{ \"format\": 1, \"builds\": null }");
+        File.WriteAllText(Path.Combine(odd, VersionLists.OwnFile), "{ \"format\": 1, \"builds\": null }");
         var oddOne = OtherLauncher.At(odd, p, Getenv);
-        File.WriteAllText(Path.Combine(odd, "builds.json"), "{ \"format\": 1, \"builds\": [ null, { \"folder\": null }, { \"folder\": \"\\u0000bad\" } ] }");
+        File.WriteAllText(Path.Combine(odd, VersionLists.OwnFile), "{ \"format\": 1, \"builds\": [ null, { \"folder\": null }, { \"folder\": \"\\u0000bad\" } ] }");
         Require(oddOne is { Builds.Count: 0 } && OtherLauncher.At(odd, p, Getenv) is { Builds.Count: 0 }, "An odd list reads as none.");
 
         // (Linux: every launcher's builds share one save folder already: no saves to copy)

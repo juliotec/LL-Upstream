@@ -61,11 +61,12 @@ public sealed record OtherLauncher(string Home, bool Installed, IReadOnlyList<Ot
     }
 
     /// The launcher whose data folder is folder, or is in it (LongshotLauncher-data beside a portable launcher), picked on the
-    /// home; null when neither holds a builds.json. Its saves: a portable one's user\ there, an installed one's %APPDATA%\Longshot
+    /// home; null when neither holds a list of versions (versions.json, or builds.json from before the split). Its saves: a portable one's user\ there, an installed one's %APPDATA%\Longshot
     public static OtherLauncher? At(string folder, Platform platform, Func<string, string?> getenv)
     {
         var full = Path.GetFullPath(folder);
-        var home = new[] { full, Path.Combine(full, LauncherLayout.PortableData) }.FirstOrDefault(h => File.Exists(Path.Combine(h, "builds.json")));
+        var home = new[] { full, Path.Combine(full, LauncherLayout.PortableData) }.FirstOrDefault(h =>
+            File.Exists(Path.Combine(h, VersionLists.OwnFile)) || File.Exists(Path.Combine(h, VersionLists.StableFile)));
         if (home == null) return null;
         Func<string, string?> plain = n => n == LauncherHome.Variable ? null : getenv(n);
         var installed = BuildRegistry.SameFolder(home, LauncherHome.Resolve(platform, plain).Root);
@@ -78,7 +79,11 @@ public sealed record OtherLauncher(string Home, bool Installed, IReadOnlyList<Ot
     static OtherLauncher Read(string home, bool installed, string? user, Platform platform)
     {
         var builds = new List<OtherBuild>();
-        foreach (var b in BuildRegistry.Peek(Path.Combine(home, "builds.json")))
+        // (its own list, versions.json, and its rows still in builds.json before its first start since the split: VersionLists;
+        // the stable launcher's rows there are not this launcher's)
+        var rows = BuildRegistry.Peek(Path.Combine(home, VersionLists.OwnFile))
+            .Concat(BuildRegistry.Peek(Path.Combine(home, VersionLists.StableFile)).Where(b => VersionLists.Ours(b, home)));
+        foreach (var b in rows)
         {
             try
             {

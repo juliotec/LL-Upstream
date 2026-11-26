@@ -1412,5 +1412,12 @@
   "Where it goes": "去向",
   "Remove Longshot from this PC": "從這台電腦移除 Longshot",
   "Remove everything…": "全部移除…",
-  "Steam is starting this build through its tile, so its controller mapping applies.": "Steam 正在透過其捷徑啟動此版本，因此套用 Steam 的控制器對應。"
+  "Steam is starting this build through its tile, so its controller mapping applies.": "Steam 正在透過其捷徑啟動此版本，因此套用 Steam 的控制器對應。",
+  "No version for this launcher is out on {0} yet.": "{0}上尚未推出適用於此啟動器的版本。",
+  "Pick {0} instead": "改選{0}",
+  "Your {0} versions were built by Longshot's old builder, which this launcher doesn't run. Add a version to play here. The stable launcher still plays the old ones.": {"other": "你的 {0} 個版本由 Longshot 的舊建置器建置，此啟動器無法執行。請新增一個版本以在此遊玩。穩定版啟動器仍可遊玩舊版本。"},
+  "No version yet": "尚無版本",
+  "Add a version to play here": "新增一個版本以在此遊玩",
+  "Stable launcher…": "穩定版啟動器…",
+  "Add a version…": "新增版本…"
 }

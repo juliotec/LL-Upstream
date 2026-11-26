@@ -32,15 +32,30 @@ public sealed class AddVersionViewModel : ViewModelBase
     public AddVersionViewModel(MainViewModel main, string? start = null)
     {
         this.main = main;
-        kind = start ?? main.Service.DefaultChannel;
+        kind = start ?? StartChannel(main.Service);
         Channels = ChannelPickerViewModel.All.Select(c => new ChannelRow(this, c.Id, c.Name,
             ChannelPickerViewModel.AboutOf(main.Service, c.Id, c.About), main.Service.NewestOf(c.Id))).ToList();
         CancelCommand = new Command(() => main.Modal = null);
         GoCommand = new Command(Go, CanGo);
         AdvancedCommand = new Command(() => AdvancedOpen = !AdvancedOpen);
+        OtherCommand = new Command(() => { if (other is { } o) Kind = o; });
         ShowVersions();
         if (kind is Main or Versions.PullRequest) AdvancedOpen = true;
     }
+
+    /// The channel the dialog opens on: the one new builds start on, unless it has no version this launcher builds or plays and
+    /// another channel has one (after the clean break, Stable until longshot-builder's first stable is out)
+    public static string StartChannel(LauncherService service)
+    {
+        var first = service.DefaultChannel;
+        if (On(service, first).Count > 0) return first;
+        return Versions.Channels.FirstOrDefault(c => c != first && On(service, c).Count > 0) ?? first;
+    }
+
+    /// A channel's versions this launcher builds or plays: an installed one built by Longshot's old builder (OldVersions) is not
+    /// one, so it neither fills the list nor reads as "on this PC already"
+    public static IReadOnlyList<TrackVersion> On(LauncherService service, string channel) =>
+        service.VersionsOn(channel).Where(v => v.Build is not { } b || !service.IsOld(b)).ToList();
 
     public MainViewModel MainWindow => main;
     LauncherService Service => main.Service;
@@ -113,15 +128,29 @@ public sealed class AddVersionViewModel : ViewModelBase
     {
         if (!IsChannel) return;
         var defaultId = Service.Registry.Builds.FirstOrDefault(b => b.Default)?.Id;
-        ChannelVersions = Service.VersionsOn(kind).Select(v =>
+        ChannelVersions = On(Service, kind).Select(v =>
         {
             var c = new VersionChoice(v.Tag);
             c.Show(v, defaultId != null && v.Build?.Id == defaultId, false);
             return c;
         }).ToList();
+        other = Versions.Channels.FirstOrDefault(c => c != kind && On(Service, c).Count > 0);
         version = ChannelVersions.FirstOrDefault(v => Versions.IsChannel(kind) && v.Tag == Service.NewestOf(kind)) ?? ChannelVersions.FirstOrDefault();
-        RaiseAll(nameof(ChannelVersions), nameof(HasChannelVersions), nameof(PickedVersion), nameof(GoText), nameof(PickNote));
+        RaiseAll(nameof(ChannelVersions), nameof(HasChannelVersions), nameof(PickedVersion), nameof(GoText), nameof(PickNote),
+                 nameof(EmptyText), nameof(ShowOther), nameof(OtherText));
     }
+
+    /// Another channel with versions, offered when this one has none (OtherCommand)
+    string? other;
+
+    /// In the empty Version list, and under it: why it is empty. The server answered with no version of longshot-builder's kind on
+    /// the channel (none is out yet for this launcher), or has not answered yet
+    public string EmptyText => HasChannelVersions || !IsChannel ? ""
+        : Service.Releases.Listed != null ? Tr.F("No version for this launcher is out on {0} yet.", ChannelPickerViewModel.NameOf(kind))
+        : Tr.T("Its versions show once git.magicbean.dev answers.");
+    public bool ShowOther => IsChannel && !HasChannelVersions && other != null;
+    public string OtherText => other is { } o ? Tr.F("Pick {0} instead", ChannelPickerViewModel.NameOf(o)) : "";
+    public Command OtherCommand { get; }
 
     /// What the version picked does: on this PC already, or built (in the channel's build's place when it has one)
     PickPlan? Plan => IsChannel && version != null ? VersionPick.Plan(kind, version.Tag, Service.Registry.Builds) : null;
@@ -132,7 +161,7 @@ public sealed class AddVersionViewModel : ViewModelBase
         { Action: PickAction.Replace, Build: { } b } p => Tr.F(p.Older ? "Built in the place of {0}: it goes back to this version." : "Built in the place of {0}, which it updates.",
                                                           Versions.Shown(b.Version)),
         { } => Tr.T("Built in a folder of its own, beside your other versions."),
-        _ => "",
+        _ => EmptyText,
     };
 
     // ---- Advanced: main and the pull requests, built from source

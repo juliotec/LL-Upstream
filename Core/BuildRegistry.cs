@@ -121,6 +121,16 @@ public sealed class BuildRegistry
         catch (Exception e) when (e is JsonException or IOException or UnauthorizedAccessException or NotSupportedException) { return []; }
     }
 
+    /// A row of another list taken in as it is (its id, folder, version and all), at the end; false when one of its folder or id
+    /// is listed already (VersionLists.Split)
+    public bool Take(BuildEntry entry)
+    {
+        if (builds.Any(b => b.Id == entry.Id || SameFolder(b.Folder, entry.Folder))) return false;
+        if (entry.Default && builds.Any(b => b.Default)) entry.Default = false;
+        builds.Add(entry);
+        return true;
+    }
+
     /// A row's id: 12 hex digits, never reused (a build's work folder is named for it too: BuildRequest.WorkId)
     public static string NewId() => Guid.NewGuid().ToString("N")[..12];
 

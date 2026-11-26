@@ -1520,5 +1520,12 @@
   "Where it goes": "Gdzie trafia",
   "Remove Longshot from this PC": "Usuń Longshot z tego komputera",
   "Remove everything…": "Usuń wszystko…",
-  "Steam is starting this build through its tile, so its controller mapping applies.": "Steam uruchamia tę wersję przez swój skrót, więc obowiązuje mapowanie kontrolerów Steam."
+  "Steam is starting this build through its tile, so its controller mapping applies.": "Steam uruchamia tę wersję przez swój skrót, więc obowiązuje mapowanie kontrolerów Steam.",
+  "No version for this launcher is out on {0} yet.": "Na kanale {0} nie ma jeszcze żadnej wersji dla tego launchera.",
+  "Pick {0} instead": "Wybierz {0}",
+  "Your {0} versions were built by Longshot's old builder, which this launcher doesn't run. Add a version to play here. The stable launcher still plays the old ones.": {"one": "Twoja wersja została zbudowana starym builderem Longshota, którego ten launcher nie uruchamia. Dodaj wersję, aby grać tutaj. Stabilny launcher nadal uruchamia starą.", "few": "Twoje {0} wersje zostały zbudowane starym builderem Longshota, którego ten launcher nie uruchamia. Dodaj wersję, aby grać tutaj. Stabilny launcher nadal uruchamia stare.", "many": "Twoich {0} wersji zbudowano starym builderem Longshota, którego ten launcher nie uruchamia. Dodaj wersję, aby grać tutaj. Stabilny launcher nadal uruchamia stare.", "other": "Twoje {0} wersji zostało zbudowanych starym builderem Longshota, którego ten launcher nie uruchamia. Dodaj wersję, aby grać tutaj. Stabilny launcher nadal uruchamia stare."},
+  "No version yet": "Jeszcze brak wersji",
+  "Add a version to play here": "Dodaj wersję, aby grać tutaj",
+  "Stable launcher…": "Stabilny launcher…",
+  "Add a version…": "Dodaj wersję…"
 }

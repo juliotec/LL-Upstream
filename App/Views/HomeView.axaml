@@ -202,6 +202,23 @@
         </StackPanel>
       </Grid>
     </Border>
+    <!-- every version built by Longshot's old builder: a version to add again, or the stable launcher to play them -->
+    <Border DockPanel.Dock="Top" Classes="offer" IsVisible="{Binding ShowOldOnly}">
+      <Grid ColumnDefinitions="36,*,Auto" ColumnSpacing="14">
+        <Border Classes="offericon">
+          <c:Icon Kind="plus" Width="18" Height="18" Foreground="{StaticResource InfoInk}"/>
+        </Border>
+        <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
+          <TextBlock Classes="offertitle" Text="{c:T 'Add a version to play here'}"/>
+          <TextBlock Classes="note" Text="{Binding OldOnlyText}" TextWrapping="Wrap"/>
+        </StackPanel>
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="14" VerticalAlignment="Center">
+          <Button Classes="link soft" Content="{c:T 'Not now'}" Command="{Binding OldOnlyNotNowCommand}"/>
+          <Button Classes="link" Content="{c:T 'Stable launcher…'}" Command="{Binding OldOnlyStableCommand}"/>
+          <Button Classes="small primary" Content="{c:T 'Add a version…'}" Command="{Binding OldOnlyAddCommand}"/>
+        </StackPanel>
+      </Grid>
+    </Border>
     <!-- NX2navi's saves found, offered once -->
     <Border DockPanel.Dock="Top" Classes="offer" IsVisible="{Binding HasNx2naviOffer}">
       <Grid ColumnDefinitions="36,*,Auto" ColumnSpacing="14">

@@ -1448,5 +1448,12 @@
   "git.magicbean.dev did not say main's newest commit. Try again in a moment.": "git.magicbean.dev hat den neuesten Commit von main nicht genannt. Versuche es gleich noch einmal.",
   "main has moved on since {0}: add main again to build its newest commit.": "main ist seit {0} weitergegangen: Füge main erneut hinzu, um den neuesten Commit zu bauen.",
   "{0} is built by the newest nightly's builder, and git.magicbean.dev did not say which it is. Try again in a moment.": "{0} wird vom Builder des neuesten Nightly gebaut, und git.magicbean.dev hat nicht gesagt, welcher das ist. Versuche es gleich noch einmal.",
-  "Steam is starting this build through its tile, so its controller mapping applies.": "Steam startet diese Version über seine Verknüpfung, deshalb gilt Steams Controller-Zuordnung."
+  "Steam is starting this build through its tile, so its controller mapping applies.": "Steam startet diese Version über seine Verknüpfung, deshalb gilt Steams Controller-Zuordnung.",
+  "No version for this launcher is out on {0} yet.": "Für diesen Launcher ist auf {0} noch keine Version erschienen.",
+  "Pick {0} instead": "Stattdessen {0} wählen",
+  "Your {0} versions were built by Longshot's old builder, which this launcher doesn't run. Add a version to play here. The stable launcher still plays the old ones.": {"one": "Deine Version wurde mit Longshots altem Builder gebaut, den dieser Launcher nicht ausführt. Füge eine Version hinzu, um hier zu spielen. Der stabile Launcher spielt die alte weiterhin.", "other": "Deine {0} Versionen wurden mit Longshots altem Builder gebaut, den dieser Launcher nicht ausführt. Füge eine Version hinzu, um hier zu spielen. Der stabile Launcher spielt die alten weiterhin."},
+  "No version yet": "Noch keine Version",
+  "Add a version to play here": "Füge eine Version hinzu, um hier zu spielen",
+  "Stable launcher…": "Stabiler Launcher…",
+  "Add a version…": "Eine Version hinzufügen…"
 }

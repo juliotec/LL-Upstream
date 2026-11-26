@@ -1412,5 +1412,12 @@
   "Remove everything…": "すべて削除…",
   "Keeping the prepared shaders": "準備済みのシェーダーを保持中",
   "Keeping the prepared shaders: {0}%": "準備済みのシェーダーを保持中：{0}%",
-  "Steam is starting this build through its tile, so its controller mapping applies.": "Steam がこのビルドをショートカット経由で起動しているため、Steam のコントローラー割り当てが適用されます。"
+  "Steam is starting this build through its tile, so its controller mapping applies.": "Steam がこのビルドをショートカット経由で起動しているため、Steam のコントローラー割り当てが適用されます。",
+  "No version for this launcher is out on {0} yet.": "このランチャー向けのバージョンは、{0} にはまだ公開されていません。",
+  "Pick {0} instead": "代わりに {0} を選ぶ",
+  "Your {0} versions were built by Longshot's old builder, which this launcher doesn't run. Add a version to play here. The stable launcher still plays the old ones.": {"other": "お持ちの {0} 個のバージョンは Longshot の旧ビルダーでビルドされており、このランチャーでは実行できません。ここで遊ぶにはバージョンを追加してください。安定版ランチャーでは引き続き古いバージョンを遊べます。"},
+  "No version yet": "まだバージョンがありません",
+  "Add a version to play here": "ここで遊ぶにはバージョンを追加",
+  "Stable launcher…": "安定版ランチャー…",
+  "Add a version…": "バージョンを追加…"
 }

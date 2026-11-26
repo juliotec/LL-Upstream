@@ -226,6 +226,10 @@ static class Program
             Platform.Windows, OldVersionListed, m => new VersionsViewModel(m)),
         new("home-old", "Home on a version built by Longshot's old builder: not supported, the stable launcher offered in Play's place",
             Platform.Windows, OldVersionListed, _ => null),
+        new("home-old-only", "Home with every version built by Longshot's old builder: the card saying to add a version, or to go back to the stable launcher",
+            Platform.Windows, OnlyOldVersions, _ => null),
+        new("versions-add-stable-empty", "Add version on Stable before longshot-builder's first stable: why the list is empty, and Nightly offered",
+            Platform.Linux, OnlyOldVersions, m => new VersionsViewModel(m), m => m.Modal = new AddVersionViewModel(m, Versions.Stable)),
         // (the launcher's channel switched from nightly to stable: the offer, the profile's saves copied back first, a newer file kept)
         new("stable-offer", "Switching the launcher to stable: replace it with the stable launcher, the profile's saves copied back to the folder it reads first",
             Platform.Windows, StableOffer, m => new SettingsViewModel(m), m => m.Modal = new StableLauncherViewModel(m, canReplace: true)),
@@ -933,6 +937,24 @@ static class Program
         service.Registry.Add(@"C:\Users\Player\Games\Longshot\nightly\nightly-189-aa95d35f", "nightly-189-aa95d35f", Versions.Nightly);
         service.SetNewest(Versions.Nightly, "nightly-189-aa95d35f");
         service.IsOldOverride = b => b.Version == "v3.0.0";
+    }
+
+    /// After the clean break, nothing built by longshot-builder yet: one stable version of Longshot's old builder, the server's
+    /// stable only one of that kind and its nightly one of longshot-builder's
+    static void OnlyOldVersions(LauncherService service)
+    {
+        service.Registry.Add(@"C:\Users\Player\Games\Longshot\stable\v3.0.0", "v3.0.0", Versions.Stable, makeDefault: true);
+        service.IsOldOverride = b => b.Version == "v3.0.0";
+        const string nightly = "nightly-189-aa95d35f";
+        service.Releases.Listed =
+        [
+            new ListedRelease(nightly, false, true, DateTimeOffset.Now.AddHours(-5), null, "c",
+                              [(LongshotBuildRelease.ManifestName(nightly, ReleaseManifest.PlatformKey(service.Platform)), "https://e/m", 10)]),
+            new ListedRelease("v3.0.0", false, false, DateTimeOffset.Now.AddDays(-20), null, "c", []),
+        ];
+        service.SetNewest(Versions.Nightly, nightly);
+        // (the update check's newest skips make_game.py's releases: Stable has none for this launcher)
+        service.SetNewest(Versions.Stable, null);
     }
 
     /// A profile's saves to copy back to the --user folder for the stable launcher: three slots, one of them newer in that folder

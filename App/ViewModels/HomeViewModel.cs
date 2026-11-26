@@ -260,6 +260,13 @@ public sealed class HomeViewModel : ViewModelBase
         }, () => HeroHasUpdate);
         // (the Versions page's Add version: a channel's version, or under Advanced main or a pull request)
         AddVersionCommand = new Command(() => Main.Modal = new AddVersionViewModel(Main), () => CanStartBuild);
+        OldOnlyAddCommand = new Command(() => Main.Modal = new AddVersionViewModel(Main), () => CanStartBuild);
+        OldOnlyStableCommand = new Command(() => Main.Modal = new StableLauncherViewModel(Main));
+        OldOnlyNotNowCommand = new Command(() =>
+        {
+            oldOnlyDismissed = true;
+            Raise(nameof(ShowOldOnly));
+        });
         RemoveCommand = new Command(() => { if (PickItem is { } h) AskDelete(h); }, () => PickItem is { IsDeleting: false });
         // (the hero's build: the version picked when it is installed)
         UpdateDefaultCommand = new Command(() => { if (HeroItem is { } d) UpdateBuild(d); }, () => CanStartBuild && HeroItem is { IsDeleting: false });
@@ -1103,6 +1110,7 @@ public sealed class HomeViewModel : ViewModelBase
         foreach (var b in Builds) b.BusyChanged();
         AddFolderCommand.Changed();
         UseInstalledCommand.Changed();
+        OldOnlyAddCommand.Changed();
         RaiseAll(nameof(CanStartBuild), nameof(ShowCheckLine), nameof(ShowStatus), nameof(ShowStatusReport));
     }
     public Command ImportHookshotCommand { get; }
@@ -1117,6 +1125,24 @@ public sealed class HomeViewModel : ViewModelBase
         set { if (Set(ref nx2naviOffer, value)) Raise(nameof(HasNx2naviOffer)); }
     }
     public bool HasNx2naviOffer => nx2naviOffer != null;
+
+    // ---- every version is an old one (OldVersions): the player came from the stable launcher, and has a version to add ----
+
+    bool oldOnlyDismissed;
+    /// The card over the versions: all of them were built by Longshot's old builder, so none plays here. It says a version has to
+    /// be added again (the clean break), with Add a version… and the way back to the stable launcher; Not now hides it until the
+    /// next start
+    public bool ShowOldOnly => !oldOnlyDismissed && OldCount > 0 && Builds.All(b => b.IsOld);
+    /// The old builder's versions: the ones on this launcher's list and the stable launcher's (its own list since the split,
+    /// VersionLists), counted at each Refresh
+    int OldCount => Builds.Count + stableCount;
+    int stableCount;
+    public string OldOnlyText => Tr.P(OldCount,
+        "Your version was built by Longshot's old builder, which this launcher doesn't run. Add a version to play here. The stable launcher still plays the old one.",
+        "Your {0} versions were built by Longshot's old builder, which this launcher doesn't run. Add a version to play here. The stable launcher still plays the old ones.");
+    public Command OldOnlyAddCommand { get; }
+    public Command OldOnlyStableCommand { get; }
+    public Command OldOnlyNotNowCommand { get; }
 
     void OfferNx2navi()
     {
@@ -1531,11 +1557,13 @@ public sealed class HomeViewModel : ViewModelBase
             item.IsFirst = Builds.Count == 0;
             Builds.Add(item);
         }
+        stableCount = Service.StableFolders.Count;
         ShowPick();
         RaiseHero();
         RaiseAll(nameof(HasBuilds), nameof(NoBuilds), nameof(Default), nameof(ShowLeftPanel), nameof(Footer), nameof(NewestDefault), nameof(NewestDefaultText), nameof(DefaultChannel), nameof(DefaultIsRelease),
                  nameof(DefaultIsNightly), nameof(KnowsNewest), nameof(CheckFailed), nameof(CheckWhy), nameof(HasCheckWhy), nameof(ShowCheckReport), nameof(ChannelEmpty), nameof(CheckFailedText), nameof(Checking), nameof(ShowCheckLine), nameof(HasLauncherUpdate),
-                 nameof(LauncherUpdateText), nameof(LauncherUpdateHeading), nameof(LauncherUpdateButton));
+                 nameof(LauncherUpdateText), nameof(LauncherUpdateHeading), nameof(LauncherUpdateButton), nameof(ShowOldOnly), nameof(OldOnlyText));
+        OldOnlyAddCommand.Changed();
         BuildCommand.Changed();
         PlayDefaultCommand.Changed();
         UpdateDefaultCommand.Changed();

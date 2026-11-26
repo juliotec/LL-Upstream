@@ -38,7 +38,11 @@ public sealed class LauncherHome
     internal static string Home(Func<string, string?> getenv) =>
         getenv("HOME") is { Length: > 0 } h ? h : Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 
-    public string Builds => Path.Combine(Root, "builds.json");
+    /// This launcher's versions: its own list, apart from the stable launcher's (VersionLists)
+    public string Builds => Path.Combine(Root, VersionLists.OwnFile);
+    /// The stable Longshot Launcher's versions (make_game.py's), in the same folder: read here, never written but once, by the
+    /// split (VersionLists.Split)
+    public string StableBuilds => Path.Combine(Root, VersionLists.StableFile);
     public string Settings => Path.Combine(Root, "settings.json");
     /// The versions' builders and tools: kept in Root, not Cache. A build's game is played, updated and sent reports for with its
     /// version's tools (PerfReports.ToolsFor, ShaderCaches), which are 0.5-3 GB to download again, and an old version's may no

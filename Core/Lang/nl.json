@@ -1448,5 +1448,12 @@
   "Where it goes": "Waar het heen gaat",
   "Remove Longshot from this PC": "Longshot van deze pc verwijderen",
   "Remove everything…": "Alles verwijderen…",
-  "Steam is starting this build through its tile, so its controller mapping applies.": "Steam start deze versie via zijn snelkoppeling, dus de controllerindeling van Steam geldt."
+  "Steam is starting this build through its tile, so its controller mapping applies.": "Steam start deze versie via zijn snelkoppeling, dus de controllerindeling van Steam geldt.",
+  "No version for this launcher is out on {0} yet.": "Er is nog geen versie voor deze launcher uit op {0}.",
+  "Pick {0} instead": "Kies in plaats daarvan {0}",
+  "Your {0} versions were built by Longshot's old builder, which this launcher doesn't run. Add a version to play here. The stable launcher still plays the old ones.": {"one": "Je versie is gebouwd met de oude builder van Longshot, die deze launcher niet uitvoert. Voeg een versie toe om hier te spelen. De stabiele launcher speelt de oude nog steeds.", "other": "Je {0} versies zijn gebouwd met de oude builder van Longshot, die deze launcher niet uitvoert. Voeg een versie toe om hier te spelen. De stabiele launcher speelt de oude nog steeds."},
+  "No version yet": "Nog geen versie",
+  "Add a version to play here": "Voeg een versie toe om hier te spelen",
+  "Stable launcher…": "Stabiele launcher…",
+  "Add a version…": "Een versie toevoegen…"
 }

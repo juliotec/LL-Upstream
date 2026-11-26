@@ -35,7 +35,7 @@
       <StackPanel IsVisible="{Binding IsChannel}" Margin="0,12,0,0">
         <TextBlock Classes="pickercap" Text="{c:T 'Version'}"/>
         <ComboBox Classes="picker" ItemsSource="{Binding ChannelVersions}" SelectedItem="{Binding PickedVersion}" IsEnabled="{Binding HasChannelVersions}"
-                  AutomationProperties.Name="{c:T 'Version'}">
+                  PlaceholderText="{c:T 'No version yet'}" AutomationProperties.Name="{c:T 'Version'}">
           <ComboBox.ItemTemplate>
             <DataTemplate x:DataType="vm:VersionChoice">
               <Grid ColumnDefinitions="16,*,Auto" ColumnSpacing="8">
@@ -48,6 +48,9 @@
           </ComboBox.ItemTemplate>
         </ComboBox>
         <TextBlock Classes="note" Margin="2,8,0,0" Text="{Binding PickNote}" TextWrapping="Wrap"/>
+        <!-- an empty channel (no stable of longshot-builder's kind yet): the one that has versions -->
+        <Button Classes="link smaller" Margin="2,6,0,0" HorizontalAlignment="Left" IsVisible="{Binding ShowOther}"
+                Content="{Binding OtherText}" Command="{Binding OtherCommand}"/>
       </StackPanel>
 
       <!-- Advanced: closed until opened -->

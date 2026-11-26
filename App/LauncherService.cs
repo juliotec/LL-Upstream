@@ -53,6 +53,12 @@ public sealed class LauncherService
     {
         Platform = platform;
         Home = home;
+        // (this launcher's versions out of the stable launcher's builds.json once, into its own list: VersionLists)
+        try { VersionLists.Split(home.Root); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            LauncherLog.Add("versions: the list was not split from the stable launcher's: " + e.Message);
+        }
         Registry = BuildRegistry.Load(home.Builds);
         // (issue 140: a portable launcher's folder renamed, or one above it: its builds' paths follow it)
         if (home.Portable && Registry.FollowHome())
@@ -851,14 +857,21 @@ public sealed class LauncherService
         Registry.Save();
     }
 
+    /// The stable launcher's versions' folders (its builds.json: VersionLists): listed, though not on this launcher's list, so
+    /// they are never offered as leftovers, listed again here, or deleted with something else
+    public IReadOnlyList<string> StableFolders => VersionLists.StableFolders(Home.Root);
+
+    /// Every folder a list names: this launcher's and the stable launcher's
+    IEnumerable<string> Listed => Registry.Builds.Select(b => b.Folder).Concat(StableFolders);
+
     /// The old versions' folders an update left in the builds folder, with nothing of the player's in them (Leftovers.Find)
     public IReadOnlyList<Leftover> FindLeftovers() =>
-        Leftovers.Find(BuildsFolder, Registry.Builds.Select(b => b.Folder), Platform, Settings.KeptFolders, new[] { Home.Root }, SaveEnv);
+        Leftovers.Find(BuildsFolder, Listed, Platform, Settings.KeptFolders, new[] { Home.Root }, SaveEnv);
 
     /// Every game folder in the builds folder no row lists, for the Storage page (Leftovers.All): the ones Home offers, and the
     /// ones it does not (kept, holding mods, a channel's newest whose row went)
     public IReadOnlyList<Leftover> UnlistedGames() =>
-        Leftovers.All(BuildsFolder, Registry.Builds.Select(b => b.Folder), Platform, new[] { Home.Root }, SaveEnv)
+        Leftovers.All(BuildsFolder, Listed, Platform, new[] { Home.Root }, SaveEnv)
             .Select(l => Registry.Problem != null ? l with { HoldsYours = true } : l).ToList();
 
     /// The games in the builds folder a row should have, listed: first a row that lost the game its update built in a new folder
@@ -868,11 +881,12 @@ public sealed class LauncherService
     public IReadOnlyList<BuildEntry> Relist()
     {
         if (Registry.Problem != null) return Array.Empty<BuildEntry>();
-        var keep = new[] { Home.Root };
+        // (the stable launcher's folders as homes: never taken for a lost update, nor listed again here)
+        var keep = StableFolders.Prepend(Home.Root).ToArray();
         var moved = new List<BuildEntry>();
         foreach (var b in Registry.Builds.ToList())
         {
-            if (Leftovers.LostUpdate(BuildsFolder, b, Registry.Builds.Select(x => x.Folder), Platform, keep) is not { } found) continue;
+            if (Leftovers.LostUpdate(BuildsFolder, b, Listed, Platform, keep) is not { } found) continue;
             LauncherLog.Add($"{b.Version} in {b.Folder} has no game; its update's {found.Version} in {found.Folder} is listed in its place");
             moved.Add(Registry.Replace(b.Id, found.Folder, found.Version, b.Channel));
         }
@@ -908,11 +922,12 @@ public sealed class LauncherService
     public string? DeleteLeftover(Leftover leftover)
     {
         if (Registry.Problem != null) throw new IOException("The builds list could not be read; the folder was not removed.");
-        return Leftovers.Delete(leftover.Folder, Platform, Registry.Builds.Select(b => b.Folder).Append(Home.Root).ToList(), SaveEnv);
+        return Leftovers.Delete(leftover.Folder, Platform, Listed.Append(Home.Root).ToList(), SaveEnv);
     }
 
     /// What deleting a build's folder must leave: the other builds' folders and the launcher's home (BuildRegistry.DeleteFolder)
-    public IReadOnlyList<string> KeepOf(BuildEntry b) => Registry.Builds.Where(x => x.Id != b.Id).Select(x => x.Folder).Append(Home.Root).ToList();
+    public IReadOnlyList<string> KeepOf(BuildEntry b) =>
+        Registry.Builds.Where(x => x.Id != b.Id).Select(x => x.Folder).Concat(StableFolders).Append(Home.Root).ToList();
 
     /// A build's game folder deleted as the home's Delete does it (BuildRegistry.DeleteGame): the save it holds itself brought
     /// into the shared one, or backed up, first. running: what runs now (Saves.Running)
@@ -1026,9 +1041,11 @@ public sealed class LauncherService
             // (the last fetch ended between the two looks, its Idle maybe before the flag: prune now)
             Interlocked.Exchange(ref pruneLater, 0);
         }
-        var builds = Registry.Builds.Select(x => x.Version).OfType<string>().ToList();
-        // (make_game.py's build files and SDKs, once no old version is listed: Disk.PruneMakeGame)
-        var oldListed = Registry.Builds.Any(IsOld);
+        // (the stable launcher's versions too: their tools are in the same toolchains folder, VersionLists)
+        var stable = BuildRegistry.Peek(Home.StableBuilds);
+        var builds = Registry.Builds.Concat(stable).Select(x => x.Version).OfType<string>().ToList();
+        // (make_game.py's build files and SDKs, once no old version is listed, here or in the stable launcher's list: Disk.PruneMakeGame)
+        var oldListed = Registry.Builds.Any(IsOld) || stable.Count > 0;
         var work = Work;
         var sdks = new[] { Home.NgxSdk, Home.FfxSdk, Home.XessSdk };
         _ = Task.Run(() =>
