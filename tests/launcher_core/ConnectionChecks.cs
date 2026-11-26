@@ -122,9 +122,15 @@ static partial class Program
 
         // (through HttpFetcher: a name that does not resolve still reads as one, and a server that is not TLS as a secure connection
         // that failed, its address connected first)
+        // (only where .invalid does not resolve: a network whose name service answers for every name, as a CI runner's can,
+        // has nothing to show here)
+        bool resolves;
+        try { resolves = (await Dns.GetHostAddressesAsync("longshot-test.invalid")).Length > 0; }
+        catch (SocketException) { resolves = false; }
         LauncherLog.Clear();
         using var http = new HttpFetcher(TimeSpan.FromSeconds(10));
-        try
+        if (resolves) Console.WriteLine("connections: longshot-test.invalid resolves on this network: its failed lookup is not checked");
+        else try
         {
             await http.GetTextAsync("https://longshot-test.invalid/x", null, CancellationToken.None);
             Require(false, "longshot-test.invalid does not resolve.");
@@ -134,7 +140,8 @@ static partial class Program
             Require(e.Message.StartsWith("This PC could not look up longshot-test.invalid's address.", StringComparison.Ordinal),
                     "A failed lookup reads as before: " + e.Message);
         }
-        Require(LauncherLog.Tail(5).Any(l => l.Contains(" DNS longshot-test.invalid: ")), "The lookup is logged: " + string.Join(" | ", LauncherLog.Tail(5)));
+        if (!resolves)
+            Require(LauncherLog.Tail(5).Any(l => l.Contains(" DNS longshot-test.invalid: ")), "The lookup is logged: " + string.Join(" | ", LauncherLog.Tail(5)));
 
         LauncherLog.Clear();
         var plain = new TcpListener(IPAddress.Loopback, 0);
