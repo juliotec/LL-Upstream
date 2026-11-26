@@ -183,6 +183,26 @@ public static class BuilderVersions
         catch (Exception e) when (e is ArgumentException or NotSupportedException or PathTooLongException) { return false; }
     }
 
+    /// A Windows program at path made a windowed one in place: its PE subsystem (2 bytes at the PE header's offset + 92) set
+    /// to 2 (Windows GUI) when it is 3 (console), as longshot-builder's release_cmd.rs windowed and its fetch do; anything
+    /// else left as it is
+    public static void Windowed(string path)
+    {
+        using var f = new FileStream(path, FileMode.Open, FileAccess.ReadWrite);
+        var b = new byte[4];
+        if (f.Length < 0x40 || f.Read(b, 0, 2) != 2 || b[0] != (byte)'M' || b[1] != (byte)'Z') return;
+        f.Position = 0x3C;
+        if (f.Read(b, 0, 4) != 4) return;
+        var pe = BitConverter.ToInt32(b, 0);
+        if (pe <= 0 || pe + 94 > f.Length) return;
+        f.Position = pe;
+        if (f.Read(b, 0, 4) != 4 || b[0] != (byte)'P' || b[1] != (byte)'E' || b[2] != 0 || b[3] != 0) return;
+        f.Position = pe + 92;
+        if (f.Read(b, 0, 2) != 2 || b[0] != 3 || b[1] != 0) return;
+        f.Position = pe + 92;
+        f.Write([2, 0], 0, 2);
+    }
+
     /// The release's longshot-builder (the launcher's tools: Toolchain.BuilderExe, checked when it was installed) put in a version
     /// folder as Longshot.exe (Longshot.x86_64): a hard link to it where the two are on one drive, else a copy; one there already
     /// of the same size kept. The version folder's own name is the builder's: it plays and builds the folder it is in
@@ -193,10 +213,27 @@ public static class BuilderVersions
         var from = new FileInfo(builderExe);
         if (!from.Exists) throw new FileNotFoundException("The version's builder is not installed.", builderExe);
         var there = new FileInfo(to);
-        if (there.Exists && (there.Length == from.Length || FileLinks.SameFile(to, builderExe))) return to;
+        if (platform == Platform.Windows && there.Exists)
+        {
+            // (one installed before: made windowed where it is its own copy; a link to the tools' copy is replaced below)
+            if (!FileLinks.SameFile(to, builderExe) && there.Length == from.Length)
+            {
+                Windowed(to);
+                return to;
+            }
+        }
+        else if (there.Exists && (there.Length == from.Length || FileLinks.SameFile(to, builderExe))) return to;
         var part = to + ".part";
         if (File.Exists(part)) File.Delete(part);
-        FileLinks.LinkOrCopy(builderExe, part);
+        if (platform == Platform.Windows)
+        {
+            // (a copy made windowed: the release's main file is a console program, which opens a console window when a
+            // player starts it; longshot-builder fetch does the same for the versions it installs. The tools' copy, which
+            // the launcher runs with --output json, stays a console program, so this is never a link to it)
+            File.Copy(builderExe, part);
+            Windowed(part);
+        }
+        else FileLinks.LinkOrCopy(builderExe, part);
         if (!OperatingSystem.IsWindows())
             File.SetUnixFileMode(part, File.GetUnixFileMode(part) | UnixFileMode.UserExecute | UnixFileMode.GroupExecute | UnixFileMode.OtherExecute);
         File.Move(part, to, overwrite: true);
