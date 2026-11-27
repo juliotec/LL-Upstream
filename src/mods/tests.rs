@@ -46,6 +46,8 @@ case "$1" in
  echo '{"ok":true,"result":{"mods":[{"id":"demo","name":"Example","version":"1.0","on":true,"update":{"version":"2.0"},"source":"https://example.test/repo","sha256":"fixture-digest","code_hash":"distinct-code-hash","trust":{"asks":true,"unsafe":{"required":["unsafe.native"]}},"warning":"Review this code."}]}}' ;;
  details) echo '{"ok":true,"result":{"versions":[{"version":"2.0","sha256":"123","permissions":["settings.read"]}]}}' ;;
  gc) echo '{"ok":true,"result":{"removed":["example"],"freed":128,"dry_run":true}}' ;;
+ enable|disable) test "$2" = demo || exit 2
+   printf '%s' "$1" > "$profile/switch"; echo '{"ok":true,"result":[]}' ;;
  noisy) head -c 200000 /dev/zero >&2; echo '{"ok":true,"result":"complete"}' ;;
  oversized) head -c 18000000 /dev/zero ;;
  update)
@@ -242,6 +244,60 @@ fn builder_without_mod_tools_adds_romfs_without_confirmation() -> anyhow::Result
     assert_eq!(fs::read(installed.join("romfs/example"))?, b"example");
     assert!(installed.join("mod.json").is_file());
     assert!(folder.join("romfs/example").is_file());
+    Ok(())
+}
+
+#[cfg(unix)]
+#[test]
+fn installed_switches_can_change_while_the_game_is_running() -> anyhow::Result<()> {
+    const CHILD: &str = "LONGSHOT_TEST_MOD_SWITCH_CHILD";
+    if std::env::var_os(CHILD).is_none() {
+        let status = std::process::Command::new(std::env::current_exe()?)
+            .args([
+                "--exact",
+                "mods::tests::installed_switches_can_change_while_the_game_is_running",
+                "--nocapture",
+            ])
+            .env(CHILD, "1")
+            .env("LONGSHOT_TEST_PLAYER_PROCESSES", "Longshot")
+            .status()?;
+        assert!(status.success());
+        return Ok(());
+    }
+
+    let tmp = fixture();
+    let home = tmp.path();
+    let profile = home.join("profiles/default");
+    let mut screen = Screen::default();
+    let busy = crate::players::ensure_idle().unwrap_err().to_string();
+    screen.act(home, "installed", "", None)?;
+    assert!(!screen.basic);
+    screen.act(home, "toggle", "", None)?;
+    assert_eq!(fs::read_to_string(profile.join("switch"))?, "disable");
+    assert_eq!(
+        screen.act(home, "up", "", None).unwrap_err().to_string(),
+        busy
+    );
+    fs::write(
+        profile.join("installed.json"),
+        r#"{"ok":true,"result":{"mods":[{"id":"demo","on":false}]}}"#,
+    )?;
+    screen.act(home, "installed", "", None)?;
+    screen.act(home, "toggle", "", None)?;
+    assert_eq!(fs::read_to_string(profile.join("switch"))?, "enable");
+
+    fs::write(profile.join("without-mod-tools"), [])?;
+    fs::write(profile.join("profile.json"), r#"{"v":1,"mods":[]}"#)?;
+    let folder = home.join("fixture-mod");
+    fs::create_dir_all(folder.join("romfs"))?;
+    super::local::review(&profile, &folder)?.apply(&profile)?;
+    screen.act(home, "installed", "", None)?;
+    assert!(screen.basic);
+    assert_eq!(screen.rows[0]["on"], true);
+    screen.act(home, "toggle", "", None)?;
+    assert_eq!(screen.rows[0]["on"], false);
+    screen.act(home, "toggle", "", None)?;
+    assert_eq!(screen.rows[0]["on"], true);
     Ok(())
 }
 

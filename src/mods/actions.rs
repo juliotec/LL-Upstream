@@ -59,7 +59,7 @@ impl Screen {
                 .as_ref()
                 .context("Choose a profile and game first.")?;
             players::ensure_paths_idle(&[profile])?;
-        } else {
+        } else if !matches!(action, Some("enable" | "disable")) {
             players::ensure_idle()?;
         }
         if matches!(action, Some("install" | "update" | "source")) {
@@ -456,7 +456,6 @@ impl Screen {
                     return self.add(root, PathBuf::from(field(&row, "folder")));
                 }
                 "toggle" => {
-                    players::ensure_idle()?;
                     let folder = row["folder"]
                         .as_str()
                         .context("This mod has no profile folder.")?;

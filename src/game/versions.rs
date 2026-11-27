@@ -297,10 +297,25 @@ fn prepare_profile(builder: &Builder) -> Result<()> {
 
 pub(crate) struct Session {
     pub(super) child: Child,
+    #[cfg(windows)]
+    job: Option<super::process::ChildJob>,
     pub(super) output: Option<super::launch::LaunchOutput>,
     pub(super) steam_opener: bool,
     pub(super) folder: PathBuf,
     pub(super) profile: PathBuf,
+}
+
+impl Session {
+    pub(super) fn cancel_rebuild(&mut self) -> std::io::Result<()> {
+        #[cfg(windows)]
+        self.job
+            .as_ref()
+            .ok_or_else(|| std::io::Error::other("The builder has no launch job."))?
+            .terminate()?;
+        #[cfg(not(windows))]
+        super::process::kill_tree(&mut self.child);
+        Ok(())
+    }
 }
 
 pub fn play(
@@ -365,6 +380,8 @@ pub(super) fn start_for(
         remember_play();
         return Ok(Session {
             child: opener,
+            #[cfg(windows)]
+            job: None,
             output: None,
             steam_opener: true,
             folder: version.folder,
@@ -413,11 +430,26 @@ pub(super) fn start_for(
         super::launch::LaunchOutput::attach(&mut cmd, &builder.home.join("logs"))
             .context("Could not open game launch output")?,
     );
+    #[cfg(windows)]
+    let (job, child) = if mode == LaunchMode::Window {
+        // Explicit cancellation can stop the tree. Closing the launcher releases only its handle.
+        let (job, child) = super::process::ChildJob::spawn(&mut cmd, false)
+            .context("Longshot could not start in its Windows job")?;
+        (Some(job), child)
+    } else {
+        (
+            None,
+            super::process::spawn_builder(&mut cmd).context("Longshot could not start")?,
+        )
+    };
+    #[cfg(not(windows))]
     let child = super::process::spawn_builder(&mut cmd).context("Longshot could not start")?;
     crate::diagnostics::event("Game builder started");
     remember_play();
     Ok(Session {
         child,
+        #[cfg(windows)]
+        job,
         output,
         steam_opener: false,
         folder: version.folder,

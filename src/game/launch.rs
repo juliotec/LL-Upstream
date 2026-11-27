@@ -1,5 +1,5 @@
 //! Observe the builder's play command without owning the game's lifetime.
-use super::versions::Session;
+use super::{process::Cancel, versions::Session};
 use crate::UiMutexExt as _;
 use crate::{
     Game, MainWindow,
@@ -34,6 +34,8 @@ pub(super) fn play(
     g.set_log_filter("".into());
     g.set_launch_log_available(false);
     g.set_launch_phase("launching".into());
+    g.set_launch_can_cancel(false);
+    g.set_launch_cancelling(false);
     g.set_launch_fraction(-1.);
     g.set_launch_eta("".into());
     g.set_launch_step("".into());
@@ -59,23 +61,49 @@ pub(super) fn play(
     {
         g.set_last_build_seconds(elapsed.as_secs().min(i32::MAX as u64) as i32);
     }
+    let cancel = Cancel::default();
+    work.guard().launch_cancel = cancel.clone();
     g.set_playing(true);
     let weak = window.as_weak();
     let home = home.to_owned();
     thread::spawn(move || {
-        let result = wait(&mut session, &weak, &home);
+        let result = wait(&mut session, &weak, &home, &cancel);
         let _ = weak
             .upgrade_in_event_loop(move |ui| finished(&ui, &home, session.steam_opener, result));
     });
     Ok(())
 }
 
-fn finished(ui: &MainWindow, home: &Path, steam_opener: bool, result: io::Result<ExitStatus>) {
+pub(super) fn cancel_rebuild(
+    ui: &MainWindow,
+    _: &Path,
+    work: &super::jobs::SharedWork,
+) -> anyhow::Result<()> {
+    let g = ui.global::<Game>();
+    if g.get_playing() && g.get_launch_can_cancel() && !g.get_launch_cancelling() {
+        g.set_launch_cancelling(true);
+        work.guard().launch_cancel.request();
+    }
+    Ok(())
+}
+
+fn finished(
+    ui: &MainWindow,
+    home: &Path,
+    steam_opener: bool,
+    result: io::Result<Option<ExitStatus>>,
+) {
     let g = ui.global::<Game>();
     g.set_playing(false);
+    g.set_launch_can_cancel(false);
+    g.set_launch_cancelling(false);
     if ui.get_page() == crate::Page::Launch {
         g.set_show_log(false);
-        if steam_opener && result.as_ref().is_ok_and(|s| s.success()) {
+        if steam_opener
+            && result
+                .as_ref()
+                .is_ok_and(|s| s.is_some_and(|s| s.success()))
+        {
             g.set_launch_phase("steam".into());
         } else {
             g.invoke_show_home();
@@ -85,14 +113,15 @@ fn finished(ui: &MainWindow, home: &Path, steam_opener: bool, result: io::Result
         let _ = crate::players::refresh_saves(ui, home);
     }
     let note = match result {
-        Ok(status) if steam_opener => {
+        Ok(None) => "",
+        Ok(Some(status)) if steam_opener => {
             if status.success() {
                 ""
             } else {
                 "Steam could not open the game shortcut."
             }
         }
-        Ok(status) => match status.code() {
+        Ok(Some(status)) => match status.code() {
             Some(120) => "Choose your game files and build this version for the current profile.",
             Some(121) => "Longshot could not build or start the game.",
             Some(123) => "This profile is already playing or building.",
@@ -123,6 +152,7 @@ struct Startup {
 struct Rebuild {
     play_plan: bool,
     game_started: bool,
+    build_finished: bool,
     startup: Option<Startup>,
     builder: super::forecast::BuilderProgress,
     started: Option<Instant>,
@@ -134,6 +164,13 @@ struct Rebuild {
 }
 
 impl Rebuild {
+    fn can_cancel(&self) -> bool {
+        self.started.is_some()
+            && !self.build_finished
+            && !self.game_started
+            && self.startup.is_none()
+    }
+
     fn observe(&mut self, event: &Value, now: Instant) {
         let kind = event["type"].as_str();
         let stage = event["stage"].as_str();
@@ -197,8 +234,9 @@ impl Rebuild {
             }
             Some("build_plan") => {
                 self.started.get_or_insert(now);
+                self.build_finished = false;
             }
-            Some("stage" | "progress") if self.builder.planned => {
+            Some("stage" | "progress") if self.builder.planned() => {
                 if kind == Some("stage")
                     && let Some(text) = label
                 {
@@ -249,10 +287,11 @@ impl Rebuild {
                     };
                 }
             }
-            Some("eta") if !self.builder.planned && self.started.is_some() => {
+            Some("eta") if !self.builder.planned() && self.started.is_some() => {
                 self.eta = event["seconds"].as_f64().and_then(|s| deadline(now, s));
             }
-            Some("done") if self.play_plan && self.builder.planned => {
+            Some("done") if self.play_plan && self.builder.planned() => {
+                self.build_finished = true;
                 self.step = "Game launching.".into();
             }
             Some("done") => {
@@ -402,9 +441,10 @@ fn wait(
     session: &mut Session,
     window: &slint::Weak<MainWindow>,
     home: &Path,
-) -> io::Result<ExitStatus> {
+    cancel: &Cancel,
+) -> io::Result<Option<ExitStatus>> {
     let Some(mut output) = session.output.take() else {
-        return session.child.wait();
+        return session.child.wait().map(Some);
     };
     let mut transcript = Transcript::start(home, BuildLog::Launch)
         .inspect_err(|e| eprintln!("Could not open the local launch log: {e}"))
@@ -462,7 +502,18 @@ fn wait(
             transcript = None;
         }
         if let Some(exit) = exit {
-            return Ok(exit);
+            return Ok(Some(exit));
+        }
+        if cancel.take_request() {
+            // Process the latest events first so a click at handoff leaves a starting game alone.
+            if state.can_cancel() {
+                match session.cancel_rebuild() {
+                    Ok(()) => return session.child.wait().map(|_| None),
+                    Err(error) => eprintln!("Could not cancel Longshot's rebuild: {error}"),
+                }
+            }
+            let _ =
+                window.upgrade_in_event_loop(|ui| ui.global::<Game>().set_launch_cancelling(false));
         }
         let rebuilding = state.started.is_some();
         let loading = state.startup.is_some();
@@ -478,10 +529,14 @@ fn wait(
         };
         let (fraction, eta) = if let Some(startup) = &state.startup {
             (startup.fraction, seconds_left(startup.eta))
-        } else if state.builder.planned {
+        } else if state.builder.planned() {
             (state.builder.fraction, state.builder.seconds(now))
         } else {
-            (state.fraction, seconds_left(state.eta))
+            let eta = state
+                .started
+                .filter(|started| now.duration_since(*started) >= super::forecast::ETA_WARMUP)
+                .and_then(|_| seconds_left(state.eta));
+            (state.fraction, eta)
         };
         let fraction = fraction.map_or(-1., |f| f as f32);
         let step = state.step.clone();
@@ -510,7 +565,8 @@ fn wait(
         } else {
             "launching"
         };
-        let view = (phase, fraction, eta, step, rebuild_seconds);
+        let can_cancel = state.can_cancel();
+        let view = (phase, fraction, eta, step, rebuild_seconds, can_cancel);
         if previous.as_ref() != Some(&view) {
             let step = view.3.clone();
             previous = Some(view);
@@ -520,6 +576,7 @@ fn wait(
                     g.set_last_build_seconds(-1);
                 }
                 g.set_launch_phase(phase.into());
+                g.set_launch_can_cancel(can_cancel);
                 g.set_last_rebuild_seconds(rebuild_seconds);
                 g.set_launch_step(step.into());
                 g.set_launch_fraction(fraction);
@@ -542,6 +599,40 @@ fn wait(
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[cfg(unix)]
+    #[test]
+    fn cancelling_a_launch_rebuild_stops_its_builder() -> anyhow::Result<()> {
+        let temp = tempfile::tempdir()?;
+        let mut command = super::super::process::launch_program(Path::new("sh"), true);
+        command
+            .args([
+                "-c",
+                r#"printf '%s\n' '{"v":1,"type":"stage","stage":"compile"}'; touch ready; sleep 8"#,
+            ])
+            .current_dir(temp.path());
+        let output = LaunchOutput::attach(&mut command, temp.path())?;
+        let mut session = Session {
+            child: command.spawn()?,
+            output: Some(output),
+            steam_opener: false,
+            folder: temp.path().into(),
+            profile: temp.path().into(),
+        };
+        let deadline = Instant::now() + Duration::from_secs(4);
+        while !temp.path().join("ready").is_file() {
+            anyhow::ensure!(
+                Instant::now() < deadline,
+                "The fixture did not start building"
+            );
+            thread::sleep(Duration::from_millis(10));
+        }
+        let cancel = Cancel::default();
+        cancel.request();
+        assert!(wait(&mut session, &slint::Weak::default(), temp.path(), &cancel)?.is_none());
+        assert!(!session.child.wait()?.success());
+        Ok(())
+    }
 
     #[cfg(unix)]
     #[test]
@@ -655,6 +746,7 @@ mod tests {
             state.observe(&planned, now);
             assert!(!state.game_started);
             assert_eq!(state.started, Some(now));
+            assert!(state.can_cancel());
             assert!(state.elapsed.is_none());
             state.observe(&plan, now);
             state.observe(
@@ -674,6 +766,7 @@ mod tests {
             );
             state.observe(&json!({"type":"done"}), now + Duration::from_secs(20));
             assert_eq!(state.started, Some(now));
+            assert!(!state.can_cancel());
             assert!(!state.game_started);
             state.observe(
                 &json!({"type":"game_started"}),

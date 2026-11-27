@@ -296,6 +296,11 @@ export component ModsPage inherits Rectangle {
                 if Mods.section != "manual": Kicker {
                     text: Mods.section == "installed" ? "YOUR MODS   ·   " + Mods.rows.length + "   ·   " + Mods.enabled-count + " on" : Mods.section == "discover" ? "SEARCH RESULTS" : Mods.section == "emulators" ? "EMULATOR MODS" : "YOUR REPOSITORIES";
                 }
+                if Mods.section == "installed" && Mods.rows.length > 0: CopyText {
+                    text: Locale.t("Mod changes apply on restart.");
+                    font-size: 13px;
+                    color: Ink.muted;
+                }
                 if !Mods.basic && Mods.section == "installed" && Mods.rows.length > 1: CopyText {
                     text: Locale.t("Lower in the list wins when two mods change the same thing.");
                     font-size: 13px;

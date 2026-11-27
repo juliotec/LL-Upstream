@@ -25,9 +25,11 @@ const ACTIVE_LABELS: [&str; 5] = [
 ];
 const COMPILE: usize = 2;
 const SHADERS: usize = 4;
+pub(super) const ETA_WARMUP: Duration = Duration::from_secs(10);
 #[derive(Default)]
 pub(super) struct BuilderProgress {
-    pub planned: bool,
+    planned_at: Option<Instant>,
+    eta_deferred: bool,
     pub fraction: Option<f64>,
     until: Option<Instant>,
 }
@@ -37,11 +39,12 @@ impl BuilderProgress {
         match event["type"].as_str() {
             Some("build_plan") => {
                 *self = Self {
-                    planned: true,
+                    planned_at: Some(now),
+                    eta_deferred: event["eta_deferred"] == true,
                     ..Self::default()
                 };
             }
-            Some("build_progress") if self.planned => {
+            Some("build_progress") if self.planned() => {
                 self.fraction = event["fraction"]
                     .as_f64()
                     .filter(|f| (0. ..=1.).contains(f));
@@ -53,7 +56,14 @@ impl BuilderProgress {
         }
     }
 
+    pub fn planned(&self) -> bool {
+        self.planned_at.is_some()
+    }
+
     pub fn seconds(&self, now: Instant) -> Option<u64> {
+        if !self.eta_deferred && now.saturating_duration_since(self.planned_at?) < ETA_WARMUP {
+            return None;
+        }
         self.until
             .map(|until| until.saturating_duration_since(now).as_secs())
             .filter(|s| *s > 0)
@@ -406,7 +416,7 @@ impl Monitor {
             return;
         }
         self.last = Some(Instant::now());
-        let (rows, mut eta) = self.clock.view(now, !self.builder.planned);
+        let (rows, mut eta) = self.clock.view(now, !self.builder.planned());
         let fractions: Vec<f32> = self
             .clock
             .samples
@@ -414,7 +424,7 @@ impl Monitor {
             .take(rows.len())
             .map(|s| if s.done { 1. } else { s.fraction as f32 })
             .collect();
-        let overall = if self.builder.planned {
+        let overall = if self.builder.planned() {
             eta = self.builder.seconds(at).map(remaining).unwrap_or_default();
             self.builder
                 .fraction
@@ -463,7 +473,7 @@ mod tests {
             &json!({"type":"build_plan","stages":["compile","shaders"]}),
             now,
         );
-        assert!(builder.planned);
+        assert!(builder.planned());
         assert_eq!(builder.fraction, None);
         builder.observe(
             &json!({"type":"build_progress","fraction":0.36,"seconds":60}),
@@ -471,6 +481,8 @@ mod tests {
         );
         builder.observe(&json!({"type":"eta","seconds":5}), now);
         assert_eq!(builder.fraction, Some(0.36));
+        assert_eq!(builder.seconds(now + Duration::from_secs(9)), None);
+        assert_eq!(builder.seconds(now + ETA_WARMUP), Some(50));
         assert_eq!(builder.seconds(now + Duration::from_secs(30)), Some(30));
         assert_eq!(builder.seconds(now + Duration::from_secs(60)), None);
         builder.observe(
@@ -478,6 +490,27 @@ mod tests {
             now,
         );
         assert_eq!(builder.fraction, Some(1.0));
+        assert_eq!(builder.seconds(now), None);
+    }
+
+    #[test]
+    fn managed_eta_follows_builder_readiness() {
+        let now = Instant::now();
+        let mut builder = BuilderProgress::default();
+        builder.observe(&json!({"type":"build_plan","eta_deferred":true}), now);
+        builder.observe(&json!({"type":"build_progress","fraction":0.1}), now);
+        assert_eq!(builder.seconds(now), None);
+        builder.observe(
+            &json!({"type":"build_progress","fraction":0.2,"seconds":60}),
+            now,
+        );
+        assert_eq!(builder.seconds(now), Some(60));
+        builder.observe(&json!({"type":"build_progress","fraction":0.3}), now);
+        assert_eq!(builder.seconds(now), None);
+        builder.observe(
+            &json!({"type":"build_progress","fraction":0.4,"seconds":0}),
+            now,
+        );
         assert_eq!(builder.seconds(now), None);
     }
 

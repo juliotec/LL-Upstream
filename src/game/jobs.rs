@@ -41,6 +41,7 @@ pub(super) struct Work {
     pub(super) prepared: Option<Prepared>,
     pub(super) mod_review: Option<super::mod_review::Review>,
     pub(super) cancel: Cancel,
+    pub(super) launch_cancel: Cancel,
     pub(super) report: Option<String>,
     pub(super) intent: super::wizard::BuildIntent,
     pub(super) finished_build: Option<(PathBuf, PathBuf, std::time::Duration)>,

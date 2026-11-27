@@ -33,6 +33,9 @@ export global Game {
     callback approve-mod-trust();
     callback cancel-mod-trust();
     in property <string> launch-phase: "launching";
+    in property <bool> launch-can-cancel;
+    in property <bool> launch-cancelling;
+    callback cancel-rebuild();
     in property <float> launch-fraction: -1;
     in property <string> launch-step;
     in property <bool> launch-log-available;

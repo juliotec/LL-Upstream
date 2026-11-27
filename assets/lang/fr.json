@@ -1713,6 +1713,7 @@
   "Longshot is an independent project.": "Longshot est un projet indépendant.",
   "Longshot will prepare these shaders again the next time it needs them.": "Longshot préparera ces shaders à nouveau la prochaine fois qu'il en aura besoin.",
   "Looking for compatible releases…": "Recherche de versions compatibles…",
+  "Mod changes apply on restart.": "Les modifications des mods s’appliquent au redémarrage du jeu.",
   "Lower in the list wins when two mods change the same thing.": "En cas de conflit, la modération en haut de la liste l'emporte.",
   "MEDALLIONS": "MÉDAILLONS",
   "MODS": "MODS",

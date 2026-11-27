@@ -83,10 +83,17 @@ export component LaunchPage inherits Rectangle {
             }
             HorizontalLayout {
                 alignment: start;
-                close := GameAction {
-                    enabled: !Game.show-log;
-                    text: Locale.t("Close");
+                spacing: 8px;
+                if Game.launch-can-cancel || Game.launch-cancelling: GameAction {
+                    enabled: !Game.show-log && !Game.launch-cancelling;
+                    text: Game.launch-cancelling ? Locale.t("Cancelling…") : Locale.t("Cancel");
                     primary: true;
+                    clicked => { Game.cancel-rebuild(); }
+                }
+                close := GameAction {
+                    enabled: !Game.show-log && !Game.launch-cancelling;
+                    text: Locale.t("Close");
+                    primary: !Game.launch-can-cancel;
                     clicked => { Game.show-home(); }
                 }
             }

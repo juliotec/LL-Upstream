@@ -1619,6 +1619,7 @@
   "Longshot is an independent project.": "롱샷은 독립 프로젝트입니다.",
   "Longshot will prepare these shaders again the next time it needs them.": "다음에 셰이더가 필요할 때 다시 준비합니다.",
   "Looking for compatible releases…": "호환 가능한 릴리스를 찾는 중…",
+  "Mod changes apply on restart.": "모드 변경 사항은 게임을 다시 시작하면 적용됩니다.",
   "Lower in the list wins when two mods change the same thing.": "목록에서 두 모드가 같은 것을 변경하면 상위 항목이 우선합니다.",
   "MEDALLIONS": "메달리온",
   "MODS": "모드",

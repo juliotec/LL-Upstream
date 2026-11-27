@@ -1619,6 +1619,7 @@
   "Longshot is an independent project.": "Longshot 是一个独立项目。",
   "Longshot will prepare these shaders again the next time it needs them.": "下次需要时，Longshot 会重新准备这些着色器。",
   "Looking for compatible releases…": "正在查找兼容版本…",
+  "Mod changes apply on restart.": "模组更改会在游戏重启后生效。",
   "Lower in the list wins when two mods change the same thing.": "当两个模组修改同一内容时，列表中靠前的模组优先生效。",
   "MEDALLIONS": "勋章",
   "MODS": "模组",

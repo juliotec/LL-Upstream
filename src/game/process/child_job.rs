@@ -17,7 +17,7 @@ use windows_sys::Win32::{
         JobObjects::{
             AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
             JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectExtendedLimitInformation,
-            SetInformationJobObject,
+            SetInformationJobObject, TerminateJobObject,
         },
         Threading::{
             CREATE_NO_WINDOW, CREATE_SUSPENDED, OpenThread, ResumeThread, THREAD_SUSPEND_RESUME,
@@ -25,27 +25,32 @@ use windows_sys::Win32::{
     },
 };
 
-pub(super) struct ChildJob(OwnedHandle);
+pub(in crate::game) struct ChildJob(OwnedHandle);
 
 impl ChildJob {
-    pub(super) fn spawn(command: &mut Command) -> io::Result<(Self, Child)> {
+    pub(in crate::game) fn spawn(
+        command: &mut Command,
+        kill_on_close: bool,
+    ) -> io::Result<(Self, Child)> {
         // An unnamed job with a non-inheritable handle held only by the launcher.
         let job = Self(owned(unsafe {
             CreateJobObjectW(ptr::null(), ptr::null())
         })?);
-        let mut limits = JOBOBJECT_EXTENDED_LIMIT_INFORMATION::default();
-        limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
-        // SAFETY: both the handle and the initialized limit structure live through the call.
-        if unsafe {
-            SetInformationJobObject(
-                job.0.as_raw_handle(),
-                JobObjectExtendedLimitInformation,
-                (&limits as *const JOBOBJECT_EXTENDED_LIMIT_INFORMATION).cast(),
-                size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
-            )
-        } == 0
-        {
-            return Err(io::Error::last_os_error());
+        if kill_on_close {
+            let mut limits = JOBOBJECT_EXTENDED_LIMIT_INFORMATION::default();
+            limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+            // SAFETY: both the handle and the initialized limit structure live through the call.
+            if unsafe {
+                SetInformationJobObject(
+                    job.0.as_raw_handle(),
+                    JobObjectExtendedLimitInformation,
+                    (&limits as *const JOBOBJECT_EXTENDED_LIMIT_INFORMATION).cast(),
+                    size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+                )
+            } == 0
+            {
+                return Err(io::Error::last_os_error());
+            }
         }
 
         // The builder cannot spawn a retrying shader worker before it belongs to the job.
@@ -58,6 +63,14 @@ impl ChildJob {
             return Err(error);
         }
         Ok((job, child))
+    }
+
+    pub(in crate::game) fn terminate(&self) -> io::Result<()> {
+        // SAFETY: the job handle is owned for the duration of the call.
+        if unsafe { TerminateJobObject(self.0.as_raw_handle(), 1) } == 0 {
+            return Err(io::Error::last_os_error());
+        }
+        Ok(())
     }
 
     fn start(&self, child: &Child) -> io::Result<()> {
@@ -155,7 +168,7 @@ mod tests {
     fn closing_the_job_stops_the_builder_and_its_shader_worker() -> io::Result<()> {
         let temp = tempfile::tempdir()?;
         let marker = temp.path().join("shader-pid");
-        let (job, child) = ChildJob::spawn(&mut fixture("builder", &marker)?)?;
+        let (job, child) = ChildJob::spawn(&mut fixture("builder", &marker)?, true)?;
         let deadline = Instant::now() + Duration::from_secs(10);
         let pid = loop {
             match fs::read(&marker) {

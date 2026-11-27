@@ -234,6 +234,7 @@ fn bind_builder(game: &Game<'_>, session: &Rc<Bindings>) {
     game.on_review_mods(session.action(super::mod_review::review));
     game.on_approve_mod_trust(session.action(super::mod_review::approve));
     game.on_cancel_mod_trust(session.action(super::mod_review::cancel));
+    game.on_cancel_rebuild(session.action(super::launch::cancel_rebuild));
     game.on_cancel(session.action(|window, _, work| {
         work.guard().cancel.request();
         window.global::<Game>().set_play_after_build(false);

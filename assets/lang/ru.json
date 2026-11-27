@@ -1760,6 +1760,7 @@
   "Longshot is an independent project.": "Longshot — независимый проект.",
   "Longshot will prepare these shaders again the next time it needs them.": "Longshot подготовит эти шейдеры снова при следующем использовании.",
   "Looking for compatible releases…": "Поиск совместимых версий…",
+  "Mod changes apply on restart.": "Изменения модов вступят в силу после перезапуска игры.",
   "Lower in the list wins when two mods change the same thing.": "Если два мода изменяют одно и то же, выигрывает тот, что выше в списке.",
   "MEDALLIONS": "МЕДАЛИОНЫ",
   "MODS": "МОДЫ",

@@ -1,4 +1,6 @@
 #[cfg(windows)]
+pub(super) use child_job::ChildJob;
+#[cfg(windows)]
 mod child_job;
 
 use crate::{home, players};
@@ -233,6 +235,9 @@ impl Cancel {
         ensure!(!self.0.load(Ordering::Acquire), "Cancelled.");
         Ok(())
     }
+    pub fn take_request(&self) -> bool {
+        self.0.swap(false, Ordering::AcqRel)
+    }
 }
 
 const GAME_FILE_CODES: &[&str] = &[
@@ -340,7 +345,7 @@ impl Answer {
 }
 
 #[cfg(not(windows))]
-fn kill_tree(child: &mut Child) {
+pub(super) fn kill_tree(child: &mut Child) {
     #[cfg(unix)]
     {
         // Each build runs in a dedicated process group so compilers are stopped with the parent.
@@ -511,7 +516,7 @@ pub(super) fn restore_host_environment(command: &mut Command) {
 
 /// Set up the window-launched game before it can fork compiler or renderer children.
 /// Steam and shortcut callers own their session and keep the normal launch path.
-fn launch_program(program: &Path, independent: bool) -> Command {
+pub(super) fn launch_program(program: &Path, independent: bool) -> Command {
     #[cfg(target_os = "linux")]
     if independent {
         use std::os::unix::process::CommandExt;
@@ -532,6 +537,13 @@ fn launch_program(program: &Path, independent: bool) -> Command {
                 Ok(())
             });
         }
+        return command;
+    }
+    #[cfg(all(unix, not(target_os = "linux")))]
+    if independent {
+        use std::os::unix::process::CommandExt;
+        let mut command = Command::new(program);
+        command.process_group(0);
         return command;
     }
     let _ = independent;
@@ -574,7 +586,7 @@ pub(super) fn run_with_stages(
         .stderr(Stdio::piped());
     #[cfg(windows)]
     let (mut job, mut child) = {
-        let (job, child) = child_job::ChildJob::spawn(&mut command)
+        let (job, child) = ChildJob::spawn(&mut command, true)
             .context("Could not start longshot-builder in its Windows job")?;
         (Some(job), child)
     };
