@@ -103,6 +103,7 @@ fn manual_add_requires_review_and_cannot_cross_profiles() {
         home,
         &screen.review.as_ref().unwrap().args,
         screen.identity.as_ref(),
+        None,
     )
     .unwrap();
     assert_eq!(result["id"], "demo");
@@ -209,9 +210,12 @@ fn update_pins_the_reviewed_release_and_code_grants_pin_the_reviewed_hash() {
 fn read_errors_and_large_responses_without_blocking_the_builder() {
     let tmp = fixture();
     let home = tmp.path();
-    assert_eq!(run(home, &args(&["noisy"]), None).unwrap().0, "complete");
+    assert_eq!(
+        run(home, &args(&["noisy"]), None, None).unwrap().0,
+        "complete"
+    );
     assert!(
-        run(home, &args(&["oversized"]), None)
+        run(home, &args(&["oversized"]), None, None)
             .unwrap_err()
             .to_string()
             .contains("16 MiB")

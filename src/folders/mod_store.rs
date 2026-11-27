@@ -39,11 +39,11 @@ fn switch_link(
         cache.display()
     ))?;
     if !tree::exists(alias)? {
-        return tree::publish(&next, alias);
+        return Ok(crate::fsx::rename_new(&next, alias)?);
     }
-    tree::publish(alias, &old)?;
-    if let Err(err) = verify(&old).and_then(|()| tree::publish(&next, alias)) {
-        if let Err(restore) = tree::publish(&old, alias) {
+    crate::fsx::rename_new(alias, &old)?;
+    if let Err(err) = verify(&old).and_then(|()| Ok(crate::fsx::rename_new(&next, alias)?)) {
+        if let Err(restore) = crate::fsx::rename_new(&old, alias) {
             let backup = stage.keep().join("old");
             bail!(
                 "Could not update the mod store: {err}. Restore {}: {restore}",
@@ -145,7 +145,7 @@ pub(crate) fn ensure(cache: &Path, data: &Path) -> Result<()> {
             &mut Vec::new(),
             &mut Default::default(),
         )?;
-        tree::publish(&copy, &target)?;
+        crate::fsx::rename_new(&copy, &target)?;
     }
     switch_link(&alias, &target, |parked| {
         if fs::read_dir(parked)?.next().transpose()?.is_none() {

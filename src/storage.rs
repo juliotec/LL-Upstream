@@ -85,13 +85,13 @@ pub fn groups(rows: &[Row]) -> (String, Vec<DiskGroup>) {
     let total = rows.iter().filter_map(|row| row.bytes).sum::<u64>();
     let mut used = 0u64;
     let groups = [
-        ("Game files", 0xa9573c),
-        ("Installed games", 0xd8a840),
-        ("Shader caches", 0xd8bc8c),
-        ("Faster updates", 0x7f9d53),
-        ("Build tools", 0x56643a),
-        ("Your data", 0xf2e3c6),
-        ("Previous launcher", 0xa997c5),
+        (crate::i18n::key("Game files"), 0xa9573c),
+        (crate::i18n::key("Installed games"), 0xd8a840),
+        (crate::i18n::key("Shader caches"), 0xd8bc8c),
+        (crate::i18n::key("Faster updates"), 0x7f9d53),
+        (crate::i18n::key("Build tools"), 0x56643a),
+        (crate::i18n::key("Your data"), 0xf2e3c6),
+        (crate::i18n::key("Previous launcher"), 0xa997c5),
     ]
     .into_iter()
     .filter(|(name, _)| *name != "Previous launcher" || rows.iter().any(|row| row.group == *name))
@@ -252,6 +252,33 @@ pub fn measure(root: &Path) -> Result<Snapshot> {
         }
     }
     let versions = crate::game::storage_versions(root)?;
+    let mut move_parents = previous_work.clone();
+    move_parents.insert(home::data_folder(root, &settings));
+    move_parents.insert(crate::game::install_root(root, &settings));
+    move_parents.extend(
+        versions
+            .iter()
+            .filter_map(|(path, _)| path.parent().map(Path::to_owned)),
+    );
+    move_parents.extend(
+        settings["moveParents"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(Value::as_str)
+            .map(PathBuf::from),
+    );
+    for parent in move_parents {
+        for path in recovery_folders(&parent) {
+            // A parked folder may contain the only surviving copy of user data.
+            add(
+                path,
+                crate::i18n::key("Interrupted folder move").into(),
+                "Your data",
+                None,
+            );
+        }
+    }
     let builds = crate::game::registry::read(root, crate::game::registry::OWN)?;
     for b in builds["builds"].as_array().into_iter().flatten() {
         let Some(folder) = field_path(b, "folder") else {
@@ -420,6 +447,29 @@ fn field_path(row: &Value, name: &str) -> Option<PathBuf> {
         .filter(|s| !s.is_empty())
         .map(PathBuf::from)
         .filter(|p| p.is_absolute())
+}
+
+fn recovery_folders(parent: &Path) -> Vec<PathBuf> {
+    if !crate::fsx::direct(parent) {
+        return Vec::new();
+    }
+    dirs(parent)
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|path| {
+            path.file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(|name| {
+                    [".longshot-move-", ".longshot-previous-"]
+                        .iter()
+                        .filter_map(|prefix| name.strip_prefix(prefix))
+                        .any(|suffix| {
+                            suffix.len() == 6 && suffix.bytes().all(|b| b.is_ascii_alphanumeric())
+                        })
+                })
+                && crate::fsx::direct(path)
+        })
+        .collect()
 }
 
 fn dirs(parent: &Path) -> io::Result<Vec<PathBuf>> {
@@ -941,6 +991,24 @@ mod tests {
     }
 
     #[test]
+    fn discovers_recoverable_move_folders_without_claiming_siblings() -> Result<()> {
+        let tmp = tempfile::tempdir()?;
+        let previous = tempfile::Builder::new()
+            .prefix(".longshot-previous-")
+            .tempdir_in(tmp.path())?;
+        let staged = tempfile::Builder::new()
+            .prefix(".longshot-move-")
+            .tempdir_in(tmp.path())?;
+        fs::create_dir(tmp.path().join(".longshot-move-my-files"))?;
+        let found: BTreeSet<_> = recovery_folders(tmp.path()).into_iter().collect();
+        assert_eq!(
+            found,
+            BTreeSet::from([previous.path().to_owned(), staged.path().to_owned()])
+        );
+        Ok(())
+    }
+
+    #[test]
     fn clearing_a_cache_preserves_the_parent_and_private_files() -> Result<()> {
         let tmp = tempfile::tempdir()?;
         let root = tmp.path();
@@ -950,7 +1018,7 @@ mod tests {
         fs::write(work.join("keep"), "private")?;
         fs::write(cache.join("object"), "cache")?;
         home::write_json(
-            &root.join("settings.json"),
+            &root.join(home::SETTINGS_FILE),
             &json!({"format":2, "work":work}),
         )?;
         assert!(clear(root, "../", root).is_err());
@@ -990,7 +1058,7 @@ mod tests {
             fs::write(work.join(part).join("fixture"), b"untouched")?;
         }
         home::write_json(
-            &root.path().join("settings.json"),
+            &root.path().join(home::SETTINGS_FILE),
             &json!({"format":2,"work":work}),
         )?;
         after_build(root.path(), false)?;
@@ -1033,7 +1101,7 @@ mod tests {
         fs::hard_link(external.join("store/one"), external.join("store/two"))?;
         symlink(&external, work.join("longshot-builder"))?;
         home::write_json(
-            &root.join("settings.json"),
+            &root.join(home::SETTINGS_FILE),
             &json!({"format":2, "work":work}),
         )?;
         assert!(

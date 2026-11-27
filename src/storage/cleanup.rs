@@ -127,6 +127,12 @@ pub fn plan(root: &Path, include_profiles: bool) -> Result<Plan> {
     }
     if include_profiles {
         add(&data, Path::new("profiles"), Kind::UserData)?;
+        let backups = players::backup_root(root)?;
+        add(
+            backups.parent().context("Missing backup parent.")?,
+            Path::new("save-backups"),
+            Kind::UserData,
+        )?;
         add(root, Path::new("save-backups"), Kind::UserData)?;
     }
     Ok(Plan {
@@ -204,7 +210,7 @@ mod tests {
         fs::create_dir_all(root.join("logs"))?;
         fs::create_dir_all(work.join("longshot-builder/work"))?;
         home::write_json(
-            &root.join("settings.json"),
+            &root.join(home::SETTINGS_FILE),
             &json!({"format":2, "work":work}),
         )?;
         home::write_json(

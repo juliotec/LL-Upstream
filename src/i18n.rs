@@ -92,8 +92,36 @@ pub(crate) fn bind(locale: &crate::Locale<'_>, settings: &serde_json::Value) -> 
         .and_then(pick)
         .unwrap_or_else(system);
     locale.set_language(language.into());
-    locale.on_lookup(|language, key| lookup(&language, &key).into());
+    bind_messages(locale);
     language
+}
+
+/// Mark model strings translated later by Slint for catalog extraction.
+pub const fn key(text: &'static str) -> &'static str {
+    text
+}
+
+pub fn bind_messages(locale: &crate::Locale<'_>) {
+    locale.on_lookup(|language, key| lookup(&language, &key).into());
+    locale.on_fill(|pattern, first, second| {
+        let mut rendered = String::new();
+        let mut rest = pattern.as_str();
+        while let Some(i) = rest.find('{') {
+            rendered.push_str(&rest[..i]);
+            rest = &rest[i + 1..];
+            if let Some(tail) = rest.strip_prefix("0}") {
+                rendered.push_str(&first);
+                rest = tail;
+            } else if let Some(tail) = rest.strip_prefix("1}") {
+                rendered.push_str(&second);
+                rest = tail;
+            } else {
+                rendered.push('{');
+            }
+        }
+        rendered.push_str(rest);
+        rendered.into()
+    });
 }
 
 pub fn lookup(code: &str, key: &str) -> String {

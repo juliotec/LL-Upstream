@@ -224,6 +224,25 @@ pub(super) struct SaveLock {
 }
 
 impl SaveLock {
+    pub(super) fn recover_target(&self, target: &Path) -> Result<PathBuf> {
+        let parent = target.parent().context("Missing save directory parent.")?;
+        let aside = aside_path(target)?;
+        if aside.try_exists()? {
+            disk::require_dir(&aside)?;
+            if target.try_exists()? {
+                // Both directories survived an interrupted commit. Retain the previous
+                // one under a different name so either version is still recoverable.
+                let kept = tempfile::Builder::new()
+                    .prefix(".previous-")
+                    .tempdir_in(parent)?;
+                fs::rename(&aside, kept.path().join("save"))?;
+                let _ = kept.keep();
+            } else {
+                fs::rename(&aside, target)?;
+            }
+        }
+        Ok(aside)
+    }
     pub(super) fn acquire(target: &Path) -> Result<Self> {
         let parent = target.parent().context("The destination has no parent.")?;
         let owner = target
@@ -271,21 +290,7 @@ impl SaveEdit {
         let lock = SaveLock::acquire(target)?;
         let parent = target.parent().context("The destination has no parent.")?;
         fs::create_dir_all(parent)?;
-        let aside = aside_path(target)?;
-        if aside.try_exists()? {
-            disk::require_dir(&aside)?;
-            if target.try_exists()? {
-                // Both directories survived an interrupted commit. Retain the previous
-                // one under a different name so either version is still recoverable.
-                let kept = tempfile::Builder::new()
-                    .prefix(".previous-")
-                    .tempdir_in(parent)?;
-                fs::rename(&aside, kept.path().join("save"))?;
-                let _ = kept.keep();
-            } else {
-                fs::rename(&aside, target)?;
-            }
-        }
+        let aside = lock.recover_target(target)?;
         Ok(Self {
             target: target.to_owned(),
             aside,

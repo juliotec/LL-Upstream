@@ -6,6 +6,7 @@ use super::{
     process::{Cancel, Context},
     releases::{self, Target},
 };
+use crate::UiMutexExt as _;
 use crate::{Game, MainWindow};
 use slint::ComponentHandle;
 use std::{path::Path, thread};
@@ -14,7 +15,7 @@ pub struct Downloads(pub(super) SharedWork);
 
 impl Drop for Downloads {
     fn drop(&mut self) {
-        let workers = std::mem::take(&mut self.0.lock().unwrap().downloads);
+        let workers = std::mem::take(&mut self.0.guard().downloads);
         for (cancel, _) in &workers {
             cancel.request();
         }
@@ -27,7 +28,7 @@ impl Drop for Downloads {
 fn spawn(work: &SharedWork, cancel: Cancel, task: impl FnOnce(Cancel) + Send + 'static) {
     let token = cancel.clone();
     let worker = thread::spawn(move || task(token));
-    let mut state = work.lock().unwrap();
+    let mut state = work.guard();
     state.downloads.retain(|(_, worker)| !worker.is_finished());
     state.downloads.push((cancel, worker));
 }
@@ -40,7 +41,7 @@ pub(super) fn start(ui: &MainWindow, home: &Path, work: &SharedWork) {
     let generation;
     let token = Cancel::default();
     {
-        let mut state = work.lock().unwrap();
+        let mut state = work.guard();
         state.preload.request();
         state.preload = token.clone();
         state.generation = state.generation.wrapping_add(1);
@@ -101,7 +102,7 @@ pub(super) fn start(ui: &MainWindow, home: &Path, work: &SharedWork) {
                     let msg = msg.to_owned();
                     let tag = tag.clone();
                     let _ = weak.upgrade_in_event_loop(move |ui| {
-                        if work.lock().unwrap().generation != generation {
+                        if work.guard().generation != generation {
                             return;
                         }
                         let g = ui.global::<Game>();
@@ -114,7 +115,7 @@ pub(super) fn start(ui: &MainWindow, home: &Path, work: &SharedWork) {
             anyhow::Ok(tag)
         })();
         let _ = weak.upgrade_in_event_loop(move |ui| {
-            if work.lock().unwrap().generation != generation {
+            if work.guard().generation != generation {
                 return;
             }
             let g = ui.global::<Game>();

@@ -56,7 +56,6 @@ export global Mods {
     in-out property <string> entry;
     callback action(string);
     callback select(int);
-    callback add-path(string);
 }
 
 component ModButton inherits Action {
@@ -202,11 +201,11 @@ export component ModsPage inherits Rectangle {
                         if !Mods.basic && Mods.section != "installed": HorizontalLayout {
                             spacing: root.width < 1050px ? 3px : 6px;
                             for tab in [
-                                { title:"Discover", command:"discover" },
-                                { title:"Manual", command:"manual" },
-                                { title:"Repositories", command:"sources" }
+                                { title:Locale.t("Discover"), command:"discover" },
+                                { title:Locale.t("Manual"), command:"manual" },
+                                { title:Locale.t("Repositories"), command:"sources" }
                             ]: ModButton {
-                                label: Locale.t(tab.title);
+                                label: tab.title;
                                 command: tab.command;
                                 size: root.width < 1050px ? 12px : 14px;
                                 selected: Mods.section == tab.command || (Mods.section == "emulators" && tab.command == "manual");
@@ -452,7 +451,7 @@ export component ModsPage inherits Rectangle {
                     }
                 }
                 if Mods.busy || (Mods.status != "" && (Mods.rows.length > 0 || Mods.section == "manual")): CopyText {
-                    text: Mods.busy ? "Working…" : Mods.status;
+                    text: Mods.busy ? Locale.t("Working…") : Mods.status;
                     color: Ink.sand;
                 }
             }
@@ -509,7 +508,7 @@ export component ModsPage inherits Rectangle {
                 spacing: 7px;
 
                 if !Mods.basic: CopyText {
-                    text: Locale.t("Load order") + "     " + (Mods.index + 1) + " " + Locale.t("of") + " " + Mods.rows.length;
+                    text: Locale.fill(Locale.t("Load order {0} of {1}"), (Mods.index + 1) + "", Mods.rows.length + "");
                     color: Ink.sand;
                     font-size: 14px;
                 }
@@ -537,7 +536,7 @@ export component ModsPage inherits Rectangle {
                     command: "allow";
                 }
                 if Mods.update-version != "": ModButton {
-                    label: Locale.t("Update to") + " " + Mods.update-version;
+                    label: Locale.fill(Locale.t("Update to {0}"), Mods.update-version, "");
                     command: "update";
                     primary: true;
                 }

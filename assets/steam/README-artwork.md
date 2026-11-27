@@ -12,7 +12,7 @@ capsules back in would cut the glyph out of a picture of itself, so the script r
 - `hero_1920x620.png` — the hero strip
 - `logo_998x323.png` — the logo slot (the one slot that keeps real transparency)
 
-**Do not hand-edit the slot files.** Run `python3 scripts/make_artwork.py App/Assets/steam`,
+**Do not hand-edit the slot files.** Run `python3 scripts/make_artwork.py assets/steam`,
 look at the output, commit. The recipe mirrors the emulator's own start-up screen (Longshot
 `gpu/vk/vk_menu.cpp` `draw_startup`, `gpu/vk/vk_ui.h`): the Longshot glyph, `LONGSHOT` under it
 in Libertinus Serif Semibold (the fallback face the start-up screen itself uses; the game's own

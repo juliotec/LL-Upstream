@@ -92,7 +92,13 @@ pub(super) fn confirm(ui: &MainWindow, home: &Path, state: &State) -> Result<()>
             fs::create_dir_all(&dst)?;
             let source_profile = profiles::read(&from)?;
             let alias = profiles::save_name(&source_profile, &name).unwrap_or_default();
-            let free = imports::free_slot(&dst)?;
+            let free = if imports::playable_slot(&name)
+                && matches!(fs::symlink_metadata(dst.join(&name)), Err(ref e) if e.kind() == std::io::ErrorKind::NotFound)
+            {
+                name.clone()
+            } else {
+                imports::free_slot(&dst)?
+            };
             let stage = tempfile::tempdir_in(&dst)?;
             disk::copy_tree(&source, stage.path())?;
             crate::players::running::saves_idle(&[&source, &dst])?;

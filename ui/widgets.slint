@@ -38,6 +38,7 @@ export component ColourStripe inherits HorizontalLayout {
 export global Locale {
     pure callback display-path(string) -> string;
     in property <string> language;
+    pure callback fill(string, string, string) -> string;
     pure callback lookup(string, string) -> string;
     public pure function t(source: string) -> string {
         return language == "" || language == "en" ? source : lookup(language, source);

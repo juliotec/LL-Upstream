@@ -405,7 +405,7 @@ pub(super) fn start_for(
     }
     cmd.stdin(Stdio::null());
     let output = Some(
-        super::launch::LaunchOutput::attach(&mut cmd)
+        super::launch::LaunchOutput::attach(&mut cmd, &builder.home.join("logs"))
             .context("Could not open game launch output")?,
     );
     let child = super::process::spawn_builder(&mut cmd).context("Longshot could not start")?;
@@ -690,8 +690,7 @@ mod tests {
         let root = temp.path();
         let install = |name: &str| -> Result<PathBuf> {
             let folder = root.join("versions").join(name);
-            fs::create_dir_all(folder.join("builds/default"))?;
-            fs::write(folder.join(executable()), [])?;
+            crate::game::fake_version(&folder)?;
             Ok(folder.join("builds/default"))
         };
         let old = install("nightly-1")?;
@@ -720,8 +719,7 @@ mod tests {
         let root = temp.path();
         for tag in ["nightly-1", "nightly-2"] {
             let folder = root.join("versions").join(tag);
-            fs::create_dir_all(folder.join("builds/default"))?;
-            fs::write(folder.join(executable()), [])?;
+            crate::game::fake_version(&folder)?;
         }
         let dest = root.join("versions/nightly-2/builds/default");
         register(root, "nightly-2", root, &dest, &[], None)?;
@@ -760,8 +758,7 @@ mod tests {
         let a = home.join("versions").join(tag);
         let b = home.join("versions/nightly-42-aa.instance-2");
         for folder in [&a, &b] {
-            fs::create_dir_all(folder.join("builds/default"))?;
-            fs::write(folder.join(executable()), [])?;
+            crate::game::fake_version(folder)?;
             home::write_json(
                 &folder.join("builds/default/longshot_build.json"),
                 &json!({"upscalers":["dlss"]}),
@@ -847,8 +844,7 @@ mod tests {
         let temp = tempfile::tempdir()?;
         let external = tempfile::tempdir()?;
         let version = external.path().join("v3.4.0");
-        fs::create_dir_all(version.join("builds/default"))?;
-        fs::write(version.join(executable()), [])?;
+        crate::game::fake_version(&version)?;
         std::os::unix::fs::symlink(external.path(), temp.path().join("versions"))?;
         assert!(installed(temp.path()).is_err());
         assert!(
@@ -865,8 +861,7 @@ mod tests {
         let game = dir.join("input");
         fs::create_dir_all(game.join("romfs"))?;
         fs::create_dir_all(game.join("exefs"))?;
-        fs::create_dir_all(dir.join("builds/default"))?;
-        fs::write(dir.join(executable()), [])?;
+        crate::game::fake_version(&dir)?;
         fs::write(game.join("exefs/main"), b"synthetic fixture")?;
         register(
             home,

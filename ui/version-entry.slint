@@ -24,7 +24,7 @@ export component VersionEntry inherits Rectangle {
     in property <bool> header;
     private property <bool> compact: self.width < 640px;
     private property <bool> selected: !root.header && root.index == Game.selected;
-    private property <string> status-text: root.entry.update == "" ? Locale.t(root.entry.status) : Locale.t("Update to") + "\n" + root.entry.update;
+    private property <string> status-text: root.entry.update == "" ? Locale.t(root.entry.status) : Locale.fill(Locale.t("Update to {0}"), "\n" + root.entry.update, "");
     height: header ? 28px : 60px;
     background: selected ? Ink.raised : transparent;
     border-width: header ? 0 : 1px;

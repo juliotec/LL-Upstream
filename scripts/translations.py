@@ -22,22 +22,43 @@ def load_catalog(path):
     return json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=distinct)
 
 
+def source_keys():
+    keys = set()
+    for path in (ROOT / "ui").glob("*.slint"):
+        source = path.read_text(encoding="utf-8")
+        keys.update(json.loads(m) for m in MESSAGE.findall(source))
+        for conditional in re.findall(r'Locale\.t\(([^()]*\?[^()]*)\)', source):
+            keys.update(json.loads(m) for m in re.findall(r'(?:\?|:)\s*("(?:[^"\\]|\\.)*")', conditional))
+    for path in (ROOT / "src").rglob("*.rs"):
+        source = path.read_text(encoding="utf-8").split("#[cfg(test)]\nmod tests", 1)[0]
+        keys.update(json.loads(m) for m in re.findall(
+            r'(?:i18n::lookup\([^,]*,|i18n::key\(|\btr\()\s*("(?:[^"\\]|\\.)*")', source))
+    # Status labels in VersionRow and Channel are translated by the row component.
+    keys.update({"Update available", "Up to date", "Installed", "Stable", "Nightly", "Main", "Pull request"})
+    return keys
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--missing", metavar="LANG")
     args = parser.parse_args()
     catalogs = {p.stem: load_catalog(p) for p in sorted(CATALOGS.glob("*.json"))}
+    parents = {"fr-CA": "fr", "es-419": "es"}
+    keys = source_keys()
+    def missing(lang):
+        if lang == "en-GB":
+            return set()  # English source is the base catalog.
+        return keys - catalogs[lang].keys() - catalogs.get(parents.get(lang), {}).keys()
+
     if args.missing:
         if args.missing not in catalogs:
             parser.error("choose a catalog from " + ", ".join(catalogs))
-        regional = {"fr-CA": "fr", "es-419": "es"}
-        translated = catalogs.get(regional.get(args.missing), {}) | catalogs[args.missing]
-        keys = {json.loads(m) for path in (ROOT / "ui").glob("*.slint")
-                for m in MESSAGE.findall(path.read_text(encoding="utf-8"))}
-        print(json.dumps({k: "" for k in sorted(keys - translated.keys())}, indent=2, ensure_ascii=False))
+        print(json.dumps({k: "" for k in sorted(missing(args.missing))}, indent=2, ensure_ascii=False))
         return
 
     for lang, catalog in catalogs.items():
+        if absent := missing(lang):
+            raise ValueError(f"{lang}: missing {len(absent)} messages, including {min(absent)!r}")
         for key, value in catalog.items():
             if key.startswith("@"):
                 continue

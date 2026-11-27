@@ -13,7 +13,12 @@ use std::{
     thread,
 };
 
-pub(super) fn bind(ui: &MainWindow, home: &Path) {
+pub(crate) fn bind(
+    ui: &MainWindow,
+    home: &Path,
+    changed: impl Fn(&MainWindow, &Path) -> anyhow::Result<()> + Send + Sync + 'static,
+) {
+    let changed = Arc::new(changed);
     let prefs = ui.global::<Preferences>();
     let pending = Rc::new(RefCell::new(None::<Change>));
     let cancel = Arc::new(AtomicBool::new(false));
@@ -105,6 +110,7 @@ pub(super) fn bind(ui: &MainWindow, home: &Path) {
         p.set_folder_stage(FolderStage::Applying);
         cancel.store(false, Ordering::Release);
         let (weak, root, token) = (ui.as_weak(), root.clone(), cancel.clone());
+        let changed = changed.clone();
         let moving_data = ui.global::<Preferences>().get_moving_data_folder();
         thread::spawn(move || {
             let result = change.apply(move_existing, &token);
@@ -125,7 +131,9 @@ pub(super) fn bind(ui: &MainWindow, home: &Path) {
                             ui.set_notice(format!("{e:#}").into());
                             return;
                         }
-                        ui.global::<Game>().invoke_folders_changed();
+                        if let Err(error) = changed(&ui, &root) {
+                            ui.global::<Game>().set_status(format!("{error:#}").into());
+                        }
                         prefs.invoke_measure();
                         if !message.is_empty() {
                             ui.set_notice(message.into());

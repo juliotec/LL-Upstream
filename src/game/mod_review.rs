@@ -3,6 +3,7 @@ use super::{
     jobs::{Progress, SharedWork, worker},
     launch, process, versions, wizard,
 };
+use crate::UiMutexExt as _;
 use crate::{Game, MainWindow, Page, mods::trust, players};
 use anyhow::{Context, Result, ensure};
 use slint::ComponentHandle;
@@ -45,7 +46,7 @@ impl Request {
                     super::autocheck::matches_prepared(ui, work),
                     "Wait for the selected game files to be checked."
                 );
-                let state = work.lock().unwrap();
+                let state = work.guard();
                 let prepared = state
                     .prepared
                     .as_ref()
@@ -129,7 +130,7 @@ pub(super) fn ready(
     request: Request,
     grants: Result<Vec<trust::Grant>>,
 ) -> Result<()> {
-    work.lock().unwrap().cancel.check()?;
+    work.guard().cancel.check()?;
     request.validate(ui, home, work)?;
     let grants = grants?;
     if request.operation != Operation::Play {
@@ -139,7 +140,7 @@ pub(super) fn ready(
     if !grants.is_empty() {
         ui.global::<Game>()
             .set_mod_trust_review(trust::descriptions(&grants).into());
-        let mut state = work.lock().unwrap();
+        let mut state = work.guard();
         if request.operation == Operation::Play {
             state.finished_build = None;
         }
@@ -167,7 +168,7 @@ pub(super) fn ready(
 }
 
 pub(super) fn approve(ui: &MainWindow, home: &Path, work: &SharedWork) -> Result<()> {
-    let review = work.lock().unwrap().mod_review.take();
+    let review = work.guard().mod_review.take();
     if let Some(review) = review {
         ui.global::<Game>().set_mod_trust_review("".into());
         review.request.validate(ui, home, work)?;
@@ -177,7 +178,7 @@ pub(super) fn approve(ui: &MainWindow, home: &Path, work: &SharedWork) -> Result
 }
 
 pub(super) fn cancel(ui: &MainWindow, _: &Path, work: &SharedWork) -> Result<()> {
-    let review = work.lock().unwrap().mod_review.take();
+    let review = work.guard().mod_review.take();
     if review.is_some_and(|r| r.request.operation != Operation::Review) {
         ui.global::<Game>().set_play_after_build(false);
     }

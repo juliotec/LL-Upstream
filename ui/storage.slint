@@ -347,7 +347,7 @@ export component StorageReviewDialog inherits ModalLayer {
                 }
 
                 if StorageReview.reviewing: CheckBox {
-                    text: Locale.t("Also delete profiles and saves in the data folder, and backups in the launcher folder");
+                    text: Locale.t("Permanently delete profiles, saves and existing backups. No final backup will be made.");
                     checked: StorageReview.remove-profiles;
                     enabled: !Preferences.cleaning;
                     toggled => { StorageReview.remove-profiles = self.checked; Preferences.review-removal(self.checked); }

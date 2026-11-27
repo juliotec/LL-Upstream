@@ -2,7 +2,7 @@ import { GaugeArc } from "widgets.slint";
 import { CheckBox } from "check-box.slint";
 import { ReleaseBody } from "game-notes.slint";
 import { ScrollView } from "scroll-view.slint";
-import { Game, GameStep } from "game-model.slint";
+import { BuildReport, Game, GameStep } from "game-model.slint";
 import { Ink, Locale } from "widgets.slint";
 import {
     PosterTitle,
@@ -102,13 +102,13 @@ export component BuildProgress inherits Rectangle {
                     GameAction {
                         text: Locale.t("Try again");
                         primary: true;
-                        enabled: !Game.reporting;
+                        enabled: !BuildReport.reporting;
                         clicked => { Game.start(); }
                     }
 
                     GameAction {
                         text: Locale.t("Review build settings");
-                        enabled: !Game.reporting;
+                        enabled: !BuildReport.reporting;
                         clicked => { Game.step = GameStep.settings; Game.status = ""; }
                     }
                 }
@@ -204,7 +204,7 @@ export component BuildProgress inherits Rectangle {
                             }
                         }
 
-                        if root.problem && Game.report-preview != "": Rectangle {
+                        if root.problem && BuildReport.report-preview != "": Rectangle {
                             height: 160px;
                             background: Ink.well;
                             border-width: report.has-focus ? 2px : 1px;
@@ -217,7 +217,7 @@ export component BuildProgress inherits Rectangle {
                                 width: parent.width - 20px;
                                 height: parent.height - 16px;
                                 report := TextInput {
-                                    text: Game.report-preview;
+                                    text: BuildReport.report-preview;
                                     single-line: false;
                                     read-only: true;
                                     wrap: word-wrap;
@@ -232,7 +232,7 @@ export component BuildProgress inherits Rectangle {
                     }
                 }
 
-                if root.problem && Game.can-report: VerticalLayout {
+                if root.problem && BuildReport.can-report: VerticalLayout {
                     spacing: 6px;
 
                     Label {
@@ -245,24 +245,24 @@ export component BuildProgress inherits Rectangle {
                     }
 
                     GameAction {
-                        text: Game.report-preview == "" ? Locale.t("Preview report") : Game.reporting ? Locale.t("Sending") : Game.report-sent ? Locale.t("Sent") : Locale.t("Send report");
-                        enabled: !Game.reporting && !Game.report-sent;
-                        clicked => { if Game.report-preview == "" { Game.preview-report(); } else { Game.send-report(); } }
+                        text: BuildReport.report-preview == "" ? Locale.t("Preview report") : BuildReport.reporting ? Locale.t("Sending") : BuildReport.report-sent ? Locale.t("Sent") : Locale.t("Send report");
+                        enabled: !BuildReport.reporting && !BuildReport.report-sent;
+                        clicked => { if BuildReport.report-preview == "" { BuildReport.preview-report(); } else { BuildReport.send-report(); } }
                     }
 
                     GameAction {
                         text: Locale.t("Save local diagnostics");
                         quiet: true;
-                        clicked => { Game.save-diagnostic(); }
+                        clicked => { BuildReport.save-diagnostic(); }
                     }
 
-                    if Game.report-status != "": Note {
-                        text: Game.report-status;
+                    if BuildReport.report-status != "": Note {
+                        text: BuildReport.report-status;
                     }
                 }
-                if root.problem && !Game.can-report: GameAction {
+                if root.problem && !BuildReport.can-report: GameAction {
                     text: Locale.t("Save local diagnostics");
-                    clicked => { Game.save-diagnostic(); }
+                    clicked => { BuildReport.save-diagnostic(); }
                 }
                 if Game.step == GameStep.building: VerticalLayout {
                     padding-bottom: 8px;

@@ -2,6 +2,10 @@
 # Install the Linux and Windows build dependencies on an Ubuntu/Debian CI runner.
 # The caller adds ~/.cargo/bin to PATH when installing rustup for the first time.
 set -euo pipefail
+if [[ ${CI:-} != true ]]; then
+    echo "This script installs system packages on a CI runner." >&2
+    exit 1
+fi
 sudo=()
 if (( EUID != 0 )); then sudo=(sudo); fi
 "${sudo[@]}" apt-get update -qq

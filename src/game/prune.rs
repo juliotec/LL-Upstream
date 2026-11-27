@@ -1,5 +1,6 @@
 //! Reclaim unused managed versions after an update, with rollback, profile and fetch protection.
 use super::versions::{self, registry};
+use crate::UiMutexExt as _;
 use crate::{home, players};
 use anyhow::{Context, Result, ensure};
 use serde_json::Value;
@@ -56,13 +57,22 @@ pub(crate) fn move_lease(home: &Path) -> Result<home::FileLease> {
     home::FileLease::try_acquire(activity_file(home)?, crate::fsx::LockMode::Exclusive)
         .context("A builder download or cleanup is using these folders. Wait for it to finish.")
 }
-pub(super) fn fetch_lease(home: &Path) -> Result<home::FileLease> {
+pub(super) fn fetch_lease(home: &Path, cancel: &super::process::Cancel) -> Result<home::FileLease> {
     let file = activity_file(home)?;
-    file.lock_shared()?;
+    loop {
+        cancel.check()?;
+        match file.try_lock_shared() {
+            Ok(()) => break,
+            Err(std::fs::TryLockError::WouldBlock) => {
+                std::thread::sleep(std::time::Duration::from_millis(50))
+            }
+            Err(std::fs::TryLockError::Error(error)) => return Err(error.into()),
+        }
+    }
     Ok(home::FileLease(file))
 }
 pub(super) fn remember(folder: &Path) {
-    FETCHED.lock().unwrap().insert(folder.to_owned());
+    FETCHED.guard().insert(folder.to_owned());
 }
 
 pub(super) fn after_update(home: &Path) -> Result<()> {
@@ -106,7 +116,7 @@ fn prune_when_idle(home: &Path) -> Result<()> {
         return Ok(());
     }
     let folders = super::managed_folders(home)?;
-    let mut keep: BTreeSet<PathBuf> = FETCHED.lock().unwrap().clone();
+    let mut keep: BTreeSet<PathBuf> = FETCHED.guard().clone();
     let records = registry(home)?;
     let rows = records["builds"].as_array().expect("validated registry");
     let mut keep_tags: BTreeSet<&str> = profiles

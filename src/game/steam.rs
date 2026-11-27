@@ -221,7 +221,9 @@ pub(super) fn route(ctx: &Context, exe: &Path) -> Option<Child> {
         .ok()?
         .lines()
         .find_map(|l| l.strip_prefix("btime ")?.parse::<u64>().ok())?;
-    let ticks = Command::new("getconf").arg("CLK_TCK").output().ok()?;
+    let mut command = Command::new("getconf");
+    super::process::restore_host_environment(&mut command);
+    let ticks = command.arg("CLK_TCK").output().ok()?;
     let ticks = std::str::from_utf8(&ticks.stdout)
         .ok()?
         .trim()
@@ -247,7 +249,9 @@ pub(super) fn route(ctx: &Context, exe: &Path) -> Option<Child> {
         return None;
     }
     let id = library::Shortcuts::open(&library)?.launcher_id(exe, &ctx.profile, &ctx.home)?;
-    let mut opener = Command::new("xdg-open")
+    let mut command = Command::new("xdg-open");
+    super::process::restore_host_environment(&mut command);
+    let mut opener = command
         .arg(format!("steam://rungameid/{}", game_id(id)))
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -264,8 +268,9 @@ pub(super) fn route(ctx: &Context, exe: &Path) -> Option<Child> {
 }
 
 /// A launcher-owned shortcut in the signed-in Steam account that points at a version being moved.
+#[derive(serde::Serialize, serde::Deserialize)]
 pub(crate) struct ShortcutMove {
-    ctx: Context,
+    profile: std::path::PathBuf,
     library: std::path::PathBuf,
     title: String,
     id: u32,
@@ -275,13 +280,13 @@ pub(crate) struct ShortcutMove {
 }
 
 impl ShortcutMove {
-    pub(crate) fn retarget(&self, forward: bool) -> Result<()> {
+    pub(crate) fn retarget(&self, home: &Path, forward: bool) -> Result<()> {
         let target = if forward { &self.to } else { &self.from };
         let exe = target.join(executable());
         let (old_profile, new_profile) = if forward {
-            (&self.ctx.profile, &self.new_profile)
+            (&self.profile, &self.new_profile)
         } else {
-            (&self.new_profile, &self.ctx.profile)
+            (&self.new_profile, &self.profile)
         };
         let present = || {
             library::installed_id(&self.library, &self.title, &exe, new_profile) == Some(self.id)
@@ -301,7 +306,7 @@ impl ShortcutMove {
             old_profile,
             self.id,
         )?;
-        let mut ctx = self.ctx.clone();
+        let mut ctx = Context::load(home)?;
         ctx.profile = new_profile.clone();
         write_shortcut(
             &ctx,
@@ -344,10 +349,8 @@ pub(crate) fn shortcuts_to_move_data(
         for (title, id) in
             snapshot.owned(&from.join(executable()), &dir, &name(&dir, &profile.file))
         {
-            let mut ctx = Context::load(home)?;
-            ctx.profile = dir.clone();
             moves.push(ShortcutMove {
-                ctx,
+                profile: dir.clone(),
                 library: library.clone(),
                 title,
                 id,
@@ -365,7 +368,7 @@ pub(crate) fn shortcuts_to_move_data(
 pub(super) fn retarget_updated_instance(home: &Path, from: &Path, to: &Path) -> Result<()> {
     if from != to {
         for shortcut in shortcuts_to_move(home, from, to)? {
-            shortcut.retarget(true)?;
+            shortcut.retarget(home, true)?;
         }
     }
     Ok(())

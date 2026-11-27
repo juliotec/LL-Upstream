@@ -1,5 +1,6 @@
 //! Observe the builder's play command without owning the game's lifetime.
 use super::versions::Session;
+use crate::UiMutexExt as _;
 use crate::{
     Game, MainWindow,
     logbook::{BuildLog, Transcript},
@@ -52,11 +53,10 @@ pub(super) fn play(
             })?;
     g.set_status("".into());
     window.global::<crate::Shell>().set_crash_message("".into());
-    if let Some(elapsed) = work.lock().unwrap().take_build_time(
-        from_build_completion,
-        &session.profile,
-        &session.folder,
-    ) {
+    if let Some(elapsed) =
+        work.guard()
+            .take_build_time(from_build_completion, &session.profile, &session.folder)
+    {
         g.set_last_build_seconds(elapsed.as_secs().min(i32::MAX as u64) as i32);
     }
     g.set_playing(true);
@@ -171,11 +171,18 @@ fn running(system: &mut System, builder: Pid, folder: &Path) -> bool {
     );
     system.processes().values().any(|p| {
         let Some(exe) = p.exe() else { return false };
-        if !exe.starts_with(folder)
-            || !exe
-                .file_stem()
-                .is_some_and(|s| s.eq_ignore_ascii_case("longshot"))
+        if !exe
+            .file_stem()
+            .is_some_and(|s| s.eq_ignore_ascii_case("longshot"))
         {
+            return false;
+        }
+        let in_build = exe.starts_with(folder)
+            || (cfg!(windows)
+                && exe
+                    .canonicalize()
+                    .is_ok_and(|path| path.starts_with(folder)));
+        if !in_build {
             return false;
         }
         let mut parent = p.parent();
@@ -197,9 +204,13 @@ pub(super) struct LaunchOutput {
 }
 
 impl LaunchOutput {
-    pub(super) fn attach(command: &mut Command) -> io::Result<Self> {
-        let (stdout, out) = OutputFile::new()?;
-        let (stderr, err) = OutputFile::new()?;
+    pub(super) fn attach(command: &mut Command, dir: &std::path::Path) -> io::Result<Self> {
+        std::fs::create_dir_all(dir)?;
+        if crate::fsx::linked_location(dir)? {
+            return Err(io::Error::other("The launcher log folder is linked."));
+        }
+        let (stdout, out) = OutputFile::new_in(dir)?;
+        let (stderr, err) = OutputFile::new_in(dir)?;
         command.stdout(Stdio::from(out)).stderr(Stdio::from(err));
         Ok(Self { stdout, stderr })
     }
@@ -244,8 +255,8 @@ struct OutputFile {
 }
 
 impl OutputFile {
-    fn new() -> io::Result<(Self, File)> {
-        let file = tempfile::NamedTempFile::new()?;
+    fn new_in(dir: &std::path::Path) -> io::Result<(Self, File)> {
+        let file = tempfile::NamedTempFile::new_in(dir)?;
         let reader = BufReader::new(file.reopen()?);
         Ok((
             Self {
@@ -286,6 +297,7 @@ fn wait(
         .upgrade_in_event_loop(move |ui| ui.global::<Game>().set_launch_log_available(available));
     let mut state = Rebuild::default();
     let mut reading_output = true;
+    let mut inhibitor = None;
 
     let mut system = System::new().ok();
     let mut last_scan = None;
@@ -333,6 +345,11 @@ fn wait(
             return Ok(exit);
         }
         let rebuilding = state.started.is_some();
+        if rebuilding && inhibitor.is_none() {
+            inhibitor = Some(super::awake::BuildInhibitor::acquire());
+        } else if !rebuilding {
+            inhibitor.take();
+        }
         let fraction = state.fraction.map_or(-1., |f| f.min(0.99) as f32);
         let eta = state
             .eta
@@ -403,7 +420,7 @@ mod tests {
                 "while [ ! -e launcher-exited ]; do sleep .02; done; \
                  printf 'still running\\n'; printf 'still running\\n' >&2; touch game-finished",
             ]);
-            let output = LaunchOutput::attach(&mut command)?;
+            let output = LaunchOutput::attach(&mut command, &std::env::temp_dir())?;
             command.spawn()?;
             drop(output);
             return Ok(());
@@ -433,7 +450,7 @@ mod tests {
     fn launch_output_keeps_incomplete_lines_until_the_builder_finishes_them() -> io::Result<()> {
         use std::io::Write;
 
-        let (mut output, mut writer) = OutputFile::new()?;
+        let (mut output, mut writer) = OutputFile::new_in(&std::env::temp_dir())?;
         let mut lines = Vec::new();
         writer.write_all(b"compil")?;
         output.drain(false, |line| lines.push(line.to_owned()))?;

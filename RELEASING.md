@@ -145,27 +145,9 @@ The *version* step of `release.yml` says why. Nothing was built. Delete the tag 
 
 To check before pushing: `python -I ../Tooling/scripts/release.py --product launcher check-tag <tag>` (it reads the release list; tag it locally first).
 
-## Needs a Windows tester (Longshot)
+## Windows launcher verification
 
-There is no Windows runner: every job runs on Linux, and Longshot's Windows files are cross-built there (the setup and the
-Vulkan back end with llvm-mingw's Linux build of `tools.lock`'s release, the WPF builder with `dotnet publish -r win-x64
--p:EnableWindowsTargeting=true`). CI checks them as Windows files (PE headers, imports, resources, the .NET runtime:
-`scripts/check_windows_files.py`) and starts the setup and the builder under Wine, which only shows that they load. Before each
-stable, on the nightly to be tagged, a tester on Windows 10 or 11:
-
-- **Builds and plays.** Unzip `LongshotBuilder-<v>-windows-x64.zip` and run `LongshotBuilder.exe`: the setup installs the
-  builder and downloads the tools; build the game from your own copy and play to the title screen. The setup shows its
-  icon, the builder its fonts and image.
-- **Notes what Windows says.** Nothing is signed: what SmartScreen and the antivirus do with the zip and the setup.
-- **Runs the checks only Windows can** (they were `ci.yml`'s `windows-2022` jobs, which nothing could run): the suite on
-  Windows' Python, `python -I -B tests/run_all.py --strict` (the 15 checks Linux skips, their `RUN_ALL_SKIP` naming why: the setup's Win32
-  file and path handling, the portable homes, structured exceptions; and the `os.name == "nt"` paths of the others, among
-  them `tests/test_control.py`'s named pipe), and from a Visual Studio
-  2022 developer prompt the MSVC compile of the native checks, `cl /nologo /std:c++17 /W4 /WX /EHsc
-  gpu\vk\tests\present_rect_test.cpp && present_rect_test.exe` and `python -I -B tests/test_invalidate_vcore.py --cxx cl`
-  (Linux CI compiles both with GCC and Clang).
-
-A failure is an issue, and blocks the stable as any other would.
+Run the packaged executable on Windows, exercise portable and installed startup, then upgrade an installed stable copy. Verify that shortcuts launch the selected profile and its saves and mods are available. The CI handoff test exercises the updater under Wine.
 
 ## Bump a tool (Longshot)
 
@@ -285,3 +267,10 @@ None of this is done yet. In order (the org secret is shared by both repositorie
 | `next` or `notes`: "git-cliff is needed" | git-cliff is not on PATH | `export GIT_CLIFF=$(python -I ../Tooling/scripts/release.py --product launcher git-cliff <folder>)` |
 | A Windows install fails at a tool | its upstream URL is gone and it has no mirror, or the archive changed | `tools.py mirror <name>` (its copy in Packages), or bump it |
 | Too many nightlies | the prune step failed (HTTP 422: a protected `nightly-*` tag) | unprotect `nightly-*` (step 2), or `RELEASE_TOKEN=<your token> python -I ../Tooling/scripts/release.py --product launcher prune` by hand |
+
+
+To exercise first start against an actual Linux 1.3.1 home, run the following with the published AppImage and the candidate executable. The test verifies the old package digest, opens both launchers on a private display, and checks that the original save and preferences survive the upgrade.
+
+```sh
+xvfb-run -a python3 -I tests/test_rust_window.py --published-upgrade /path/to/LongshotLauncher-v1.3.1-x86_64.AppImage /path/to/candidate
+```

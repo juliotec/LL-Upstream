@@ -135,14 +135,6 @@ export global Game {
     in-out property <string> eta;
     in-out property <string> log-filter;
     in-out property <bool> show-log;
-    in-out property <string> report-preview;
-    in-out property <string> report-status;
-    in-out property <bool> reporting;
-    in-out property <bool> report-sent;
-    in-out property <bool> can-report;
-    callback preview-report();
-    callback send-report();
-    callback save-diagnostic();
     in-out property <string> build-location;
     in-out property <string> license;
     in property <bool> license-required;
@@ -151,7 +143,6 @@ export global Game {
     in-out property <bool> license-expanded;
     callback choose-source(bool) -> bool;
     callback select-source(string) -> bool;
-    callback folders-changed();
     callback schedule-check();
     callback retry-check();
     callback start();
@@ -166,4 +157,15 @@ export global Game {
     callback open-license();
     callback accept-license();
     callback show-home();
+}
+
+export global BuildReport {
+    in-out property <string> report-preview;
+    in-out property <string> report-status;
+    in-out property <bool> reporting;
+    in-out property <bool> report-sent;
+    in-out property <bool> can-report;
+    callback preview-report();
+    callback send-report();
+    callback save-diagnostic();
 }

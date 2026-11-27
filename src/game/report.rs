@@ -163,7 +163,10 @@ mod tests {
         let answer = |status, message: Option<&str>| super::super::process::Answer {
             status: std::process::ExitStatus::from_raw(status),
             result: None,
-            error: message.map(String::from),
+            error: message.map(|m| super::super::process::BuilderFailure {
+                code: "io".into(),
+                message: m.into(),
+            }),
         };
         assert!(
             answer(1 << 8, Some("private game path"))

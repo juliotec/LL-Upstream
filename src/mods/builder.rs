@@ -87,6 +87,7 @@ pub(super) fn run(
     home: &Path,
     words: &[OsString],
     expected: Option<&(PathBuf, PathBuf)>,
+    deadline: Option<std::time::Instant>,
 ) -> Result<(Value, String)> {
     let command = game::mod_command(home)?;
     if let Some((profile, program)) = expected {
@@ -99,11 +100,24 @@ pub(super) fn run(
             "The active game or profile changed. Reopen Mods before continuing."
         );
     }
-    execute(command, words)
+    let remaining = deadline.map_or(ACTION_TIMEOUT, |end| {
+        end.saturating_duration_since(std::time::Instant::now())
+    });
+    ensure!(!remaining.is_zero(), "The mod operation timed out.");
+    execute_with_timeout(command, words, remaining.min(command_timeout(words)))
+}
+
+pub(super) const ACTION_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30 * 60);
+
+fn command_timeout(words: &[OsString]) -> std::time::Duration {
+    match words.first().and_then(|w| w.to_str()) {
+        Some("installed" | "sources" | "plan") => std::time::Duration::from_secs(60),
+        _ => ACTION_TIMEOUT,
+    }
 }
 
 pub(super) fn execute(command: Command, words: &[OsString]) -> Result<(Value, String)> {
-    execute_with_timeout(command, words, std::time::Duration::from_secs(300))
+    execute_with_timeout(command, words, command_timeout(words))
 }
 
 pub(super) fn execute_with_timeout(
@@ -190,7 +204,7 @@ pub fn store_gc(home: &Path, dry_run: bool) -> Result<Value> {
     } else {
         args(&["gc"])
     };
-    run(home, &words, None).map(|(result, _)| result)
+    run(home, &words, None, None).map(|(result, _)| result)
 }
 
 pub(super) fn word(value: &str) -> Result<&str> {

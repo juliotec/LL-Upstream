@@ -55,7 +55,7 @@ fn current_profile_store_and_save_transfers_preserve_data() -> Result<()> {
     let detached = scratch.join("unmanaged/game/user/save").join(saves::UID);
     save(&detached, "slot_00", "unmanaged")?;
     let settings = json!({"format":2,"currentProfile":"p-1234abcd","unknown":{"value":2}});
-    home::write_json(&home.join("settings.json"), &settings)?;
+    home::write_json(&home.join(home::SETTINGS_FILE), &settings)?;
     let selected = home.join("profiles/p-1234abcd");
     fs::create_dir_all(selected.join("saves"))?;
     home::write_json(
@@ -76,6 +76,10 @@ fn current_profile_store_and_save_transfers_preserve_data() -> Result<()> {
     assert_eq!(file["game"], "example.nup");
     assert_eq!(file["upscalers"], json!(["dlss"]));
     assert_eq!(file["version"], "build1");
+    {
+        let _lock = saves::SaveLock::acquire(&target)?;
+        assert!(profiles::new_or_rename(&home, "duplicate", "p-1234abcd", "Player copy").is_err());
+    }
     profiles::new_or_rename(&home, "duplicate", "p-1234abcd", "Player copy")?;
     assert_eq!(profiles::list(&home)?.len(), 2);
     assert!(!home.join("profiles/default").exists());
@@ -91,6 +95,13 @@ fn current_profile_store_and_save_transfers_preserve_data() -> Result<()> {
     assert!(target.join("slot_02/progress.sav").is_file());
     assert!(target.join("slot_01/progress.sav").is_file());
     let backups = disk::dirs(&profiles::backup_root(&home)?)?;
+    let backup_path = profiles::backup_root(&home)?;
+    assert_ne!(backup_path, home.join("save-backups"));
+    assert!(
+        crate::storage::cleanup::plan(&home, true)?
+            .review()
+            .contains(&home::display(&backup_path))
+    );
     assert_eq!(backups.len(), 1);
     assert_eq!(
         fs::read(backups[0].join("slot_01/progress.sav"))?,

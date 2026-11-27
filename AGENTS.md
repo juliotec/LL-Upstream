@@ -6,7 +6,8 @@ how releases are made and checked, and [docs/saves.md](docs/saves.md) the saves,
 
 What agents trip on:
 
-- **Native launcher.** Rust application code lives in `src/`, Slint views in `ui/`, and local artwork and catalogs in `assets/`. Use the current Longshot builder protocol. Only Hookshot saves are imported. Keep its launcher settings, channels, versions and caches separate. Do not add compatibility with Hookshot 2.x builders.
+- **Native launcher.** Rust application code lives in `src/`, Slint views in `ui/`, and local artwork and catalogs in `assets/`.
+- **Clean break.** Use the current Longshot builder protocol. Only Hookshot saves are imported. Keep its launcher settings, channels, versions and caches separate. Do not add compatibility with Hookshot 2.x builders.
 - **Test before opening a PR.** Run `python -I tests/test_launcher_core.py` and `LAUNCHER=$PWD python -I ../Tooling/tests/test_release.py`. Run the locked Clippy and formatting checks in `mise.toml`. Update a check in the same pull request rather than weakening it.
 - **Two repositories, one release format.** Tooling owns `scripts/release.py` and is pinned by `.tooling-rev`. The shared specification in `docs/releases.md` is also kept in Longshot. Launcher release commands select `--product launcher`. Rust and Tooling both read the public keyring in `assets/keys/release_keys.json`.
 - **Never make or commit a real signing key**, and never publish a release by hand: tags and the release workflow do it

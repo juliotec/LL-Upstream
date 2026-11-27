@@ -1,6 +1,7 @@
 //! One check per source, target and approval. Edits invalidate an in-flight
 //! result immediately. A short timer lets the player finish typing a PR number.
 use super::{jobs::SharedWork, wizard};
+use crate::UiMutexExt as _;
 use crate::{Game, GameStep, MainWindow, Page};
 use slint::ComponentHandle;
 use std::{path::Path, time::Duration};
@@ -100,7 +101,7 @@ pub(super) fn schedule(ui: &MainWindow, home: &Path, work: &SharedWork, retry: b
     let mut input = Inputs::read(ui);
     let revision;
     {
-        let mut state = work.lock().unwrap();
+        let mut state = work.guard();
         if state
             .check
             .inputs
@@ -142,7 +143,7 @@ pub(super) fn schedule(ui: &MainWindow, home: &Path, work: &SharedWork, retry: b
             return;
         }
         {
-            let mut state = work.lock().unwrap();
+            let mut state = work.guard();
             if state.check.revision != revision || state.check.attempted {
                 return;
             }
@@ -150,7 +151,7 @@ pub(super) fn schedule(ui: &MainWindow, home: &Path, work: &SharedWork, retry: b
             state.check.active = Some(revision);
         }
         if let Err(e) = wizard::check(&ui, &home, &work) {
-            work.lock().unwrap().check.active = None;
+            work.guard().check.active = None;
             g.set_file_error(true);
             g.set_status(format!("{e:#}").into());
         }
@@ -165,7 +166,7 @@ pub(super) fn current(ui: &MainWindow, state: &State, revision: u64) -> bool {
 }
 
 pub(super) fn matches_prepared(ui: &MainWindow, work: &SharedWork) -> bool {
-    work.lock().unwrap().check.inputs.as_ref() == Some(&Inputs::read(ui))
+    work.guard().check.inputs.as_ref() == Some(&Inputs::read(ui))
 }
 
 #[cfg(test)]

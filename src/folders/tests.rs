@@ -413,3 +413,77 @@ fn moving_data_retargets_mods_in_previously_used_caches() -> Result<()> {
     assert_eq!(other.join(pins).canonicalize()?, stored);
     Ok(())
 }
+
+#[test]
+fn interrupted_cache_move_resumes_without_removing_the_original() -> Result<()> {
+    let temp = tempfile::tempdir()?;
+    let root = temp.path();
+    let old = root.join("old");
+    let new = root.join("new");
+    for dir in [&new, &old] {
+        fs::create_dir(dir)?;
+    }
+    home::patch_settings(root, &json!({"work": old}))?;
+    home::write_json(
+        &root.join(MOVE_RECEIPT),
+        &json!({
+            "key": "work", "before": old, "after": new, "destinations": [new]
+        }),
+    )?;
+    resume_move(root)?;
+    assert_eq!(home::settings(root)?["work"], json!(new));
+    assert!(old.is_dir());
+    resume_move(root)?;
+    Ok(())
+}
+
+#[test]
+fn resume_publication_on_either_side_of_directory_and_link_switches() -> Result<()> {
+    // Reopen the same journal at each point a process may disappear, including
+    // after the shared link changes but before preferences commit.
+    for completed in 0..=3 {
+        let temp = tempfile::tempdir()?;
+        let root = temp.path();
+        let old = root.join("old");
+        let new = root.join("new");
+        let cache = root.join("cache");
+        stub(&old.join("mods/sources.json"), b"[]")?;
+        stub(&old.join("profiles/default/test"), b"save")?;
+        mod_store::ensure(&cache, &old)?;
+        fs::create_dir(&new)?;
+        let stage = tempfile::Builder::new()
+            .prefix(".longshot-move-")
+            .tempdir_in(&new)?;
+        let entries = ["mods", "profiles"].map(|name| Entry {
+            old: old.join(name),
+            new: new.join(name),
+            version: false,
+        });
+        stub(&stage.path().join("0/sources.json"), b"[]")?;
+        stub(&stage.path().join("1/default/test"), b"save")?;
+        home::patch_settings(root, &json!({"dataFolder": old}))?;
+        home::write_json(
+            &root.join(MOVE_RECEIPT),
+            &json!({
+                "key":"dataFolder","before":old,"after":new,"destinations":[new.join("mods"),new.join("profiles")],
+                "publication":{"stage":stage.path(),"entries":entries,"caches":[cache],"shortcuts":[],"old_data":old,"destination":new}
+            }),
+        )?;
+        for (i, entry) in entries.iter().take(completed).enumerate() {
+            fs::rename(stage.path().join(i.to_string()), &entry.new)?;
+        }
+        if completed == 3 {
+            mod_store::repoint(&cache, &old, &new)?;
+        }
+        resume_move(root)?;
+        resume_move(root)?;
+        assert_eq!(home::settings(root)?["dataFolder"], json!(new));
+        assert_eq!(
+            cache.join("mods").canonicalize()?,
+            new.join("mods").canonicalize()?
+        );
+        assert_eq!(fs::read(new.join("profiles/default/test"))?, b"save");
+        assert_eq!(fs::read(old.join("profiles/default/test"))?, b"save");
+    }
+    Ok(())
+}

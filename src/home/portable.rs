@@ -109,7 +109,7 @@ pub(crate) fn enable_portable(exe: &Path) -> Result<()> {
     fs::create_dir(stage.path().join("data"))?;
     fs::create_dir(stage.path().join("cache"))?;
     File::create_new(stage.path().join(".portable"))?.sync_all()?;
-    if let Err(error) = crate::folders::publish_directory(stage.path(), &container) {
+    if let Err(error) = crate::fsx::rename_new(stage.path(), &container) {
         if portable_at(exe) {
             return Ok(());
         }

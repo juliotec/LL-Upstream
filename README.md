@@ -60,6 +60,12 @@ When upgrading from the previous stable launcher, compatible installations are i
 
 Linux respects `XDG_DATA_HOME` and `XDG_CACHE_HOME`. Existing installations keep their populated or custom locations. Use **Settings → Game** to move a folder. In **Settings → Storage**, **Clean up** previews removable build files and their sizes, including eligible files from the previous launcher. Open **Previous launcher** to clean up individual categories.
 
+### Release notes for players upgrading from 1.3.x
+
+The Rust launcher copies your stable saves and loose mods on first launch. Your original copies stay available when you return to stable. Set your language, update preferences, current profile and custom cache drive again in Settings. Choose the cache drive before starting a build.
+
+Save progress is read-only. The old save editor and its binary-editing contract have been retired. Hookshot game settings import has also been retired. Import individual Hookshot slots from Saves, or import a complete save ZIP to include account and option files. [Save imports and compatibility](docs/saves.md)
+
 ## Development
 
 The launcher is written in Rust with a Slint desktop interface. Install Rust and the platform libraries listed in the [CI guide](docs/ci.md), then run from the repository root.

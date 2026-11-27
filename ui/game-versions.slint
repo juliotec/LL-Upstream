@@ -25,20 +25,20 @@ export component TrackMenu inherits Rectangle {
     private property <[{ track: string, title: string, detail: string }]> choices: [
         {
             track: "Stable",
-            title: "Stable",
-            detail: Game.stable-available ? "Tested releases." : "Available after the next stable promotion."
+            title: Locale.t("Stable"),
+            detail: Game.stable-available ? Locale.t("Tested releases.") : Locale.t("Available after the next stable promotion.")
         },
-        { track: "Nightly", title: "Nightly", detail: "Daily builds with the latest fixes." },
+        { track: "Nightly", title: Locale.t("Nightly"), detail: Locale.t("Daily builds with the latest fixes.") },
         {
             track: "Earlier release",
-            title: "Earlier release",
-            detail: "Choose a previous release."
+            title: Locale.t("Earlier release"),
+            detail: Locale.t("Choose a previous release.")
         },
-        { track: "Main", title: "The main branch", detail: "Build the newest code on this PC." },
+        { track: "Main", title: Locale.t("The main branch"), detail: Locale.t("Build the newest code on this PC.") },
         {
             track: "Pull request",
-            title: "A pull request",
-            detail: "Try a change before it’s merged."
+            title: Locale.t("A pull request"),
+            detail: Locale.t("Try a change before it’s merged.")
         },
     ];
     function move-by(step: int) {
@@ -94,7 +94,7 @@ export component TrackMenu inherits Rectangle {
                     property <bool> available: i >= root.first;
                     property <bool> active: option.available && root.current == i;
                     accessible-role: button;
-                    accessible-label: Locale.t(choice.title) + ", " + Locale.t(choice.detail);
+                    accessible-label: choice.title + ", " + choice.detail;
                     accessible-enabled: option.available;
                     accessible-action-default => { root.choose(i); }
                     height: 45px;
@@ -107,14 +107,14 @@ export component TrackMenu inherits Rectangle {
                         alignment: center;
 
                         Text {
-                            text: Locale.t(choice.title);
+                            text: choice.title;
                             font-size: 14px;
                             font-weight: 750;
                             color: option.active ? Ink.black : option.available ? Ink.text : Ink.muted;
                         }
 
                         Text {
-                            text: Locale.t(choice.detail);
+                            text: choice.detail;
                             overflow: elide;
                             font-size: 12px;
                             color: option.active ? Ink.black : Ink.muted;

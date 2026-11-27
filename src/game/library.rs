@@ -268,21 +268,45 @@ fn reserve(home: &Path, settings: &Value, name: &str) -> Result<PathBuf> {
     Ok(folder)
 }
 
+pub(crate) fn check_move_record(home: &Path, folder: &Path) -> Result<()> {
+    ensure!(
+        !linked(&home.join(LOCATIONS)),
+        "The version locations folder is a link."
+    );
+    let path = record_path(home, folder);
+    match fs::symlink_metadata(&path) {
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(err) => Err(err.into()),
+        Ok(_) => anyhow::bail!(
+            "A version ownership record already exists for {}.",
+            folder.display()
+        ),
+    }
+}
+
 /// Record a newly published copy. The move owns this directory and has already refused
 /// collisions. A copied marker must not remain linked to the original folder.
-pub(crate) fn record_moved_version(home: &Path, folder: &Path) -> Result<Option<PathBuf>> {
-    let owner = folder.join(OWNER);
-    if fs::symlink_metadata(&owner).is_ok() {
-        fs::remove_file(&owner)?;
-    }
-    if home.join("versions").canonicalize().ok().as_deref() == folder.parent() {
-        return Ok(None);
-    }
+pub(crate) fn record_moved_version(home: &Path, folder: &Path) -> Result<()> {
     let locations = home.join(LOCATIONS);
     ensure!(
         !linked(&locations),
         "The version locations folder is a link."
     );
+    let dest = record_path(home, folder);
+    if fs::symlink_metadata(&dest).is_ok() {
+        ensure!(
+            read_record(&dest).as_deref() == Some(folder),
+            "The version ownership record changed during publication."
+        );
+        return Ok(());
+    }
+    let owner = folder.join(OWNER);
+    if fs::symlink_metadata(&owner).is_ok() {
+        fs::remove_file(&owner)?;
+    }
+    if home.join("versions").canonicalize().ok().as_deref() == folder.parent() {
+        return Ok(());
+    }
     fs::create_dir_all(&locations)?;
     let mut record = tempfile::NamedTempFile::new_in(&locations)?;
     let token = record
@@ -300,9 +324,8 @@ pub(crate) fn record_moved_version(home: &Path, folder: &Path) -> Result<Option<
     )?;
     record.flush()?;
     record.as_file().sync_all()?;
-    let dest = record_path(home, folder);
     record.persist_noclobber(&dest)?;
-    Ok(Some(dest))
+    Ok(())
 }
 pub(crate) fn forget_moved_version(home: &Path, old: &Path) {
     if !old.exists() {
@@ -348,12 +371,10 @@ mod tests {
         assert_eq!(relocated, data.canonicalize()?.join("versions/v4.0.0"));
         assert!(owned_folder(home.path(), &relocated));
         let old = destination(home.path(), &json!({}), "v3.0.0")?;
-        fs::write(old.join(executable()), [])?;
-        fs::create_dir_all(old.join("builds/default"))?;
+        crate::game::fake_version(&old)?;
         let folder = destination(home.path(), &settings, "v3.1.0")?;
         assert_eq!(folder, base.canonicalize()?.join("v3.1.0"));
-        fs::write(folder.join(executable()), [])?;
-        fs::create_dir_all(folder.join("builds/default"))?;
+        crate::game::fake_version(&folder)?;
         let neighbor = base.join("v3.2.0");
         fs::create_dir(&neighbor)?;
         fs::write(neighbor.join(executable()), "unrelated")?;

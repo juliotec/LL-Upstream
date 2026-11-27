@@ -5,6 +5,7 @@ A release AppImage also exercises the interactive install and portable choices.
 
 from contextlib import contextmanager
 import filecmp
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -151,6 +152,51 @@ def exercise_install_choice(executable, directory, *, portable):
         assert json.loads(profile.read_text()) == before
 
 
+def check_published_upgrade(stable, candidate, directory):
+    """Exercise first start with preferences actually written by the 1.3.1 AppImage."""
+    name = "LongshotLauncher-v1.3.1-x86_64.AppImage"
+    sums = Path(__file__).parent / "fixtures/release/v1.3.1/SHA256SUMS"
+    expected = next(row.split()[0] for row in sums.read_text().splitlines() if row.split()[-1] == name)
+    with stable.open("rb") as file:
+        assert hashlib.file_digest(file, "sha256").hexdigest() == expected, "Expected the published 1.3.1 AppImage"
+    env = isolated_environment(directory)
+    data = directory / "data/longshot"
+    data.mkdir(parents=True)
+    installed = data / "LongshotLauncher.AppImage"
+    shutil.copyfile(stable, installed)
+    installed.chmod(0o755)
+    with launch_download(installed, env, directory):
+        wait_until(lambda: visible_windows(env), "published stable window")
+    # The AppImage runtime exits before Avalonia finishes graceful shutdown.
+    # The stable launcher's instance lock must be released before handoff.
+    import fcntl
+    def stable_closed():
+        with (data / "launcher/launcher.lock").open("rb") as lock:
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                return False
+            return not visible_windows(env)
+    wait_until(stable_closed, "stable launcher shutdown")
+    settings = data / "launcher/settings.json"
+    previous_settings = settings.read_bytes()
+    slot = Path("save/5a3c9e1f0b7d24680000000000000001/slot_00/progress.sav")
+    original = data / "user" / slot
+    original.parent.mkdir(parents=True, exist_ok=True)
+    original.write_bytes(b"synthetic stable save")
+    installed.rename(installed.with_suffix(".AppImage.old"))
+    shutil.copyfile(candidate, installed)
+    installed.chmod(0o755)
+    with launch_download(installed, dict(env, APPIMAGE=str(installed)), directory):
+        window = wait_until(lambda: next(iter(visible_windows(env)), None), "new launcher window")
+        assert window_size(env, window)[0] >= 960, "The in-place upgrade reopened the install chooser"
+        migrated = data / "profiles/default/saves" / slot
+        wait_until(migrated.is_file, "copied stable save")
+        assert migrated.read_bytes() == original.read_bytes()
+        assert settings.read_bytes() == previous_settings
+        assert not (installed.parent / "Longshot").exists()
+
+
 def check_handoff(executable, directory):
     """The updater keeps the AppImage filename and puts the original beside it."""
     env = isolated_environment(directory)
@@ -285,6 +331,11 @@ def exercise(executable, directory, *, upgrading=False):
 
 
 if __name__ == "__main__":
+    if sys.argv[1] == "--published-upgrade":
+        with tempfile.TemporaryDirectory(prefix="longshot-published-upgrade-") as temporary:
+            check_published_upgrade(Path(sys.argv[2]), Path(sys.argv[3]), Path(temporary))
+        print("Verified upgrade of a home created by the published v1.3.1 launcher.")
+        sys.exit(0)
     if sys.argv[1] == "--check-handoff":
         with tempfile.TemporaryDirectory(prefix="longshot-first-updated-start-") as temporary:
             check_handoff(Path(sys.argv[2]).resolve(strict=True), Path(temporary))

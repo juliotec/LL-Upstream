@@ -1,6 +1,10 @@
 #!/bin/bash
 # WineHQ's Noble build supports the Windows CNG calls used by the .NET stable updater.
 set -euo pipefail
+if [[ ${CI:-} != true ]]; then
+    echo "This script installs system packages on a CI runner." >&2
+    exit 1
+fi
 version='11.22~noble-1'
 base=https://dl.winehq.org/wine-builds
 sudo=()

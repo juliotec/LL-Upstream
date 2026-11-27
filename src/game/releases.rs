@@ -482,7 +482,7 @@ fn builder_for(
     cancel: &Cancel,
     notify: &mut dyn FnMut(&str, Option<f32>),
 ) -> Result<PathBuf> {
-    let _lease = super::prune::fetch_lease(&ctx.home)?;
+    let _lease = super::prune::fetch_lease(&ctx.home, cancel)?;
     let current = crate::home::settings(&ctx.home)?;
     ensure!(
         crate::home::work(&ctx.home, &current).join("longshot-builder") == ctx.cache
@@ -544,6 +544,7 @@ fn install_builder(
                 .arg("--cache")
                 .arg(&ctx.cache)
                 .args(["--output", "json"]);
+            let _stay_awake = super::awake::BuildInhibitor::acquire();
             let done = run(cmd, "from_source", cancel, notify)?
                 .require("Building the tools from source")?;
             ensure!(

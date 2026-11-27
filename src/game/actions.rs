@@ -4,6 +4,7 @@ use super::{
     process::Context,
     refresh, steam, versions, wizard,
 };
+use crate::UiMutexExt as _;
 use crate::{Game, MainWindow, home};
 use anyhow::{Context as _, Result, ensure};
 use serde_json::json;
@@ -170,8 +171,29 @@ pub fn bind(ui: &MainWindow, home_dir: PathBuf) -> super::preload::Downloads {
             )
         }),
     );
+    let work = session.work.clone();
+    crate::preferences::bind_folders(ui, &session.home, move |ui, home| {
+        refresh(ui, home);
+        if ui.get_page() == crate::Page::Build {
+            let g = ui.global::<Game>();
+            let ctx = Context::load(home)?;
+            g.set_build_location("".into());
+            g.set_mod_review_needed(false);
+            {
+                let mut state = work.guard();
+                state.prepared = None;
+                state.check = Default::default();
+                state.intent.relocate(&versions::listed(home)?)?;
+                wizard::location(ui, &ctx, &state.intent);
+            }
+            g.set_step(crate::GameStep::Files);
+            g.invoke_prepare_tools();
+            g.invoke_schedule_check();
+        }
+        Ok(())
+    });
     bind_builder(&g, &session);
-    bind_reports(&g, &session);
+    bind_reports(&ui.global::<crate::BuildReport>(), &session);
     bind_library(&g, &session);
     bind_upscalers(&g, &session);
     refresh(ui, &session.home);
@@ -184,26 +206,6 @@ pub fn bind(ui: &MainWindow, home_dir: PathBuf) -> super::preload::Downloads {
 fn bind_builder(game: &Game<'_>, session: &Rc<Bindings>) {
     game.on_prepare_tools(session.action(|window, home, work| {
         super::preload::start(window, home, work);
-        Ok(())
-    }));
-    game.on_folders_changed(session.action(|ui, home, work| {
-        refresh(ui, home);
-        if ui.get_page() == crate::Page::Build {
-            let g = ui.global::<Game>();
-            let ctx = Context::load(home)?;
-            g.set_build_location("".into());
-            g.set_mod_review_needed(false);
-            {
-                let mut state = work.lock().unwrap();
-                state.prepared = None;
-                state.check = Default::default();
-                state.intent.relocate(&versions::listed(home)?)?;
-                wizard::location(ui, &ctx, &state.intent);
-            }
-            g.set_step(crate::GameStep::Files);
-            g.invoke_prepare_tools();
-            g.invoke_schedule_check();
-        }
         Ok(())
     }));
     game.on_intro_words(|intro| super::labels(intro.split_whitespace().map(str::to_owned)));
@@ -232,7 +234,7 @@ fn bind_builder(game: &Game<'_>, session: &Rc<Bindings>) {
     game.on_approve_mod_trust(session.action(super::mod_review::approve));
     game.on_cancel_mod_trust(session.action(super::mod_review::cancel));
     game.on_cancel(session.action(|window, _, work| {
-        work.lock().unwrap().cancel.request();
+        work.guard().cancel.request();
         window.global::<Game>().set_play_after_build(false);
         window.global::<Game>().set_status("Stopping…".into());
         Ok(())
@@ -384,7 +386,7 @@ fn bind_upscalers(game: &Game<'_>, session: &Rc<Bindings>) {
                 home::patch_settings(home, &json!({(license.setting):true}))?;
             }
             if fsr {
-                if work.lock().unwrap().intent.instance().is_none() {
+                if work.guard().intent.instance().is_none() {
                     home::patch_settings(home, &json!({"fsrLibraryPath":source}))?;
                 }
                 g.set_fsr_library(path);
@@ -450,15 +452,16 @@ fn bind_library(game: &Game<'_>, session: &Rc<Bindings>) {
     }));
 }
 
-fn bind_reports(game: &Game<'_>, session: &Rc<Bindings>) {
+fn bind_reports(game: &crate::BuildReport<'_>, session: &Rc<Bindings>) {
     game.on_preview_report(session.action(|window, _, work| {
         let report = work
-            .lock()
-            .unwrap()
+            .guard()
             .report
             .clone()
             .context("No failed build is selected.")?;
-        window.global::<Game>().set_report_preview(report.into());
+        window
+            .global::<crate::BuildReport>()
+            .set_report_preview(report.into());
         Ok(())
     }));
     game.on_save_diagnostic(session.action(|window, _, _| {
@@ -469,20 +472,21 @@ fn bind_reports(game: &Game<'_>, session: &Rc<Bindings>) {
         {
             crate::diagnostics::save(&file)?;
             window
-                .global::<Game>()
+                .global::<crate::BuildReport>()
                 .set_report_status("Diagnostics saved.".into());
         }
         Ok(())
     }));
     game.on_send_report(session.action(|window, _, work| {
-        let g = window.global::<Game>();
+        let g = window.global::<crate::BuildReport>();
         ensure!(
-            g.get_step() == crate::GameStep::Problem && !g.get_reporting() && !g.get_report_sent(),
+            window.global::<Game>().get_step() == crate::GameStep::Problem
+                && !g.get_reporting()
+                && !g.get_report_sent(),
             "No report is waiting to be sent."
         );
         let report = work
-            .lock()
-            .unwrap()
+            .guard()
             .report
             .clone()
             .context("No failed build is selected.")?;
@@ -496,7 +500,7 @@ fn bind_reports(game: &Game<'_>, session: &Rc<Bindings>) {
         thread::spawn(move || {
             let result = super::report::send(&report);
             let _ = weak.upgrade_in_event_loop(move |window| {
-                let g = window.global::<Game>();
+                let g = window.global::<crate::BuildReport>();
                 if g.get_report_preview().as_str() != report {
                     return;
                 }
@@ -535,8 +539,7 @@ mod module_tests {
         let home = scratch.path();
         let tag = "nightly-32-12345678";
         let instance = home.join("versions").join(tag);
-        std::fs::create_dir_all(instance.join("builds/default"))?;
-        std::fs::write(instance.join(super::super::process::executable()), [])?;
+        crate::game::fake_version(&instance)?;
         let profile = home.join("profiles/default");
         std::fs::create_dir_all(&profile)?;
         home::write_json(

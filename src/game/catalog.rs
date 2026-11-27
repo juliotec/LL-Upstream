@@ -37,7 +37,7 @@ impl Catalog {
             .iter()
             .any(|tag| tag.starts_with("main-"))
             .then(|| releases::resolve("Main", "").map(|head| head.tag().to_owned()))
-            .transpose()?;
+            .and_then(Result::ok);
         let pulls = releases::pulls();
         let pulls = if installed.iter().any(|tag| tag.starts_with("pr-")) {
             pulls?

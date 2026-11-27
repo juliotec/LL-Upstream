@@ -3,7 +3,6 @@ pub(crate) mod mod_store;
 #[cfg(test)]
 mod tests;
 mod tree;
-pub(crate) use tree::publish as publish_directory;
 
 use crate::{game, home, players, storage};
 use anyhow::{Context, Result, bail, ensure};
@@ -39,7 +38,7 @@ impl Kind {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 struct Entry {
     old: PathBuf,
     new: PathBuf,
@@ -53,6 +52,158 @@ pub(crate) struct Change {
     kind: Kind,
     selection: Value,
     entries: Vec<Entry>,
+}
+
+const MOVE_RECEIPT: &str = "pending-folder-change.json";
+
+#[derive(serde::Serialize, serde::Deserialize)]
+struct Publication {
+    stage: PathBuf,
+    entries: Vec<Entry>,
+    shortcuts: Vec<game::ShortcutMove>,
+    caches: Vec<PathBuf>,
+    old_data: PathBuf,
+    destination: PathBuf,
+}
+
+impl Publication {
+    fn publish(&self, root: &Path, recovering: bool) -> Result<()> {
+        ensure!(
+            self.stage
+                .file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(|name| name.starts_with(".longshot-move-"))
+                && self.stage.parent() == Some(self.destination.as_path())
+                && players::is_dir(&self.stage)
+                && tree::absolute(&self.stage)? == self.stage,
+            "Reconnect the staged folder move."
+        );
+        if recovering {
+            let affected: Vec<_> = self
+                .entries
+                .iter()
+                .flat_map(|entry| [entry.old.as_path(), entry.new.as_path()])
+                .collect();
+            players::ensure_paths_idle(&affected)?;
+        }
+        for (index, entry) in self.entries.iter().enumerate() {
+            let staged = self.stage.join(index.to_string());
+            let parent = entry.new.parent().context("Invalid destination folder.")?;
+            ensure!(
+                entry.new.starts_with(&self.destination) && tree::absolute(parent)? == parent,
+                "The destination changed. Restore it before continuing."
+            );
+            let pending = tree::exists(&staged)?;
+            let copy = if pending { &staged } else { &entry.new };
+            ensure!(
+                players::is_dir(copy) && tree::absolute(copy)? == *copy,
+                "Reconnect the destination of the interrupted move."
+            );
+            if recovering {
+                ensure!(
+                    tree::same(
+                        &entry.old,
+                        copy,
+                        &entry.old,
+                        &entry.new,
+                        &self.entries,
+                        entry.version && !pending,
+                        &AtomicBool::new(false)
+                    )?,
+                    "The original or staged data changed. Both copies have been kept."
+                );
+            }
+            if pending {
+                fs::create_dir_all(parent)?;
+                crate::fsx::rename_new(&staged, &entry.new)?;
+            }
+            if entry.version {
+                game::record_moved_version(root, &entry.new)?;
+            }
+        }
+        for shortcut in &self.shortcuts {
+            shortcut.retarget(root, true)?;
+        }
+        for cache in &self.caches {
+            mod_store::repoint(cache, &self.old_data, &self.destination)?;
+        }
+        Ok(())
+    }
+}
+
+/// Finish the recorded publication while keeping every original directory intact.
+pub(crate) fn resume_move(root: &Path) -> Result<()> {
+    let receipt = root.join(MOVE_RECEIPT);
+    if !tree::exists(&receipt)? {
+        return Ok(());
+    }
+    let _lease = game::move_lease(root)?;
+    ensure!(
+        fs::symlink_metadata(&receipt)?.is_file(),
+        "Invalid pending folder move."
+    );
+    finish_move(root, &receipt, true)
+}
+
+fn finish_move(root: &Path, receipt: &Path, recovering: bool) -> Result<()> {
+    let change = home::read_json(receipt)?;
+    let key = change["key"]
+        .as_str()
+        .context("Missing folder setting in move receipt.")?;
+    ensure!(
+        matches!(key, "dataFolder" | "buildsFolder" | "work"),
+        "Unknown folder setting in move receipt."
+    );
+    let current = home::settings(root)?;
+    ensure!(
+        current[key] == change["before"] || current[key] == change["after"],
+        "The folder setting changed after the interrupted move."
+    );
+    let registry = if !change["registryAfter"].is_null() {
+        let registry = game::registry::read(root, game::registry::OWN)?;
+        ensure!(
+            registry == change["registryBefore"] || registry == change["registryAfter"],
+            "The version list changed after the interrupted move."
+        );
+        Some(registry)
+    } else {
+        None
+    };
+    let publication: Option<Publication> = serde_json::from_value(change["publication"].clone())?;
+    if let Some(publication) = &publication {
+        publication.publish(root, recovering)?;
+    }
+    for path in change["destinations"]
+        .as_array()
+        .context("Missing move destinations.")?
+    {
+        let path = Path::new(path.as_str().context("Invalid move destination.")?);
+        ensure!(
+            path.is_absolute() && players::is_dir(path) && tree::absolute(path)? == path,
+            "Reconnect the destination of the interrupted folder move: {}",
+            home::display(path)
+        );
+    }
+    if registry
+        .as_ref()
+        .is_some_and(|value| value != &change["registryAfter"])
+    {
+        home::write_json(&root.join(game::registry::OWN), &change["registryAfter"])?;
+    }
+    save_selection(root, key, &change["after"])?;
+    fs::remove_file(receipt)?;
+    if let Some(publication) = publication {
+        let _ = fs::remove_dir(publication.stage); // Only remove an empty stage.
+    }
+    Ok(())
+}
+
+fn save_selection(root: &Path, key: &str, selection: &Value) -> Result<()> {
+    let mut patch = json!({(key): selection});
+    if key == "dataFolder" {
+        patch["buildsFolder"] = Value::Null;
+    }
+    home::patch_settings(root, &patch)
 }
 
 impl Change {
@@ -417,16 +568,14 @@ impl Change {
             "The configured folder changed. Review the locations again."
         );
         self.validate_location(&settings)?;
-        let save = || {
-            let mut patch = json!({(self.kind.key()): self.selection});
-            if self.kind == Kind::Data {
-                patch["buildsFolder"] = Value::Null;
-            }
-            home::patch_settings(&self.root, &patch)
-        };
+        let save = || save_selection(&self.root, self.kind.key(), &self.selection);
         let cache = home::work(&self.root, &settings).join("longshot-builder");
         let data = home::data_folder(&self.root, &settings);
         let _lease = game::move_lease(&self.root)?;
+        ensure!(
+            !tree::exists(&self.root.join(MOVE_RECEIPT))?,
+            "Restart the launcher to finish the previous folder move."
+        );
         if self.kind == Kind::Workspace
             && self.from != self.to
             && tree::exists(&cache.join("mods"))?
@@ -478,6 +627,24 @@ impl Change {
             tree::absolute(&self.to)? == self.to,
             "The destination changed. Choose it again."
         );
+        // Staging happens at the destination and retirement beside each source.
+        // Remember those parents before creating either kind of recovery folder.
+        let parents = self
+            .entries
+            .iter()
+            .filter_map(|entry| entry.old.parent())
+            .chain(std::iter::once(self.to.as_path()));
+        let mut history = settings["moveParents"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
+        for parent in parents {
+            let path = serde_json::to_value(parent)?;
+            history.retain(|old| *old != path);
+            history.push(path);
+        }
+        history.drain(..history.len().saturating_sub(64));
+        home::patch_settings(&self.root, &json!({"moveParents": history}))?;
         let stage = tempfile::Builder::new()
             .prefix(".longshot-move-")
             .tempdir_in(&self.to)?;
@@ -507,9 +674,6 @@ impl Change {
             "The contents changed. Try the move again."
         );
         self.validate_entries()?;
-        let mut published = Vec::new();
-        let mut records = Vec::new();
-        let registry_path = self.root.join(game::registry::OWN);
         let original_registry = if self.kind != Kind::Workspace {
             Some(game::registry::read(&self.root, game::registry::OWN)?)
         } else {
@@ -517,6 +681,7 @@ impl Change {
         };
         let mut shortcuts = Vec::new();
         for entry in self.entries.iter().filter(|e| e.version) {
+            game::check_move_record(&self.root, &entry.new)?;
             let moved = if self.kind == Kind::Data {
                 game::shortcuts_to_move_data(
                     &self.root,
@@ -530,67 +695,36 @@ impl Change {
             shortcuts.extend(moved);
         }
         tree::running(cancelled)?;
-        let mut attempted = 0;
-        let mut wrote_registry = false;
-        let mut relinked_mods = Vec::new();
-        // The originals stay intact through publication and both metadata changes. Cancel
-        // before this short commit or finish the complete transaction.
-        let commit = (|| -> Result<()> {
-            for (index, entry) in self.entries.iter().enumerate() {
-                let parent = entry.new.parent().context("Invalid destination folder.")?;
-                fs::create_dir_all(parent)?;
-                ensure!(
-                    tree::absolute(parent)? == parent,
-                    "The destination changed. Choose it again."
-                );
-                let staged = stage.path().join(index.to_string());
-                tree::publish(&staged, &entry.new)?;
-                published.push((&entry.new, staged));
-                if entry.version
-                    && let Some(record) = game::record_moved_version(&self.root, &entry.new)?
-                {
-                    records.push(record);
+        let receipt = self.root.join(MOVE_RECEIPT);
+        ensure!(
+            !tree::exists(&receipt)?,
+            "Restart the launcher to finish the previous folder move."
+        );
+        let moved = original_registry
+            .as_ref()
+            .map(|original| self.moved_registry(original))
+            .transpose()?;
+        // The stage and the originals remain available until the receipt is consumed.
+        // A crash on either side of any rename is distinguishable by the staged entry.
+        let planned = json!({
+                "key": self.kind.key(), "before": settings[self.kind.key()], "after": self.selection,
+                "destinations": self.entries.iter().map(|entry| &entry.new).collect::<Vec<_>>(),
+                "registryBefore": original_registry, "registryAfter": moved,
+                "publication": {
+                    "stage": stage.path(), "entries": self.entries, "shortcuts": shortcuts,
+                    "caches": mod_caches, "old_data": data, "destination": self.to
                 }
-            }
-            for shortcut in &shortcuts {
-                attempted += 1;
-                shortcut.retarget(true)?;
-            }
-            if let Some(original) = &original_registry {
-                let moved = self.moved_registry(original)?;
-                if moved != *original {
-                    home::write_json(&registry_path, &moved)?;
-                    wrote_registry = true;
-                }
-            }
-            for cache in &mod_caches {
-                mod_store::repoint(cache, &data, &self.to)?;
-                relinked_mods.push(cache);
-            }
-            save()?;
-            Ok(())
-        })();
-        if let Err(err) = commit {
-            for cache in relinked_mods.into_iter().rev() {
-                mod_store::repoint(cache, &self.to, &data)
-                    .context("Both folders were kept because the shared mod store link could not be restored.")?;
-            }
-            if wrote_registry {
-                home::write_json(&registry_path, original_registry.as_ref().unwrap()).context(
-                    "The original folders were kept. Restoring the version list failed.",
-                )?;
-            }
-            for shortcut in shortcuts[..attempted].iter().rev() {
-                shortcut.retarget(false).context("The Steam shortcut could not be restored. Both version folders have been kept.")?;
-            }
-            for record in records {
-                fs::remove_file(record)?;
-            }
-            for (path, staged) in published.into_iter().rev() {
-                tree::publish(path, &staged)?;
-            }
-            return Err(err);
-        }
+        });
+        let stage_path = stage.keep();
+        home::write_json(&receipt, &planned).with_context(|| {
+            format!(
+                "Could not record the move. Verified copies are in {}.",
+                home::display(&stage_path)
+            )
+        })?;
+        finish_move(&self.root, &receipt, false).context(
+            "Restart the launcher to finish the pending folder move. Original data has been kept.",
+        )?;
         // Keep the completed destination even if a third party changes or locks an original
         // after publication. Never delete the previous copy before verifying its contents.
         let mut retained = Vec::new();
@@ -622,7 +756,7 @@ fn retire(old: &Path, new: &Path, version: bool, entries: &[Entry]) -> Result<()
     let parked = hold
         .path()
         .join(old.file_name().context("Invalid source folder.")?);
-    tree::publish(old, &parked)?;
+    crate::fsx::rename_new(old, &parked)?;
     // From now on, errors must leave the original recoverable, including an unexpected exit.
     let holding = hold.keep();
     let verified = tree::same(
@@ -635,7 +769,7 @@ fn retire(old: &Path, new: &Path, version: bool, entries: &[Entry]) -> Result<()
         &AtomicBool::new(false),
     );
     if !matches!(verified, Ok(true)) {
-        tree::publish(&parked, old)
+        crate::fsx::rename_new(&parked, old)
             .with_context(|| format!("The original was kept in {}.", home::display(&parked)))?;
         fs::remove_dir(holding)?;
         verified?;

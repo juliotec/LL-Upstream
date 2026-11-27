@@ -1,3 +1,4 @@
+use crate::UiMutexExt as _;
 mod releases;
 #[cfg(windows)]
 mod shortcuts;
@@ -489,7 +490,7 @@ static RESTART: Mutex<Option<PathBuf>> = Mutex::new(None);
 
 /// Called after the event loop exits and the launcher's home lock has been released.
 pub fn restart_if_needed() -> Result<()> {
-    if let Some(path) = RESTART.lock().unwrap().take() {
+    if let Some(path) = RESTART.guard().take() {
         launcher_command(&path)
             .spawn()
             .context("The launcher was updated. Start it again to use the new version.")?;
@@ -502,7 +503,7 @@ fn start_check(ui: &MainWindow, home: PathBuf, next: Arc<Mutex<Option<Offer>>>) 
     if state.get_busy() {
         return;
     }
-    *next.lock().unwrap() = None;
+    *next.guard() = None;
     state.set_notes_status("Loading launcher release notes…".into());
     state.set_notes_error(false);
     state.set_offer("".into());
@@ -580,7 +581,7 @@ fn start_check(ui: &MainWindow, home: PathBuf, next: Arc<Mutex<Option<Offer>>>) 
                         .unwrap_or_default();
                     state.set_offer(tag.into());
                     state.set_status(checked.status.into());
-                    *next.lock().unwrap() = checked.offer;
+                    *next.guard() = checked.offer;
                     state.set_notes_tag(checked.tag.into());
                 }
                 Err(e) => {
@@ -612,7 +613,7 @@ pub fn bind(ui: &MainWindow, home: PathBuf) {
             state.set_status("Finish the current task and close the game before updating.".into());
             return;
         }
-        let Some(offered) = offer.lock().unwrap().clone() else {
+        let Some(offered) = offer.guard().clone() else {
             return;
         };
         state.set_busy(true);
@@ -636,7 +637,7 @@ pub fn bind(ui: &MainWindow, home: PathBuf) {
                 ui.global::<Updates>().set_applying(false);
                 match result {
                     Ok(path) => {
-                        *RESTART.lock().unwrap() = Some(path);
+                        *RESTART.guard() = Some(path);
                         let _ = slint::quit_event_loop();
                     }
                     Err(e) => ui

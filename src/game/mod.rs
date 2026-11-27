@@ -19,7 +19,7 @@ mod reuse;
 mod sharing;
 mod source;
 mod steam;
-pub(crate) use steam::{shortcuts_to_move, shortcuts_to_move_data};
+pub(crate) use steam::{ShortcutMove, shortcuts_to_move, shortcuts_to_move_data};
 mod upscaler;
 mod versions;
 pub(crate) use versions::storage_versions;
@@ -37,7 +37,7 @@ mod launch;
 mod library;
 mod mod_review;
 pub(crate) use library::FETCH_LOCK;
-pub(crate) use library::{forget_moved_version, record_moved_version};
+pub(crate) use library::{check_move_record, forget_moved_version, record_moved_version};
 pub use library::{install_root, managed_folders, owned_folder};
 
 /// Includes playable discovered installations as well as every registered instance.
@@ -401,6 +401,12 @@ fn inspect_library(ui: &MainWindow, root: &Path) -> Result<()> {
         });
     });
     Ok(())
+}
+
+#[cfg(test)]
+fn fake_version(folder: &std::path::Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(folder.join("builds/default"))?;
+    std::fs::write(folder.join(process::executable()), [])
 }
 
 #[cfg(test)]

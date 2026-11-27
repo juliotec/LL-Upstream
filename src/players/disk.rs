@@ -58,7 +58,7 @@ pub fn copy_tree(from: &Path, to: &Path) -> Result<()> {
 pub(super) fn copy_tree_filtered(
     from: &Path,
     to: &Path,
-    include: &impl Fn(&std::ffi::OsStr) -> bool,
+    include: &impl Fn(&Path) -> bool,
 ) -> Result<()> {
     require_dir(from)?;
     if !to.try_exists()? {
@@ -68,11 +68,11 @@ pub(super) fn copy_tree_filtered(
     for e in fs::read_dir(from)? {
         let e = e?;
         let name = e.file_name();
-        if !include(&name) {
+        let src = e.path();
+        if !include(&src) {
             continue;
         }
         let dst = to.join(name);
-        let src = e.path();
         if is_dir(&src) {
             copy_tree_filtered(&src, &dst, include)?;
         } else {

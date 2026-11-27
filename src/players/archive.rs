@@ -209,6 +209,15 @@ pub fn unpack(mut zip: ZipArchive<File>) -> Result<Unpacked> {
     let save = stage.path().join("save");
     let whole = under_save && !saves::slots(&save.join(saves::UID))?.is_empty();
     let source = if whole {
+        for user in disk::dirs(&save)? {
+            if user
+                .file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(|name| name.len() == 32 && name.bytes().all(|b| b.is_ascii_hexdigit()))
+            {
+                saves::validate_input(&user)?;
+            }
+        }
         save
     } else {
         let mut dir = stage.path().to_owned();

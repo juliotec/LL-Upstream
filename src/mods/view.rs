@@ -218,11 +218,13 @@ impl Screen {
                     .find_map(|k| r[k].as_str().filter(|s| !s.is_empty()))
                     .unwrap_or("");
                 let badge = match self.section {
-                    Section::Installed if r["loose"] == true => "Needs import",
-                    Section::Installed if r["trust"]["asks"] == true => "Review",
-                    Section::Installed if r["on"] == true => "On",
-                    Section::Installed => "Off",
-                    Section::Discover if r["installed"].is_string() => "Installed",
+                    Section::Installed if r["loose"] == true => crate::i18n::key("Needs import"),
+                    Section::Installed if r["trust"]["asks"] == true => crate::i18n::key("Review"),
+                    Section::Installed if r["on"] == true => crate::i18n::key("On"),
+                    Section::Installed => crate::i18n::key("Off"),
+                    Section::Discover if r["installed"].is_string() => {
+                        crate::i18n::key("Installed")
+                    }
                     Section::Discover => field(&r["latest"], "version"),
                     Section::Sources => field(r, "kind"),
                     _ => "",
@@ -241,9 +243,9 @@ impl Screen {
                         .rem_euclid(5) as i32,
                     update: field(&r["update"], "version").into(),
                     kind: if r["unsafe"] == true || r["native"] == true {
-                        "Unsafe"
+                        crate::i18n::key("Unsafe")
                     } else if r["code_hash"].is_string() {
-                        "Code"
+                        crate::i18n::key("Code")
                     } else {
                         ""
                     }
@@ -253,7 +255,7 @@ impl Screen {
                             field(r, "state"),
                             "broken" | "not-loaded" | "held" | "missing"
                         ) {
-                        "Won’t load"
+                        crate::i18n::key("Won’t load")
                     } else {
                         ""
                     }

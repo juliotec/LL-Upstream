@@ -75,6 +75,11 @@ def compare_builder(longshot):
     codes = events.split("## Codes\n", 1)[1].split("\n## ", 1)[0]
     table = [line for line in codes.splitlines() if line.startswith("|")]
     check("Builder error codes", read(ROOT, "tests/fixtures/longshot-builder/codes.md").splitlines(), table)
+    process = read(ROOT, "src/game/process.rs")
+    for label, name in (("The game files", "GAME_FILE_CODES"), ("The builder's own failures", "BUILDER_FAILURE_CODES")):
+        cell = next(row.split("|")[2].strip() for row in table if row.startswith(f"| {label} |"))
+        expected = re.findall(r"(?:^|, )`([a-z_0-9]+)`", cell)
+        check(label, sorted(re.findall(r'"([^"]+)"', rust_array(process, name))), sorted(expected))
     documented = {code for code in re.findall(r"`([a-z][a-z0-9_]+)`", codes)}
     for path in ("src/mods/builder.rs", "src/game/launch.rs"):
         source = read(ROOT, path)
@@ -107,6 +112,7 @@ def main():
     else:
         print("Builder source checks require --longshot or LONGSHOT.", flush=True)
     if not args.contract_only:
+        check("Tooling public keyring", read(ROOT, "scripts/release_keys.json"), read(ROOT, "assets/keys/release_keys.json"))
         check_desktop_names()
         subprocess.run([sys.executable, "-I", "scripts/translations.py"], cwd=ROOT, check=True)
         subprocess.run(["cargo", "test", "--locked"], cwd=ROOT, check=True)

@@ -6,6 +6,8 @@ Open **Saves** to see the files in the active profile. Select a file to see its 
 
 ## Moving from the stable launcher
 
+Launcher preferences start fresh after upgrading from 1.3.x. Select your language, update channel and active profile again. If you used a custom cache drive, choose it in **Settings → Game** before your first build. The save editor and its binary-editing contract tests were retired. The Progress view displays save details read-only. Hookshot game settings must be configured in Longshot.
+
 On the first upgrade from stable, the launcher copies the shared save and its pending writes into the default profile. Existing adventures stay intact. If the default profile already has different saves, the launcher creates a separate **Stable saves** profile. Windows installations with saves still inside individual game folders can produce additional profiles. The original files stay available to stable, and later launches keep the progress you make in each launcher. **Saves → Import** also lists detected stable save slots.
 
 The launcher also imports loose mods from stable’s shared user folder and detected game folders. It preserves their load order and enabled settings. Versions with different mod sets can have separate profiles. Legacy cheat files are retained, but the current mod format cannot run those cheats. Mods that need code permissions still require your approval.
@@ -46,6 +48,6 @@ Longshot makes a backup before replacing existing saves, then stages the incomin
 
 ## Import from Hookshot
 
-Open **Saves → Import**, expand **Hookshot**, and select a slot. The launcher accepts `account.sav`, `option.sav`, and `slot_NN/` directories holding `progress.sav` and an optional `caption.sav`. Every entry must be a regular file or directory, and each save file must be between one byte and 4 MiB.
+Open **Saves → Import**, expand **Hookshot**, and select a slot. Detected-location import copies the selected slot. A complete save ZIP also carries `account.sav` and `option.sav`. Each `slot_NN/` directory holds `progress.sav` and an optional `caption.sav`. Every entry must be a regular file or directory, and each save file must be between one byte and 4 MiB.
 
 The profile store, save transfers, archive validation and caption reader are in [src/players](../src/players). Run `cargo test players::` to exercise them with synthetic data.

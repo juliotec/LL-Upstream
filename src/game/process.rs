@@ -149,18 +149,7 @@ impl Context {
                 command.env_remove(&key);
             }
         }
-        if std::env::var_os("APPIMAGE").is_some() {
-            for (name, old) in [
-                ("LD_LIBRARY_PATH", "LD_LIBRARY_PATH_ORIG"),
-                ("PATH", "PATH_ORIG"),
-            ] {
-                if let Some(value) = std::env::var_os(old) {
-                    command.env(name, value);
-                } else if name == "LD_LIBRARY_PATH" {
-                    command.env_remove(name);
-                }
-            }
-        }
+        restore_host_environment(&mut command);
         command
             .env("LONGSHOT_DATA", home::builder_data(&self.home))
             .env("LONGSHOT_CACHE", &self.cache)
@@ -232,10 +221,66 @@ impl Cancel {
     }
 }
 
+const GAME_FILE_CODES: &[&str] = &[
+    "game_not_found",
+    "game_folder_incomplete",
+    "no_game_files",
+    "no_romfs",
+    "nup_missing",
+    "not_a_nup",
+    "nup_incomplete",
+    "nup_unreadable",
+    "nup_locked",
+    "nup_drive_error",
+    "nup_unsafe_path",
+    "nup_path_not_unicode",
+    "nup_path_too_long",
+    "nup_damaged",
+    "no_such_title",
+    "nup_moved",
+    "not_the_same_nup",
+    "not_a_module",
+    "unsupported_build",
+    "romfs_incomplete",
+    "dump_damaged",
+    "dump_has_links",
+    "dump_unreadable",
+    "extraction_link",
+];
+const BUILDER_FAILURE_CODES: &[&str] = &["io", "tool_failed", "bad_data", "internal_error"];
+
+#[derive(Debug)]
+pub(super) struct BuilderFailure {
+    pub code: String,
+    pub message: String,
+}
+impl BuilderFailure {
+    pub fn is_file_error(&self) -> bool {
+        GAME_FILE_CODES.contains(&self.code.as_str())
+    }
+}
+impl std::fmt::Display for BuilderFailure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.message.is_empty() && BUILDER_FAILURE_CODES.contains(&self.code.as_str()) {
+            return write!(
+                f,
+                "The builder reported an internal failure ({}).",
+                self.code
+            );
+        }
+        f.write_str(if self.message.is_empty() {
+            &self.code
+        } else {
+            &self.message
+        })
+    }
+}
+impl std::error::Error for BuilderFailure {}
+
 pub(super) struct Answer {
     pub status: ExitStatus,
     pub result: Option<Value>,
-    pub error: Option<String>,
+    pub error: Option<BuilderFailure>,
 }
 #[derive(Debug)]
 pub(super) struct UnexpectedExit {
@@ -268,7 +313,7 @@ impl Answer {
 impl Answer {
     pub fn require(self, what: &str) -> Result<Value> {
         if let Some(message) = self.error {
-            bail!("{message}")
+            return Err(message.into());
         }
         ensure!(
             self.status.success(),
@@ -314,6 +359,7 @@ fn read_lines(stream: impl Read, send: mpsc::SyncSender<Output>, stderr: bool) {
     let _ = send.send(Output::End);
 }
 
+#[cfg(windows)]
 pub(super) fn builder_output(child: &mut Child) -> Option<mpsc::Receiver<Output>> {
     let stdout = child.stdout.take()?;
     let stderr = child.stderr.take()?;
@@ -322,6 +368,88 @@ pub(super) fn builder_output(child: &mut Child) -> Option<mpsc::Receiver<Output>
     thread::spawn(move || read_lines(stderr, err_send, true));
     thread::spawn(move || read_lines(stdout, send, false));
     Some(recv)
+}
+
+#[cfg(unix)]
+struct PipeReader<T> {
+    pipe: T,
+    stop: Arc<AtomicBool>,
+}
+
+#[cfg(unix)]
+impl<T: Read + std::os::fd::AsRawFd> Read for PipeReader<T> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let mut pollfd = libc::pollfd {
+            fd: self.pipe.as_raw_fd(),
+            events: libc::POLLIN,
+            revents: 0,
+        };
+        while !self.stop.load(Ordering::Acquire) {
+            // This reader exclusively owns the descriptor. POLLHUP also wakes poll for EOF.
+            let ready = unsafe { libc::poll(&mut pollfd, 1, 50) };
+            if ready > 0 {
+                return self.pipe.read(buf);
+            }
+            if ready < 0 {
+                let error = io::Error::last_os_error();
+                if error.kind() != io::ErrorKind::Interrupted {
+                    return Err(error);
+                }
+            }
+        }
+        Ok(0)
+    }
+}
+
+#[cfg(unix)]
+struct OutputReaders {
+    recv: Option<mpsc::Receiver<Output>>,
+    stop: Arc<AtomicBool>,
+    readers: Vec<thread::JoinHandle<()>>,
+}
+
+#[cfg(unix)]
+impl OutputReaders {
+    fn recv_timeout(&self, timeout: Duration) -> Result<Output, mpsc::RecvTimeoutError> {
+        self.recv.as_ref().unwrap().recv_timeout(timeout)
+    }
+}
+
+#[cfg(unix)]
+impl Drop for OutputReaders {
+    fn drop(&mut self) {
+        self.stop.store(true, Ordering::Release);
+        drop(self.recv.take()); // Also release writers waiting on a full channel.
+        for reader in self.readers.drain(..) {
+            let _ = reader.join();
+        }
+    }
+}
+
+#[cfg(unix)]
+fn builder_output(child: &mut Child) -> Option<OutputReaders> {
+    let stdout = child.stdout.take()?;
+    let stderr = child.stderr.take()?;
+    let stop = Arc::new(AtomicBool::new(false));
+    let stdout = PipeReader {
+        pipe: stdout,
+        stop: stop.clone(),
+    };
+    let stderr = PipeReader {
+        pipe: stderr,
+        stop: stop.clone(),
+    };
+    let (send, recv) = mpsc::sync_channel(128);
+    let err_send = send.clone();
+    let readers = vec![
+        thread::spawn(move || read_lines(stderr, err_send, true)),
+        thread::spawn(move || read_lines(stdout, send, false)),
+    ];
+    Some(OutputReaders {
+        recv: Some(recv),
+        stop,
+        readers,
+    })
 }
 
 #[derive(Debug)]
@@ -349,6 +477,22 @@ pub(super) fn run(
         &mut |_| {},
         &mut |_, _| {},
     )
+}
+
+/// Host utilities must use the host libraries when called from an AppImage.
+pub(super) fn restore_host_environment(command: &mut Command) {
+    if std::env::var_os("APPIMAGE").is_some() {
+        for (name, old) in [
+            ("LD_LIBRARY_PATH", "LD_LIBRARY_PATH_ORIG"),
+            ("PATH", "PATH_ORIG"),
+        ] {
+            if let Some(value) = std::env::var_os(old) {
+                command.env(name, value);
+            } else if name == "LD_LIBRARY_PATH" {
+                command.env_remove(name);
+            }
+        }
+    }
 }
 
 /// A newly installed executable can briefly remain open for writing on Linux.
@@ -398,7 +542,10 @@ pub(super) fn run_with_stages(
     let mut error = None;
     let mut ends = 0;
     let mut stage = "Preparing…".to_string();
-    #[cfg(windows)]
+    #[cfg(unix)]
+    let mut exited_at = None;
+    #[cfg(unix)]
+    let mut tree_stopped = false;
     let mut last_process_poll = std::time::Instant::now();
     loop {
         if let Err(e) = cancel.check() {
@@ -416,6 +563,26 @@ pub(super) fn run_with_stages(
                 // A surviving compiler may still own a pipe after the builder
                 // crashes. Close the job before waiting for those pipes to drain.
                 drop(job.take());
+            }
+        }
+        #[cfg(unix)]
+        if ends < 2 && last_process_poll.elapsed() >= Duration::from_millis(100) {
+            last_process_poll = std::time::Instant::now();
+            if let Some(status) = child.try_wait()? {
+                let elapsed = exited_at
+                    .get_or_insert_with(std::time::Instant::now)
+                    .elapsed();
+                if !tree_stopped && elapsed >= Duration::from_secs(1) {
+                    kill_tree(&mut child);
+                    tree_stopped = true;
+                } else if tree_stopped && elapsed >= Duration::from_secs(3) {
+                    // An escaped descendant may keep a descriptor open indefinitely.
+                    return Ok(Answer {
+                        status,
+                        result,
+                        error,
+                    });
+                }
             }
         }
         if ends == 2 {
@@ -451,11 +618,10 @@ pub(super) fn run_with_stages(
                         if !text.is_empty() {
                             notify(text, None);
                         }
-                        error = Some(if text.is_empty() {
-                            e["code"].as_str().unwrap_or("Builder failed").to_string()
-                        } else {
-                            text.to_owned()
-                        })
+                        error = Some(BuilderFailure {
+                            code: e["code"].as_str().unwrap_or("Builder failed").to_owned(),
+                            message: text.to_owned(),
+                        });
                     }
                     Some("stage") => {
                         stage = text.to_owned();
@@ -581,7 +747,8 @@ mod tests {
         let mut command = Command::new("sh");
         command.args(["-c", r#"printf '%s\n' '{"v":1,"type":"error","text":"The install drive is offline"}'; exit 1"#]);
         command.stdout(Stdio::piped()).stderr(Stdio::piped());
-        let output = super::super::launch::LaunchOutput::attach(&mut command)?;
+        let output =
+            super::super::launch::LaunchOutput::attach(&mut command, &std::env::temp_dir())?;
         let error = super::super::launch::wait_shortcut(super::super::versions::Session {
             child: command.spawn()?,
             output: Some(output),
@@ -610,6 +777,36 @@ mod tests {
             .require("Build")
             .unwrap_err();
         assert_eq!(error.to_string(), "Invalid input");
+        Ok(())
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn exited_builder_cannot_leave_the_ui_waiting_on_worker_pipes() -> Result<()> {
+        let mut command = Command::new("sh");
+        command.args(["-c", "sleep 25 & exit 19"]);
+        let started = std::time::Instant::now();
+        let result = run(command, "done", &Cancel::default(), &mut |_, _| {})?;
+        assert_eq!(result.status.code(), Some(19));
+        assert!(started.elapsed() < Duration::from_secs(10));
+        Ok(())
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn closing_output_readers_releases_pipes_with_a_live_writer() -> Result<()> {
+        use std::io::Write;
+        let mut writer = Command::new("sh")
+            .args(["-c", "trap '' PIPE; printf partial; read -r ready; if printf x; then exit 42; fi; if printf y >&2; then exit 43; fi; exit 0"])
+            .stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn()?;
+        let start = std::time::Instant::now();
+        drop(builder_output(&mut writer).unwrap());
+        writer.stdin.take().unwrap().write_all(b"ready\n")?;
+        assert!(
+            writer.wait()?.success(),
+            "Both inherited write ends should see EPIPE"
+        );
+        assert!(start.elapsed() < Duration::from_secs(3));
         Ok(())
     }
 

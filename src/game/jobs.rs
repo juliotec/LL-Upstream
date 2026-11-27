@@ -3,6 +3,7 @@ use super::{
     refresh,
     releases::{self, Target},
 };
+use crate::UiMutexExt as _;
 use crate::{Game, MainWindow};
 use anyhow::Result;
 use slint::ComponentHandle;
@@ -89,11 +90,11 @@ pub(super) fn worker(
         return;
     }
     let cancel = Cancel::default();
-    work.lock().unwrap().cancel = cancel.clone();
+    work.guard().cancel = cancel.clone();
     global.set_busy(true);
     let weak = ui.as_weak();
     let state = work.clone();
-    let check = state.lock().unwrap().check.active;
+    let check = state.guard().check.active;
     let home_dir = home_dir.to_owned();
     thread::spawn(move || {
         let mut last = std::time::Instant::now() - std::time::Duration::from_secs(1);
@@ -109,7 +110,7 @@ pub(super) fn worker(
                 let state = state.clone();
                 let _ = weak.upgrade_in_event_loop(move |ui| {
                     if let Some(revision) = check
-                        && !super::autocheck::current(&ui, &state.lock().unwrap().check, revision)
+                        && !super::autocheck::current(&ui, &state.guard().check, revision)
                     {
                         return;
                     }
@@ -126,7 +127,7 @@ pub(super) fn worker(
         });
         let _ = weak.upgrade_in_event_loop(move |ui| {
             if let Some(revision) = check {
-                let mut work = state.lock().unwrap();
+                let mut work = state.guard();
                 let valid = super::autocheck::current(&ui, &work.check, revision);
                 work.check.active = None;
                 drop(work);
@@ -143,6 +144,7 @@ pub(super) fn worker(
 
 fn finish(ui: &MainWindow, state: &SharedWork, home_dir: &Path, result: Result<Progress>) {
     let g = ui.global::<Game>();
+    let report_ui = ui.global::<crate::BuildReport>();
     g.set_busy(false);
     match result {
         Ok(Progress::ModTrust(request, grant)) => {
@@ -162,7 +164,7 @@ fn finish(ui: &MainWindow, state: &SharedWork, home_dir: &Path, result: Result<P
             g.set_typed_number("".into());
             g.set_status("".into());
             g.set_pending_tag(s.tag.clone().into());
-            state.lock().unwrap().review = Some(Target::Source(s));
+            state.guard().review = Some(Target::Source(s));
         }
         Ok(Progress::Checked(p, mod_review)) => {
             crate::diagnostics::event("Game file check passed");
@@ -179,7 +181,7 @@ fn finish(ui: &MainWindow, state: &SharedWork, home_dir: &Path, result: Result<P
                     ui.set_notice(format!("Could not check mod permissions. {error:#}").into());
                 }
             }
-            state.lock().unwrap().prepared = Some(*p);
+            state.guard().prepared = Some(*p);
             g.set_step(crate::GameStep::Settings);
             g.set_status("".into());
         }
@@ -196,17 +198,17 @@ fn finish(ui: &MainWindow, state: &SharedWork, home_dir: &Path, result: Result<P
         Ok(Progress::Problem { why, report }) => {
             g.set_play_after_build(false);
             crate::diagnostics::event("Game build did not complete");
-            state.lock().unwrap().report = Some(report);
-            g.set_can_report(true);
-            g.set_report_preview("".into());
-            g.set_report_sent(false);
-            g.set_reporting(false);
-            g.set_report_status("".into());
+            state.guard().report = Some(report);
+            report_ui.set_can_report(true);
+            report_ui.set_report_preview("".into());
+            report_ui.set_report_sent(false);
+            report_ui.set_reporting(false);
+            report_ui.set_report_status("".into());
             g.set_status(why.into());
             g.set_step(crate::GameStep::Problem);
         }
         Ok(Progress::Built(duration)) => {
-            let mut work = state.lock().unwrap();
+            let mut work = state.guard();
             work.finished_build = work
                 .prepared
                 .as_ref()
@@ -234,12 +236,17 @@ fn finish(ui: &MainWindow, state: &SharedWork, home_dir: &Path, result: Result<P
         }
         Err(error) => {
             g.set_play_after_build(false);
-            g.set_file_error(g.get_step() == crate::GameStep::Files);
+            g.set_file_error(
+                g.get_step() == crate::GameStep::Files
+                    && error
+                        .downcast_ref::<super::process::BuilderFailure>()
+                        .is_none_or(|failure| failure.is_file_error()),
+            );
             if g.get_step() == crate::GameStep::Building {
                 crate::diagnostics::event("Game build did not complete");
-                state.lock().unwrap().report = None;
-                g.set_can_report(false);
-                g.set_report_preview("".into());
+                state.guard().report = None;
+                report_ui.set_can_report(false);
+                report_ui.set_report_preview("".into());
                 g.set_step(crate::GameStep::Problem);
             } else {
                 crate::diagnostics::event("Game operation did not complete");
@@ -311,8 +318,7 @@ mod tests {
         let home = Path::new(&root);
         let tag = "nightly-15-abcdef12";
         let folder = home.join("versions").join(tag);
-        fs::create_dir_all(folder.join("builds/default"))?;
-        fs::write(folder.join(super::super::process::executable()), [])?;
+        crate::game::fake_version(&folder)?;
         let profile = home.join("profiles/default");
         fs::create_dir_all(&profile)?;
         crate::home::write_json(
@@ -333,7 +339,7 @@ mod tests {
         let requested = |profile: &Path, tag: &str| {
             let mut ctx = Context::load(home).unwrap();
             ctx.profile = profile.into();
-            state.lock().unwrap().prepared = Some(Prepared {
+            state.guard().prepared = Some(Prepared {
                 ctx,
                 game: home.join("sample.nup"),
                 exe: folder.join(super::super::process::executable()),
@@ -360,7 +366,7 @@ mod tests {
         built();
         assert_eq!(calls.get(), 0);
         requested(&profile, tag);
-        state.lock().unwrap().prepared.as_mut().unwrap().exe = home
+        state.guard().prepared.as_mut().unwrap().exe = home
             .join("other-copy")
             .join(super::super::process::executable());
         built();
@@ -368,9 +374,9 @@ mod tests {
         ui.global::<Game>().set_play_after_build(false);
         built();
         requested(&profile, tag);
-        state.lock().unwrap().cancel.request();
+        state.guard().cancel.request();
         built();
-        state.lock().unwrap().cancel = Cancel::default();
+        state.guard().cancel = Cancel::default();
         assert_eq!(calls.get(), 0);
         requested(&profile, tag);
         built();

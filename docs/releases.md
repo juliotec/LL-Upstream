@@ -3,7 +3,7 @@
 Longshot releases the game builder. Longshot Launcher releases the app that installs the builder, keeps game versions
 and profiles, and starts the game. The two products share a release format and publish independently on Forgejo.
 
-This guide is maintained in both repositories. Use
+For product-specific release instructions, use
 [Longshot's builder release guide](https://git.magicbean.dev/MagicBeanDev/Longshot/src/branch/main/docs/dev/reference/releases.md)
 for builder packaging and tools, and
 [the launcher release checklist](https://git.magicbean.dev/MagicBeanDev/LongshotLauncher/src/branch/main/RELEASING.md)

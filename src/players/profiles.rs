@@ -10,18 +10,18 @@ use std::{
 use tempfile::{Builder, NamedTempFile};
 
 pub const COLORS: [(&str, &str); 12] = [
-    ("Sage", "#7F9D53"),
-    ("Russet", "#A9573C"),
-    ("Mustard", "#D8A840"),
-    ("Olive", "#56643A"),
-    ("Sand", "#D8BC8C"),
-    ("Teal", "#68A699"),
-    ("Sky", "#80AEC9"),
-    ("Lavender", "#AC96C5"),
-    ("Plum", "#AB7D9E"),
-    ("Rose", "#CD8584"),
-    ("Apricot", "#DBA06C"),
-    ("Slate", "#8399A5"),
+    (crate::i18n::key("Sage"), "#7F9D53"),
+    (crate::i18n::key("Russet"), "#A9573C"),
+    (crate::i18n::key("Mustard"), "#D8A840"),
+    (crate::i18n::key("Olive"), "#56643A"),
+    (crate::i18n::key("Sand"), "#D8BC8C"),
+    (crate::i18n::key("Teal"), "#68A699"),
+    (crate::i18n::key("Sky"), "#80AEC9"),
+    (crate::i18n::key("Lavender"), "#AC96C5"),
+    (crate::i18n::key("Plum"), "#AB7D9E"),
+    (crate::i18n::key("Rose"), "#CD8584"),
+    (crate::i18n::key("Apricot"), "#DBA06C"),
+    (crate::i18n::key("Slate"), "#8399A5"),
 ];
 
 pub fn valid_id(id: &str) -> bool {
@@ -306,12 +306,35 @@ pub fn new_or_rename(home: &Path, mode: &str, id: &str, name: &str) -> Result<()
     if mode == "duplicate" {
         ensure!(valid_id(id), "Unknown profile.");
         let from = root.join(id);
+        disk::require_dir(&from)?;
         super::running::saves_idle(&[&from])?;
+        let saves = from.join("saves");
+        let lock = saves::SaveLock::acquire(&saves)?;
+        for target in [
+            &saves,
+            &saves.join("save"),
+            &saves.join("save").join(saves::UID),
+        ] {
+            ensure!(
+                !crate::fsx::linked_location(target)?,
+                "A linked save directory cannot be duplicated."
+            );
+            lock.recover_target(target)?;
+        }
         file = read(&from)?;
-        disk::copy_tree_filtered(&from, stage.path(), &|name| {
-            name.to_str().is_none_or(|name| {
-                name != ".longshot-save-transfer.lock" && !name.ends_with(".longshot-old")
-            })
+        disk::copy_tree_filtered(&from, stage.path(), &|path| {
+            if path.parent() != Some(&from) && !path.starts_with(&saves) {
+                return true;
+            }
+            path.file_name()
+                .and_then(|name| name.to_str())
+                .is_none_or(|name| {
+                    !matches!(name, ".longshot-save-transfer.lock" | ".longshot-edit.lock")
+                        && !name.ends_with(".longshot-old")
+                        && ![".tmp", ".previous-", ".save-removal-"]
+                            .iter()
+                            .any(|prefix| name.starts_with(prefix))
+                })
         })?;
         super::running::saves_idle(&[&from])?;
         file["name"] = json!(name);

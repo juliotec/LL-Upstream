@@ -12,6 +12,14 @@ use std::{
 };
 
 impl Screen {
+    fn ask(&mut self, text: String, args: Vec<OsString>, preview: Option<(Vec<OsString>, Value)>) {
+        self.review = Some(Review {
+            text,
+            args,
+            preview,
+        });
+    }
+
     fn confirm(&mut self, root: &Path) -> Result<()> {
         let grants = std::mem::take(&mut self.pending_permissions);
         if !grants.is_empty() {
@@ -159,11 +167,7 @@ impl Screen {
         if !perms.is_empty() {
             text.push_str(&format!("\n\nPermissions · {}", perms.join(", ")));
         }
-        self.review = Some(Review {
-            preview: Some((preview, plan)),
-            text,
-            args: command,
-        });
+        self.ask(text, command, Some((preview, plan)));
         Ok(())
     }
 
@@ -238,11 +242,7 @@ impl Screen {
             if !changes.is_empty() {
                 text.push_str(&format!("\n\nInstall or update\n{}", changes.join("\n")));
             }
-            self.review = Some(Review {
-                text,
-                args: command,
-                preview: Some((preview, plan)),
-            });
+            self.ask(text, command, Some((preview, plan)));
             return Ok(());
         }
         self.change(root, &command)?;
@@ -270,12 +270,10 @@ impl Screen {
         );
         if !key.is_empty() {
             text.push_str(&format!("\n\nCheck the repository signing key\n{key}"));
+        } else {
+            text.push_str("\n\nThis repository is unsigned. Its publisher cannot be verified.");
         }
-        self.review = Some(Review {
-            preview: None,
-            text,
-            args: command,
-        });
+        self.ask(text, command, None);
         Ok(())
     }
     fn source_action(&mut self, root: &Path, action: &str, row: &Value) -> Result<()> {
@@ -302,13 +300,11 @@ impl Screen {
                 self.select(target.min(self.rows.len().saturating_sub(1)));
             }
             "refresh-source" => return self.change(root, &args(&["source", "refresh", url])),
-            "remove-source" => {
-                self.review = Some(Review {
-                    preview: None,
-                    text: format!("Remove {} from your repositories?\n{url}", name(row)),
-                    args: args(&["source", "remove", url]),
-                })
-            }
+            "remove-source" => self.ask(
+                format!("Remove {} from your repositories?\n{url}", name(row)),
+                args(&["source", "remove", url]),
+                None,
+            ),
             _ => bail!("Choose a repository action."),
         }
         Ok(())
@@ -319,11 +315,7 @@ impl Screen {
             .as_ref()
             .context("Choose a profile and game first.")?;
         let grant = super::trust::BuilderGrant::from_row(root, exe, profile, row)?;
-        self.review = Some(Review {
-            preview: None,
-            text: grant.description(),
-            args: grant.command(),
-        });
+        self.ask(grant.description(), grant.command(), None);
         Ok(())
     }
     fn resolve_needs(&mut self, root: &Path, row: &Value) -> Result<()> {
@@ -490,15 +482,15 @@ impl Screen {
         if action == "import" && self.section == Section::Emulators {
             let path = Path::new(field(&row, "folder"));
             ensure!(path.is_absolute(), "The emulator mod has no local folder.");
-            self.review = Some(Review {
-                preview: None,
-                text: format!(
+            self.ask(
+                format!(
                     "Import {} into this profile?\n{}",
                     name(&row),
                     crate::home::display(path)
                 ),
-                args: vec!["import".into(), path.into()],
-            });
+                vec!["import".into(), path.into()],
+                None,
+            );
             return Ok(());
         }
         let id = word(field(&row, "id"))?;
@@ -522,26 +514,24 @@ impl Screen {
                     &args(&["order", id, if action == "up" { "--up" } else { "--down" }]),
                 );
             }
-            "remove" => {
-                self.review = Some(Review {
-                    preview: None,
-                    text: if row["kind"] == "manual"
-                        || row["path"].as_str().is_some_and(|p| p.starts_with("mods/"))
-                    {
-                        format!("Remove {} and its files from this profile?", name(&row))
+            "remove" => self.ask(
+                if row["kind"] == "manual"
+                    || row["path"].as_str().is_some_and(|p| p.starts_with("mods/"))
+                {
+                    format!("Remove {} and its files from this profile?", name(&row))
+                } else {
+                    format!("Remove {} from this profile?", name(&row))
+                },
+                args(&[
+                    "remove",
+                    if row["in_profile"] == false && !field(&row, "path").is_empty() {
+                        word(field(&row, "path"))?
                     } else {
-                        format!("Remove {} from this profile?", name(&row))
+                        id
                     },
-                    args: args(&[
-                        "remove",
-                        if row["in_profile"] == false && !field(&row, "path").is_empty() {
-                            word(field(&row, "path"))?
-                        } else {
-                            id
-                        },
-                    ]),
-                })
-            }
+                ]),
+                None,
+            ),
             "install" | "update" => return self.install(root, &row, action == "update"),
             "fix-dependency" => match self
                 .dependency
@@ -549,11 +539,11 @@ impl Screen {
                 .context("Select a mod with an unmet dependency.")?
             {
                 Dependency::Enable(name) => {
-                    self.review = Some(Review {
-                        text: format!("Turn on {name} in this profile?"),
-                        args: args(&["enable", word(name)?]),
-                        preview: None,
-                    });
+                    self.ask(
+                        format!("Turn on {name} in this profile?"),
+                        args(&["enable", word(name)?]),
+                        None,
+                    );
                 }
                 Dependency::Find(name) => {
                     self.query = word(name)?.to_owned();

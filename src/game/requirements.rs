@@ -218,16 +218,17 @@ impl BuildSpace {
         }
     }
 
-    pub fn recommendation(&self) -> String {
+    pub fn recommendation(&self, language: &str) -> String {
         if self.shared {
-            format!(
-                "Allow about {} GiB on this drive for a first build with shaders.",
-                CACHE_GIB + DATA_GIB
+            crate::i18n::lookup(
+                language,
+                "Allow about {0} GiB on this drive for a first build with shaders.",
             )
+            .replace("{0}", &(CACHE_GIB + DATA_GIB).to_string())
         } else {
-            format!(
-                "Allow about {CACHE_GIB} GiB for Cache and {DATA_GIB} GiB for Longshot data on a first build with shaders."
-            )
+            crate::i18n::lookup(language, "Allow about {0} GiB for Cache and {1} GiB for Longshot data on a first build with shaders.")
+                .replace("{0}", &CACHE_GIB.to_string())
+                .replace("{1}", &DATA_GIB.to_string())
         }
     }
 
@@ -270,7 +271,7 @@ mod tests {
         };
         assert!(same.below_estimate());
         assert_eq!(same.available(), "14.0 GiB free");
-        assert!(same.recommendation().contains("15 GiB"));
+        assert!(same.recommendation("en-US").contains("15 GiB"));
         let enough = BuildSpace {
             cache: Some(15 * GIB),
             ..same
@@ -283,7 +284,7 @@ mod tests {
         };
         assert!(separate.below_estimate());
         assert!(separate.available().contains("Data: 1.0 GiB free"));
-        assert!(separate.recommendation().contains("12 GiB"));
+        assert!(separate.recommendation("en-US").contains("12 GiB"));
         let unmeasured = BuildSpace {
             shared: false,
             cache: None,

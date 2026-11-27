@@ -1,5 +1,17 @@
 #![cfg_attr(windows, windows_subsystem = "windows")]
 
+/// UI state remains accessible after the worker's error has been surfaced.
+/// Filesystem transactions take their own locks and validate state separately.
+trait UiMutexExt<T> {
+    fn guard(&self) -> std::sync::MutexGuard<'_, T>;
+}
+impl<T> UiMutexExt<T> for std::sync::Mutex<T> {
+    fn guard(&self) -> std::sync::MutexGuard<'_, T> {
+        self.lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+}
+
 mod controller;
 mod desktop;
 mod diagnostics;
@@ -156,6 +168,7 @@ fn window(root: PathBuf, folder: Option<PathBuf>) -> Result<()> {
         return Ok(());
     };
     diagnostics::start(&root, false);
+    folders::resume_move(&root)?;
     let ui = MainWindow::new()?;
     slint::set_xdg_app_id("longshot-launcher")?;
     notice(&ui, update::recover_after_lock());
@@ -469,6 +482,7 @@ fn run(show_error_dialog: &mut bool) -> Result<()> {
             };
             diagnostics::start(&root, true);
             if let Some(_guard) = home::acquire(&root)? {
+                folders::resume_move(&root)?;
                 game::registry::prepare(&root, home::is_portable(&root))?;
                 players::initialize(&root)?;
                 players::migrate_stable(&root)?;

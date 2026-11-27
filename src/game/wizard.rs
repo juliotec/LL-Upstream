@@ -5,6 +5,7 @@ use super::{
     releases::{self, Target},
     versions,
 };
+use crate::UiMutexExt as _;
 use crate::{Game, MainWindow, home, players};
 use anyhow::{Context as _, Result, bail, ensure};
 use serde_json::{Value, json};
@@ -195,7 +196,7 @@ pub(super) fn open(
     g.set_folders_open(false);
     g.set_number(number);
     {
-        let mut state = work.lock().unwrap();
+        let mut state = work.guard();
         state.preload.request();
         let generation = state.generation.wrapping_add(1);
         *state = Work {
@@ -242,7 +243,11 @@ pub(super) fn location(ui: &MainWindow, ctx: &Context, intent: &BuildIntent) {
     };
     let storage = super::requirements::BuildSpace::inspect(&ctx.cache, &target);
     g.set_build_space(storage.available().into());
-    g.set_first_build_space(storage.recommendation().into());
+    g.set_first_build_space(
+        storage
+            .recommendation(&ui.global::<crate::Locale>().get_language())
+            .into(),
+    );
     g.set_low_build_space(storage.below_estimate());
     g.set_space_measured(storage.measured());
 }
@@ -278,11 +283,10 @@ pub(super) fn check(ui: &MainWindow, home_dir: &Path, work: &SharedWork) -> Resu
         String::new()
     };
     let approved = g.get_source_approved() && g.get_confirm_number() == g.get_typed_number();
-    let intent = work.lock().unwrap().intent.clone();
+    let intent = work.guard().intent.clone();
     let update_target = g.get_update_target().to_string();
     let reviewed = work
-        .lock()
-        .unwrap()
+        .guard()
         .review
         .clone()
         .filter(|t| t.tag() == g.get_pending_tag().as_str() && approved);
@@ -376,8 +380,7 @@ pub(super) fn build(ui: &MainWindow, home_dir: &Path, work: &SharedWork) -> Resu
         "Wait for the selected game files to be checked."
     );
     let p = work
-        .lock()
-        .unwrap()
+        .guard()
         .prepared
         .clone()
         .context("Check your game files first.")?;
@@ -514,6 +517,7 @@ fn build_and_register(
         std::fs::File::create_new(&marker)?;
     }
     let upscalers = options.upscalers();
+    let _stay_awake = super::awake::BuildInhibitor::acquire();
     let reused = super::reuse::existing(&p, options, cancel, progress).unwrap_or_else(|error| {
         eprintln!("Could not reuse the existing game: {error:#}");
         None
@@ -533,7 +537,7 @@ fn build_and_register(
                 &format!(
                     "[WARN] {}. {} Updates may use less.",
                     storage.available(),
-                    storage.recommendation()
+                    storage.recommendation("en-US")
                 ),
             );
         }
@@ -649,7 +653,6 @@ fn run_builder(
             None,
         );
     }
-    let _stay_awake = super::awake::BuildInhibitor::acquire();
     let result = super::process::run_with_stages(
         cmd,
         "done",

@@ -61,3 +61,6 @@ These folders are relative to the builder cache root. A standalone builder uses 
 - Stable saves and mods can be read under `~/.local/share/longshot/user/` on Linux and `%APPDATA%\Longshot\` on Windows, and from older registered game folders. Save import also looks in the installed Hookshot, NX2navi, Lichii, Eden and Eglantine directories.
 - The builder reads the selected `.nup`, `.nx`, or extracted `romfs/` and `exefs/` input at the location you choose. Save archives and manually selected files use their chosen paths.
 - Steam integration reads or updates the selected Steam account's `config/shortcuts.vdf` and keeps its Longshot shortcut metadata beside it.
+
+
+When a folder move is interrupted during metadata publication, the launcher finishes updating its settings and version registry on the next start. Storage lists leftover staging directories and parked originals under **Your data → Interrupted folder move**, with their locations. A parked original can hold the only copy of a profile, so these rows are excluded from cache cleanup.

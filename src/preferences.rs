@@ -3,6 +3,7 @@ mod controller_rules;
 mod folders;
 use crate::{Locale, MainWindow, Preferences, SettingToggle, Updates, home, i18n};
 use anyhow::Result;
+pub(crate) use folders::bind as bind_folders;
 use serde_json::{Value, json};
 use slint::{ComponentHandle, Model, ModelRc, SharedString};
 use std::path::{Path, PathBuf};
@@ -160,9 +161,9 @@ pub fn refresh(ui: &MainWindow, root: &Path) -> Result<()> {
     p.set_menu_available(available);
     p.set_menu_label(
         if owns_entry {
-            "Write the menu entry again"
+            crate::i18n::key("Write the menu entry again")
         } else {
-            "Add to applications menu"
+            crate::i18n::key("Add to applications menu")
         }
         .into(),
     );
@@ -197,8 +198,7 @@ pub fn bind(ui: &MainWindow, root: &Path) -> Result<()> {
     ui.global::<Locale>()
         .on_display_path(|path| crate::home::display(Path::new(path.as_str())).into());
     crate::storage::cleanup::bind(ui, root);
-    ui.global::<Locale>()
-        .on_lookup(|lang, key| i18n::lookup(lang.as_str(), key.as_str()).into());
+    i18n::bind_messages(&ui.global::<Locale>());
     let (weak, path) = (ui.as_weak(), root.to_owned());
     p.on_language(move |index| {
         if let Some(ui) = weak.upgrade() {
@@ -229,7 +229,6 @@ pub fn bind(ui: &MainWindow, root: &Path) -> Result<()> {
             }
         }
     });
-    folders::bind(ui, root);
     let (weak, path) = (ui.as_weak(), root.to_owned());
     p.on_menu(move |remove| {
         if let Some(ui) = weak.upgrade()

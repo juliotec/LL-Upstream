@@ -6,18 +6,22 @@ use slint::ComponentHandle;
 use std::time::{Duration, Instant};
 
 const STAGES: [(&str, &str, f64); 5] = [
-    ("read", "Read your game files", 76.),
-    ("lift", "Translate the game to PC code", 57.),
-    ("compile", "Compile", 305.),
-    ("finish", "Put the game together", 66.),
-    ("shaders", "Prepare the shaders", 311.),
+    ("read", crate::i18n::key("Read your game files"), 76.),
+    (
+        "lift",
+        crate::i18n::key("Translate the game to PC code"),
+        57.,
+    ),
+    ("compile", crate::i18n::key("Compile"), 305.),
+    ("finish", crate::i18n::key("Put the game together"), 66.),
+    ("shaders", crate::i18n::key("Prepare the shaders"), 311.),
 ];
 const ACTIVE_LABELS: [&str; 5] = [
-    "Reading your game files",
-    "Translating the game to PC code",
-    "Compiling",
-    "Putting the game together",
-    "Preparing shaders",
+    crate::i18n::key("Reading your game files"),
+    crate::i18n::key("Translating the game to PC code"),
+    crate::i18n::key("Compiling"),
+    crate::i18n::key("Putting the game together"),
+    crate::i18n::key("Preparing shaders"),
 ];
 const COMPILE: usize = 2;
 const SHADERS: usize = 4;

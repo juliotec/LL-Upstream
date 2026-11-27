@@ -17,7 +17,9 @@ pub(super) fn for_module(key: &str, windows: bool) -> Result<License> {
         "dlss" => License {
             setting: "dlssLicense",
             receipt: Some(("nvidia", "9981c6350dc58c0ce21f024fd65e31e851c31689")),
-            summary: "The builder downloads NVIDIA's DLSS SDK v310.9.16. Its runtime files stay on this PC with your build.",
+            summary: crate::i18n::key(
+                "The builder downloads NVIDIA's DLSS SDK v310.9.16. Its runtime files stay on this PC with your build.",
+            ),
             document: include_str!("../../assets/licenses/NVIDIA-DLSS.txt"),
             source: Some(
                 "https://github.com/NVIDIA/DLSS/blob/9981c6350dc58c0ce21f024fd65e31e851c31689/LICENSE.txt",
@@ -26,7 +28,9 @@ pub(super) fn for_module(key: &str, windows: bool) -> Result<License> {
         "fsr4" if windows => License {
             setting: "fsrLicense",
             receipt: Some(("amd", "7539ae8b6568ad29ed78a753404351daf3b5cca7")),
-            summary: "The builder downloads AMD's signed FSR 4 Vulkan runtime from FidelityFX SDK v2.4.0 and includes AMD's licence with your build.",
+            summary: crate::i18n::key(
+                "The builder downloads AMD's signed FSR 4 Vulkan runtime from FidelityFX SDK v2.4.0 and includes AMD's licence with your build.",
+            ),
             document: include_str!("../../assets/licenses/AMD-FSR.md"),
             source: Some(
                 "https://github.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK/blob/7539ae8b6568ad29ed78a753404351daf3b5cca7/Kits/FidelityFX/docs/license.md",
@@ -35,14 +39,18 @@ pub(super) fn for_module(key: &str, windows: bool) -> Result<License> {
         "fsr4" => License {
             setting: "fsrLinuxNotice",
             receipt: None,
-            summary: "Choose your Vulkan FSR 4 library to use it with this build.",
+            summary: crate::i18n::key(
+                "Choose your Vulkan FSR 4 library to use it with this build.",
+            ),
             document: "On Linux the builder compiles FSR 4 into the game's Vulkan renderer. The game loads amd_fidelityfx_upscaler_vk.so from your build folder. Choose a library you can use under its own terms. The launcher copies it to the build folder on this PC.",
             source: None,
         },
         "xess" if windows => License {
             setting: "xessLicense",
             receipt: Some(("intel", "de0fb9c1c510661c571164e1418ceca8101dab69")),
-            summary: "The builder downloads Intel's signed XeSS Super Resolution library 2.0.2.68 and includes Intel's licence and third-party notices with your build.",
+            summary: crate::i18n::key(
+                "The builder downloads Intel's signed XeSS Super Resolution library 2.0.2.68 and includes Intel's licence and third-party notices with your build.",
+            ),
             document: concat!(
                 include_str!("../../assets/licenses/Intel-XeSS.txt"),
                 "\n\n",

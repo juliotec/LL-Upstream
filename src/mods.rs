@@ -1,4 +1,5 @@
 //! The selected game’s builder owns the mod store, load order and code grants.
+use crate::UiMutexExt as _;
 mod actions;
 mod builder;
 pub(crate) mod local;
@@ -44,6 +45,7 @@ impl Section {
 
 #[derive(Default)]
 struct Screen {
+    deadline: Option<std::time::Instant>,
     section: Section,
     basic: bool,
     pending_permissions: Vec<trust::Grant>,
@@ -74,12 +76,13 @@ struct Review {
 
 impl Screen {
     fn run(&self, root: &Path, words: &[OsString]) -> Result<(Value, String)> {
-        builder::run(root, words, self.identity.as_ref())
+        builder::run(root, words, self.identity.as_ref(), self.deadline)
     }
 
     // Catch while the caller still holds the lock. A panicking operation
     // discards its partial screen state without poisoning the UI mutex.
     fn run_job(&mut self, action: impl FnOnce(&mut Self) -> Result<()>) {
+        self.deadline = Some(std::time::Instant::now() + builder::ACTION_TIMEOUT);
         match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| action(self))) {
             Ok(Ok(())) => {}
             Ok(Err(error)) => self.message = format!("{error:#}"),
@@ -90,6 +93,7 @@ impl Screen {
                 crate::diagnostics::event("Mod worker panicked");
             }
         }
+        self.deadline = None;
     }
 }
 
@@ -114,7 +118,7 @@ pub fn bind(ui: &MainWindow, root: &Path) {
             return;
         }
         if let Ok(i) = usize::try_from(index) {
-            let mut state = filtering.lock().unwrap();
+            let mut state = filtering.guard();
             state.category(i);
             state.paint(&ui);
         }
@@ -126,19 +130,12 @@ pub fn bind(ui: &MainWindow, root: &Path) {
         if ui.global::<Mods>().get_busy() {
             return;
         }
-        let mut screen = selection.lock().unwrap();
+        let mut screen = selection.guard();
         if let Ok(i) = usize::try_from(index)
             && i < screen.rows.len()
         {
             screen.select(i);
             screen.paint(&ui);
-        }
-    });
-    let weak = ui.as_weak();
-    ui.global::<Mods>().on_add_path(move |path| {
-        if let Some(ui) = weak.upgrade() {
-            ui.global::<Mods>().set_entry(path);
-            ui.global::<Mods>().invoke_action("drop".into());
         }
     });
     let root = root.to_owned();
@@ -184,12 +181,12 @@ pub fn bind(ui: &MainWindow, root: &Path) {
         let screen = Arc::clone(&screen);
         std::thread::spawn(move || {
             {
-                let mut state = screen.lock().unwrap();
+                let mut state = screen.guard();
                 state.run_job(|state| state.act(&root, &action, &entry, selected));
             }
             let _ = weak.upgrade_in_event_loop(move |ui| {
-                screen.lock().unwrap().paint(&ui);
                 ui.global::<Mods>().set_busy(false);
+                screen.lock().unwrap_or_else(|e| e.into_inner()).paint(&ui);
             });
         });
     });
@@ -216,10 +213,12 @@ pub fn back(ui: &MainWindow) -> bool {
 
 pub fn dropped(ui: &MainWindow, path: &Path) -> Result<()> {
     ensure!(!crate::busy(ui), "Finish the current operation first.");
-    ui.global::<Mods>().invoke_add_path(
+    let mods = ui.global::<Mods>();
+    mods.set_entry(
         path.to_str()
             .context("This mod's path cannot be displayed.")?
             .into(),
     );
+    mods.invoke_action("drop".into());
     Ok(())
 }

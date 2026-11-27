@@ -126,3 +126,35 @@ pub(crate) fn atomic_write(
     }
     Ok(())
 }
+
+#[cfg(target_os = "linux")]
+pub(crate) fn rename_new(from: &Path, to: &Path) -> io::Result<()> {
+    use std::{ffi::CString, os::unix::ffi::OsStrExt};
+    let src = CString::new(from.as_os_str().as_bytes())?;
+    let dst = CString::new(to.as_os_str().as_bytes())?;
+    // Call Linux directly because the glibc wrapper postdates our AppImage baseline.
+    // Both paths remain valid and NUL-terminated throughout the syscall.
+    if unsafe {
+        libc::syscall(
+            libc::SYS_renameat2,
+            libc::AT_FDCWD,
+            src.as_ptr(),
+            libc::AT_FDCWD,
+            dst.as_ptr(),
+            libc::RENAME_NOREPLACE,
+        )
+    } != 0
+    {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(())
+}
+
+#[cfg(not(target_os = "linux"))]
+pub(crate) fn rename_new(from: &Path, to: &Path) -> io::Result<()> {
+    match fs::symlink_metadata(to) {
+        Err(error) if error.kind() == io::ErrorKind::NotFound => fs::rename(from, to),
+        Ok(_) => Err(io::ErrorKind::AlreadyExists.into()),
+        Err(error) => Err(error),
+    }
+}

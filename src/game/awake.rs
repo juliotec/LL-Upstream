@@ -7,7 +7,9 @@ impl BuildInhibitor {
     pub(super) fn acquire() -> Option<Self> {
         use std::process::{Command, Stdio};
         // Closing the pipe also releases the inhibitor if the launcher exits.
-        Command::new("systemd-inhibit")
+        let mut command = Command::new("systemd-inhibit");
+        super::process::restore_host_environment(&mut command);
+        command
             .args([
                 "--what=idle:sleep",
                 "--mode=block",
@@ -28,7 +30,14 @@ impl BuildInhibitor {
 impl Drop for BuildInhibitor {
     fn drop(&mut self) {
         drop(self.0.stdin.take());
-        let _ = self.0.wait();
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+        while matches!(self.0.try_wait(), Ok(None)) && std::time::Instant::now() < deadline {
+            std::thread::sleep(std::time::Duration::from_millis(25));
+        }
+        if matches!(self.0.try_wait(), Ok(None)) {
+            let _ = self.0.kill();
+            let _ = self.0.wait();
+        }
     }
 }
 

@@ -151,7 +151,7 @@ impl Import {
             home::write_json(&settings, &updated)?;
             let published = (|| -> Result<()> {
                 if let Some(stage) = &stage {
-                    crate::folders::publish_directory(stage.path(), &self.destination)?;
+                    crate::fsx::rename_new(stage.path(), &self.destination)?;
                 } else {
                     let mut manifest_file = NamedTempFile::new_in(&self.source)?;
                     serde_json::to_writer_pretty(&mut manifest_file, &manifest)?;
@@ -367,6 +367,7 @@ impl Inventory {
                 .file_name()
                 .to_string_lossy()
                 .starts_with(['-', '_', '.'])
+                || crate::fsx::is_link(&fs::symlink_metadata(entry.path())?)
                 || !entry.path().is_dir()
             {
                 continue;
