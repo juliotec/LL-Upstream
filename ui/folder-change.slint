@@ -1,0 +1,60 @@
+import { ModalLayer, SideSheet } from "modal-layer.slint";
+import { Action, Ink, Locale, SideCard } from "widgets.slint";
+import { PageList } from "scroll-view.slint";
+import { FolderStage, Preferences } from "settings-model.slint";
+
+export component FolderChangeDialog inherits ModalLayer {
+    private property <bool> review: Preferences.folder-stage == FolderStage.review;
+    dismissed => { Preferences.cancel-folder(); }
+    wrap-focus(_) => { if cancel.enabled { cancel.focus(); } else { root.focus(); } }
+    SideSheet {
+        viewport-width: root.width;
+        viewport-height: root.height;
+
+        SideCard {
+            Text {
+                text: root.review ? Locale.t("Move existing files?") : Preferences.folder-stage == FolderStage.cancelling ? Locale.t("Cancelling…") : Locale.t("Changing folder…");
+                font-weight: 800;
+                font-size: 26px;
+                color: Ink.text;
+            }
+            PageList {
+                VerticalLayout {
+                    alignment: start;
+                    spacing: 14px;
+                    if root.review: Text {
+                        text: Preferences.moving-data-folder
+                            ? (Preferences.folder-from == Preferences.folder-to ? Locale.t("Move installed versions stored elsewhere into this data folder.") : Locale.t("Move your profiles, saves, mods and installed versions together to the new data folder."))
+                            : Locale.t("Move the existing Longshot files to the new folder, or leave them in their current location.");
+                        wrap: word-wrap;
+                        color: Ink.sand;
+                    }
+                    for row in (Preferences.folder-from == Preferences.folder-to ? [{label: Locale.t("Data folder"), path: Preferences.folder-to}] : [{label: Locale.t("From"), path: Preferences.folder-from}, {label: Locale.t("To"), path: Preferences.folder-to}]): VerticalLayout {
+                        spacing: 3px;
+                        Text { text: row.label; color: Ink.muted; font-size: 13px; }
+                        Text { text: Locale.display-path(row.path); color: Ink.text; wrap: char-wrap; }
+                    }
+                }
+            }
+            VerticalLayout {
+                spacing: 8px;
+                cancel := Action {
+                    label: root.review && Preferences.moving-data-folder ? Locale.t("Keep current folder") : Locale.t("Cancel");
+                    init => { self.focus(); }
+                    enabled: Preferences.folder-stage != FolderStage.cancelling;
+                    quiet: true;
+                    clicked => { Preferences.cancel-folder(); }
+                }
+                if root.review && !Preferences.moving-data-folder: Action {
+                    label: Locale.t("Leave files here");
+                    clicked => { Preferences.apply-folder(false); }
+                }
+                if root.review: Action {
+                    label: Locale.t("Move files");
+                    primary: true;
+                    clicked => { Preferences.apply-folder(true); }
+                }
+            }
+        }
+    }
+}

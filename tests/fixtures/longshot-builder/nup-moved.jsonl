@@ -1,3 +1,0 @@
-{"v":1,"type":"stage","stage":"read","text":"Reading your game files"}
-{"v":1,"type":"progress","stage":"read","fraction":0.2,"overall":0.03}
-{"v":1,"type":"error","code":"nup_moved","text":"The game reads its files from your .nup /home/p/Downloads/game.nup, which is not there. Build again from the .nup where it is now."}

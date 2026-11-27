@@ -1,0 +1,58 @@
+[package]
+name = "longshot-launcher"
+version = "0.1.0"
+edition = "2024"
+publish = false
+license = "GPL-3.0-or-later"
+
+[[bin]]
+name = "LongshotLauncher"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+ash = "0.38"
+libc = "0.2"
+base64 = "0.22"
+chrono = { version = "0.4", features = ["clock"] }
+crc32fast = "1"
+open = "5"
+pulldown-cmark = { version = "0.13.6", default-features = false }
+p256 = { version = "0.13.2", features = ["pem", "ecdsa"] }
+rfd = "0.17"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sys-locale = "0.3"
+gilrs = "0.11"
+image = { version = "0.25", default-features = false, features = ["jpeg"] }
+sha2 = "0.10"
+shlex = "2"
+slint = { version = "=1.19.1", default-features = false, features = ["std", "compat-1-18", "backend-winit", "unstable-winit-030", "renderer-femtovg", "renderer-software", "accessibility"] }
+tempfile = "3"
+ureq = "3.5"
+zip = { version = "9.1.2", default-features = false, features = ["deflate"] }
+sysinfo = { version = "0.40", default-features = false, features = ["system"] }
+
+[build-dependencies]
+slint-build = "=1.19.1"
+embed-resource = "3.0.12"
+
+[profile.dev]
+debug = 0
+
+# Keep incremental launcher builds quick while optimizing the CPU rendering path.
+[profile.dev.package.i-slint-renderer-software]
+opt-level = 3
+
+[profile.dev.package.i-slint-core]
+opt-level = 2
+
+[profile.release]
+strip = true
+
+[target.'cfg(windows)'.dependencies]
+junction = "2.1"
+libloading = "0.8"
+windows-sys = { version = "0.61", features = ["Win32_Devices_DeviceAndDriverInstallation", "Win32_Devices_Usb", "Win32_Storage_FileSystem", "Win32_System_IO", "Win32_System_Diagnostics_ToolHelp", "Win32_System_JobObjects", "Win32_System_Power", "Win32_System_SystemInformation", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging", "Win32_Foundation", "Win32_Security", "Win32_System_Threading"] }
+windows = { version = "0.62", features = ["Win32_Storage_EnhancedStorage", "Win32_Storage_FileSystem", "Win32_System_Com_StructuredStorage", "Win32_System_Variant", "Win32_UI_Shell_PropertiesSystem"] }
+winreg = "0.56"

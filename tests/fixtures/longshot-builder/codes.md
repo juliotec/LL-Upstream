@@ -1,6 +1,3 @@
-<!-- A copy of the "Codes" table of Longshot's docs/dev/reference/build-events.md (Longshot #2286), as it is: LongshotBuildChecks
-     compares Core/LongshotBuilder.cs's FileCodes and OwnCodes with its rows, and tests/test_launcher_core.py --longshot this copy with
-     the doc (a Longshot with no such doc is skipped). A change to the doc's table is copied here, and the launcher's sets follow it. -->
 | Where | Codes |
 |---|---|
 | The builder's own failures | `io`, `tool_failed`, `bad_data`, `internal_error` (the builder stopped on a bug of its own: the text names the log) |

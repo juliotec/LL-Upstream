@@ -8,7 +8,7 @@ channels, signing, `tools.lock`, how the launcher reads it) is in [docs/releases
 |---|---|---|
 | Repository | [MagicBeanDev/Longshot](https://git.magicbean.dev/MagicBeanDev/Longshot) | [MagicBeanDev/LongshotLauncher](https://git.magicbean.dev/MagicBeanDev/LongshotLauncher) |
 | First version | `v3.0.0` | `v1.0.0` |
-| What a release ships | the Windows and Linux builders, `tools.lock` | the launcher: `LongshotLauncher-<v>-windows-x64-setup.exe` (installs itself or runs portable: docs/releases.md, *Installing the launcher*), `LongshotLauncher-<v>-windows-x64-portable.zip`, `LongshotLauncher-<v>-x86_64.AppImage` |
+| What a release ships | the Windows and Linux builders, `tools.lock` | `LongshotLauncher-<v>-windows-x64.exe`, `LongshotLauncher-<v>-linux-x64.AppImage` and the [compatibility downloads](docs/releases.md#installing-the-launcher) |
 | Nightly count | commits since the fork, e2a4d45 | commits since the first commit |
 
 Both have the same two channels: **stable** and **nightly**. In the launcher, players pick a channel for their
@@ -28,6 +28,8 @@ Contents:
 - [One-time setup](#one-time-setup)
 - [Troubleshooting](#troubleshooting)
 
+Examples below select the launcher explicitly. When working in Longshot, select `--product longshot`.
+
 ## The commands
 
 Everything is Tooling's `scripts/release.py` (one file for both repositories; run it from this repository's root, and CI
@@ -35,9 +37,9 @@ clones Tooling at the commit `.tooling-rev` names), and for Longshot's tools `sc
 `release.py next` and `notes` need git-cliff:
 
 ```sh
-export GIT_CLIFF=$(python -I ../Tooling/scripts/release.py git-cliff ~/.cache/longshot-cliff)   # the pinned git-cliff, checked
-python -I ../Tooling/scripts/release.py next          # the number the commits call for, the next stable's tag, and its notes
-python -I ../Tooling/scripts/release.py channels      # what stable and nightly offer now, as the launcher reads them
+export GIT_CLIFF=$(python -I ../Tooling/scripts/release.py --product launcher git-cliff ~/.cache/longshot-cliff)   # the pinned git-cliff, checked
+python -I ../Tooling/scripts/release.py --product launcher next          # the number the commits call for, the next stable's tag, and its notes
+python -I ../Tooling/scripts/release.py --product launcher channels      # what stable and nightly offer now, as the launcher reads them
 ```
 
 The remote is called `forge` here (`forge.py login`, MagicBeanDev/Tooling's, sets it up; in the launcher's checkout, add
@@ -63,7 +65,7 @@ Players on the nightly channel keep the last good nightly until then.
 A stable is a tag on a commit of `main` that has been tested: normally a nightly's commit that testers played (the
 nightly channel is where the next version is tried). There is no release candidate.
 
-1. **Preview.** Run `python -I ../Tooling/scripts/release.py next` on an up-to-date `main` (`jj git fetch --remote forge` and
+1. **Preview.** Run `python -I ../Tooling/scripts/release.py --product launcher next` on an up-to-date `main` (`jj git fetch --remote forge` and
    `jj new main@forge`, or `git fetch forge` and `git switch --detach forge/main`). It prints:
    - the number the commits since the last stable call for (feat: minor, fix and perf: patch, `!` or `BREAKING CHANGE:`:
      major; the first release: `v3.0.0` for Longshot, `v1.0.0` for the launcher);
@@ -99,9 +101,9 @@ nightly channel is where the next version is tried). There is no release candida
    in its run and are not run again. The files are built again: each carries its version.
 5. **Check it.**
    - The run is green, and the release page shows every file, `SHA256SUMS` and `SHA256SUMS.sig`.
-   - `python -I ../Tooling/scripts/release.py channels` shows the tag on `stable`.
+   - `python -I ../Tooling/scripts/release.py --product launcher channels` shows the tag on `stable`.
    - Download `SHA256SUMS`, `SHA256SUMS.sig` and the files, and run
-     `python -I ../Tooling/scripts/release.py verify SHA256SUMS --files <folder>`.
+     `python -I ../Tooling/scripts/release.py --product launcher verify SHA256SUMS --files <folder>`.
    - In a launcher on the stable channel, Retry offers it.
    - For the launcher: within a minute, `https://longshot.magicbean.dev/download/launcher/stable` goes to it.
 
@@ -110,7 +112,7 @@ nightly channel is where the next version is tried). There is no release candida
 A bad bug in the current stable `v3.1.0`:
 
 1. Fix it on `main` in a pull request titled `fix: ...` (nothing else merged since? then this is the whole release).
-2. `python -I ../Tooling/scripts/release.py next` says `v3.1.1` (the patch), or the minor when a `feat` is on `main` since `v3.1.0`.
+2. `python -I ../Tooling/scripts/release.py --product launcher next` says `v3.1.1` (the patch), or the minor when a `feat` is on `main` since `v3.1.0`.
 3. Let its nightly be played quickly (for Longshot, on Windows too), then tag `v3.1.1` on its commit. For an emergency,
    `v3.1.1` can be tagged without waiting.
 
@@ -141,7 +143,7 @@ The *version* step of `release.yml` says why. Nothing was built. Delete the tag 
 | `is lower than the commits since vX call for: at least vY` | A `feat` or a breaking change came in: tag `vY` |
 | `no tag ... here` | The tag was pushed without its commit: push `main` first |
 
-To check before pushing: `python -I ../Tooling/scripts/release.py check-tag <tag>` (it reads the release list; tag it locally first).
+To check before pushing: `python -I ../Tooling/scripts/release.py --product launcher check-tag <tag>` (it reads the release list; tag it locally first).
 
 ## Needs a Windows tester (Longshot)
 
@@ -167,7 +169,7 @@ A failure is an issue, and blocks the stable as any other would.
 
 ## Bump a tool (Longshot)
 
-The builders' tools are in `tools.lock` (docs/releases.md, "tools.lock"): `windows-x64` lines for Windows, `linux-x64`
+The builders' tools are in `tools.lock` ([Longshot’s tools.lock reference](https://git.magicbean.dev/MagicBeanDev/Longshot/src/branch/main/docs/dev/reference/releases.md#toolslock)): `windows-x64` lines for Windows, `linux-x64`
 for Linux. A bump is a pull request that changes its line:
 
 - **An upstream archive** (e.g. a new llvm-mingw):
@@ -218,8 +220,8 @@ theirs. Packages are never pruned, so older versions' tools stay downloadable.
 
 When the key may have leaked, or on a schedule:
 
-1. `python -I ../Tooling/scripts/release.py keygen <safe folder>` makes `release.pem` and `release.pub.pem` and prints the lines.
-2. **The launcher first.** Add the new `ReleaseKey.FromSpki("...")` line to `Core/ReleaseTrust.cs`, beside the old one, and
+1. `python -I ../Tooling/scripts/release.py --product launcher keygen <safe folder>` makes `release.pem` and `release.pub.pem` and prints the lines.
+2. **The launcher first.** Add the new public key to `assets/keys/release_keys.json`, beside the old one, and
    the same base64 to Longshot's `scripts/release_keys.json`. Release the launcher **signed with the old
    key**. Launchers update to it and then trust both keys.
 3. **Then switch.** Wait until most players have that launcher (the stable for a few weeks). Replace the secret
@@ -235,8 +237,8 @@ anything.
 
 None of this is done yet. In order (the org secret is shared by both repositories):
 
-1. **The key.** On a PC you trust: `python -I ../Tooling/scripts/release.py keygen <safe folder>`. Put the printed line in the launcher's
-   `Core/ReleaseTrust.cs` and in Longshot's `scripts/release_keys.json` (a pull request to each). Keep `release.pem` backed
+1. **The key.** On a PC you trust: `python -I ../Tooling/scripts/release.py --product launcher keygen <safe folder>`. Put the printed line in the launcher's
+   `assets/keys/release_keys.json` and in Longshot's `scripts/release_keys.json` (a pull request to each). Keep `release.pem` backed
    up offline. Losing it means a launcher with a new key that every player downloads by hand.
 2. **The secret** (MagicBeanDev > *Settings* > *Actions* > *Secrets*): `RELEASE_SIGNING_KEY_SEALED`, `release.pem` sealed with the server's `seal.key` (Longshot's `scripts/ci_secret.sh seal --key seal.key < release.pem`; the server's seal broker hands `seal.key` only to a job of main or a `v*` tag, Longshot's docs/dev/reference/ci.md, Secrets only our runners can open).
    No token secret and no bot account: `release.yml` makes the release with the job's own token (`forgejo.token`, given
@@ -256,7 +258,7 @@ None of this is done yet. In order (the org secret is shared by both repositorie
    (Linux only, for both: Longshot's Windows files are cross-built on Linux).
 6. **The tools' packages and `tools.lock`.** Done (2026-11-13): `cpm` with dav1d and `third-party` assembled and added,
    llvm-mingw, python, emsdk and wgpu-native mirrored, the Linux tools added, each a generic package of the organization
-   (docs/releases.md, "tools.lock"). The play profile is optional and there is none yet (`tools.py assemble profile`,
+   ([Longshot’s tools.lock reference](https://git.magicbean.dev/MagicBeanDev/Longshot/src/branch/main/docs/dev/reference/releases.md#toolslock)). The play profile is optional and there is none yet (`tools.py assemble profile`,
    then `add`, when there is). `python -I scripts/tools.py check --require` must pass: `release.yml` stops in its first
    job, before any build, until it does.
 7. **Try it** on a fork, or with a throwaway key first: `LONGSHOT_LAUNCHER_TRUST=<test .pub.pem>` makes a launcher accept a
@@ -270,7 +272,7 @@ None of this is done yet. In order (the org secret is shared by both repositorie
 | `release.yml` fails at *SHA256SUMS, signed*: "no RELEASE_SIGNING_KEY_SEALED" | the secret is not set or not visible to the repository | One-time setup, step 2 |
 | `release.yml` fails at *seal.key, from the seal broker*: "the seal broker gave no key (refused: ...)" | the broker's reason follows: a run that isn't main's or a `v*` tag's | Longshot's docs/dev/reference/ci.md |
 | `release.yml` fails at *seal.key, from the seal broker*: "gave no key ()", or curl can't connect | the job ran on a runner that can't reach the broker (only the server's quick runner should carry `deploy`), or `SEAL_BROKER_PIN` doesn't match the broker's certificate | MagicBeanDev/Infra's README, The seal broker |
-| ... "not signed by a trusted key" at `verify` | the secret's key is not the one in `ReleaseTrust.cs` / `release_keys.json` | put the matching key in the secret, or rotate (above) |
+| ... "not signed by a trusted key" at `verify` | the secret's key is not the one in `assets/keys/release_keys.json` / `scripts/release_keys.json` | put the matching key in the secret, or rotate (above) |
 | *Publish* fails with HTTP 413 or a cut connection | an upload over Cloudflare's 100 MB limit | set `RELEASE_UPLOAD_API` (One-time setup, step 3) |
 | *Publish* fails with HTTP 400/422 on an upload | the attachment size or type limits | One-time setup, step 4 |
 | *Publish* fails with HTTP 401/403 | the job's token is read-only: the run is not a push to this repository (a pull request from a fork, or another repository's workflow) | release from a push or a tag here only |
@@ -280,6 +282,6 @@ None of this is done yet. In order (the org secret is shared by both repositorie
 | The launcher: "not signed by a key this launcher trusts" | a release signed with a key the launcher does not have (a new key, or a test key) | release the launcher with the key first (Rotate the key) |
 | The launcher offers nothing on a channel | no published release on it, or its newest was refused (the home says why) | `release.py channels`, then check that release's files |
 | A launcher does not see a new release | it checks at start and on Retry; a draft is not seen | publish finished? Retry in the launcher |
-| `next` or `notes`: "git-cliff is needed" | git-cliff is not on PATH | `export GIT_CLIFF=$(python -I ../Tooling/scripts/release.py git-cliff <folder>)` |
+| `next` or `notes`: "git-cliff is needed" | git-cliff is not on PATH | `export GIT_CLIFF=$(python -I ../Tooling/scripts/release.py --product launcher git-cliff <folder>)` |
 | A Windows install fails at a tool | its upstream URL is gone and it has no mirror, or the archive changed | `tools.py mirror <name>` (its copy in Packages), or bump it |
-| Too many nightlies | the prune step failed (HTTP 422: a protected `nightly-*` tag) | unprotect `nightly-*` (step 2), or `RELEASE_TOKEN=<your token> python -I ../Tooling/scripts/release.py prune` by hand |
+| Too many nightlies | the prune step failed (HTTP 422: a protected `nightly-*` tag) | unprotect `nightly-*` (step 2), or `RELEASE_TOKEN=<your token> python -I ../Tooling/scripts/release.py --product launcher prune` by hand |

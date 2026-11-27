@@ -1,0 +1,88 @@
+import { Ink } from "widgets.slint";
+import { TextField } from "text-field.slint";
+
+export component EditableTitle inherits Rectangle {
+    in property <string> title;
+    in property <string> item-id;
+    in property <string> edit-label;
+    in property <length> size: 30px;
+    in property <bool> enabled: true;
+    callback submit(string) -> bool;
+    private property <bool> editing;
+    changed item-id => { root.editing = false; }
+    out property <length> first-line-height: root.editing ? 44px : max(44px, label.font-metrics.ascent - label.font-metrics.descent);
+    min-width: 0px;
+    horizontal-stretch: 1;
+    height: root.editing ? 44px : max(44px, label.preferred-height);
+
+    controls := FocusScope {
+        capture-key-pressed(e) => {
+            if root.editing && e.text == Key.Escape {
+                root.editing = false;
+                pencil.focus();
+                return accept;
+            }
+            reject
+        }
+
+        label := Text {
+            visible: !root.editing;
+            x: 0px;
+            y: 0px;
+            height: parent.height;
+            width: min(self.preferred-width, max(0px, parent.width - (root.enabled ? 38px : 0px)));
+            text: root.title;
+            color: Ink.text;
+            font-size: root.size;
+            font-weight: 800;
+            letter-spacing: -0.6px;
+            vertical-alignment: center;
+            wrap: word-wrap;
+        }
+
+        pencil := FocusScope {
+            x: label.width + 2px;
+            y: max(0px, (min(parent.height, root.first-line-height) - self.height) / 2);
+            width: 36px;
+            height: 36px;
+            visible: root.enabled && !root.editing;
+            enabled: self.visible;
+            accessible-role: button;
+            accessible-label: root.edit-label;
+            accessible-action-default => { root.editing = true; }
+            key-pressed(e) => {
+                if e.text == Key.Return || e.text == " " { root.editing = true; return accept; }
+                reject
+            }
+
+            Rectangle {
+                border-radius: 7px;
+                background: area.has-hover ? Ink.selected : transparent;
+                border-width: Ink.focus-visible && pencil.has-focus ? 2px : 0px;
+                border-color: Ink.mustard;
+
+                Image {
+                    width: 16px;
+                    height: 16px;
+                    source: @image-url("icons/edit.svg");
+                    colorize: Ink.muted;
+                }
+            }
+
+            area := TouchArea {
+                mouse-cursor: pointer;
+                clicked => { root.editing = true; }
+            }
+        }
+
+        if root.editing: TextField {
+            width: parent.width;
+            text: root.title;
+            accessible-label: root.edit-label;
+            init => { self.focus(); self.select-all(); }
+            accepted(value) => {
+                if root.submit(value) { root.editing = false; pencil.focus(); }
+            }
+        }
+    }
+}

@@ -1,9 +1,0 @@
-{
-  "schema": 1,
-  "command": "give",
-  "ok": false,
-  "error": {
-    "code": "needs_bag",
-    "message": "Item Bomb holds 0 to 0 now (no bomb bag: give Item_BombBag_Small first) (not 5)"
-  }
-}

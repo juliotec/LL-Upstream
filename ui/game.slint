@@ -1,0 +1,117 @@
+import { Action } from "widgets.slint";
+import { ConfirmDialog, ModalLayer } from "modal-layer.slint";
+import {
+    Game,
+    GameStep,
+    NoteBlock,
+    VersionRow,
+} from "game-model.slint";
+import { FilesStep, WizardSteps } from "build-files.slint";
+import { BuildProgress } from "build-progress.slint";
+import { VersionsPage } from "game-versions.slint";
+import { GameAction, PanelTitle, Note } from "game-controls.slint";
+import { Ink, Locale } from "widgets.slint";
+export { Game, GameStep, NoteBlock, VersionRow, WizardSteps }
+export component GamePage inherits Rectangle {
+    in property <bool> wizard;
+    background: Ink.page;
+    if !wizard: VersionsPage { }
+    if wizard && (Game.step == GameStep.welcome || Game.step == GameStep.files || Game.step == GameStep.settings): FilesStep { }
+    if wizard && (Game.step == GameStep.building || Game.step == GameStep.ready || Game.step == GameStep.problem): BuildProgress { }
+}
+
+export component RemoveVersionDialog inherits ModalLayer {
+    wrap-focus(backwards) => { if Game.busy { root.focus(); } else if backwards { remove.focus(); } else { cancel.focus(); } }
+    dismissed => { if !Game.busy { Game.confirming-removal = false; } }
+    ConfirmDialog {
+        viewport-width: root.width;
+        viewport-height: root.height;
+        height: dialog.preferred-height;
+
+        dialog := VerticalLayout {
+            padding: 24px;
+            spacing: 15px;
+
+            PanelTitle {
+                text: Locale.t("Remove") + " " + Game.current-tag + "?";
+            }
+
+            Note {
+                text: Locale.t("This removes the selected version and its built games. Your profile keeps its saves.");
+            }
+
+            if Game.status != "": Note {
+                text: Game.status;
+            }
+            HorizontalLayout {
+                spacing: 8px;
+
+                cancel := GameAction {
+                    text: Locale.t("Cancel");
+                    enabled: !Game.busy;
+                    init => { self.focus(); }
+                    clicked => { Game.confirming-removal = false; }
+                }
+
+                remove := GameAction {
+                    text: Locale.t("Remove");
+                    enabled: !Game.busy;
+                    danger: true;
+                    clicked => { Game.confirm-remove(); }
+                }
+            }
+        }
+    }
+}
+
+export component StopBuildDialog inherits ModalLayer {
+    in property <bool> close-after-stop;
+    callback stop();
+    wrap-focus(backwards) => { if backwards { stop.focus(); } else { keep-building.focus(); } }
+
+    ConfirmDialog {
+        viewport-width: root.width;
+        viewport-height: root.height;
+        dialog-max-width: 490px;
+        margin: 32px;
+        height: stop-panel.preferred-height + 40px;
+        border-radius: 16px;
+        border-width: 1px;
+        border-color: Ink.line;
+        background: Ink.raised;
+
+        stop-panel := VerticalLayout {
+            padding: 20px;
+            spacing: 14px;
+
+            Text {
+                text: Locale.t("Stop the build?");
+                color: Ink.text;
+                font-size: 24px;
+                font-weight: 700;
+            }
+
+            Text {
+                text: Locale.t("The current build will stop. You can start it again later.");
+                color: Ink.muted;
+                wrap: word-wrap;
+            }
+
+            HorizontalLayout {
+                alignment: end;
+                spacing: 10px;
+
+                keep-building := Action {
+                    label: Locale.t("Keep building");
+                    init => { self.focus(); }
+                    clicked => { root.dismissed(); }
+                }
+
+                stop := Action {
+                    label: root.close-after-stop ? Locale.t("Stop and close") : Locale.t("Stop");
+                    clicked => { root.stop(); }
+                }
+            }
+        }
+    }
+}

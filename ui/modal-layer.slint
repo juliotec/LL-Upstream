@@ -1,0 +1,55 @@
+import { Ink } from "widgets.slint";
+
+// Window-sized input scope shared by blocking dialogs.
+export component ModalLayer inherits FocusScope {
+    callback dismissed();
+    callback wrap-focus(backwards: bool);
+    focus-on-tab-navigation: false;
+    in property <bool> dismiss-on-backdrop;
+    capture-key-pressed(event) => {
+        if event.text == Key.Escape { root.dismissed(); return accept; }
+        reject
+    }
+    Rectangle {
+        background: #0d0a08b8;
+        TouchArea { clicked => { if root.dismiss-on-backdrop { root.dismissed(); } } }
+    }
+    // The window also contains tab stops behind the scrim. Wrap at either
+    // edge of the dialog so keyboard and controller navigation stay inside.
+    FocusScope {
+        width: 0px;
+        height: 0px;
+        focus-gained => { root.wrap-focus(true); }
+    }
+    Rectangle { @children }
+    FocusScope {
+        width: 0px;
+        height: 0px;
+        focus-gained => { root.wrap-focus(false); }
+    }
+}
+
+export component SideSheet inherits Rectangle {
+    in property <length> viewport-width;
+    in property <length> viewport-height;
+    in property <length> sheet-min-width: 430px;
+    in property <length> sheet-width: max(root.sheet-min-width, Ink.detail-width(root.viewport-width));
+    x: root.viewport-width - self.width;
+    width: min(root.viewport-width, root.sheet-width);
+    height: root.viewport-height;
+    TouchArea {}
+    @children
+}
+
+export component ConfirmDialog inherits Rectangle {
+    in property <length> viewport-width;
+    in property <length> viewport-height;
+    in property <length> dialog-max-width: 560px;
+    in property <length> margin: 16px;
+    width: min(max(0px, root.viewport-width - 2 * root.margin), root.dialog-max-width);
+    x: (root.viewport-width - self.width) / 2;
+    y: (root.viewport-height - self.height) / 2;
+    border-radius: 14px;
+    background: Ink.black;
+    @children
+}

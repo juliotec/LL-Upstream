@@ -1,0 +1,88 @@
+import { Button, ButtonSize, Ink } from "widgets.slint";
+
+export component GameAction inherits Button {
+    in property <string> text;
+    button-size: ButtonSize.game;
+    label: root.text;
+}
+
+export component FooterAction inherits GameAction {
+    constrain-width: true;
+    preferred-width: 0px;
+    horizontal-stretch: 1;
+}
+
+export component PosterTitle inherits Text {
+    font-family: "Inter";
+    color: Ink.text;
+    font-weight: 900;
+    font-size: 58px;
+    letter-spacing: -2.5px;
+    wrap: word-wrap;
+}
+
+export component PanelTitle inherits Text {
+    color: Ink.text;
+    font-weight: 800;
+    font-size: 24px;
+    letter-spacing: -0.6px;
+    wrap: word-wrap;
+}
+
+export component Label inherits Text {
+    color: Ink.text;
+    font-weight: 700;
+    font-size: 15px;
+    wrap: word-wrap;
+}
+
+export component Note inherits Text {
+    color: Ink.muted;
+    font-size: 15px;
+    wrap: word-wrap;
+}
+
+export component Kicker inherits Text {
+    color: Ink.sand;
+    font-weight: 700;
+    font-size: 12px;
+    letter-spacing: 1px;
+}
+
+export component Rule inherits Rectangle {
+    height: 1px;
+    background: Ink.line;
+}
+
+export { SidePanel } from "widgets.slint";
+
+export component Fact inherits Rectangle {
+    in property <string> label;
+    in property <string> value;
+    in property <color> value-color: Ink.sand;
+    height: max(44px, line.preferred-height + 12px);
+
+    line := HorizontalLayout {
+        height: root.height - 1px;
+        spacing: 8px;
+        alignment: stretch;
+        cross-axis-alignment: center;
+
+        Label {
+            text: root.label;
+            horizontal-stretch: 1;
+        }
+
+        Note {
+            text: root.value;
+            color: root.value-color;
+            horizontal-alignment: right;
+        }
+    }
+
+    Rectangle {
+        y: parent.height - 1px;
+        height: 1px;
+        background: Ink.line;
+    }
+}

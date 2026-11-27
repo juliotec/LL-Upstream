@@ -1,0 +1,416 @@
+import { ProgressBar } from "widgets.slint";
+import { Pressable } from "widgets.slint";
+import { ModalLayer, SideSheet } from "modal-layer.slint";
+import { Game } from "game-model.slint";
+import { Dropdown } from "menu.slint";
+import { Preferences, DiskGroup, SettingsGroup } from "settings-model.slint";
+import { Ink, Locale, PageTitle } from "widgets.slint";
+import { CheckBox } from "check-box.slint";
+import { ScrollView } from "scroll-view.slint";
+import {
+    FooterAction,
+    GameAction,
+    PanelTitle,
+    Rule,
+    Label,
+    Note,
+} from "game-controls.slint";
+
+component CategoryButton inherits Rectangle {
+    in property <DiskGroup> group;
+    in property <bool> selected;
+    callback picked();
+    height: root.tile-height;
+    in property <length> tile-height;
+    clip: true;
+    border-radius: 9px;
+    border-width: 2px;
+    border-color: root.selected || (Ink.focus-visible && key.has-focus) ? Ink.mustard : Ink.line;
+    background: root.selected || key.hovered ? Ink.selected : Ink.page;
+
+    Rectangle {
+        x: 2px;
+        y: 2px;
+        width: parent.width - 4px;
+        height: 6px;
+        background: root.group.tone;
+    }
+
+    VerticalLayout {
+        padding-left: 10px;
+        padding-right: 6px;
+        padding-top: 9px;
+        alignment: center;
+
+        Text {
+            text: Locale.t(group.name);
+            color: Ink.text;
+            font-size: 14px;
+            font-weight: 700;
+            overflow: elide;
+        }
+
+        Text {
+            text: group.size;
+            color: Ink.muted;
+            font-size: 13px;
+        }
+    }
+
+    accessible-role: button;
+    accessible-label: Locale.t(group.name) + " " + group.size;
+    accessible-action-default => { root.picked(); }
+    forward-focus: key;
+
+    key := Pressable {
+        activate => { root.picked(); }
+    }
+}
+
+export global StorageReview {
+    out property <bool> can-clean: !Preferences.cleaning && !Game.busy && !Game.playing;
+    in-out property <string> pending-cache;
+    in-out property <string> pending-path;
+    in-out property <bool> reviewing;
+    out property <bool> reclaiming: Preferences.reclaim-list != "";
+    in-out property <bool> remove-profiles;
+    out property <bool> open: reclaiming || reviewing || pending-cache != "" || Preferences.gc-review != "";
+    public function dismiss() {
+        self.reviewing = false;
+        self.pending-cache = "";
+        Preferences.gc-review = "";
+        Preferences.reclaim-list = "";
+        Preferences.reclaim-size = "";
+    }
+}
+
+export component StorageSection inherits Rectangle {
+    private property <int> group-index:3;
+    private property <int> visible-group: clamp(root.group-index, 0, max(0, Preferences.disk-groups.length - 1));
+    private property <DiskGroup> selected: Preferences.disk-groups[root.visible-group];
+    private property <string> group:root.selected.name;
+    private property <length> inset: root.width < 680px ? 18px : 26px;
+    background: Ink.black;
+    border-radius: 15px;
+    clip: true;
+    init => { Preferences.measure(); }
+
+    ScrollView {
+        horizontal-inset: root.inset;
+        VerticalLayout {
+            padding-top: root.inset;
+            padding-bottom: root.inset;
+            spacing: 12px;
+            alignment: start;
+
+            header := Rectangle {
+                private property <length> action-width: location.min-width + clean.min-width + remove-all.min-width + 2 * actions.spacing;
+                private property <bool> stacked: self.width < title.preferred-width + 16px + self.action-width;
+                height: self.stacked ? title.height + 8px + actions.height : max(title.height, actions.height);
+
+                title := PageTitle {
+                    x: 0px;
+                    y: header.stacked ? 0px : (header.height - self.height) / 2;
+                    width: header.stacked ? header.width : header.width - actions.width - 16px;
+                    text: Locale.t("Storage");
+                    title-size: 30px;
+                    value-size: 16px;
+                    value: Preferences.storage-total;
+                    note: Preferences.drive-free;
+                }
+                actions := FlexboxLayout {
+                    width: min(header.width, header.action-width);
+                    x: header.width - self.width;
+                    y: header.stacked ? title.height + 8px : (header.height - self.height) / 2;
+                    height: self.preferred-height;
+                    alignment: end;
+                    cross-axis-alignment: center;
+                    spacing: 8px;
+                    location := GameAction {
+                        text: Locale.t("Change location");
+                        quiet: true;
+                        enabled: !Preferences.cleaning;
+                        clicked => { Preferences.section = SettingsGroup.game; }
+                    }
+
+                    clean := GameAction {
+                        text: Locale.t("Clean up");
+                        enabled: StorageReview.can-clean;
+                        clicked => { Preferences.reclaim-build-files(false, "", ""); }
+                    }
+                    remove-all := GameAction {
+                        text: Locale.t("Remove everything");
+                        danger: true;
+                        enabled: !Preferences.cleaning;
+                        clicked => { StorageReview.remove-profiles = false; Preferences.review-removal(false); StorageReview.reviewing = true; }
+                    }
+                }
+            }
+            HorizontalLayout {
+                cross-axis-alignment: center;
+                spacing: 8px;
+                Note {
+                    text: Locale.t("Review space used by Longshot on each drive.");
+                    horizontal-stretch: 1;
+                }
+                if Preferences.drive-options.length > 0: Dropdown {
+                    max-width: Ink.form-control-width;
+                    model: Preferences.drive-options;
+                    current-index: Preferences.drive-index;
+                    selected => { Preferences.choose-drive(self.current-index); }
+                }
+            }
+            Rule { }
+
+            tiles := FlexboxLayout {
+                property <length> available: root.width - 2 * root.inset;
+                property <int> count: max(1, Preferences.disk-groups.length);
+                property <int> columns: self.available >= self.count * 126px + (self.count - 1) * self.spacing
+                    ? self.count : ceil(self.count / 2.0);
+                property <length> tile-height: 76px;
+                property <int> rows: ceil(Preferences.disk-groups.length / self.columns);
+                height: self.rows * self.tile-height + max(0, self.rows - 1) * self.spacing;
+                spacing: 6px;
+                for g[i] in Preferences.disk-groups: CategoryButton {
+                    width: floor((tiles.available - (tiles.columns - 1) * tiles.spacing) / tiles.columns / 1px) * 1px;
+                    tile-height: tiles.tile-height;
+                    group: g;
+                    selected: i == root.visible-group;
+                    picked => { root.group-index = i; StorageReview.pending-cache = ""; }
+                }
+            }
+
+            bar := Rectangle {
+                height: 22px;
+                background: Ink.well;
+                for g in Preferences.disk-groups: Rectangle {
+                    x: bar.width * g.offset;
+                    width: max(0px,bar.width * g.fraction - 2px);
+                    height: bar.height;
+                    background: g.tone;
+                    border-color: g.name == root.group ? Ink.text : transparent;
+                    border-width: g.name == root.group ? 2px : 0px;
+                }
+            }
+
+            if Preferences.status != "": Note {
+                text: Preferences.status;
+            }
+            if !Preferences.measuring-storage && root.group != "": VerticalLayout {
+                alignment: start;
+                spacing: 9px;
+                Rule { }
+                HorizontalLayout {
+                    spacing: 10px;
+                    cross-axis-alignment: center;
+
+                    Rectangle {
+                        width: 14px;
+                        height: 14px;
+                        border-radius: 5px;
+                        background: root.selected.tone;
+                    }
+
+                    PanelTitle {
+                        text: Locale.t(root.group);
+                        font-size: 26px;
+                    }
+
+                    Note {
+                        text: root.selected.size;
+                        color: Ink.sand;
+                    }
+
+                    Rectangle {
+                        horizontal-stretch: 1;
+                    }
+                    if root.group == "Previous launcher": GameAction {
+                        text: Locale.t("Clean all");
+                        enabled: Preferences.previous-files-available && StorageReview.can-clean;
+                        clicked => { Preferences.reclaim-build-files(false, "previous", ""); }
+                    }
+                }
+
+                Note {
+                    text: Locale.t(root.group == "Game files" ? "Your original game files, shared by versions made from the same copy." :
+                        root.group == "Installed games" ? "Programs and resources for your installed versions." :
+                        root.group == "Shader caches" ? "Shaders and pipelines prepared for your graphics card." :
+                        root.group == "Faster updates" ? "Work from your recent builds, kept so the next update only redoes what changed." :
+                        root.group == "Previous launcher" ? "Generated files are listed by type and location. Choose Clean up on a row to review its files." :
+                        root.group == "Build tools" ? "Downloaded build tools, builder source files and upscaler runtimes." :
+                        "Your profiles, mods, saves, backups, NFC tags and launcher logs.") + (root.group == "Build tools" ? " " + Locale.t("Managed by versions") + "." : "");
+                }
+
+                if root.selected.size == "0 B": Note {
+                    text: Locale.t("No files in this category.");
+                }
+                if root.selected.parts.length > 0: VerticalLayout {
+                    for item in root.selected.parts: Rectangle {
+                        height: 52px;
+
+                        Rule {
+                            y: 0px;
+                        }
+
+                        HorizontalLayout {
+                            spacing: 14px;
+                            cross-axis-alignment: center;
+
+                            VerticalLayout {
+                                alignment: center;
+                                horizontal-stretch: 1;
+                                spacing: 2px;
+
+                                Text {
+                                    text: Locale.t(item.label);
+                                    font-weight: 700;
+                                    color: Ink.text;
+                                    overflow: elide;
+                                }
+
+                                Text {
+                                    text: Locale.display-path(item.path);
+                                    color: Ink.muted;
+                                    font-size: 12px;
+                                    overflow: elide;
+                                }
+                            }
+
+                            Label {
+                                text: item.size;
+                            }
+
+                            if item.label == "Shared mod files" && item.size != "0 B": GameAction {
+                                text: Locale.t("Remove unused");
+                                enabled: !Preferences.cleaning;
+                                clicked => { Preferences.unused-mods(true); }
+                            }
+                            if root.group == "Previous launcher" && item.cache != "": GameAction {
+                                text: Locale.t("Clean up");
+                                enabled: StorageReview.can-clean;
+                                clicked => { Preferences.reclaim-build-files(false, item.path, item.cache); }
+                            }
+                            if item.cache != "" && root.group != "Previous launcher": GameAction {
+                                text: item.cache == "shader-cache" ? Locale.t("Clear") : Locale.t("Remove");
+                                enabled: StorageReview.can-clean;
+                                clicked => { StorageReview.pending-cache = item.cache; StorageReview.pending-path = item.path; }
+                            }
+                        }
+                    }
+                }
+                if root.group == "Faster updates": VerticalLayout {
+                    padding-top: 16px;
+                    CheckBox {
+                        checked: Preferences.keep-build-files;
+                        text: Locale.t("Keep build files and stores") + " (" + root.selected.size + ")";
+                        toggled => { Preferences.toggle("keepBuildFiles",self.checked); }
+                    }
+                }
+            }
+
+        }
+    }
+
+}
+
+export component StorageReviewDialog inherits ModalLayer {
+    wrap-focus(backwards) => { if Preferences.cleaning { root.focus(); } else if backwards && remove.enabled { remove.focus(); } else { keep.focus(); } }
+    dismissed => { if !Preferences.cleaning { StorageReview.dismiss(); } }
+    SideSheet {
+        viewport-width: root.width;
+        viewport-height: root.height;
+        sheet-width: 490px;
+        background: Ink.mustard;
+
+        Rectangle {
+            x: 22px;
+            y: 22px;
+            width: parent.width - 44px;
+            height: parent.height - 44px;
+            background: Ink.black;
+            border-radius: 14px;
+
+            VerticalLayout {
+                padding: 22px;
+                spacing: 14px;
+
+                PanelTitle {
+                    text: StorageReview.reclaiming && Preferences.reclaim-previous ? Locale.t("Remove previous launcher files?") : StorageReview.reclaiming ? Locale.t("Clean up build files?") : StorageReview.reviewing ? Locale.t("Remove launcher data") : Preferences.gc-review != "" ? Locale.t("Remove unused mod files?") : StorageReview.pending-cache == "shader-cache" ? Locale.t("Clear shader cache?") : Locale.t("Remove cache?");
+                }
+
+                if StorageReview.reclaiming: Label {
+                    text: Locale.t("Estimated space to free") + " · " + Preferences.reclaim-size;
+                    color: Ink.sand;
+                }
+                Note {
+                    text: StorageReview.reclaiming && Preferences.reclaim-previous ? (Preferences.reclaim-folder != "" ? Preferences.reclaim-folder + "\n" : "") + Locale.t("Only the listed generated files will be removed. The previous launcher may need to rebuild them. Saves, mods and original game files are kept.") : StorageReview.reclaiming ? Locale.t("Restoring a previous version or playing a game used only by the stable launcher may require rebuilding it. Older tools may need to download again. Your current installed versions, saves, mods and original game files are kept.") : StorageReview.reviewing ? Locale.t("Review the folders below. Finish running builds and close Longshot before removing data.") : Preferences.gc-review != "" ? Preferences.gc-review : StorageReview.pending-cache == "shader-cache" ? Locale.t("Longshot will prepare these shaders again the next time it needs them.") : Locale.t("The next build or play may take longer.");
+                }
+
+                if StorageReview.reviewing: CheckBox {
+                    text: Locale.t("Also delete profiles and saves in the data folder, and backups in the launcher folder");
+                    checked: StorageReview.remove-profiles;
+                    enabled: !Preferences.cleaning;
+                    toggled => { StorageReview.remove-profiles = self.checked; Preferences.review-removal(self.checked); }
+                }
+                ScrollView {
+                    VerticalLayout {
+                        alignment: start;
+
+                        if StorageReview.reclaiming: VerticalLayout {
+                            for category[index] in Preferences.reclaim-categories: CheckBox {
+                                text: category.label;
+                                checked: category.checked;
+                                enabled: !Preferences.cleaning;
+                                toggled => { Preferences.toggle-reclaim(index, self.checked); }
+                            }
+                        }
+                        if !StorageReview.reclaiming || Preferences.reclaim-categories.length == 0: Note {
+                            text: StorageReview.reclaiming ? Preferences.reclaim-list : StorageReview.reviewing ? Preferences.removal-list : Locale.display-path(StorageReview.pending-path);
+                            wrap: char-wrap;
+                        }
+                    }
+                }
+
+                if Preferences.status != "": Note {
+                    text: Preferences.status;
+                }
+                if Preferences.reclaim-running: VerticalLayout {
+                    height: self.preferred-height;
+                    spacing: 6px;
+                    Note { text: Locale.t("Cleaning up") + " · " + round(Preferences.reclaim-progress * 100) + "%"; }
+                    ProgressBar { fraction: Preferences.reclaim-progress; }
+                }
+                Rule { }
+
+                HorizontalLayout {
+                    spacing: 7px;
+
+                    keep := FooterAction {
+                        text: StorageReview.reclaiming ? Locale.t("Cancel") : Locale.t("Keep");
+                        enabled: !Preferences.cleaning;
+                        init => { self.focus(); }
+                        clicked => { StorageReview.dismiss(); }
+                    }
+
+                    remove := FooterAction {
+                        text: StorageReview.reclaiming ? Locale.t("Clean up") : StorageReview.reviewing ? Locale.t("Remove listed data") : Preferences.gc-review != "" ? Locale.t("Remove unused") : StorageReview.pending-cache == "shader-cache" ? Locale.t("Clear cache") : Locale.t("Remove cache");
+                        danger: true;
+                        enabled: StorageReview.can-clean && (!StorageReview.reviewing || Preferences.removal-list != "") && (!StorageReview.reclaiming || Preferences.reclaim-selected);
+                        clicked => {
+                            if StorageReview.reclaiming {
+                                Preferences.reclaim-build-files(true, "", "");
+                            } else if StorageReview.reviewing {
+                                Preferences.remove-reviewed();
+                            } else if Preferences.gc-review != "" {
+                                Preferences.unused-mods(false);
+                            } else {
+                                Preferences.clear-cache(StorageReview.pending-cache, StorageReview.pending-path);
+                                StorageReview.dismiss();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

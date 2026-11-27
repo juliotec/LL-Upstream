@@ -1,0 +1,52 @@
+import { Ink, Locale } from "widgets.slint";
+
+export component Hint inherits Text {
+    font-size: 13px;
+    color: Ink.muted;
+    wrap: word-wrap;
+}
+
+export component PathHint inherits Hint {
+    in property <string> path;
+    text: Locale.display-path(root.path);
+    color: Ink.sand;
+    wrap: char-wrap;
+}
+
+export component OptionRow inherits HorizontalLayout {
+    in property <string> path;
+    in property <string> label;
+    in property <string> description;
+    spacing: 14px;
+    cross-axis-alignment: center;
+
+    VerticalLayout {
+        horizontal-stretch: 3;
+        min-width: 0px;
+        preferred-width: 0px;
+        spacing: 4px;
+
+        Text {
+            text: root.label;
+            color: Ink.text;
+            font-weight: 700;
+            font-size: 17px;
+            wrap: word-wrap;
+        }
+
+        if root.description != "": Hint { text: root.description; }
+        if root.path != "": PathHint { path: root.path; }
+    }
+
+    HorizontalLayout {
+        horizontal-stretch: 2;
+        min-width: max(110px, controls.min-width);
+        preferred-width: max(110px, controls.min-width);
+        max-width: max(Ink.form-control-width, controls.min-width);
+
+        controls := VerticalLayout {
+            spacing: 6px;
+            @children
+        }
+    }
+}

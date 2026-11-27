@@ -1,0 +1,79 @@
+import { Game } from "game-model.slint";
+import { Page } from "widgets.slint";
+
+export struct SettingToggle { key: string, label: string, checked: bool, enabled: bool }
+export struct DiskPart { label: string, size: string, path: string, group: string, cache: string }
+export struct DiskGroup { name: string, size: string, fraction: float, offset: float, tone: color, parts: [DiskPart] }
+export enum SettingsGroup { game, launcher, storage, nfc, troubleshooting }
+export enum FolderStage { idle, review, applying, cancelling }
+export global Preferences {
+    in property <FolderStage> folder-stage;
+    out property <bool> can-change-folders: !Game.busy && !Game.playing && !Game.tools-busy && !changing-folder;
+    out property <bool> changing-folder: folder-stage != FolderStage.idle;
+    in property <string> folder-from;
+    in property <string> folder-to;
+    callback apply-folder(bool);
+    callback cancel-folder();
+    in-out property <SettingsGroup> section: SettingsGroup.game;
+    in property <[string]> languages;
+    in property <int> language-index;
+    in property <string> launcher-track;
+    in property <[SettingToggle]> update-options;
+    in property <[SettingToggle]> sharing-options;
+    in property <string> original-game;
+    callback choose-source(bool) -> bool;
+    callback select-source(string) -> bool;
+    in property <string> data-folder;
+    in property <bool> custom-data-folder;
+    in-out property <bool> moving-data-folder;
+    in property <string> work-folder;
+    in property <bool> linux;
+    in property <bool> controller-rules-needed;
+    in property <bool> installing-controller-rules;
+    callback check-controller-rules();
+    callback install-controller-rules();
+    in property <bool> cleaning;
+    in property <bool> in-menu;
+    in property <[DiskGroup]> disk-groups;
+    in property <string> storage-total;
+    in property <[string]> drive-options;
+    in property <int> drive-index;
+    in property <string> drive-free;
+    callback choose-drive(int);
+    in property <bool> keep-build-files;
+    in property <string> status;
+    in property <string> version;
+    callback language(int);
+    callback toggle(string, bool);
+    callback choose-launcher-track(string);
+    callback folder(string, bool);
+    callback open(string);
+    in property <bool> desktop-shortcut;
+    in property <bool> start-shortcut;
+    callback shortcut(bool, bool);
+    in property <bool> menu-available;
+    in property <string> menu-label;
+    callback menu(bool);
+    callback save-diagnostics();
+    in-out property <bool> measuring-storage;
+    callback measure();
+    callback reclaim-build-files(bool, string, string);
+    in property <[SettingToggle]> reclaim-categories;
+    in property <bool> reclaim-running;
+    in property <float> reclaim-progress;
+    in property <bool> reclaim-selected: true;
+    callback toggle-reclaim(int, bool);
+    in property <string> reclaim-folder;
+    in property <bool> reclaim-previous;
+    in property <bool> previous-files-available;
+    in-out property <string> reclaim-list;
+    in-out property <string> reclaim-size;
+    in-out property <string> gc-review;
+    callback unused-mods(bool);
+    in property <string> removal-list;
+    callback review-removal(bool);
+    callback remove-reviewed();
+    callback clear-cache(string, string);
+    callback navigate(Page);
+    pure callback bundled-license(int) -> string;
+}

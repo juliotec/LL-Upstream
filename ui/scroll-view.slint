@@ -1,0 +1,33 @@
+import { ScrollView as NativeScrollView } from "std-widgets.slint";
+
+global ScrollMetrics { out property <length> gutter: 18px; }
+
+export component ScrollView inherits NativeScrollView {
+    // Fluent places the 14px scrollbar inside the viewport. Keep its hit area
+    // and a small gap clear of the content even when the scrollbar fades out.
+    in property <length> end-padding: 8px;
+    in property <length> horizontal-inset: 0px;
+    VerticalLayout {
+        padding-left: root.horizontal-inset;
+        padding-right: max(root.horizontal-inset, ScrollMetrics.gutter);
+        padding-bottom: root.end-padding;
+        @children
+    }
+}
+
+// Page lists use the page's trailing margin for the scrollbar. Their rows
+// then share the same right edge as the header, even when scrolling.
+export component PageList inherits Rectangle {
+    in property <length> end-padding: 8px;
+    vertical-stretch: 1;
+    min-width: 0px;
+    min-height: 0px;
+    ScrollView {
+        x: 0px;
+        y: 0px;
+        width: parent.width + ScrollMetrics.gutter;
+        height: parent.height;
+        end-padding: root.end-padding;
+        @children
+    }
+}

@@ -1,0 +1,235 @@
+import { Pressable } from "widgets.slint";
+import { Hint, PathHint } from "settings-row.slint";
+import { ListView } from "std-widgets.slint";
+import { Ink, Locale, Action } from "widgets.slint";
+import { Game } from "game-model.slint";
+import { Kicker, Note } from "game-controls.slint";
+
+component SourceOption inherits Rectangle {
+    in property <string> path;
+    in property <bool> selected;
+    in property <bool> enabled: true;
+    callback choose;
+    height: 48px;
+    background: root.selected || key.hovered ? Ink.selected : transparent;
+    border-width: (Ink.focus-visible && key.has-focus) ? 2px : 1px;
+    border-color: (Ink.focus-visible && key.has-focus) ? Ink.mustard : root.selected ? Ink.sage : Ink.line;
+    border-radius: 6px;
+    forward-focus: key;
+    accessible-role: button;
+    accessible-label: Locale.t("Use this copy") + " · " + Locale.display-path(root.path);
+    accessible-enabled: root.enabled;
+    accessible-action-default => { if root.enabled { root.choose(); } }
+
+    HorizontalLayout {
+        padding-left: 10px;
+        padding-right: 10px;
+        spacing: 10px;
+        cross-axis-alignment: center;
+
+        VerticalLayout {
+            alignment: center;
+            min-width: 0px;
+            horizontal-stretch: 1;
+
+            Text {
+                text: Game.file-name(root.path);
+                font-weight: 700;
+                font-size: 14px;
+                color: Ink.text;
+                overflow: elide;
+            }
+
+            Text {
+                text: Locale.display-path(root.path);
+                font-size: 12px;
+                color: Ink.muted;
+                overflow: elide;
+            }
+        }
+
+        Text {
+            text: root.selected ? "✓" : "›";
+            color: root.selected ? Ink.sage : Ink.sand;
+        }
+    }
+
+    key := Pressable {
+        enabled: root.enabled;
+        clear-focus-on-click: true;
+        activate => { root.choose(); }
+    }
+}
+
+export component SourceChooser inherits Rectangle {
+    in property <string> current;
+    in property <bool> enabled: true;
+    callback browse(bool);
+    callback choose(string);
+    background: Ink.well;
+    border-radius: 8px;
+    border-width: 1px;
+    border-color: Ink.line;
+    height: body.preferred-height;
+
+    body := VerticalLayout {
+        padding: 12px;
+        padding-left: 18px;
+        spacing: 8px;
+
+        HorizontalLayout {
+            spacing: 8px;
+            cross-axis-alignment: center;
+
+            Kicker {
+                text: Locale.t("Detected game files");
+                horizontal-stretch: 1;
+            }
+
+            Action {
+                label: Game.searching ? Locale.t("Searching") : Locale.t("Search again");
+                quiet: true;
+                size: 13px;
+                enabled: root.enabled && !Game.searching;
+                clicked => { Game.find-files(); }
+            }
+        }
+
+        if !Game.searching && Game.found.length == 0: Note {
+            text: Locale.t("No copies found. Choose a game file or an extracted folder below.");
+            font-size: 14px;
+        }
+        if Game.found.length > 0: ListView {
+            height: min(3,Game.found.length) * 48px;
+            for path in Game.found: SourceOption {
+                path: path;
+                selected: path == root.current;
+                enabled: root.enabled;
+                choose => { root.choose(path); }
+            }
+        }
+        HorizontalLayout {
+            alignment: start;
+            spacing: 8px;
+
+            Action {
+                label: Locale.t("Choose file");
+                enabled: root.enabled;
+                clicked => { root.browse(false); }
+            }
+
+            Action {
+                label: Locale.t("Choose dump folder");
+                enabled: root.enabled;
+                clicked => { root.browse(true); }
+            }
+        }
+    }
+}
+
+export component SourcePicker inherits VerticalLayout {
+    in property <string> current;
+    in property <bool> for-settings;
+    in property <bool> verifying;
+    in property <bool> checked;
+    in property <bool> file-error;
+    in property <bool> enabled: true;
+    callback browse(bool) -> bool;
+    callback choose(string) -> bool;
+    private property <bool> expanded: current == "";
+    changed current => { root.expanded = root.current == ""; }
+    spacing: 8px;
+
+    if root.for-settings: HorizontalLayout {
+        spacing: 12px;
+        cross-axis-alignment: center;
+
+        VerticalLayout {
+            min-width: 0px;
+            horizontal-stretch: 1;
+            spacing: 4px;
+
+            Text {
+                text: Locale.t("Your original game");
+                color: Ink.text;
+                font-size: 17px;
+                font-weight: 700;
+            }
+
+            Hint {
+                text: Locale.t("Choose a .nup or .nx file, or the folder containing romfs and exefs. Longshot reads your copy locally to build the game.");
+            }
+
+            if root.current != "": PathHint { path: root.current; }
+        }
+
+        Action {
+            label: root.expanded ? Locale.t("Close") : Locale.t("Change");
+            enabled: root.enabled;
+            clicked => { root.expanded = !root.expanded; }
+        }
+    }
+    if !root.for-settings && !root.expanded: Rectangle {
+        height: max(68px,chosen.preferred-height);
+        border-width: 2px;
+        border-radius: 10px;
+        border-color: root.file-error ? Ink.russet : root.checked ? Ink.sage : Ink.line;
+
+        chosen := HorizontalLayout {
+            padding: 10px;
+            padding-left: 16px;
+            spacing: 10px;
+            cross-axis-alignment: center;
+
+            Rectangle {
+                width: 30px;
+                height: 30px;
+                border-radius: 6px;
+                background: root.file-error ? Ink.russet : root.checked ? Ink.sage : Ink.raised;
+
+                Text {
+                    text: root.file-error ? "!" : root.checked ? "✓" : "•";
+                    color: root.checked ? Ink.black : Ink.text;
+                    font-size: 16px;
+                    font-weight: 700;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+            }
+
+            VerticalLayout {
+                min-width: 0px;
+                horizontal-stretch: 1;
+                spacing: 3px;
+
+                Text {
+                    text: Game.file-name(root.current);
+                    font-size: 16px;
+                    overflow: elide;
+                    font-weight: 700;
+                    color: Ink.text;
+                }
+
+                Note {
+                    text: root.checked ? Locale.t("The builder checked this copy.") : Locale.display-path(root.current);
+                    font-size: 13px;
+                    wrap: no-wrap;
+                    overflow: elide;
+                }
+            }
+
+            Action {
+                label: root.verifying ? Locale.t("Cancel check") : Locale.t("Change");
+                enabled: root.enabled || root.verifying;
+                clicked => { if root.verifying { Game.cancel(); } else { root.expanded = true; } }
+            }
+        }
+    }
+    if root.expanded: SourceChooser {
+        current: root.current;
+        enabled: root.enabled;
+        init => { Game.find-files(); }
+        browse(folder) => { if root.browse(folder) { root.expanded = false; } }
+        choose(path) => { if root.choose(path) { root.expanded = false; } }
+    }
+}

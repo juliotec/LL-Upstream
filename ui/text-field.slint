@@ -1,0 +1,127 @@
+import { Ink, Locale } from "widgets.slint";
+
+// The same editing surface is used for search, names, source URLs and settings.
+export component TextField inherits Rectangle {
+    in-out property <string> text <=> input.text;
+    in property <string> placeholder-text;
+    in property <bool> enabled: true;
+    public function select-all() { input.select-all(); }
+    callback accepted(string);
+    callback edited(string);
+
+    min-width: 72px;
+    height: 44px;
+    horizontal-stretch: 1;
+    forward-focus: input;
+    accessible-role: text-input;
+    accessible-label: root.placeholder-text;
+    accessible-placeholder-text: root.placeholder-text;
+    accessible-value <=> root.text;
+    accessible-enabled: root.enabled;
+    accessible-action-set-value(value) => {
+        if root.enabled { root.text = value; root.edited(value); }
+    }
+    accessible-action-set-selection-offsets(anchor, cursor) => {
+        if root.enabled { input.set-selection-offsets(anchor, cursor); }
+    }
+
+    opacity: root.enabled ? 1 : 0.55;
+    background: Ink.well;
+    border-radius: 8px;
+    border-width: 1px;
+    border-color: root.enabled && surface.has-hover ? Ink.muted : Ink.line;
+
+    if input.has-focus: Rectangle {
+        x: -3px;
+        y: -3px;
+        width: parent.width + 6px;
+        height: parent.height + 6px;
+        border-radius: 11px;
+        border-width: 3px;
+        border-color: Ink.mustard;
+    }
+
+    surface := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: MouseCursor.text;
+        clicked => { input.focus(); }
+
+        viewport := Rectangle {
+            x: 10px;
+            width: max(1px, parent.width - 20px);
+            clip: true;
+
+            if root.text == "" && input.preedit-text == "": Text {
+                width: parent.width;
+                height: parent.height;
+                text: root.placeholder-text;
+                color: Ink.muted;
+                font-size: 16px;
+                vertical-alignment: center;
+                overflow: elide;
+                accessible-role: none;
+            }
+
+            ContextMenuArea {
+                enabled: root.enabled;
+
+                Menu {
+                    MenuItem {
+                        title: Locale.t("Undo");
+                        activated => { input.undo(); }
+                    }
+
+                    MenuItem {
+                        title: Locale.t("Redo");
+                        activated => { input.redo(); }
+                    }
+
+                    MenuSeparator { }
+
+                    MenuItem {
+                        title: Locale.t("Cut");
+                        enabled: input.has-selection;
+                        activated => { input.cut(); }
+                    }
+
+                    MenuItem {
+                        title: Locale.t("Copy");
+                        enabled: input.has-selection;
+                        activated => { input.copy(); }
+                    }
+
+                    MenuItem {
+                        title: Locale.t("Paste");
+                        activated => { input.paste(); }
+                    }
+
+                    MenuItem {
+                        title: Locale.t("Select all");
+                        enabled: root.text != "";
+                        activated => { input.select-all(); }
+                    }
+                }
+
+                input := TextInput {
+                    private property <length> offset;
+                    width: max(viewport.width - self.text-cursor-width, self.preferred-width);
+                    x: clamp(self.offset, viewport.width - self.width - self.text-cursor-width, 0px);
+                    height: viewport.height;
+                    enabled: root.enabled;
+                    font-size: 16px;
+                    vertical-alignment: center;
+                    color: Ink.text;
+                    selection-background-color: Ink.mustard;
+                    selection-foreground-color: Ink.black;
+                    accessible-role: none;
+                    cursor-position-changed(position) => {
+                        // Keep the caret in view while selecting or editing a long URL.
+                        self.offset = clamp(self.x, -position.x, viewport.width - position.x - self.text-cursor-width);
+                    }
+                    accepted => { root.accepted(self.text); }
+                    edited => { root.edited(self.text); }
+                }
+            }
+        }
+    }
+}

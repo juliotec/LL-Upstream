@@ -7,7 +7,7 @@ of the letter size in cream (246,232,204), and the gold flourish (214,170,96) un
 face is Libertinus Serif Semibold, the font the start-up screen falls back to when the game's own
 menu font is not there -- the game's file cannot ship, so this is the closest legal match.
 
-INPUTS ARE THE ORIGINALS, and the originals only: App/Assets/steam/src_<slot>.png are the shipped
+INPUTS ARE THE ORIGINALS, and the originals only: assets/steam/src_<slot>.png are the shipped
 pre-wordmark art, kept as committed siblings. Reading composed capsules back in would cut the
 glyph out of a picture of itself every re-run (the soft glow of one pass becomes fringe in the
 next); so the script takes only src_ files and writes only the four slot files.
@@ -16,7 +16,7 @@ Capsules save as RGB, the logo as RGBA: a capsule is a flat picture, and Steam s
 premultiplied alpha -- a capsule carrying a near-opaque alpha channel renders its dark edges too
 dark against the UI.
 
-    python3 scripts/make_artwork.py OUT_DIR [--dry]     (OUT_DIR may be App/Assets/steam itself)
+    python3 scripts/make_artwork.py OUT_DIR [--dry]     (OUT_DIR may be assets/steam itself)
 
 Review the output by eye before committing: the composition is deterministic, its judgement is not.
 """
@@ -27,8 +27,8 @@ from PIL import Image, ImageDraw, ImageFont
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
-STEAM = os.path.join(ROOT, "App", "Assets", "steam")
-FONT = os.path.join(ROOT, "App", "Assets", "Fonts", "LibertinusSerif-Semibold.ttf")
+STEAM = os.path.join(ROOT, "assets", "steam")
+FONT = os.path.join(ROOT, "assets", "fonts", "LibertinusSerif-Semibold.ttf")
 assert os.path.exists(FONT), f"the face the start-up screen falls back to is missing: {FONT}"
 
 CREAM = (246, 232, 204)          # the heading colour on the start-up screen

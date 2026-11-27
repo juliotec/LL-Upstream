@@ -1,0 +1,268 @@
+import { Avatar } from "widgets.slint";
+import { Pressable } from "widgets.slint";
+import { ModalLayer, SideSheet } from "modal-layer.slint";
+import { Dropdown, MenuAction } from "menu.slint";
+import { TextField } from "text-field.slint";
+import { Action, Ink, Locale } from "widgets.slint";
+import { Game } from "game-model.slint";
+import { CheckBox } from "check-box.slint";
+import { ScrollView } from "scroll-view.slint";
+
+import { Players, PlayerRow, SlotRow, TagRow } from "player-model.slint";
+export { Players, PlayerRow, SlotRow, TagRow } from "player-model.slint";
+import { SavePage } from "saves.slint";
+import { ProfilePage } from "profiles.slint";
+component Heading inherits Text {
+    font-family: "Inter";
+    font-size: 28px;
+    font-weight: 900;
+    color: Ink.text;
+}
+
+component SectionTitle inherits Text {
+    font-size: 18px;
+    font-weight: 700;
+    color: Ink.text;
+}
+
+component Sub inherits Text {
+    font-size: 13px;
+    color: Ink.muted;
+    wrap: word-wrap;
+}
+
+component PlayerAvatar inherits Avatar { glyph-colour: #14171b; }
+
+component SmallAction inherits Action {
+    size: 13px;
+    min-height: 32px;
+    max-height: 32px;
+}
+
+export component PlayersPage inherits Rectangle {
+    in property <string> section: "Profiles";
+    private property <bool> profiles: root.section == "Profiles";
+    private property <bool> who: root.section == "Who’s playing?";
+    private property <bool> saves: root.section == "Saves";
+    if root.who: ScrollView {
+        VerticalLayout {
+            alignment: center;
+            spacing: 28px;
+            padding: 16px;
+
+            VerticalLayout {
+                spacing: 6px;
+
+                Heading {
+                    font-family: "Inter";
+                    font-size: 36px;
+                    font-weight: 700;
+                    text: Players.profiles.length == 0 ? Locale.t("Welcome to Longshot") : Locale.t("Who's playing?");
+                    horizontal-alignment: center;
+                }
+
+                Sub {
+                    font-size: 14px;
+                    text: Players.profiles.length == 0 ? Locale.t("Create a profile to keep your saves and game settings together.") : Locale.t("Each profile has its own saves and game settings.");
+                    horizontal-alignment: center;
+                }
+            }
+
+            FlexboxLayout {
+                spacing: 16px;
+                alignment: center;
+                for player in Players.profiles: Rectangle {
+                    width: 190px;
+                    height: 196px;
+                    border-radius: 16px;
+                    background: key.hovered ? Ink.selected : Ink.raised;
+                    border-width: 1px;
+                    border-color: (Ink.focus-visible && key.has-focus) ? Ink.mustard : Ink.line;
+                    accessible-role: button;
+                    accessible-label: player.name;
+                    accessible-action-default => { if !player.damaged { Players.action("switch",player.id); } }
+                    forward-focus: key;
+
+                    VerticalLayout {
+                        alignment: center;
+                        spacing: 10px;
+
+                        HorizontalLayout {
+                            alignment: center;
+
+                            PlayerAvatar {
+                                colour: player.colour;
+                                initial: player.avatar;
+                                diameter: 84px;
+                            }
+                        }
+
+                        SectionTitle {
+                            font-size: 16px;
+                            text: player.name;
+                            horizontal-alignment: center;
+                            overflow: elide;
+                        }
+
+                        Sub {
+                            text: player.detail;
+                            horizontal-alignment: center;
+                        }
+                    }
+
+                    key := Pressable {
+                        enabled: !player.damaged;
+                        mouse-focus: false;
+                        activate => { Players.action("switch",player.id); }
+                    }
+                }
+            }
+
+            HorizontalLayout {
+                alignment: center;
+
+                SmallAction {
+                    quiet: true;
+                    icon: @image-url("icons/plus.svg");
+                    label: Players.profiles.length == 0 ? Locale.t("Create profile") : Locale.t("New profile");
+                    clicked => { Players.action("new",""); }
+                }
+            }
+
+            if Players.message != "": Sub {
+                text: Players.message;
+                horizontal-alignment: center;
+            }
+        }
+    }
+    if root.profiles: ProfilePage { }
+    if root.saves: SavePage { }
+}
+
+export component PlayerPrompt inherits ModalLayer {
+    property <int> expanded-location: -1;
+    init => { if !Players.asks-name { cancel.focus(); } }
+    dismissed => { Players.cancel(); }
+    wrap-focus(backwards) => { cancel.focus(); }
+
+    SideSheet {
+        viewport-width: root.width;
+        viewport-height: root.height;
+        sheet-min-width: 292px;
+        background: Ink.mustard;
+
+        VerticalLayout {
+            padding: 24px;
+
+            Rectangle {
+                background: Ink.black;
+                border-radius: 14px;
+
+                VerticalLayout {
+                    padding: 24px;
+                    spacing: 16px;
+
+                    SectionTitle {
+                        text: Players.prompt;
+                    }
+
+                    Sub {
+                        text: Players.question;
+                    }
+
+                    if Players.browsing-saves: ScrollView {
+                        vertical-stretch: 1;
+
+                        VerticalLayout {
+                            alignment: start;
+                            spacing: 8px;
+                            if Players.import-sources.length == 0: Sub {
+                                text: Locale.t("No save locations detected.");
+                            }
+                            for source[i] in Players.import-sources: VerticalLayout {
+                                spacing: 4px;
+
+                                MenuAction {
+                                    label: (root.expanded-location == i ? "▾  " : "▸  ") + source.label + "  (" + source.slots.length + ")";
+                                    clicked => { root.expanded-location = root.expanded-location == i ? -1 : i; }
+                                }
+
+                                if root.expanded-location == i: VerticalLayout {
+                                    padding: 5px;
+                                    spacing: 5px;
+
+                                    Text {
+                                        text: source.path;
+                                        font-size: 12px;
+                                        color: Ink.muted;
+                                        overflow: elide;
+                                        min-width: 0px;
+                                    }
+
+                                    for slot[j] in source.slots: MenuAction {
+                                        label: slot;
+                                        clicked => { Players.import-slot(i, j); }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if Players.browsing-saves: VerticalLayout {
+                        spacing: 6px;
+
+                        Action {
+                            label: Locale.t("Open file");
+                            clicked => { Players.action("import-file", ""); }
+                        }
+
+                        Action {
+                            label: Locale.t("Open folder");
+                            clicked => { Players.action("import-folder", ""); }
+                        }
+                    }
+                    if Players.browsing-saves && Players.message != "": Sub {
+                        text: Players.message;
+                        color: Ink.russet;
+                    }
+                    if Players.asks-name: TextField {
+                        init => { self.focus(); }
+                        placeholder-text: Locale.t("Profile name");
+                        text <=> Players.entry;
+                        accepted => { Players.confirm(); }
+                    }
+                    if Players.choices.length > 0: Dropdown {
+                        model: Players.choices;
+                        current-index <=> Players.choice;
+                    }
+                    if Players.asks-settings: CheckBox {
+                        text: Locale.t("Keep the destination’s game settings");
+                        checked <=> Players.keep-settings;
+                    }
+                    if !Players.browsing-saves: Rectangle {
+                        vertical-stretch: 1;
+                    }
+
+                    Rectangle {
+                        height: 1px;
+                        background: Ink.line;
+                    }
+
+                    HorizontalLayout {
+                        spacing: 8px;
+
+                        cancel := Action {
+                            label: Locale.t("Cancel");
+                            clicked => { Players.cancel(); }
+                        }
+
+                        if !Players.browsing-saves: Action {
+                            label: Locale.t("Continue");
+                            primary: true;
+                            clicked => { Players.confirm(); }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

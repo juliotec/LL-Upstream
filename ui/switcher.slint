@@ -1,0 +1,265 @@
+import { Avatar } from "widgets.slint";
+import { Pressable } from "widgets.slint";
+import { ScrollView } from "std-widgets.slint";
+import { SavePicture } from "saves.slint";
+import { MenuAction } from "menu.slint";
+import { Ink, Locale, Page } from "widgets.slint";
+import { Shell, Popup } from "shell-model.slint";
+import { TrackMenu } from "game-versions.slint";
+import { Players } from "players.slint";
+import { Game } from "game.slint";
+
+component Choice inherits Rectangle {
+    in property <string> title;
+    in property <string> description;
+    in property <bool> active;
+    in property <color> swatch;
+    in property <string> initial;
+    in property <bool> has-save;
+    in property <image> thumbnail;
+    callback chosen;
+    callback focused;
+    in property <bool> take-focus;
+    changed take-focus => { if self.take-focus { key.focus(); } }
+    height: description == "" ? 48px : 62px;
+    forward-focus: key;
+    background: active ? Ink.mustard : key.hovered || (Ink.focus-visible && key.has-focus) ? Ink.selected : Ink.raised;
+    border-width: (Ink.focus-visible && key.has-focus) ? 2px : 0px;
+    border-color: (Ink.focus-visible && key.has-focus) ? Ink.gold : Ink.line;
+    accessible-role: button;
+    accessible-label: title + ", " + description;
+    accessible-action-default => { chosen(); }
+
+    HorizontalLayout {
+        padding-left: 16px;
+        padding-right: 20px;
+        spacing: 10px;
+        cross-axis-alignment: center;
+        if root.has-save: SavePicture {
+            width: 64px;
+            height: 42px;
+            picture: root.thumbnail;
+            compact: true;
+        }
+        if root.initial != "": Avatar {
+            diameter: 34px;
+            border-radius: 5px;
+            initial: root.initial;
+            colour: root.swatch;
+            glyph-weight: 900;
+            glyph-size: 17px;
+        }
+        VerticalLayout {
+            alignment: center;
+            spacing: 3px;
+            horizontal-stretch: 1;
+
+            Text {
+                text: root.title;
+                font-weight: 750;
+                color: root.active ? Ink.black : Ink.text;
+                overflow: elide;
+            }
+
+            if root.description != "": Text {
+                text: root.description;
+                font-size: 13px;
+                color: root.active ? Ink.black : Ink.sand;
+                overflow: elide;
+            }
+        }
+
+        if root.active: Text {
+            text: "✓";
+            font-weight: 800;
+            color: Ink.black;
+        }
+    }
+
+    Rectangle {
+        y: parent.height - 1px;
+        height: 1px;
+        background: root.active ? transparent : Ink.line;
+    }
+
+    key := Pressable {
+        focus-changed-event => { if self.has-focus { root.focused(); } }
+        activate => { root.chosen(); }
+    }
+}
+
+export component Switcher inherits Rectangle {
+    background: #0d0a0890;
+    private property <int> cursor: -2;
+    private property <int> count: Shell.popup == Popup.save ? Players.slots.length : Shell.popup == Popup.version ? Game.version-rows.length : Players.profiles.length;
+    init => { if Shell.popup != Popup.track { keys.focus(); } if Shell.popup == Popup.save { Players.load-slot-pictures(); } }
+
+    Timer {
+        interval: 1ms;
+        running: Shell.popup != Popup.track;
+        triggered => {
+            self.running = false;
+            let selected = Shell.popup == Popup.save ? Players.slot-index : Shell.popup == Popup.version ? Game.selected : Players.current-index;
+            root.cursor = selected >= 0 ? selected : root.count;
+        }
+    }
+
+    changed cursor => {
+        if root.cursor >= 0 && root.cursor < root.count {
+            list.content-y = clamp(list.content-y, -root.cursor * 62px, list.height - (root.cursor + 1) * 62px);
+        }
+    }
+
+    keys := FocusScope {
+        key-pressed(e) => {
+            if e.text == Key.Escape { Shell.popup = Popup.closed; return accept; }
+            if e.text == Key.UpArrow || e.text == Key.DownArrow || e.text == Key.Home || e.text == Key.End {
+                root.cursor = e.text == Key.Home ? -1 : e.text == Key.End ? root.count : clamp(root.cursor + (e.text == Key.DownArrow ? 1 : -1), -1, root.count);
+                return accept;
+            }
+            reject
+        }
+
+        // Handle the entire click inside the same focus scope as the choices.
+        TouchArea { clicked => { Shell.popup = Popup.closed; } }
+
+        if Shell.popup == Popup.track: TrackMenu {
+            width: min(340px, root.width - 16px);
+            x: clamp(Shell.anchor-x - self.width, 8px, root.width - self.width - 8px);
+            y: clamp(Shell.anchor-y + 5px, 4px, root.height - self.height - 4px);
+            closed => { Shell.popup = Popup.closed; }
+        }
+
+        box := Rectangle {
+            visible: Shell.popup != Popup.track;
+            width: min(Shell.popup == Popup.version ? 440px : 400px, root.width - 16px);
+            height: min(root.height - 96px, choices.preferred-height + header.height + footer.height + 6px);
+            x: clamp(Shell.anchor-x, 8px, root.width - self.width - 8px);
+            y: clamp(Shell.anchor-y + 6px, 8px, root.height - self.height - 8px);
+            background: Ink.raised;
+            border-radius: 12px;
+            border-width: 2px;
+            border-color: Ink.line;
+            clip: true;
+
+            // Empty space inside the menu is part of the menu, too.
+            TouchArea { }
+
+            header := HorizontalLayout {
+                x: 2px;
+                y: 2px;
+                width: parent.width - 4px;
+                height: 48px;
+                padding-left: 16px;
+                padding-right: 14px;
+                cross-axis-alignment: center;
+
+                Text {
+                    text: Shell.popup == Popup.profile ? Locale.t("Profiles") : Shell.popup == Popup.version ? Locale.t("Versions") : Locale.t("Saves");
+                    font-size: 16px;
+                    font-weight: 750;
+                    color: Ink.text;
+                    horizontal-stretch: 1;
+                }
+
+                MenuAction {
+                    label-inset: 6px;
+                    width: self.label-width + 2 * self.label-inset;
+                    height: 30px;
+                    label: Locale.t("Manage");
+                    center-label: true;
+                    take-focus: root.cursor == -1;
+                    focused => { root.cursor = -1; }
+                    accessible-label: Locale.t("Manage") + " " + (Shell.popup == Popup.profile ? Locale.t("Profiles") : Shell.popup == Popup.version ? Locale.t("Versions") : Locale.t("Saves"));
+                    clicked => {
+                        let menu = Shell.popup;
+                        Shell.popup = Popup.closed;
+                        Shell.navigate(menu == Popup.profile ? Page.profiles : menu == Popup.version ? Page.versions : Page.saves);
+                    }
+                }
+            }
+
+            Rectangle {
+                x: 2px;
+                y: header.y + header.height;
+                width: parent.width - 4px;
+                height: 1px;
+                background: Ink.line;
+            }
+
+            list := ScrollView {
+                x: 2px;
+                y: header.y + header.height + 1px;
+                width: parent.width - 4px;
+                height: parent.height - header.height - footer.height - 6px;
+                horizontal-scrollbar-policy: always-off;
+
+                choices := VerticalLayout {
+                    alignment: start;
+                    if Shell.popup == Popup.profile: VerticalLayout {
+                        for person[i] in Players.profiles: Choice {
+                            title: person.name;
+                            initial: person.avatar;
+                            swatch: person.colour;
+                            description: person.mod-count + " " + Locale.t("mods") + " · " + person.save-count + " " + Locale.t("saves");
+                            active: Players.profile-id == person.id;
+                            take-focus: root.cursor == i;
+                            focused => { root.cursor = i; }
+                            chosen => { Shell.popup = Popup.closed; Players.action("switch", person.id); }
+                        }
+                    }
+                    if Shell.popup == Popup.version: VerticalLayout {
+                        for version[i] in Game.version-rows: Choice {
+                            title: version.track + " · " + version.tag + version.copy-suffix;
+                            description: version.status;
+                            active: Game.selected == i;
+                            take-focus: root.cursor == i;
+                            focused => { root.cursor = i; }
+                            chosen => { Game.select-version(i); Shell.popup = Popup.closed; }
+                        }
+                    }
+                    if Shell.popup == Popup.save: VerticalLayout {
+                        for slot[i] in Players.slots: Choice {
+                            title: slot.name;
+                            has-save: true;
+                            thumbnail: slot.thumbnail;
+                            description: slot.saved + " · " + slot.slot-label;
+                            active: Players.slot-index == i;
+                            take-focus: root.cursor == i;
+                            focused => { root.cursor = i; }
+                            chosen => { Players.pick-slot(i); Shell.popup = Popup.closed; }
+                        }
+                    }
+                }
+            }
+
+            Rectangle {
+                x: 2px;
+                y: footer.y - 1px;
+                width: parent.width - 4px;
+                height: 1px;
+                background: Ink.line;
+            }
+
+            footer := MenuAction {
+                x: 2px;
+                y: parent.height - self.height - 2px;
+                width: parent.width - 4px;
+                height: 48px;
+                label-inset: 0px;
+                border-radius: 0px;
+                center-label: true;
+                take-focus: root.cursor == root.count;
+                focused => { root.cursor = root.count; }
+                label: (Shell.popup == Popup.save && Players.slot-index < 0 ? "✓ " : "+ ") + (Shell.popup == Popup.profile ? Locale.t("New profile") : Shell.popup == Popup.version ? Locale.t("Add version") : Locale.t("New save"));
+                clicked => {
+                    let menu = Shell.popup;
+                    Shell.popup = Popup.closed;
+                    if menu == Popup.profile { Shell.navigate(Page.profiles); Players.action("new",""); }
+                    else if menu == Popup.version { Game.begin-build(); }
+                    else { Players.action("new-save",""); }
+                }
+            }
+        }
+    }
+}

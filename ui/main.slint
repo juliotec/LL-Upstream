@@ -1,0 +1,530 @@
+import { Avatar } from "widgets.slint";
+import { StopBuildDialog } from "game.slint";
+import { Pressable } from "widgets.slint";
+import { LauncherChannelDialog } from "launcher-channel-dialog.slint";
+
+import { BuildLogDialog } from "build-log-dialog.slint";
+import { BuildFolders } from "build-folders.slint";
+import { ModuleDialog } from "build-modules.slint";
+import { StorageReview, StorageReviewDialog } from "storage.slint";
+import { LaunchPage } from "launch.slint";
+import { FolderChangeDialog } from "folder-change.slint";
+import { Palette } from "std-widgets.slint";
+
+import { Page, Ink, Locale, Action, Kicker, ColourStripe } from "widgets.slint";
+import {
+    Game,
+    GamePage,
+    RemoveVersionDialog,
+    GameStep,
+    NoteBlock,
+    VersionRow,
+} from "game.slint";
+import {
+    Players,
+    PlayerPrompt,
+    PlayersPage,
+    PlayerRow,
+    SlotRow,
+    TagRow,
+} from "players.slint";
+import { ReleaseNotesPage } from "game-notes.slint";
+import { Updates } from "updates.slint";
+import {
+    Preferences,
+    SettingsPage,
+    SettingsGroup,
+    FolderStage,
+    SettingToggle,
+    DiskGroup,
+    DiskPart,
+} from "settings.slint";
+import { HomePage, Shell, Popup } from "home.slint";
+import { Switcher } from "switcher.slint";
+export { BuildStageRow, ReleaseNote } from "game-model.slint";
+export { ImportSource } from "player-model.slint";
+import { MenuValues } from "menu.slint";
+export { MenuValues }
+import { Mods, ModRow, ModsPage, ModReviewDialog } from "mods.slint";
+import { LogEntry } from "log-viewer.slint";
+import { Logbook, LogsPage } from "logs.slint";
+export {
+    Ink,
+    Page,
+    Game,
+    GameStep,
+    VersionRow,
+    NoteBlock,
+    Players,
+    Preferences,
+    SettingsGroup,
+    FolderStage,
+    Updates,
+    Locale,
+    PlayerRow,
+    SlotRow,
+    TagRow,
+    SettingToggle,
+    DiskGroup,
+    DiskPart,
+    Shell,
+    Popup,
+    Logbook,
+    LogEntry,
+    Mods,
+    ModRow,
+}
+export { ShortcutTrustWindow } from "shortcut-trust.slint";
+export { SetupWindow } from "setup.slint";
+export { ProfileSwatch } from "player-model.slint";
+import "../assets/fonts/Inter-Regular.ttf";
+import "../assets/fonts/Inter-SemiBold.ttf";
+import "../assets/fonts/Inter-Bold.ttf";
+import "../assets/fonts/Inter-Black.ttf";
+
+component Tab inherits Rectangle {
+    in property <string> label;
+    in property <bool> selected;
+    in property <bool> enabled: true;
+    callback clicked;
+    min-width: caption.preferred-width + (root.compact ? 16px : 34px);
+    height: 70px;
+    in property <bool> compact;
+    border-color: (Ink.focus-visible && key.has-focus) ? Ink.mustard : transparent;
+    border-width: (Ink.focus-visible && key.has-focus) ? 3px : 1px;
+    background: selected || (enabled && key.hovered) ? #1a1411 : transparent;
+    accessible-role: button;
+    accessible-label: label;
+    accessible-enabled: enabled;
+    accessible-action-default => { if root.enabled { clicked(); } }
+
+    caption := Text {
+        text: root.label;
+        color: root.selected ? Ink.text : Ink.sand;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        font-size: 15px;
+        font-weight: 550;
+    }
+
+    key := Pressable {
+        enabled: root.enabled;
+        cursor: root.enabled ? pointer : default;
+        activate => { root.clicked(); }
+    }
+}
+
+component HintKey inherits HorizontalLayout {
+    in property <string> key-label;
+    in property <string> label;
+    spacing: 6px;
+    cross-axis-alignment: center;
+
+    Rectangle {
+        width: max(22px, key-text.preferred-width + 9px);
+        height: 22px;
+        border-radius: 7px;
+        background: Ink.sand;
+
+        key-text := Text {
+            text: root.key-label;
+            color: Ink.black;
+            font-weight: 800;
+            font-size: 12px;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+
+    Text {
+        text: root.label;
+        color: Ink.sand;
+        font-size: 14px;
+    }
+}
+
+export component MainWindow inherits Window {
+    title: "Longshot Launcher";
+    icon: @image-url("../assets/longshot.png");
+    preferred-width: 1280px;
+    preferred-height: 800px;
+    min-width: 900px;
+    min-height: 560px;
+    default-font-family: "Inter";
+    default-font-size: 16px;
+    background: Ink.page;
+    no-frame: true;
+    resize-border-width: 5px;
+    in-out property <Page> page: Page.home;
+    callback navigate(Page);
+    callback go-back();
+    callback request-exit();
+    in-out property <string> notice;
+    in property <bool> tv-mode;
+    in-out property <bool> controller-active;
+    out property <bool> navigation-locked: (root.page == Page.launch && Game.show-log) || (root.page == Page.build && Game.folders-open) || Game.busy || Players.busy || Mods.busy || Preferences.cleaning || Preferences.changing-folder || Updates.applying;
+    out property <bool> modal-open: Updates.channel-prompt || StorageReview.open || Game.mod-trust-review != "" || Mods.review != "" || Game.confirming-removal
+        || Game.show-log || Game.folders-open || Game.license != "" || Players.prompt != ""
+        || Preferences.changing-folder || Updates.applying || root.asking-to-stop;
+    private property <bool> shortcuts-available: !root.header-disabled && Shell.popup == Popup.closed && !Game.show-notes && !Updates.show-notes;
+    private property <bool> home-shortcuts: root.shortcuts-available && root.page == Page.home;
+    private property <length> content-bottom: hints.y;
+    changed content-bottom => { MenuValues.content-bottom = root.content-bottom; }
+    private property <bool> header-disabled: root.navigation-locked || root.modal-open;
+    changed header-disabled => { if root.header-disabled { Shell.popup = Popup.closed; } }
+    in-out property <bool> asking-to-stop;
+    in-out property <bool> close-after-stop;
+    callback stop-confirmed();
+    private property <int> focus-sequence;
+    callback focus-home();
+    focus-home => { root.focus-sequence += 1; }
+    init => { Palette.color-scheme = ColorScheme.dark; MenuValues.content-bottom = root.content-bottom; }
+    forward-focus: keys;
+    private property <Popup> open-menu: Shell.popup;
+    changed open-menu => {
+        if self.open-menu != Popup.closed { Shell.opener = self.open-menu; }
+        else { restore.running = true; }
+    }
+    restore := Timer {
+        interval: 1ms;
+        running: false;
+        triggered => {
+            self.running = false;
+            if Shell.popup == Popup.closed && !root.header-disabled {
+                Shell.restore-focus += 1;
+            }
+        }
+    }
+
+    keys := FocusScope {
+        x: 0;
+        y: 0;
+        width: root.width;
+        height: hints.y;
+        enabled: !root.modal-open && Shell.popup == Popup.closed;
+        key-pressed(e) => {
+            if e.text == Key.Escape { if Shell.popup != Popup.closed { Shell.popup = Popup.closed; } else { root.go-back(); } return accept; }
+            if e.text == Key.F11 { root.full-screen = !root.full-screen; return accept; }
+            if !root.header-disabled && root.page == Page.home && (e.text == "x" || e.text == "y") {
+                Shell.popup = e.text == "x" ? Popup.version : Popup.save;
+                return accept;
+            }
+            reject
+        }
+
+        VerticalLayout {
+            ColourStripe { height: 6px; }
+
+            Rectangle {
+                height: 70px;
+                background: Ink.black;
+
+                WindowMoveArea { }
+
+                HorizontalLayout {
+                    padding-left: 24px;
+                    padding-right: 12px;
+                    spacing: 2px;
+                    cross-axis-alignment: center;
+
+                    brand := Rectangle {
+                        private property <bool> available: !root.header-disabled && !Game.first-run && root.page != Page.choose-player;
+                        width: brand-content.preferred-width;
+                        height: 46px;
+                        border-radius: 6px;
+                        border-width: Ink.focus-visible && brand-key.has-focus ? 2px : 0px;
+                        border-color: Ink.mustard;
+                        accessible-role: button;
+                        accessible-label: Locale.t("Home");
+                        accessible-enabled: self.available;
+                        accessible-action-default => { if self.available { root.navigate(Page.home); } }
+
+                        brand-content := HorizontalLayout {
+                            spacing: 8px;
+                            padding-right: root.width < 1100px ? 12px : 20px;
+                            cross-axis-alignment: center;
+                            Image {
+                                width: 36px;
+                                height: 36px;
+                                source: @image-url("../assets/longshot.png");
+                            }
+                            Text {
+                                text: "Longshot Launcher";
+                                color: Ink.text;
+                                font-size: 17px;
+                                font-weight: 800;
+                            }
+                        }
+                        brand-key := Pressable {
+                            enabled: brand.available;
+                            cursor: brand.available ? pointer : default;
+                            mouse-focus: false;
+                            activate => { root.navigate(Page.home); }
+                        }
+                    }
+
+                    if !Game.first-run && root.page != Page.choose-player: profile-chip := Rectangle {
+                        private property <int> restore: Shell.restore-focus;
+                        changed restore => { if Shell.opener == Popup.profile { profile-key.focus(); } }
+                        function open-menu() { if root.header-disabled { return; } Shell.anchor-x = self.absolute-position.x; Shell.anchor-y = self.absolute-position.y + self.height; Shell.popup = Popup.profile; }
+                        min-width: 96px;
+                        preferred-width: clamp(profile-content.preferred-width, 96px, 320px);
+                        max-width: self.preferred-width;
+                        horizontal-stretch: 0;
+                        height: 46px;
+                        background: #1a1411;
+                        border-radius: 8px;
+                        border-color: (Ink.focus-visible && profile-key.has-focus) ? Ink.mustard : #3a2c24;
+                        border-width: 2px;
+                        accessible-role: button;
+                        accessible-enabled: !root.header-disabled;
+                        accessible-label: Locale.t("Switch profile");
+                        accessible-action-default => { profile-chip.open-menu(); }
+
+                        profile-content := HorizontalLayout {
+                            padding-left: 14px;
+                            padding-right: 14px;
+                            spacing: 7px;
+                            cross-axis-alignment: center;
+
+                            Avatar {
+                                diameter: 32px;
+                                border-radius: 7px;
+                                initial: Players.initial;
+                                colour: Players.colour;
+                                glyph-weight: 800;
+                                glyph-size: 16px;
+                            }
+
+                            profile-name := Text {
+                                text: Players.profile-name;
+                                color: Ink.text;
+                                font-weight: 750;
+                                overflow: elide;
+                            }
+
+                            Image {
+                                width: 10px;
+                                source: @image-url("icons/chevron.svg");
+                                colorize: Ink.sand;
+                            }
+                        }
+
+                        profile-key := Pressable {
+                            enabled: !root.header-disabled;
+                            cursor: root.header-disabled ? default : pointer;
+                            activate => { profile-chip.open-menu(); }
+                        }
+                    }
+                    if root.width >= 1120px: HorizontalLayout {
+                        padding-left: 18px;
+                        Text {
+                            text: Preferences.version;
+                            color: Ink.muted;
+                            font-size: 13px;
+                        }
+                    }
+                    Rectangle {
+                        horizontal-stretch: 1;
+                    }
+
+                    for tab in [
+                        { name:"Home", page:Page.home },
+                        { name:"Saves", page:Page.saves },
+                        { name:"Versions", page:Page.versions },
+                        { name:"Mods", page:Page.mods },
+                        { name:"Settings", page:Page.settings }
+                    ]: Tab {
+                        visible: !Game.first-run && root.page != Page.choose-player;
+                        enabled: !root.header-disabled;
+                        compact: root.width < 1180px;
+                        label: Locale.t(tab.name);
+                        selected: root.page == tab.page;
+                        clicked => { root.navigate(tab.page); }
+                    }
+                    Rectangle {
+                        width: 17px;
+                        height: 28px;
+                        Rectangle {
+                            x: 8px;
+                            width: 1px;
+                            background: Ink.line;
+                        }
+                    }
+
+                    if !root.tv-mode: Tab {
+                        width: 44px;
+                        compact: true;
+                        label: "−";
+                        accessible-label: Locale.t("Minimize");
+                        clicked => { root.minimized = true; }
+                    }
+                    if !root.tv-mode: Tab {
+                        width: 44px;
+                        compact: true;
+                        label: root.maximized ? "❐" : "□";
+                        accessible-label: root.maximized ? Locale.t("Restore window") : Locale.t("Maximize");
+                        clicked => { root.maximized = !root.maximized; }
+                    }
+                    Tab {
+                        compact: true;
+                        width: 44px;
+                        label: "×";
+                        accessible-label: Locale.t("Close");
+                        clicked => { root.request-exit(); }
+                    }
+                }
+            }
+
+            if root.notice != "": HorizontalLayout {
+                padding-left: 24px;
+                padding-right: 16px;
+                spacing: 14px;
+
+                Text {
+                    text: root.notice;
+                    color: Ink.gold;
+                    wrap: word-wrap;
+                    horizontal-stretch: 1;
+                }
+
+                Action {
+                    quiet: true;
+                    label: Locale.t("Dismiss");
+                    clicked => { root.notice = ""; }
+                }
+            }
+            if root.page == Page.home && !Updates.show-notes: HomePage {
+                focus-request: root.focus-sequence;
+            }
+            if root.page == Page.versions || root.page == Page.build: GamePage {
+                wizard: root.page == Page.build;
+            }
+            if root.page == Page.launch: LaunchPage { }
+            if root.page == Page.settings && !Updates.show-notes: SettingsPage { }
+            if (root.page == Page.settings || root.page == Page.home) && Updates.show-notes: ReleaseNotesPage {
+                entries: Updates.releases;
+                requested-tag: Updates.notes-tag;
+                heading: Locale.t("Launcher release notes");
+                back-label: root.page == Page.home ? Locale.t("Home") : Locale.t("Settings");
+                back => { Updates.show-notes = false; }
+                status: Updates.notes-status;
+                can-retry: Updates.notes-error && !Updates.busy;
+                retry => { Updates.check(); }
+            }
+            if root.page == Page.mods: ModsPage { }
+            if root.page == Page.logs: LogsPage { }
+            if root.page == Page.profiles || root.page == Page.saves || root.page == Page.choose-player: PlayersPage {
+                section: root.page == Page.profiles ? "Profiles" : root.page == Page.saves ? "Saves" : "Who’s playing?";
+            }
+
+        }
+    }
+
+    Rectangle {
+        y: 0px;
+        height: hints.y;
+        clip: true;
+        if Game.show-log: BuildLogDialog {
+            tag: root.page == Page.launch ? Game.current-tag : Game.pending-tag;
+            live: root.page == Page.launch ? Game.launch-phase == "rebuilding" : Game.step == GameStep.building;
+            title: root.page == Page.launch ? Locale.t("Rebuilding") : self.live ? Locale.t("Building your game") : Game.step == GameStep.ready ? Locale.t("Build complete") : Locale.t("Build stopped");
+        }
+        if Game.folders-open && !Preferences.changing-folder: BuildFolders { }
+        if Game.license != "": ModuleDialog { }
+        if Game.confirming-removal: RemoveVersionDialog { }
+        if Mods.review != "": ModReviewDialog {
+            title: Mods.reviewing-permissions ? Locale.t("Allow mod permissions?") : Mods.selected-name == "" ? Locale.t("Confirm changes") : Mods.selected-name;
+            details: Mods.review;
+            status: Mods.status;
+            busy: Mods.busy;
+            confirm-label: Mods.reviewing-permissions ? Locale.t("Allow") : Locale.t("Confirm");
+            cancel-review => { Mods.action("cancel"); }
+            confirm-review => { Mods.action("confirm"); }
+        }
+        if Game.mod-trust-review != "": ModReviewDialog {
+            title: Locale.t("Allow mod permissions?");
+            details: Game.mod-trust-review;
+            confirm-label: Locale.t("Allow and continue");
+            cancel-review => { Game.cancel-mod-trust(); }
+            confirm-review => { Game.approve-mod-trust(); }
+        }
+        if Updates.channel-prompt: LauncherChannelDialog { }
+        if StorageReview.open: StorageReviewDialog { }
+        if Players.prompt != "": PlayerPrompt { }
+        if Shell.popup != Popup.closed: Switcher { }
+        if root.asking-to-stop: StopBuildDialog {
+            close-after-stop: root.close-after-stop;
+            dismissed => { root.asking-to-stop = false; root.close-after-stop = false; }
+            stop => { root.stop-confirmed(); }
+        }
+        if Preferences.changing-folder: FolderChangeDialog { }
+        if Updates.applying: Rectangle {
+            background: #16100bf2;
+
+            TouchArea { }
+
+            VerticalLayout {
+                alignment: center;
+                spacing: 12px;
+
+                Text {
+                    text: Updates.status;
+                    color: Ink.text;
+                    font-size: 18px;
+                    horizontal-alignment: center;
+                }
+
+                Text {
+                    text: round(Updates.progress * 100) + "%";
+                    color: Ink.muted;
+                    horizontal-alignment: center;
+                }
+            }
+        }
+    }
+    hints := Rectangle {
+        y: root.height - self.height;
+        width: root.width;
+        height: root.controller-active ? 50px : 0px;
+        animate height { duration: 180ms; easing: ease-out; }
+        clip: true;
+        background: Ink.black;
+
+        HorizontalLayout {
+            y: 0;
+            height: 50px;
+            padding-left: 26px;
+            padding-right: 24px;
+            spacing: 24px;
+            alignment: start;
+            cross-axis-alignment: center;
+
+            HintKey {
+                key-label: "A";
+                label: root.home-shortcuts && Game.playable ? Locale.t("Play") : Locale.t("Select");
+            }
+
+            if root.home-shortcuts: HintKey {
+                key-label: "X";
+                label: Locale.t("Version");
+            }
+            if root.home-shortcuts: HintKey {
+                key-label: "Y";
+                label: Locale.t("Save");
+            }
+            if !root.home-shortcuts: HintKey {
+                key-label: "B";
+                label: Locale.t("Back");
+            }
+            if root.home-shortcuts: HintKey {
+                key-label: "R";
+                label: Locale.t("Scroll news");
+            }
+            if !Game.first-run && root.shortcuts-available && root.page != Page.choose-player: HintKey {
+                key-label: "LB  RB";
+                label: Locale.t("Switch view");
+            }
+        }
+    }
+}

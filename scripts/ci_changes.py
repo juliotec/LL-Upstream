@@ -25,40 +25,23 @@ import os
 import sys
 import urllib.request
 
-# (what build-test and package never read: the docs, the top-level documents, CircleCI's files (the lint job, which
-# always runs, reads its gitleaks.toml), the forge's templates and the title's workflow)
+# Lint runs on every change, including changes to its secret-scanning rules.
 DOCS_ONLY = (
     "docs/*",
     "AGENTS.md",
     "CONTRIBUTING.md",
     "README.md",
     "RELEASING.md",
-    "LICENSE",
-    ".circleci/*",
-    ".chunk/*",
+    ".gitleaks.toml",
     ".forgejo/ISSUE_TEMPLATE/*",
     ".forgejo/pull_request_template.md",
     ".forgejo/workflows/pr-title.yml",
 )
-# (what scripts/package.sh's self-contained, single-file programs read beyond the plain build: the script, the app's
-# project, manifest and Windows code, the packages and the SDK, and this job's own files)
+# Exercise both release targets whenever the launcher, a package input, or the old-updater harness changes.
 PACKAGE = (
-    "scripts/package.sh",
-    "scripts/ci_dotnet.sh",
-    "scripts/ci_changes.py",
-    "App/LongshotLauncher.csproj",
-    "App/app.manifest",
-    "App/Windows*",
-    "App/SetupWindows.cs",
-    "App/packages.lock.json",
-    "Core/*.csproj",
-    "Core/packages.lock.json",
-    "Directory.Build.props",
-    "Directory.Build.targets",
-    "Directory.Packages.props",
-    "NuGet.Config",
-    "global.json",
-    ".forgejo/workflows/ci.yml",
+    "Cargo.*", "build.rs", "LICENSE", "src/*", "ui/*", "assets/*", "scripts/package.sh",
+    "scripts/ci-rust-toolchain.sh", "scripts/ci-wine.sh", "scripts/linux-release-linker.sh", "scripts/ci_changes.py",
+    "tests/update_handoff/*", "tests/test_rust_window.py", ".forgejo/workflows/*",
 )
 PAGE = 50
 MAX_PAGES = 60  # (3000 files: past that, run everything)

@@ -1,0 +1,120 @@
+import { Action, Ink, Kicker, Locale } from "widgets.slint";
+import { CheckBox } from "check-box.slint";
+import { Hint, OptionRow } from "settings-row.slint";
+import { Players } from "player-model.slint";
+import { Label, Rule } from "game-controls.slint";
+
+export component NfcPanel inherits VerticalLayout {
+    alignment: start;
+    spacing: 24px;
+    init => { Players.refresh-tags(); }
+
+    VerticalLayout {
+        spacing: 14px;
+        Kicker { text: Locale.t("Add NFC tags").to-uppercase(); }
+
+        OptionRow {
+            label: Locale.t("Tag files");
+            description: Locale.t("One .bin or .nfc file, or many at once");
+            Action {
+                label: Locale.t("Add files");
+                icon: @image-url("icons/plus.svg");
+                clicked => { Players.action("tag-files", ""); }
+            }
+        }
+
+        OptionRow {
+            label: Locale.t("Folder of tags");
+            description: Locale.t("Every .bin and .nfc file in it");
+            Action {
+                label: Locale.t("Add a folder");
+                icon: @image-url("icons/folder.svg");
+                clicked => { Players.action("tag-folder", ""); }
+            }
+        }
+
+        if Players.can-scan: OptionRow {
+            label: Locale.t("Controller scan");
+            description: Players.scanning ? Locale.t("Hold the tag on the controller's logo… up to 10 s") : Locale.t("With a Switch 2 Pro Controller over USB");
+            Action {
+                label: Players.scanning ? Locale.t("Cancel") : Locale.t("Scan a tag");
+                icon: @image-url("icons/nfc.svg");
+                enabled: !Players.busy || Players.scanning;
+                clicked => { if Players.scanning { Players.cancel-scan(); } else { Players.scan(); } }
+            }
+        }
+    }
+
+    VerticalLayout {
+        spacing: 10px;
+        HorizontalLayout {
+            spacing: 8px;
+            cross-axis-alignment: center;
+            Kicker { text: Locale.t("Your NFC tags").to-uppercase(); }
+            Hint { text: "\{Players.tags.length}"; horizontal-stretch: 1; }
+            if Players.selected-tags > 0: Action {
+                label: Locale.t("Delete selected");
+                icon: @image-url("icons/trash.svg");
+                danger: true;
+                clicked => { Players.action("delete-tags", ""); }
+            }
+        }
+        if Players.tags.length > 256: Hint { text: Locale.t("The game shows the first 256"); }
+        if Players.tags.length == 0: Rectangle {
+            height: empty.preferred-height;
+            border-radius: 10px;
+            background: Ink.well;
+            empty := VerticalLayout {
+                padding: 16px;
+                spacing: 4px;
+                Label { text: Locale.t("No NFC tags yet"); }
+                Hint { text: Locale.t("Add the dumps of your own figures: .bin files (a raw NTAG215 dump) or .nfc files (Flipper Zero). Each keeps its file name, which is the name the game shows."); }
+            }
+        }
+
+        if Players.tags.length > 0: VerticalLayout {
+            Rule { }
+            for tag[i] in Players.tags: VerticalLayout {
+                HorizontalLayout {
+                    padding-top: 8px;
+                    padding-bottom: 8px;
+                    spacing: 12px;
+                    cross-axis-alignment: center;
+                    CheckBox {
+                        width: 26px;
+                        checked: tag.selected;
+                        accessible-label: tag.name;
+                        toggled => { Players.toggle-tag(i); }
+                    }
+                    VerticalLayout {
+                        horizontal-stretch: 1;
+                        min-width: 0px;
+                        spacing: 3px;
+                        Label { text: tag.name; wrap: char-wrap; }
+                        Hint { text: tag.detail; }
+                    }
+                    Kicker { text: tag.format; width: 32px; horizontal-alignment: center; }
+                    Action {
+                        width: 40px;
+                        icon: @image-url("icons/trash.svg");
+                        accessible-label: Locale.t("Delete") + " " + tag.name;
+                        quiet: true;
+                        clicked => { Players.action("delete-tag", tag.name); }
+                    }
+                }
+                Rule { }
+            }
+        }
+    }
+
+    OptionRow {
+        label: Locale.t("The NFC folder");
+        description: Locale.t("The dumps stay on this PC, in a folder every Longshot version shares.");
+        path: Players.tag-folder;
+        Action {
+            label: Locale.t("Open the folder");
+            icon: @image-url("icons/folder.svg");
+            clicked => { Players.action("open-tags", ""); }
+        }
+    }
+}

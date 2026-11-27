@@ -1,0 +1,238 @@
+import { Pressable } from "widgets.slint";
+import { Ink } from "widgets.slint";
+import { ScrollView } from "std-widgets.slint";
+
+export global MenuValues {
+    in-out property <length> content-bottom;
+    pure callback index([string], string) -> int;
+}
+
+// Footer actions look like menu entries and keep a full pointer/keyboard target.
+export component MenuAction inherits Rectangle {
+    in property <string> label;
+    callback clicked;
+    callback focused;
+    in property <bool> take-focus;
+    in property <bool> center-label;
+    in property <length> label-inset: 12px;
+    out property <length> label-width: caption.preferred-width;
+    changed take-focus => { if self.take-focus { key.focus(); } }
+    height: 44px;
+    border-radius: 6px;
+    background: key.hovered || (Ink.focus-visible && key.has-focus) ? Ink.selected : transparent;
+    border-width: (Ink.focus-visible && key.has-focus) ? 2px : 0px;
+    border-color: Ink.mustard;
+    accessible-role: button;
+    accessible-label: label;
+    accessible-action-default => { clicked(); }
+    forward-focus: key;
+
+    caption := Text {
+        x: root.label-inset;
+        width: parent.width - 2 * root.label-inset;
+        height: parent.height;
+        text: root.label;
+        horizontal-alignment: root.center-label ? center : left;
+        color: Ink.gold;
+        font-weight: 650;
+        font-size: 14px;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+
+    key := Pressable {
+        focus-changed-event => { if self.has-focus { root.focused(); } }
+        activate => { root.clicked(); }
+    }
+}
+
+export component Dropdown inherits Rectangle {
+    in property <[string]> model;
+    in-out property <int> current-index: 0;
+    in-out property <string> current-value: root.model[root.current-index];
+    in property <bool> enabled: true;
+    callback selected(string);
+    private property <int> highlight;
+    private property <bool> keyboard-navigation;
+    private property <length> row-height: 40px;
+    private property <length> frame-width: 2px;
+    private property <length> inner-radius: 10px;
+    private property <int> visible-rows: min(root.model.length, 6);
+    height: 44px;
+    min-width: 110px;
+    preferred-width: 170px;
+    horizontal-stretch: 1;
+    border-radius: 8px;
+    background: pointer.has-hover ? Ink.selected : Ink.well;
+    border-width: (Ink.focus-visible && key.has-focus) ? 2px : 1px;
+    border-color: (Ink.focus-visible && key.has-focus) ? Ink.mustard : pointer.has-hover ? Ink.muted : Ink.line;
+    opacity: enabled ? 1 : 0.5;
+    forward-focus: key;
+    accessible-role: combobox;
+    accessible-value: root.current-value;
+    accessible-enabled: root.enabled;
+    accessible-action-expand => { root.open(); }
+
+    function open() {
+        if root.enabled && root.model.length > 0 {
+            root.highlight = max(0,MenuValues.index(root.model, root.current-value));
+            root.keyboard-navigation = false;
+            menu.show();
+        }
+    }
+    function choose(index: int) {
+        if index >= 0 && index < root.model.length {
+            root.current-index = index;
+            if root.current-value != root.model[index] {
+                root.current-value = root.model[index];
+            }
+            root.selected(root.model[index]);
+        }
+    }
+    changed current-index => {
+        if root.current-index >= 0 && root.current-index < root.model.length
+            && root.model[root.current-index] != root.current-value {
+            root.current-value = root.model[root.current-index];
+        }
+    }
+
+    HorizontalLayout {
+        padding-left: 12px;
+        padding-right: 12px;
+        spacing: 10px;
+        cross-axis-alignment: center;
+
+        Text {
+            text: root.current-value;
+            color: Ink.text;
+            font-size: 15px;
+            horizontal-stretch: 1;
+            overflow: elide;
+            accessible-role: none;
+        }
+
+        Image {
+            width: 13px;
+            height: 13px;
+            source: @image-url("icons/chevron.svg");
+            colorize: Ink.sand;
+        }
+    }
+
+    key := FocusScope {
+        enabled: root.enabled;
+        key-pressed(e) => {
+            if e.text == " " || e.text == Key.Return { root.open(); return accept; }
+            if e.text == Key.DownArrow || e.text == Key.UpArrow {
+                root.choose(clamp(MenuValues.index(root.model, root.current-value) + (e.text == Key.DownArrow ? 1 : -1),0,root.model.length - 1));
+                return accept;
+            }
+            reject
+        }
+
+        pointer := TouchArea {
+            enabled: root.enabled;
+            mouse-cursor: MouseCursor.pointer;
+            clicked => { key.focus(); root.open(); }
+        }
+    }
+
+    menu := PopupWindow {
+        x: 0px;
+        y: root.absolute-position.y + root.height + 3px + self.height <= MenuValues.content-bottom
+            ? root.height + 3px : max(-root.absolute-position.y, -self.height - 3px);
+        width: root.width;
+        height: root.visible-rows * root.row-height + 2 * root.frame-width;
+        close-policy: close-on-click-outside;
+        forward-focus: navigation;
+
+        navigation := FocusScope {
+            key-pressed(e) => {
+                if e.text == Key.Escape { menu.close(); return accept; }
+                if e.text == Key.Return || e.text == " " { root.choose(root.highlight); menu.close(); return accept; }
+                if e.text == Key.UpArrow || e.text == Key.DownArrow || e.text == Key.Home || e.text == Key.End {
+                    root.keyboard-navigation = true;
+                    root.highlight = e.text == Key.Home ? 0 : e.text == Key.End ? root.model.length - 1 : clamp(root.highlight + (e.text == Key.DownArrow ? 1 : -1),0,root.model.length - 1);
+                    list.content-y = clamp(list.content-y, -root.highlight * root.row-height, list.height - (root.highlight + 1) * root.row-height);
+                    return accept;
+                }
+                reject
+            }
+
+            Rectangle {
+                background: Ink.line;
+                border-radius: root.inner-radius + root.frame-width;
+                clip: true;
+
+                // Keep the frame outside the scrollable area, including at either end.
+                well := Rectangle {
+                    x: root.frame-width;
+                    y: root.frame-width;
+                    width: parent.width - 2 * root.frame-width;
+                    height: parent.height - 2 * root.frame-width;
+                    background: Ink.raised;
+                    border-radius: root.inner-radius;
+                    clip: true;
+
+                    list := ScrollView {
+                        horizontal-scrollbar-policy: always-off;
+                        vertical-scrollbar-policy: root.visible-rows < root.model.length ? as-needed : always-off;
+                        content-y: -max(0,root.highlight - root.visible-rows + 1) * root.row-height;
+
+                        VerticalLayout {
+                            for value[index] in root.model: row := Rectangle {
+                                property <bool> chosen: value == root.current-value;
+                                height: root.row-height;
+                                border-top-left-radius: index == 0 ? root.inner-radius : 0px;
+                                border-top-right-radius: self.border-top-left-radius;
+                                border-bottom-left-radius: index == root.model.length - 1 ? root.inner-radius : 0px;
+                                border-bottom-right-radius: self.border-bottom-left-radius;
+                                background: self.chosen ? Ink.mustard : (root.keyboard-navigation ? root.highlight == index : row-pointer.has-hover) ? Ink.selected : transparent;
+                                accessible-role: list-item;
+                                accessible-label: value;
+                                accessible-action-default => { root.choose(index); menu.close(); }
+
+                                if index > 0 && !row.chosen && root.model[index - 1] != root.current-value: Rectangle {
+                                    x: 0px;
+                                    y: 0px;
+                                    width: parent.width;
+                                    height: 1px;
+                                    background: Ink.line;
+                                }
+
+                                HorizontalLayout {
+                                    padding-left: 10px;
+                                    padding-right: root.visible-rows < root.model.length ? 24px : 10px;
+                                    spacing: 8px;
+                                    cross-axis-alignment: center;
+
+                                    Text {
+                                        text: value;
+                                        font-size: 14px;
+                                        font-weight: row.chosen ? 650 : 400;
+                                        color: row.chosen ? Ink.black : Ink.text;
+                                        horizontal-stretch: 1;
+                                        overflow: elide;
+                                    }
+
+                                    if row.chosen: Image {
+                                        width: 12px;
+                                        height: 12px;
+                                        source: @image-url("icons/check.svg");
+                                        colorize: Ink.black;
+                                    }
+                                }
+
+                                row-pointer := TouchArea {
+                                    mouse-cursor: MouseCursor.pointer;
+                                    moved => { root.keyboard-navigation = false; }
+                                    clicked => { root.choose(index); menu.close(); }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,682 @@
+import { Pressable } from "widgets.slint";
+import { ConfirmDialog, ModalLayer } from "modal-layer.slint";
+import { Dropdown } from "menu.slint";
+import { TextField } from "text-field.slint";
+
+import { ScrollView, PageList } from "scroll-view.slint";
+import {
+    Ink,
+    Locale,
+    Action,
+    StateTitle,
+    PageTitle,
+    Kicker,
+    CopyText,
+    SideCard,
+} from "widgets.slint";
+import { Players } from "player-model.slint";
+import { Game } from "game-model.slint";
+
+export struct ModRow {
+    name: string,
+    detail: string,
+    badge: string,
+    initials: string,
+    active: bool,
+    kind: string,
+    problem: string,
+    tone: int,
+    update: string
+}
+export global Mods {
+    in property <[ModRow]> rows;
+    in property <string> section: "installed";
+    in property <int> index: -1;
+    in property <[string]> categories;
+    in property <int> category-index;
+    in property <int> enabled-count;
+    callback filter-category(int);
+    in property <bool> basic;
+    in property <bool> needs-import;
+    in property <bool> busy;
+    in property <string> status;
+    in property <string> review;
+    in property <bool> reviewing-permissions;
+    pure callback review-paragraphs(string) -> [string];
+    in property <bool> showing-details;
+    in property <string> full-detail;
+    in property <string> selected-name;
+    in property <string> selected-detail;
+    in property <string> selected-version;
+    in property <string> selected-author;
+    in property <string> selected-needs;
+    in property <string> dependency-action;
+    in property <string> update-version;
+    in property <bool> can-allow;
+    in-out property <string> entry;
+    callback action(string);
+    callback select(int);
+    callback add-path(string);
+}
+
+component ModButton inherits Action {
+    in property <string> command;
+    enabled: !Mods.busy && (Mods.review == "" || command == "cancel" || command == "confirm");
+    clicked => { Mods.action(root.command); }
+}
+
+component ReorderButtons inherits HorizontalLayout {
+    spacing: 7px;
+
+    ModButton {
+        label: Locale.t("↑  Earlier");
+        command: "up";
+        enabled: !Mods.busy && Mods.index > 0;
+    }
+
+    ModButton {
+        label: Locale.t("↓  Later");
+        command: "down";
+        enabled: !Mods.busy && Mods.index + 1 < Mods.rows.length;
+    }
+}
+
+component ModMark inherits Rectangle {
+    in property <ModRow> item;
+    border-radius: 6px;
+    background: [Ink.sand, Ink.sage, Ink.mustard, Ink.olive, Ink.russet][item.tone];
+
+    Text {
+        text: root.item.initials;
+        color: Ink.black;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        font-weight: 850;
+    }
+}
+
+export component ModsPage inherits Rectangle {
+    background: Ink.page;
+
+    HorizontalLayout {
+        Rectangle {
+            width: root.width - Ink.detail-width(root.width);
+            banner := Rectangle {
+                y: 0px;
+                width: parent.width;
+                height: 32px;
+                background: #3b2e1b;
+                Kicker {
+                    x: Ink.page-inset(root.width);
+                    height: parent.height;
+                    text: Locale.t("Experimental");
+                    color: Ink.gold;
+                    vertical-alignment: center;
+                }
+            }
+            if Mods.showing-details: VerticalLayout {
+                y: banner.height;
+                height: parent.height - self.y;
+                padding: 28px;
+                spacing: 15px;
+
+                HorizontalLayout {
+                    alignment: start;
+
+                    ModButton {
+                        label: Locale.t("‹  Back to mods");
+                        command: "back-to-list";
+                        quiet: true;
+                    }
+                }
+
+                StateTitle {
+                    text: Mods.selected-name;
+                    font-size: 43px;
+                }
+
+                CopyText {
+                    text: Mods.selected-version;
+                    color: Ink.muted;
+                }
+
+                Kicker {
+                    text: Locale.t("DETAILS");
+                }
+
+                ScrollView {
+                    vertical-stretch: 1;
+
+                    VerticalLayout {
+                        alignment: start;
+
+                        CopyText {
+                            text: Mods.full-detail;
+                        }
+                    }
+                }
+
+                if Mods.status != "": CopyText {
+                    text: Mods.status;
+                    color: Ink.gold;
+                }
+            }
+            if !Mods.showing-details: VerticalLayout {
+                y: banner.height;
+                height: parent.height - self.y;
+                padding-left: Ink.page-inset(root.width);
+                padding-right: Ink.page-inset(root.width);
+                padding-top: Ink.page-top(root.width);
+                padding-bottom: 16px;
+                spacing: 12px;
+
+                VerticalLayout {
+                    spacing: 2px;
+
+                    HorizontalLayout {
+                        spacing: root.width < 1050px ? 4px : 8px;
+                        cross-axis-alignment: center;
+                        if Mods.section != "installed": ModButton {
+                            label: "‹";
+                            accessible-label: Locale.t("Back") + " · " + Locale.t("Mods");
+                            command: "installed";
+                            quiet: true;
+                            width: 40px;
+                            size: 30px;
+                        }
+                        PageTitle {
+                            page-width: root.width;
+                            horizontal-stretch: 1;
+                            min-width: 0px;
+                            text: Mods.section == "installed" ? Locale.t("Mods") : Locale.t("Add mods");
+                        }
+
+                        if Mods.section == "installed": ModButton {
+                            label: Locale.t("Open mods folder");
+                            command: "folder";
+                        }
+                        if Mods.section == "installed": ModButton {
+                            label: "+  " + Locale.t("Add mods");
+                            command: "discover";
+                        }
+                        if !Mods.basic && Mods.section != "installed": HorizontalLayout {
+                            spacing: root.width < 1050px ? 3px : 6px;
+                            for tab in [
+                                { title:"Discover", command:"discover" },
+                                { title:"Manual", command:"manual" },
+                                { title:"Repositories", command:"sources" }
+                            ]: ModButton {
+                                label: Locale.t(tab.title);
+                                command: tab.command;
+                                size: root.width < 1050px ? 12px : 14px;
+                                selected: Mods.section == tab.command || (Mods.section == "emulators" && tab.command == "manual");
+                            }
+                        }
+                    }
+
+                    CopyText {
+                        text: Players.profile-name + "’s mods" + (Game.current-tag == "" ? "" : " for " + Game.current-tag);
+                        color: Ink.muted;
+                    }
+                }
+
+                if Mods.section == "sources" || Mods.section == "discover": HorizontalLayout {
+                    spacing: 8px;
+
+                    TextField {
+                        horizontal-stretch: 1;
+                        placeholder-text: Mods.section == "sources" ? Locale.t("Repository URL") : Locale.t("Search mods");
+                        text <=> Mods.entry;
+                        accepted => { Mods.action(Mods.section == "sources" ? "add-source" : "search"); }
+                    }
+
+                    if Mods.section == "discover" && Mods.categories.length > 1: Dropdown {
+                        enabled: !Mods.busy;
+                        model: Mods.categories;
+                        current-index: Mods.category-index;
+                        selected => { Mods.filter-category(self.current-index); }
+                    }
+                    ModButton {
+                        label: Mods.section == "sources" ? Locale.t("Add") : Locale.t("Search");
+                        command: Mods.section == "sources" ? "add-source" : "search";
+                    }
+                }
+                if Mods.section == "manual": Rectangle {
+                    background: Ink.well;
+                    border-color: Ink.line;
+                    border-width: 1px;
+                    border-radius: 10px;
+                    vertical-stretch: 1;
+
+                    VerticalLayout {
+                        alignment: center;
+                        padding: 28px;
+                        spacing: 14px;
+
+                        StateTitle {
+                            text: Mods.basic ? Locale.t("Choose a mod folder") : Locale.t("Drop a mod file or folder here");
+                            font-size: 32px;
+                        }
+
+                        CopyText {
+                            text: Mods.basic ? Locale.t("Choose an extracted mod containing romfs or exefs.") : Locale.t(".zip, .lsmod, or a folder with a mod.json");
+                            color: Ink.muted;
+                        }
+
+                        HorizontalLayout {
+                            alignment: start;
+                            spacing: 8px;
+
+                            if !Mods.basic: ModButton {
+                                label: Locale.t("Choose file");
+                                command: "file";
+                                primary: true;
+                            }
+
+                            ModButton {
+                                label: Locale.t("Choose folder");
+                                command: "directory";
+                            }
+                        }
+
+                        if !Mods.basic: Kicker {
+                            text: Locale.t("IMPORT FROM ANOTHER APP");
+                        }
+
+                        if !Mods.basic: ModButton {
+                            label: Locale.t("An emulator");
+                            command: "emulators";
+                        }
+
+                        if !Mods.basic: ModButton {
+                            label: Locale.t("Another Longshot installation");
+                            command: "other-install";
+                        }
+                    }
+                }
+                if Mods.section != "manual": Kicker {
+                    text: Mods.section == "installed" ? "YOUR MODS   ·   " + Mods.rows.length + "   ·   " + Mods.enabled-count + " on" : Mods.section == "discover" ? "SEARCH RESULTS" : Mods.section == "emulators" ? "EMULATOR MODS" : "YOUR REPOSITORIES";
+                }
+                if !Mods.basic && Mods.section == "installed" && Mods.rows.length > 1: CopyText {
+                    text: Locale.t("Lower in the list wins when two mods change the same thing.");
+                    font-size: 13px;
+                    color: Ink.muted;
+                }
+                if Mods.section != "manual": PageList {
+                    vertical-stretch: 1;
+
+                    VerticalLayout {
+                        spacing: 6px;
+                        alignment: start;
+                        if Mods.rows.length == 0 && !Mods.busy: Rectangle {
+                            background: Ink.well;
+                            border-radius: 9px;
+                            min-height: 118px;
+
+                            VerticalLayout {
+                                padding: 16px;
+                                spacing: 5px;
+                                alignment: center;
+
+                                CopyText {
+                                    text: Mods.status != "" ? Mods.status : Mods.section == "installed" ? Locale.t("No mods yet") : Mods.section == "sources" ? Locale.t("Add a repository to discover mods.") : Locale.t("No mods found.");
+                                    font-size: 20px;
+                                }
+
+                                if Mods.section == "installed" && Mods.status == "": CopyText {
+                                    text: Locale.t("Mods change how the game looks, plays and sounds. Each has its own switch.");
+                                    font-size: 15px;
+                                    color: Ink.muted;
+                                }
+                                if Mods.section == "installed": HorizontalLayout {
+                                    alignment: start;
+                                    spacing: 8px;
+
+                                    ModButton {
+                                        label: Mods.basic ? Locale.t("Choose folder") : Locale.t("Browse mods");
+                                        command: Mods.basic ? "directory" : "discover";
+                                        primary: true;
+                                    }
+
+                                    if !Mods.basic: ModButton {
+                                        label: Locale.t("Add a file");
+                                        command: "file";
+                                    }
+                                }
+                            }
+                        }
+                        for row[i] in Mods.rows: Rectangle {
+                            height: 72px;
+                            background: i == Mods.index ? Ink.selected : transparent;
+                            border-width: 1px;
+                            border-color: i == Mods.index || (Ink.focus-visible && row-key.has-focus) ? Ink.gold : transparent;
+                            if i != Mods.index: Rectangle {
+                                y: parent.height - 1px;
+                                height: 1px;
+                                background: Ink.line;
+                            }
+                            border-radius: 7px;
+
+                            HorizontalLayout {
+                                padding-left: 12px;
+                                padding-right: 12px;
+                                spacing: 12px;
+                                cross-axis-alignment: center;
+                                if Mods.section == "installed": Kicker {
+                                    text: i + 1;
+                                }
+                                ModMark {
+                                    width: 42px;
+                                    height: 42px;
+                                    item: row;
+                                }
+
+                                VerticalLayout {
+                                    alignment: center;
+                                    horizontal-stretch: 1;
+
+                                    Text {
+                                        text: row.name;
+                                        color: Ink.text;
+                                        overflow: elide;
+                                        font-weight: 700;
+                                        font-size: 16px;
+                                    }
+
+                                    Text {
+                                        text: row.detail;
+                                        color: Ink.muted;
+                                        overflow: elide;
+                                        font-size: 13px;
+                                    }
+                                }
+
+                                if row.update != "": Text {
+                                    text: "↑ " + row.update;
+                                    color: Ink.gold;
+                                    font-size: 13px;
+                                    font-weight: 700;
+                                }
+                                if row.problem != "": Text {
+                                    text: Locale.t(row.problem);
+                                    color: Ink.gold;
+                                    font-size: 13px;
+                                }
+                                if row.kind != "": Text {
+                                    text: Locale.t(row.kind);
+                                    color: Ink.sand;
+                                    font-size: 12px;
+                                }
+                                Text {
+                                    text: Locale.t(row.badge);
+                                    color: row.active ? Ink.sage : Ink.sand;
+                                    font-weight: 700;
+                                }
+
+                                if Mods.section == "installed": Rectangle {
+                                    width: 37px;
+                                    height: 20px;
+                                    border-radius: 10px;
+                                    background: row.active ? Ink.sage : Ink.well;
+                                    border-width: 1px;
+                                    border-color: row.active ? Ink.sage : Ink.muted;
+
+                                    Rectangle {
+                                        x: row.active ? 19px : 3px;
+                                        y: 3px;
+                                        width: 14px;
+                                        height: 14px;
+                                        background: row.active ? Ink.black : Ink.muted;
+                                        border-radius: 7px;
+                                    }
+                                }
+                            }
+
+                            row-key := Pressable {
+                                pointer-enabled: !Mods.busy;
+                                pointer-activate => { Mods.select(i); }
+                                activate => { Mods.select(i); if Mods.section == "installed" { Mods.action(Mods.can-allow && !row.active ? "allow" : "toggle"); } }
+                            }
+
+                            if Mods.section == "installed": TouchArea {
+                                x: parent.width - 54px;
+                                width: 54px;
+                                enabled: !Mods.busy;
+                                mouse-cursor: pointer;
+                                clicked => { Mods.select(i); Mods.action(Mods.can-allow && !row.active ? "allow" : "toggle"); }
+                            }
+                            accessible-role: button;
+                            accessible-label: row.name;
+                            accessible-action-default => { Mods.select(i); }
+                        }
+                    }
+                }
+                if Mods.busy || (Mods.status != "" && (Mods.rows.length > 0 || Mods.section == "manual")): CopyText {
+                    text: Mods.busy ? "Working…" : Mods.status;
+                    color: Ink.sand;
+                }
+            }
+        }
+
+        SideCard {
+            width: Ink.detail-width(root.width);
+            colour: Ink.lavender;
+
+            if Mods.index < 0: Kicker {
+                text: Mods.section == "installed" ? "GETTING STARTED" : Mods.section == "sources" ? "REPOSITORIES" : "ADDING BY HAND";
+            }
+            HorizontalLayout {
+                spacing: 12px;
+                cross-axis-alignment: center;
+                if Mods.index >= 0: ModMark {
+                    width: 50px;
+                    height: 50px;
+                    item: Mods.rows[Mods.index];
+                }
+                VerticalLayout {
+                    alignment: center;
+
+                    Text {
+                        text: Mods.selected-name != "" ? Mods.selected-name : Mods.basic ? Locale.t("Local mods") : Mods.section == "installed" ? Locale.t("Where mods come from") : Mods.section == "manual" ? Locale.t("What you can add") : Locale.t("Mods");
+                        font-size: 27px;
+                        color: Ink.text;
+                        font-weight: 800;
+                        wrap: word-wrap;
+                    }
+
+                    if Mods.selected-version != "" || Mods.selected-author != "": CopyText {
+                        text: (Mods.selected-author != "" ? Locale.t("by") + " " + Mods.selected-author + "  ·  " : "") + Mods.selected-version;
+                        color: Ink.sand;
+                        font-size: 14px;
+                    }
+                }
+            }
+
+            ScrollView {
+                vertical-stretch: 1;
+
+                VerticalLayout {
+                    alignment: start;
+
+                    CopyText {
+                        text: Mods.selected-detail;
+                        font-size: 15px;
+                    }
+                }
+            }
+
+            if Mods.review == "" && Mods.index >= 0 && Mods.section == "installed": VerticalLayout {
+                spacing: 7px;
+
+                if !Mods.basic: CopyText {
+                    text: Locale.t("Load order") + "     " + (Mods.index + 1) + " " + Locale.t("of") + " " + Mods.rows.length;
+                    color: Ink.sand;
+                    font-size: 14px;
+                }
+
+                if !Mods.basic: ReorderButtons {}
+
+                if Mods.selected-needs != "": CopyText {
+                    text: Locale.t("Needs") + "     " + Mods.selected-needs;
+                    color: Ink.sand;
+                    font-size: 14px;
+                }
+                if Mods.rows[Mods.index].active: CopyText {
+                    text: Locale.t("On in") + "     " + Players.profile-name;
+                    color: Ink.sand;
+                    font-size: 14px;
+                }
+
+                if Mods.showing-details && Mods.dependency-action != "": ModButton {
+                    label: Mods.dependency-action;
+                    command: "fix-dependency";
+                    primary: true;
+                }
+                if Mods.can-allow: ModButton {
+                    label: Locale.t("Review code permissions");
+                    command: "allow";
+                }
+                if Mods.update-version != "": ModButton {
+                    label: Locale.t("Update to") + " " + Mods.update-version;
+                    command: "update";
+                    primary: true;
+                }
+                HorizontalLayout {
+                    spacing: 6px;
+                    if !Mods.showing-details: ModButton {
+                        label: Locale.t("Details");
+                        command: "details";
+                    }
+                    if Mods.basic && Mods.needs-import: ModButton { label: Locale.t("Import"); command: "import"; primary: true; }
+                    if !Mods.basic: ModButton {
+                        label: Locale.t("Remove");
+                        command: "remove";
+                        danger: true;
+                    }
+                }
+            }
+            if Mods.review == "" && Mods.index >= 0 && Mods.section == "discover": VerticalLayout {
+                spacing: 7px;
+
+                ModButton {
+                    label: Mods.rows[Mods.index].badge == "Installed" ? Locale.t("Installed") : Locale.t("Add to") + " " + Players.profile-name;
+                    enabled: !Mods.busy && Mods.rows[Mods.index].badge != "Installed";
+                    primary: true;
+                    command: "install";
+                }
+
+                if !Mods.showing-details: ModButton {
+                    label: Locale.t("Details");
+                    command: "details";
+                }
+            }
+            if Mods.review == "" && Mods.index >= 0 && Mods.section == "sources": VerticalLayout {
+                spacing: 7px;
+
+                if !Mods.basic: ReorderButtons {}
+
+                ModButton {
+                    label: Locale.t("Refresh");
+                    command: "refresh-source";
+                }
+
+                ModButton {
+                    label: Locale.t("Remove repository");
+                    command: "remove-source";
+                    danger: true;
+                }
+            }
+            if Mods.review == "" && Mods.index >= 0 && Mods.section == "emulators": ModButton {
+                label: Locale.t("Import mod");
+                command: "import";
+                primary: true;
+            }
+        }
+    }
+
+}
+
+export component ModReviewDialog inherits ModalLayer {
+    in property <string> title;
+    in property <string> details;
+    in property <string> status;
+    in property <string> confirm-label;
+    in property <bool> busy;
+    callback cancel-review();
+    callback confirm-review();
+    wrap-focus(backwards) => { if root.busy { root.focus(); } else if backwards { confirm.focus(); } else { cancel.focus(); } }
+    dismissed => { if !root.busy { root.cancel-review(); } }
+
+    card := ConfirmDialog {
+        viewport-width: root.width;
+        viewport-height: root.height;
+        dialog-max-width: 590px;
+        height: min(parent.height - 32px, header.preferred-height + content.preferred-height + footer.preferred-height + 36px);
+        background: Ink.page;
+        border-color: Ink.line;
+        border-width: 1px;
+
+        VerticalLayout {
+            padding: 18px;
+            spacing: 0px;
+            header := VerticalLayout {
+                padding: 6px;
+                padding-bottom: 18px;
+                Text {
+                    text: root.title;
+                    font-size: 28px;
+                    font-weight: 750;
+                    color: Ink.text;
+                    wrap: word-wrap;
+                }
+            }
+            Rectangle {
+                min-height: 0px;
+                vertical-stretch: 1;
+                background: Ink.well;
+                border-radius: 9px;
+                clip: true;
+                ScrollView {
+                    end-padding: 0px;
+                    content := VerticalLayout {
+                        alignment: start;
+                        padding: 16px;
+                        spacing: 12px;
+                        for section[index] in Mods.review-paragraphs(root.details): Text {
+                            text: section;
+                            min-width: 0px;
+                            font-size: index == 0 ? 18px : 15px;
+                            font-weight: index == 0 ? 700 : 400;
+                            color: index == 0 ? Ink.text : Ink.sand;
+                            wrap: word-wrap;
+                        }
+                    }
+                }
+            }
+            footer := VerticalLayout {
+                padding-top: 16px;
+                spacing: 10px;
+                if root.status != "": CopyText {
+                    text: root.status;
+                    color: Ink.gold;
+                }
+                HorizontalLayout {
+                    alignment: end;
+                    spacing: 10px;
+                    cancel := Action {
+                        enabled: !root.busy;
+                        label: Locale.t("Cancel");
+                        clicked => { root.cancel-review(); }
+                        init => { self.focus(); }
+                    }
+                    confirm := Action {
+                        enabled: !root.busy;
+                        label: root.confirm-label;
+                        clicked => { root.confirm-review(); }
+                        primary: true;
+                    }
+                }
+            }
+        }
+    }
+}

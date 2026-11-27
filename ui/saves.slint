@@ -1,0 +1,397 @@
+import { Pressable } from "widgets.slint";
+import { EditableTitle } from "editable-title.slint";
+import { ScrollView, PageList } from "scroll-view.slint";
+import { Players, SlotRow } from "player-model.slint";
+import { Game } from "game-model.slint";
+import { Action, Ink, Locale, PageTitle } from "widgets.slint";
+import {
+    FooterAction,
+    GameAction,
+    PosterTitle,
+    PanelTitle,
+    Kicker,
+    Fact,
+    SidePanel,
+    Note,
+    Label,
+    Rule,
+} from "game-controls.slint";
+
+import { QuestStrip, QuestChart } from "save-marks.slint";
+
+export component SavePicture inherits Rectangle {
+    in property <image> picture;
+    in property <bool> compact;
+    background: Ink.well;
+    border-radius: root.compact ? 5px : 12px;
+    clip: true;
+    if root.picture.width > 0: Image {
+        x: 0px;
+        y: 0px;
+        width: 100%;
+        height: 100%;
+        source: root.picture;
+        image-fit: cover;
+    }
+    if root.picture.width == 0 && root.compact: Image {
+        width: 18px;
+        height: 18px;
+        source: @image-url("icons/disk.svg");
+        colorize: Ink.muted;
+    }
+    if root.picture.width == 0 && !root.compact: Text {
+        text: Locale.t("No thumbnail");
+        color: Ink.muted;
+        font-size: 12px;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+}
+
+component SaveItem inherits Rectangle {
+    in property <SlotRow> slot;
+    in property <bool> chosen;
+    callback picked();
+    height: 108px;
+    background: root.chosen || key.hovered ? Ink.selected : Ink.raised;
+    border-width: 2px;
+    border-color: (Ink.focus-visible && key.has-focus) || root.chosen ? Ink.mustard : transparent;
+    border-radius: 14px;
+    accessible-role: button;
+    accessible-label: slot.name;
+    accessible-action-default => { root.picked(); }
+    forward-focus: key;
+
+    HorizontalLayout {
+        padding: 9px;
+        spacing: 16px;
+        cross-axis-alignment: center;
+
+        SavePicture {
+            width: 140px;
+            height: 88px;
+            picture: slot.thumbnail;
+        }
+
+        VerticalLayout {
+            alignment: center;
+            spacing: 4px;
+            horizontal-stretch: 1;
+
+            Note {
+                text: slot.saved + " · " + slot.slot-label;
+                font-size: 13px;
+            }
+
+            PanelTitle {
+                text: slot.name;
+                font-size: 23px;
+                max-lines: 2;
+                overflow: elide;
+            }
+
+            if slot.health != "" || slot.medals.length > 0 || slot.stones.length > 0: QuestStrip {
+                slot: root.slot;
+            }
+            if slot.location != "" && slot.name != slot.location && slot.health == "" && slot.medals.length == 0 && slot.stones.length == 0: Note {
+                text: slot.location;
+                font-size: 13px;
+            }
+        }
+
+        if slot.starts: Kicker {
+            text: Locale.t("START HERE");
+            font-size: 10px;
+        }
+    }
+
+    key := Pressable {
+        activate => { root.picked(); }
+    }
+}
+
+export component SavePage inherits HorizontalLayout {
+    private property <bool> has-progress: root.slot.health != "" || root.slot.medals.length > 0 || root.slot.stones.length > 0;
+    private property <int> selected: -1;
+    private property <int> index:max(0,root.selected >= 0 && root.selected < Players.slots.length ? root.selected : Players.slot-index);
+    changed index => { summary.content-y = 0px; }
+    private property <SlotRow> slot:Players.slots[root.index];
+    private property <bool> has-save: Players.slots.length > 0;
+    private property <bool> details <=> Players.save-details-open;
+    private property <bool> returning-to-save;
+    private property <length> inset: Ink.page-inset(root.width);
+
+    VerticalLayout {
+        horizontal-stretch: 1;
+        spacing: 16px;
+        padding-left: root.inset;
+        padding-right: root.inset;
+        padding-top: Ink.page-top(root.width);
+        padding-bottom: root.details ? 24px : 0px;
+        if !root.details: HorizontalLayout {
+            spacing: 8px;
+            cross-axis-alignment: center;
+
+            PageTitle {
+                page-width: root.width;
+                width: self.preferred-width;
+                text: Locale.t("Saves");
+                value: Players.slots.length;
+                value-label: self.value + " " + Locale.t("saves");
+            }
+
+            Rectangle {
+                horizontal-stretch: 1;
+            }
+
+            GameAction {
+                text: Locale.t("+ New save");
+                enabled: !Players.busy;
+                clicked => { Players.action("new-save",""); }
+            }
+
+            GameAction {
+                text: Locale.t("Import");
+                enabled: !Players.busy;
+                clicked => { Players.action("import-menu",""); }
+            }
+
+            if root.width >= 960px: GameAction {
+                text: Locale.t("Open save folder");
+                clicked => { Players.action("open-saves",""); }
+            }
+        }
+        if !root.details && root.width < 960px: HorizontalLayout {
+            alignment: end;
+
+            GameAction {
+                text: Locale.t("Open save folder");
+                quiet: true;
+                clicked => { Players.action("open-saves",""); }
+            }
+        }
+        if Players.message != "": Note {
+            text: Players.message;
+        }
+        if !root.details: PageList {
+            end-padding: 24px;
+
+            VerticalLayout {
+                alignment: start;
+                spacing: 10px;
+                for s[i] in Players.slots: SaveItem {
+                    slot: s;
+                    chosen: i == root.index;
+                    picked => { root.selected = i; }
+                }
+                if !root.has-save: Rectangle {
+                    height: 100px;
+                    background: Ink.raised;
+                    border-radius: 12px;
+
+                    VerticalLayout {
+                        padding: 18px;
+                        spacing: 4px;
+                        alignment: center;
+
+                        PanelTitle {
+                            text: Locale.t("No saves yet");
+                        }
+
+                        Note {
+                            text: Locale.t("Start a game or import a save for this profile.");
+                        }
+                    }
+                }
+            }
+        }
+        if root.details: VerticalLayout {
+            spacing: 14px;
+
+            HorizontalLayout {
+                spacing: root.width < 1050px ? 4px : 8px;
+                cross-axis-alignment: start;
+
+                Action {
+                    init => { self.focus(); }
+                    icon: @image-url("icons/back.svg");
+                    accessible-label: Locale.t("Back") + " · " + Locale.t("Saves");
+                    quiet: true;
+                    width: 40px;
+                    height: title.first-line-height;
+                    clicked => { root.details = false; }
+                }
+
+                title := EditableTitle {
+                    min-width: 0px;
+                    horizontal-stretch: 1;
+                    title: root.slot.name;
+                    item-id: root.slot.id;
+                    size: root.width < 980px ? 38px : 48px;
+                    edit-label: Locale.t("Rename save");
+                    submit(value) => { return Players.rename-save(root.slot.id, value); }
+                }
+            }
+            Note {
+                text: root.slot.saved + " · " + root.slot.slot-label;
+            }
+
+            if root.has-progress: QuestStrip {
+                slot: root.slot;
+                expanded: true;
+            }
+            SavePicture {
+                vertical-stretch: 1;
+                picture: root.slot.thumbnail;
+            }
+
+            HorizontalLayout {
+                spacing: 8px;
+
+                GameAction {
+                    text: Locale.t("Continue") + "  ▶";
+                    primary: true;
+                    clicked => { Players.action("continue",root.slot.id); }
+                }
+
+                GameAction {
+                    text: Locale.t("Duplicate");
+                    enabled: !Players.busy;
+                    clicked => { Players.action("duplicate-slot",root.slot.id); }
+                }
+
+                GameAction {
+                    text: Locale.t("Export");
+                    enabled: !Players.busy;
+                    clicked => { Players.action("export-slot",root.slot.id); }
+                }
+            }
+        }
+    }
+
+    SidePanel {
+        width: Ink.detail-width(root.width);
+        accent: Ink.sage;
+
+        VerticalLayout {
+            summary := ScrollView {
+                horizontal-inset: Ink.panel-inset(Ink.detail-width(root.width));
+                VerticalLayout {
+                    alignment: start;
+                    padding-top: Ink.panel-inset(Ink.detail-width(root.width));
+                    padding-bottom: self.padding-top;
+                    spacing: 9px;
+                    if !root.details && root.has-save: SavePicture {
+                        height: root.height < 540px ? 76px : 164px;
+                        picture: root.slot.thumbnail;
+                    }
+                    if !root.details && root.has-save: Kicker {
+                        text: root.slot.saved + " · " + root.slot.slot-label;
+                    }
+                    if !root.details: EditableTitle {
+                        title: root.has-save ? root.slot.name : Players.profile-name;
+                        size: root.width < 1050px ? 25px : 30px;
+                        item-id: root.slot.id;
+                        enabled: root.has-save && !Players.busy;
+                        edit-label: Locale.t("Rename save");
+                        submit(value) => { return Players.rename-save(root.slot.id, value); }
+                    }
+                    if !root.details && root.has-save && root.has-progress: QuestStrip {
+                        slot: root.slot;
+                    }
+                    if !root.details && root.has-save: HorizontalLayout {
+                        alignment: start;
+
+                        GameAction {
+                            init => { if root.returning-to-save { self.focus(); root.returning-to-save = false; } }
+                            text: Locale.t("Progress and details") + "  ›";
+                            quiet: true;
+                            clicked => { root.returning-to-save = true; root.details = true; }
+                        }
+                    }
+                    if root.details: Kicker {
+                        text: Locale.t("ADVENTURE PROGRESS");
+                    }
+                    if root.details && root.has-progress: QuestChart {
+                        slot: root.slot;
+                    }
+                    if root.details && root.has-progress: VerticalLayout {
+                        if root.slot.health != "": Fact {
+                            label: Locale.t("Hearts");
+                            value: root.slot.health;
+                            value-color: Ink.sand;
+                        }
+                        if root.slot.medals.length > 0: Fact {
+                            label: Locale.t("Medallions");
+                            value: "\{root.slot.medals-have}/6";
+                            value-color: Ink.mustard;
+                        }
+                        if root.slot.stones.length > 0: Fact {
+                            label: Locale.t("Spiritual stones");
+                            value: "\{root.slot.stones-have}/3";
+                            value-color: Ink.sage;
+                        }
+                    }
+                    if root.details: PanelTitle {
+                        text: Locale.t("Save details");
+                    }
+                    if root.details: VerticalLayout {
+                        Fact {
+                            label: Locale.t("File");
+                            value: root.slot.slot-label;
+                        }
+                        if root.slot.location != "" && root.slot.location != root.slot.name: Fact {
+                            label: Locale.t("Location");
+                            value: root.slot.location;
+                        }
+                        if root.slot.scene != "": Fact {
+                            label: Locale.t("Scene");
+                            value: root.slot.scene;
+                        }
+                        Fact {
+                            label: Locale.t("Progress file");
+                            value: root.slot.bytes;
+                        }
+                    }
+                    if root.details: Note {
+                        text: Locale.t("This build does not report story, chest or heart-piece completion.");
+                    }
+                }
+            }
+
+            if !root.details: Rule { }
+            if !root.details: VerticalLayout {
+                padding: Ink.panel-inset(Ink.detail-width(root.width));
+                spacing: 8px;
+
+                GameAction {
+                    text: root.has-save ? Locale.t("Continue from here") : Locale.t("Select new save");
+                    primary: true;
+                    enabled: !Players.busy;
+                    clicked => { Players.action(root.has-save ? "continue" : "new-save",root.slot.id); }
+                }
+
+                if root.has-save: GameAction {
+                    text: Locale.t("Duplicate");
+                    enabled: !Players.busy;
+                    clicked => { Players.action("duplicate-slot",root.slot.id); }
+                }
+                if root.has-save: HorizontalLayout {
+                    spacing: 8px;
+
+                    FooterAction {
+                        text: Locale.t("Copy to profile");
+                        enabled: !Players.busy && Players.profiles.length > 1;
+                        clicked => { Players.action("transfer-slot",root.slot.id); }
+                    }
+
+                    FooterAction {
+                        text: Locale.t("Export");
+                        enabled: !Players.busy;
+                        clicked => { Players.action("export-slot",root.slot.id); }
+                    }
+                }
+            }
+        }
+    }
+}

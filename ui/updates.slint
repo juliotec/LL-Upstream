@@ -1,0 +1,25 @@
+import { Game } from "game.slint";
+import { Players } from "players.slint";
+
+import { ReleaseNote } from "game-model.slint";
+
+export global Updates {
+    in property <string> offer;
+    in property <string> status;
+    in property <bool> busy;
+    in property <float> progress;
+    in property <bool> applying;
+    out property <bool> blocked: Game.busy || Game.playing || Players.busy;
+    in property <string> notes-tag;
+    in property <[ReleaseNote]> releases;
+    in property <string> notes-status;
+    in property <bool> notes-error;
+    in-out property <bool> show-notes;
+    in-out property <bool> channel-prompt;
+    public function open-notes() {
+        show-notes = true;
+        if releases.length == 0 && !busy { check(); }
+    }
+    callback check();
+    callback apply();
+}

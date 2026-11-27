@@ -1,0 +1,389 @@
+import { Pressable } from "widgets.slint";
+import { ScrollView } from "scroll-view.slint";
+import {
+    Ink,
+    Locale,
+    Page,
+    Action,
+    Kicker,
+    SideCard,
+    StateTitle,
+} from "widgets.slint";
+import { Game } from "game.slint";
+import { Players } from "players.slint";
+import { SavePicture } from "saves.slint";
+import { Updates } from "updates.slint";
+
+import { Shell, Popup } from "shell-model.slint";
+export { Shell, Popup }
+
+component Selector inherits Rectangle {
+    in property <string> label;
+    in property <string> value;
+    in property <Popup> opens;
+    private property <int> restore: Shell.restore-focus;
+    changed restore => { if Shell.opener == root.opens { key.focus(); } }
+    forward-focus: key;
+    in property <bool> show-save-picture;
+    in property <image> thumbnail;
+    callback clicked;
+    min-height: 64px;
+    min-width: 0px;
+    preferred-width: 0px;
+    horizontal-stretch: 1;
+    background: key.hovered ? Ink.raised : Ink.page;
+    border-radius: 10px;
+    border-width: (Ink.focus-visible && key.has-focus) ? 3px : 2px;
+    border-color: (Ink.focus-visible && key.has-focus) ? Ink.mustard : #796c5c;
+    accessible-role: button;
+    accessible-label: label + ": " + value;
+    accessible-action-default => { clicked(); }
+
+    HorizontalLayout {
+        padding: 12px;
+        spacing: 8px;
+        cross-axis-alignment: center;
+
+        if root.show-save-picture: SavePicture {
+            width: 56px;
+            height: 38px;
+            compact: true;
+            picture: root.thumbnail;
+        }
+        VerticalLayout {
+            horizontal-stretch: 1;
+            min-width: 0px;
+            alignment: center;
+
+            Kicker {
+                text: root.label;
+            }
+
+            Text {
+                text: root.value;
+                color: Ink.text;
+                font-size: 16px;
+                overflow: elide;
+            }
+        }
+
+        Image {
+            width: 14px;
+            height: 14px;
+            source: @image-url("icons/chevron.svg");
+            colorize: Ink.sand;
+        }
+    }
+
+    key := Pressable {
+        activate => { root.clicked(); }
+    }
+}
+
+component Fact inherits Rectangle {
+    in property <string> label;
+    in property <string> value;
+    in property <color> value-color: Ink.text;
+    min-width: 0px;
+    preferred-width: 0px;
+    horizontal-stretch: 1;
+
+    Rectangle { y: 0px; height: 1px; background: Ink.line; }
+    VerticalLayout {
+        padding-top: 14px;
+        spacing: 8px;
+        Kicker { text: root.label; }
+        Text {
+            text: root.value;
+            font-size: 17px;
+            color: root.value-color;
+            overflow: elide;
+        }
+    }
+}
+
+component FactLink inherits Fact {
+    in property <Page> destination;
+    value-color: key.hovered ? Ink.text : Ink.gold;
+    accessible-role: button;
+    accessible-label: root.label + ", " + root.value;
+    accessible-action-default => { Shell.navigate(root.destination); }
+    forward-focus: key;
+    border-width: Ink.focus-visible && key.has-focus ? 2px : 0px;
+    border-color: Ink.mustard;
+    key := Pressable {
+        activate => { Shell.navigate(root.destination); }
+    }
+}
+
+export component HomePage inherits Rectangle {
+    vertical-stretch: 1;
+    in property <int> focus-request;
+    in property <int> scroll-request: Shell.news-scroll;
+    changed scroll-request => {
+        news-feed.content-y = clamp(news-feed.content-y - (scroll-request > previous-scroll ? 90px : -90px), min(0px, news-feed.visible-height - news-feed.content-height), 0px);
+        previous-scroll = scroll-request;
+    }
+    private property <int> previous-scroll;
+    in property <Popup> shown-menu: Shell.popup;
+    changed shown-menu => {
+        if shown-menu == Popup.version || shown-menu == Popup.save {
+            Shell.anchor-x = shown-menu == Popup.version ? version-picker.absolute-position.x : save-picker.absolute-position.x;
+            Shell.anchor-y = version-picker.absolute-position.y + version-picker.height;
+        }
+    }
+    changed focus-request => { launch.focus(); }
+    private property <bool> updating: Game.update-tag != "";
+    private property <bool> installed: Game.playable;
+    private property <bool> compact: self.width < 1120px;
+    private property <bool> short-window: self.height < 510px;
+
+    left := Rectangle {
+        x: 0;
+        y: 0;
+        height: root.height;
+        width: root.width - news.width;
+        private property <length> inset: Ink.page-inset(root.width);
+        banner := Rectangle {
+            visible: Updates.offer != "";
+            x: left.inset;
+            y: Ink.page-top(root.width);
+            width: left.width - 2 * left.inset;
+            height: banner-row.preferred-height;
+            border-radius: 10px;
+            background: Ink.raised;
+            border-width: 1px;
+            border-color: Ink.line;
+
+            banner-row := HorizontalLayout {
+                padding: 10px;
+                padding-left: 16px;
+                spacing: 8px;
+                cross-axis-alignment: center;
+                VerticalLayout {
+                    spacing: 3px;
+                    horizontal-stretch: 1;
+                    Kicker { text: Locale.t("LAUNCHER UPDATE"); color: Ink.mustard; }
+                    Text { text: Updates.offer; color: Ink.text; font-weight: 700; wrap: word-wrap; }
+                }
+                Action {
+                    quiet: true;
+                    label: Locale.t("View changelog");
+                    clicked => { Updates.open-notes(); }
+                }
+                Action {
+                    primary: true;
+                    label: Locale.t("Update launcher");
+                    enabled: !Updates.busy && !Updates.blocked;
+                    clicked => { Updates.apply(); }
+                }
+            }
+        }
+        available := Flickable {
+            private property <length> inset: Ink.page-top(root.width);
+            x: left.inset;
+            y: banner.visible ? banner.y + banner.height : 0px;
+            width: left.width - 2 * left.inset;
+            height: max(0px, facts.y - self.y);
+            content-width: self.width;
+            content-height: max(self.height, hero.preferred-height + 2 * self.inset);
+            interactive: self.content-height > self.height;
+
+            hero := VerticalLayout {
+                x: 0px;
+                y: Shell.crash-message == "" ?
+                    (available.content-height - self.height) / 2 : available.inset;
+                width: available.width;
+                height: self.preferred-height;
+                spacing: root.short-window ? 9px : 15px;
+                if root.installed || Game.playing: Text {
+                    vertical-stretch: 0;
+                    text: Shell.crash-message != "" ? Locale.t("Game stopped unexpectedly") : Game.playing ? Locale.t("Game is running") : root.updating ? Locale.t("Update available") : Locale.t("✓  Installed");
+                    font-size: 14px;
+                    font-weight: 600;
+                    color: Shell.crash-message != "" ? Ink.gold : #a9c47e;
+                }
+                StateTitle {
+                    font-size: root.short-window ? 60px : root.compact ? 83px : 104px;
+                    vertical-stretch: 0;
+                    line-height-factor: 0.8;
+                    // Tight leading moves the last baseline closer to the edge of the text box.
+                    // Restore its lower half-leading so descending glyphs can paint in full.
+                    height: self.preferred-height + (1 - self.line-height-factor) * (self.font-metrics.ascent - self.font-metrics.descent) / 2;
+                    letter-spacing: self.font-size * -0.045;
+                    text: Shell.crash-message != "" ? Locale.t("The game\ncrashed.") : Game.playing ? Locale.t("Now playing.") : root.updating ? Locale.t("Update\nready.") : root.installed ? Locale.t("Ready\nto play.") : Locale.t("Build your\ngame.");
+                }
+
+                HorizontalLayout {
+                    spacing: 13px;
+                    max-width: 615px;
+
+                    version-picker := Selector {
+                        opens: Popup.version;
+                        label: Locale.t("VERSION");
+                        value: Game.selected >= 0 ? Game.version-rows[Game.selected].track + " · " + Game.current-tag + Game.version-rows[Game.selected].copy-suffix : Locale.t("Choose version");
+                        clicked => { Shell.popup = Popup.version; }
+                    }
+
+                    save-picker := Selector {
+                        opens: Popup.save;
+                        show-save-picture: Players.slot-index >= 0 && Players.slot-index < Players.slots.length;
+                        thumbnail: Players.slots[Players.slot-index].thumbnail;
+                        label: Locale.t("SAVE");
+                        value: Players.slot-index >= 0 && Players.slot-index < Players.slots.length ? Players.slots[Players.slot-index].name : Locale.t("New save");
+                        clicked => { Shell.popup = Popup.save; }
+                    }
+                }
+
+                HorizontalLayout {
+                    alignment: start;
+                    spacing: 14px;
+                    cross-axis-alignment: center;
+
+                    launch := Action {
+                        primary: true;
+                        horizontal-padding: 26px;
+                        height: 60px;
+                        size: 20px;
+                        label: Shell.crash-message != "" ? Locale.t("Play again") : Game.playing ? Locale.t("Playing") : root.updating ? Locale.t("Update and play") : root.installed ? Locale.t("Play Longshot") : Locale.t("Build Longshot");
+                        trailing-icon: root.installed && !Game.playing && (!root.updating || Shell.crash-message != "") ? @image-url("icons/play.svg") : @image-url("");
+                        enabled: !Game.busy && !Game.playing;
+                        clicked => { if Shell.crash-message != "" { Game.play(); } else if root.updating { Game.update-version(true); } else if root.installed { Game.play(); } else { Game.begin-build(); } }
+                    }
+
+                    if root.updating && root.installed && !Game.playing && Shell.crash-message == "": Action {
+                        horizontal-padding: 26px;
+                        height: launch.height;
+                        size: 16px;
+                        label: Locale.t("Play");
+                        enabled: !Game.busy;
+                        clicked => { Game.play(); }
+                    }
+                }
+
+                if Shell.crash-message != "": VerticalLayout {
+                    spacing: 6px;
+
+                    Text {
+                        text: Shell.crash-message;
+                        color: Ink.sand;
+                        wrap: word-wrap;
+                    }
+
+                    HorizontalLayout {
+                        alignment: start;
+                        spacing: 12px;
+
+                        Action {
+                            label: Locale.t("View log");
+                            clicked => { Shell.navigate(Page.logs); }
+                        }
+
+                        Action {
+                            quiet: true;
+                            label: Locale.t("Dismiss");
+                            clicked => { Shell.crash-message = ""; }
+                        }
+                    }
+                }
+                if Game.status != "": Text {
+                    text: Game.status;
+                    color: Ink.muted;
+                    wrap: word-wrap;
+                }
+            }
+        }
+
+        facts := HorizontalLayout {
+            x: left.inset;
+            y: left.height - self.height - (root.short-window ? 14px : 40px);
+            width: available.width;
+            height: 65px;
+            spacing: 24px;
+
+            FactLink {
+                destination: Page.mods;
+                label: Locale.t("MODS");
+                value: Shell.profile-mods + " " + (Shell.profile-mods == 1 ? Locale.t("mod") : Locale.t("mods"));
+            }
+
+            Fact {
+                label: Locale.t("LAST PLAYED");
+                value: Shell.last-played;
+            }
+
+            FactLink {
+                destination: Page.saves;
+                label: Locale.t("SAVES");
+                value: Players.slots.length + " " + (Players.slots.length == 1 ? Locale.t("save") : Locale.t("saves"));
+            }
+        }
+    }
+
+    news := SideCard {
+        x: root.width - self.width;
+        y: 0;
+        height: root.height;
+        width: Ink.detail-width(root.width);
+        colour: Players.colour;
+
+        HorizontalLayout {
+            spacing: 6px;
+            cross-axis-alignment: center;
+
+            VerticalLayout {
+                spacing: 4px;
+
+                Text {
+                    text: Locale.t("News");
+                    font-family: "Inter";
+                    font-weight: 900;
+                    font-size: 28px;
+                    color: Ink.text;
+                }
+
+                Kicker {
+                    text: Locale.t("FROM TEAM MAGICBEAN");
+                }
+            }
+
+            Action {
+                quiet: true;
+                size: 14px;
+                label: Locale.t("All posts") + "  ↗";
+                clicked => { Shell.open-posts(); }
+            }
+        }
+
+        Rectangle {
+            height: 1px;
+            background: Ink.line;
+        }
+
+        news-feed := ScrollView {
+            VerticalLayout {
+                alignment: start;
+                spacing: 20px;
+                VerticalLayout {
+                    alignment: start;
+                    spacing: 8px;
+
+                    Text {
+                        text: Locale.t("Welcome to the new launcher");
+                        color: Ink.text;
+                        font-weight: 750;
+                        font-size: 17px;
+                        wrap: word-wrap;
+                    }
+
+                    Text {
+                        text: Locale.t("Choose a version and a save on Home to start playing. You can switch profiles from the top bar.");
+                        color: Ink.sand;
+                        wrap: word-wrap;
+                        font-size: 15px;
+                    }
+                }
+            }
+        }
+    }
+}

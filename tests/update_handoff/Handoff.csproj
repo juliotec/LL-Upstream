@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Compile the previous stable updater unmodified against the new release's files. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <NuGetAudit>false</NuGetAudit>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(StableCore)' != ''">
+    <Compile Include="$(StableCore)/**/*.cs" Exclude="$(StableCore)/bin/**;$(StableCore)/obj/**" LinkBase="Core"/>
+  </ItemGroup>
+  <Target Name="RequireStableCore" BeforeTargets="CoreCompile">
+    <Error Condition="!Exists('$(StableCore)/SelfUpdate.cs')" Text="Set StableCore to Core in a checkout of v1.3.1."/>
+  </Target>
+</Project>

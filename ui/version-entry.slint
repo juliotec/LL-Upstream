@@ -1,0 +1,161 @@
+import { Pressable } from "widgets.slint";
+import { Game, VersionRow } from "game-model.slint";
+import { GameAction, Kicker } from "game-controls.slint";
+import { Locale, Ink } from "widgets.slint";
+
+component VersionCell inherits Rectangle {
+    in property <bool> heading;
+    in property <string> heading-text;
+    clip: true;
+
+    if root.heading: Kicker {
+        text: root.heading-text;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+    @children
+}
+
+// The header and data rows share the same cells. The version gets the remaining
+// width after the badge, status, size and actions take their space.
+export component VersionEntry inherits Rectangle {
+    in property <VersionRow> entry;
+    in property <int> index: -1;
+    in property <bool> header;
+    private property <bool> compact: self.width < 640px;
+    private property <bool> selected: !root.header && root.index == Game.selected;
+    private property <string> status-text: root.entry.update == "" ? Locale.t(root.entry.status) : Locale.t("Update to") + "\n" + root.entry.update;
+    height: header ? 28px : 60px;
+    background: selected ? Ink.raised : transparent;
+    border-width: header ? 0 : 1px;
+    border-color: (Ink.focus-visible && select-key.has-focus) || selected ? Ink.mustard : Ink.line;
+    border-radius: 8px;
+
+    select-key := Pressable {
+        visible: !root.header;
+        accessible-role: button;
+        accessible-label: root.entry.tag + root.entry.copy-suffix;
+        accessible-action-default => { Game.select-version(root.index); }
+        enabled: !root.header && !Game.busy;
+        activate => { Game.select-version(root.index); }
+    }
+
+    HorizontalLayout {
+        x: 0;
+        y: 0;
+        width: root.width;
+        height: root.height;
+        padding-left: 12px;
+        padding-right: 12px;
+        spacing: 10px;
+        cross-axis-alignment: center;
+
+        VersionCell {
+            height: root.height;
+            min-width: 0;
+            horizontal-stretch: 1;
+            heading: root.header;
+            heading-text: Locale.t("VERSION");
+            if !root.header: VerticalLayout {
+                alignment: center;
+                spacing: 2px;
+
+                Text {
+                    text: root.entry.tag + root.entry.copy-suffix;
+                    color: Ink.text;
+                    font-weight: 750;
+                    font-size: 15px;
+                    overflow: elide;
+                }
+
+                if root.compact: Text {
+                    text: root.status-text;
+                    color: root.entry.update == "" ? Ink.sage : Ink.gold;
+                    font-size: 12px;
+                    overflow: elide;
+                }
+            }
+        }
+
+        VersionCell {
+            height: root.height;
+            width: root.compact ? 72px : 80px;
+            heading: root.header;
+            heading-text: Locale.t("CHANNEL");
+            if !root.header: Rectangle {
+                x: 0;
+                y: (parent.height - self.height) / 2;
+                width: min(parent.width, badge.preferred-width + 10px);
+                height: 23px;
+                border-width: 1px;
+                border-color: root.entry.track == "Stable" ? Ink.sage : Ink.mustard;
+
+                badge := Text {
+                    text: root.entry.track.to-uppercase();
+                    color: parent.border-color;
+                    font-size: 11px;
+                    font-weight: 700;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+            }
+        }
+
+        if !root.compact: VersionCell {
+            height: root.height;
+            width: 100px;
+            heading: root.header;
+            heading-text: Locale.t("STATUS");
+            if !root.header: Text {
+                x: 0;
+                y: 0;
+                width: parent.width;
+                height: parent.height;
+                horizontal-alignment: left;
+                text: root.status-text;
+                color: root.entry.update == "" ? Ink.sage : Ink.gold;
+                font-size: 13px;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+        }
+        VersionCell {
+            height: root.height;
+            width: 65px;
+            heading: root.header;
+            heading-text: Locale.t("SIZE");
+            if !root.header: Text {
+                x: 0;
+                y: 0;
+                width: parent.width;
+                height: parent.height;
+                horizontal-alignment: left;
+                text: root.entry.size;
+                color: Ink.sand;
+                font-size: 13px;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+        }
+
+        Rectangle {
+            height: root.height;
+            width: root.compact ? 65px : 145px;
+            if !root.header: HorizontalLayout {
+                alignment: end;
+                cross-axis-alignment: center;
+                spacing: 5px;
+                if root.entry.update != "" && !root.compact: GameAction {
+                    text: Locale.t("Update");
+                    enabled: !Game.busy;
+                    clicked => { Game.select-version(root.index); Game.update-version(false); }
+                }
+                GameAction {
+                    text: Locale.t("Play");
+                    enabled: !Game.busy && !Game.playing;
+                    clicked => { Game.select-version(root.index); Game.play(); }
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,322 @@
+export enum Page { home, mods, saves, versions, settings, profiles, choose-player, build, launch, logs }
+export global Ink {
+    in-out property <bool> focus-visible;
+    public pure function page-inset(page-width: length) -> length { return page-width < 1050px ? 24px : 44px; }
+    public pure function page-top(page-width: length) -> length { return page-width < 1050px ? 18px : 28px; }
+    public pure function page-title-size(page-width: length) -> length { return page-width < 1050px ? 42px : 54px; }
+    public pure function panel-inset(panel-width: length) -> length { return panel-width < 365px ? 16px : 24px; }
+    public pure function detail-width(page-width: length) -> length { return page-width * 0.345; }
+    out property <length> form-control-width: 240px;
+    out property <color> button-outline: #f2e3c666;
+    out property <color> page: #211710;
+    out property <color> raised: #33261b;
+    out property <color> selected: #3b2c20;
+    out property <color> well: #16100b;
+    out property <color> black: #0d0a08;
+    out property <color> text: #f2e3c6;
+    out property <color> sand: #d8bc8c;
+    out property <color> muted: #c4b092;
+    out property <color> line: #4b3b2e;
+    out property <color> sage: #7f9d53;
+    out property <color> primary: #536d36;
+    out property <color> primary-hover: #607b40;
+    out property <color> on-primary: #ffffff;
+    out property <color> mustard: #d8a840;
+    out property <color> lavender: #ac96c5;
+    out property <color> gold: #e3b451;
+    out property <color> russet: #a9573c;
+    out property <color> olive: #56643a;
+}
+
+export component ColourStripe inherits HorizontalLayout {
+    for tone in [Ink.russet, Ink.mustard, Ink.sand, Ink.sage, Ink.olive]: Rectangle {
+        horizontal-stretch: 1;
+        background: tone;
+    }
+}
+
+export global Locale {
+    pure callback display-path(string) -> string;
+    in property <string> language;
+    pure callback lookup(string, string) -> string;
+    public pure function t(source: string) -> string {
+        return language == "" || language == "en" ? source : lookup(language, source);
+    }
+}
+
+// A focusable hit target shared by styled buttons and interactive rows.
+export component Pressable inherits FocusScope {
+    in property <bool> mouse-focus: true;
+    in property <bool> clear-focus-on-click;
+    in property <bool> pointer-enabled: true;
+    in property <MouseCursor> cursor: MouseCursor.pointer;
+    out property <bool> hovered: hit.has-hover;
+    callback activate();
+    callback pointer-activate();
+    pointer-activate => { root.activate(); }
+    key-pressed(event) => {
+        if event.text == Key.Return || event.text == " " {
+            root.activate();
+            return accept;
+        }
+        reject
+    }
+    hit := TouchArea {
+        enabled: root.enabled && root.pointer-enabled;
+        mouse-cursor: root.cursor;
+        clicked => {
+            if root.clear-focus-on-click { Ink.focus-visible = false; }
+            if root.mouse-focus { root.focus(); }
+            root.pointer-activate();
+        }
+    }
+}
+
+export enum ButtonSize { standard, game }
+
+export component Button inherits Rectangle {
+    in property <ButtonSize> button-size: ButtonSize.standard;
+    in property <string> label;
+    in property <image> icon;
+    in property <image> trailing-icon;
+    in property <length> trailing-icon-size: root.size * 1.4;
+    in property <length> horizontal-padding: 10px;
+    in property <bool> primary;
+    in property <bool> enabled: true;
+    in property <bool> quiet;
+    in property <length> size: 15px;
+    in property <bool> selected;
+    in property <bool> danger;
+    in property <bool> constrain-width;
+    in property <bool> compact;
+    in property <bool> filled;
+    in property <bool> align-left;
+    in property <bool> muted;
+    private property <bool> game-style: root.button-size == ButtonSize.game;
+    private property <bool> focused: Ink.focus-visible && key.has-focus;
+    callback clicked();
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-action-default => { if root.enabled { root.clicked(); } }
+    forward-focus: key;
+    preferred-height: root.game-style && root.quiet ? 36px : 44px;
+    min-height: self.preferred-height;
+    max-height: root.game-style ? self.preferred-height : 1000000px;
+    min-width: root.constrain-width ? 0px : content.preferred-width + (root.game-style ? 0px : 2 * root.horizontal-padding);
+    border-radius: 10px;
+    opacity: root.enabled ? 1 : root.game-style ? 0.46 : 0.5;
+    border-color: root.focused || root.selected ? Ink.mustard : root.danger ? Ink.russet : root.quiet || root.primary ? transparent : Ink.button-outline;
+    border-width: root.focused ? 3px : 2px;
+    background: root.primary ? (key.hovered ? Ink.primary-hover : Ink.primary) : key.hovered || root.selected ? Ink.selected : root.filled ? Ink.raised : transparent;
+
+    if root.primary && root.focused: Rectangle {
+        x: -5px;
+        y: -5px;
+        width: root.width + 10px;
+        height: root.height + 10px;
+        border-color: Ink.mustard;
+        border-width: 3px;
+        border-radius: 15px;
+    }
+    content := HorizontalLayout {
+        alignment: root.align-left ? start : center;
+        cross-axis-alignment: center;
+        spacing: 8px;
+        padding-left: root.game-style ? (root.compact ? 8px : root.quiet ? 12px : 14px) : 0px;
+        padding-right: self.padding-left;
+        if root.icon.width > 0: Image {
+            width: root.game-style ? 16px : 17px;
+            height: self.width;
+            source: root.icon;
+            colorize: root.primary ? Ink.on-primary : root.muted ? Ink.muted : Ink.text;
+        }
+        if root.game-style || root.label != "": Text {
+            text: root.label;
+            font-size: root.game-style ? (root.compact ? 13px : root.quiet ? 14px : 15px) : root.size;
+            font-weight: root.primary ? (root.game-style ? 800 : 750) : 600;
+            color: root.primary ? Ink.on-primary : root.muted ? Ink.muted : root.game-style && root.quiet ? Ink.mustard : Ink.text;
+            horizontal-alignment: root.game-style ? left : center;
+            vertical-alignment: center;
+            overflow: root.game-style ? elide : clip;
+        }
+        if root.trailing-icon.width > 0: Image {
+            width: root.trailing-icon-size;
+            height: self.width;
+            source: root.trailing-icon;
+            colorize: root.primary ? Ink.on-primary : Ink.text;
+        }
+    }
+
+    key := Pressable {
+        enabled: root.enabled;
+        clear-focus-on-click: root.game-style;
+        activate => { root.clicked(); }
+    }
+}
+
+export component Action inherits Button {}
+
+export component PageTitle inherits Rectangle {
+    in property <length> page-width;
+    in property <length> title-size: Ink.page-title-size(root.page-width);
+    in property <string> text;
+    in property <string> value;
+    in property <string> note;
+    in property <string> value-label: root.value;
+    in property <length> value-size: 22px;
+    in property <color> value-color: Ink.muted;
+
+    // Align the text baselines and center the title's capitals against row actions.
+    private property <length> baseline: self.height / 2 + (heading.font-metrics.cap-height > 0px ? heading.font-metrics.cap-height : heading.font-size * 0.72) / 2;
+    preferred-width: heading.preferred-width + (value == "" ? 0px : 8px + amount.preferred-width) + (note == "" ? 0px : 12px + detail.preferred-width);
+    height: max(44px, heading.preferred-height);
+
+    heading := Text {
+        x: 0px;
+        y: root.baseline - self.font-metrics.ascent;
+        width: min(root.width, self.preferred-width);
+        text: root.text;
+        color: Ink.text;
+        font-family: "Inter";
+        font-weight: 900;
+        font-size: root.title-size;
+        letter-spacing: -0.045 * self.font-size;
+        vertical-alignment: top;
+        overflow: elide;
+    }
+    amount := Text {
+        x: heading.width + 8px;
+        y: root.baseline - self.font-metrics.ascent;
+        text: root.value;
+        visible: self.text != "";
+        font-size: root.value-size;
+        font-weight: 700;
+        color: root.value-color;
+        accessible-label: root.value-label;
+        vertical-alignment: top;
+    }
+    detail := Text {
+        x: amount.x + amount.preferred-width + 12px;
+        y: root.baseline - self.font-metrics.ascent;
+        width: max(0px, root.width - self.x);
+        text: root.note;
+        visible: self.text != "";
+        color: Ink.muted;
+        font-size: 14px;
+        vertical-alignment: top;
+        overflow: elide;
+    }
+}
+
+export component StateTitle inherits Text {
+    font-family: "Inter";
+    font-weight: 900;
+    font-size: 64px;
+    letter-spacing: -3px;
+    color: Ink.text;
+    wrap: word-wrap;
+}
+
+export component Kicker inherits Text {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: Ink.muted;
+}
+
+export component CopyText inherits Text {
+    font-size: 16px;
+    color: Ink.text;
+    wrap: word-wrap;
+}
+
+export component SidePanel inherits Rectangle {
+    in property <color> accent: Ink.sage;
+    background: accent;
+
+    card := Rectangle {
+        x: Ink.panel-inset(root.width);
+        y: self.x;
+        width: root.width - 2 * self.x;
+        height: root.height - 2 * self.y;
+        background: Ink.black;
+        border-radius: 14px;
+        clip: true;
+        @children
+    }
+}
+
+export component SideCard inherits SidePanel {
+    in property <color> colour: Ink.sage;
+    accent: root.colour;
+
+    VerticalLayout {
+        padding: Ink.panel-inset(root.width);
+        spacing: 12px;
+        @children
+    }
+}
+
+export component Avatar inherits Rectangle {
+    in property <color> colour;
+    in property <string> initial;
+    in property <length> diameter: 45px;
+    in property <length> glyph-size: root.diameter >= 64px ? 36px : 18px;
+    in property <int> glyph-weight: 700;
+    in property <color> glyph-colour: Ink.black;
+    width: root.diameter;
+    height: root.diameter;
+    border-radius: self.width / 2;
+    background: root.colour;
+
+    Text {
+        text: root.initial;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        font-weight: root.glyph-weight;
+        font-size: root.glyph-size;
+        color: root.glyph-colour;
+    }
+}
+
+export component GaugeArc inherits Path {
+    in property <float> radius;
+    in property <float> fraction: 1;
+    in property <float> center-y: 100;
+    viewbox-width: 200;
+    viewbox-height: 102;
+    fill: transparent;
+
+    MoveTo { x: 100 - root.radius; y: root.center-y; }
+    ArcTo {
+        radius-x: root.radius;
+        radius-y: root.radius;
+        sweep: true;
+        x: 100 - root.radius * cos(root.fraction * 180deg);
+        y: root.center-y - root.radius * sin(root.fraction * 180deg);
+    }
+}
+
+export component ProgressBar inherits Rectangle {
+    in property <float> fraction;
+    in property <bool> striped;
+    in property <color> track-colour: Ink.raised;
+    height: 6px;
+    border-radius: 3px;
+    background: root.track-colour;
+    clip: true;
+
+    fill := Rectangle {
+        width: root.fraction >= 0 ? root.width * clamp(root.fraction, 0, 1) : root.width / 4;
+        x: root.fraction >= 0 ? 0px : (root.width + self.width) * mod(animation-tick(), 1600ms) / 1600ms - self.width;
+        height: root.height;
+        background: root.striped ? transparent : Ink.sage;
+        border-radius: root.striped ? 0px : root.border-radius;
+        clip: root.striped;
+        if root.striped: ColourStripe {
+            x: 0px;
+            width: root.fraction >= 0 ? root.width : fill.width;
+            height: fill.height;
+        }
+    }
+}

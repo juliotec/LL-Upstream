@@ -7,13 +7,12 @@ repos:
       - id: check-yaml
       - id: check-json
       - id: end-of-file-fixer
-        exclude: packages\.lock\.json$
       - id: trailing-whitespace
   - repo: https://github.com/koalaman/shellcheck-precommit
     rev: v0.10.0
     hooks:
       - id: shellcheck
-        files: ^(scripts/|\.circleci/scripts/).*\.(sh|bash)$
+        files: ^scripts/.*\.(sh|bash)$
   - repo: https://github.com/compilerla/conventional-pre-commit
     # v3.6.0
     rev: 48af87c8983cb0f5ba7693448da007b731196715
@@ -33,16 +32,8 @@ repos:
           - revert
   - repo: local
     hooks:
-      - id: circleci-validate
-        name: circleci config validate
-        # manual until magicbeandev/ci@0.1.0 is published (validate needs the registry orb).
-        entry: circleci config validate
-        language: system
-        stages: [manual]
-        pass_filenames: true
-        files: ^\.circleci/.*\.ya?ml$
       - id: gitleaks
         name: gitleaks
-        entry: gitleaks protect --no-banner --redact --config .circleci/gitleaks.toml
+        entry: gitleaks protect --no-banner --redact --config .gitleaks.toml
         language: system
         pass_filenames: false

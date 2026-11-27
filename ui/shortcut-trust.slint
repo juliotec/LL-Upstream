@@ -1,0 +1,24 @@
+import { ModReviewDialog } from "mods.slint";
+import { Ink, Locale } from "widgets.slint";
+
+export component ShortcutTrustWindow inherits Window {
+    in property <string> details;
+    callback answer(bool);
+
+    title: Locale.t("Review mod permissions");
+    icon: @image-url("../assets/longshot.png");
+    background: Ink.page;
+    default-font-family: "Inter";
+    preferred-width: 690px;
+    preferred-height: 510px;
+    min-width: 350px;
+    min-height: 300px;
+
+    ModReviewDialog {
+        title: Locale.t("Allow mod permissions?");
+        details: root.details;
+        confirm-label: Locale.t("Allow and continue");
+        cancel-review => { root.answer(false); }
+        confirm-review => { root.answer(true); }
+    }
+}

@@ -1,0 +1,3 @@
+# Preserve the vendor notices byte-for-byte against the builder's signed-off SDK pins.
+assets/licenses/*.txt -text whitespace=-trailing-space
+assets/licenses/*.md -text whitespace=-trailing-space

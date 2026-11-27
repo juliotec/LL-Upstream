@@ -1,0 +1,397 @@
+import { Preferences } from "settings-model.slint";
+import { Shell, Popup } from "shell-model.slint";
+import { ModuleCards } from "build-modules.slint";
+import { VersionEntry } from "version-entry.slint";
+import { ReleaseNotesPage } from "game-notes.slint";
+import { PageList } from "scroll-view.slint";
+import { Ink, Locale, PageTitle } from "widgets.slint";
+import { Game, GameStep, VersionRow } from "game-model.slint";
+import {
+    FooterAction,
+    GameAction,
+    PanelTitle,
+    Note,
+    Kicker,
+    Label,
+    Rule,
+    SidePanel,
+    Fact,
+} from "game-controls.slint";
+
+export component TrackMenu inherits Rectangle {
+    callback closed();
+    private property <int> first: Game.stable-available ? 0 : 1;
+    private property <int> current: root.first;
+    private property <[{ track: string, title: string, detail: string }]> choices: [
+        {
+            track: "Stable",
+            title: "Stable",
+            detail: Game.stable-available ? "Tested releases." : "Available after the next stable promotion."
+        },
+        { track: "Nightly", title: "Nightly", detail: "Daily builds with the latest fixes." },
+        {
+            track: "Earlier release",
+            title: "Earlier release",
+            detail: "Choose a previous release."
+        },
+        { track: "Main", title: "The main branch", detail: "Build the newest code on this PC." },
+        {
+            track: "Pull request",
+            title: "A pull request",
+            detail: "Try a change before it’s merged."
+        },
+    ];
+    function move-by(step: int) {
+        let count = root.choices.length - root.first;
+        root.current = root.first + mod(root.current - root.first + count + step, count);
+    }
+    function choose(index: int) {
+        if index < root.first { return; }
+        let track = root.choices[index].track;
+        root.closed();
+        Game.begin-track(track);
+    }
+    height: contents.preferred-height + 4px;
+    clip: true;
+    border-width: 2px;
+    border-color: Ink.line;
+    background: Ink.raised;
+    border-radius: 12px;
+    drop-shadow-blur: 16px;
+    drop-shadow-offset-y: 6px;
+    drop-shadow-color: #0008;
+    init => { keys.focus(); }
+
+    keys := FocusScope {
+        key-pressed(e) => {
+            if e.text == Key.Escape { root.closed(); return accept; }
+            if e.text == Key.DownArrow || e.text == Key.Tab { root.move-by(1); return accept; }
+            if e.text == Key.UpArrow || e.text == Key.Backtab { root.move-by(-1); return accept; }
+            if e.text == Key.Return || e.text == " " { root.choose(root.current); return accept; }
+            reject
+        }
+
+        contents := VerticalLayout {
+            x: 2px;
+            y: 2px;
+            width: parent.width - 4px;
+            height: self.preferred-height;
+            for choice[i] in root.choices: VerticalLayout {
+                if i == 3: Rectangle {
+                    height: 24px;
+                    background: Ink.page;
+
+                    Text {
+                        x: 12px;
+                        vertical-alignment: center;
+                        text: Locale.t("Advanced (slower builds)");
+                        color: Ink.sand;
+                        font-size: 11px;
+                        font-weight: 750;
+                    }
+                }
+                option := Rectangle {
+                    property <bool> available: i >= root.first;
+                    property <bool> active: option.available && root.current == i;
+                    accessible-role: button;
+                    accessible-label: Locale.t(choice.title) + ", " + Locale.t(choice.detail);
+                    accessible-enabled: option.available;
+                    accessible-action-default => { root.choose(i); }
+                    height: 45px;
+                    background: option.active ? Ink.mustard : transparent;
+
+                    VerticalLayout {
+                        padding-left: 12px;
+                        padding-right: 10px;
+                        spacing: 1px;
+                        alignment: center;
+
+                        Text {
+                            text: Locale.t(choice.title);
+                            font-size: 14px;
+                            font-weight: 750;
+                            color: option.active ? Ink.black : option.available ? Ink.text : Ink.muted;
+                        }
+
+                        Text {
+                            text: Locale.t(choice.detail);
+                            overflow: elide;
+                            font-size: 12px;
+                            color: option.active ? Ink.black : Ink.muted;
+                        }
+                    }
+
+                    TouchArea {
+                        enabled: option.available;
+                        mouse-cursor: pointer;
+                        changed has-hover => { if self.has-hover { root.current = i; } }
+                        clicked => { root.choose(i); }
+                    }
+                }
+            }
+        }
+    }
+}
+
+export component VersionsPage inherits Rectangle {
+    private property <bool> has-update: Game.selected >= 0 && Game.update-tag != "";
+    private property <string> notes-tag;
+    private property <VersionRow> entry: Game.version-rows[Game.selected];
+    function open-notes(tag: string) { root.notes-tag = tag; Game.show-notes = true; }
+    init => { Game.inspect-library(); Preferences.measure(); }
+    if !Game.show-notes: HorizontalLayout {
+        x: 0px;
+        y: 0px;
+        width: 100%;
+        height: 100%;
+        spacing: 0px;
+
+        Rectangle {
+            width: root.width - Ink.detail-width(root.width);
+            background: Ink.page;
+
+            VerticalLayout {
+                padding-left: Ink.page-inset(root.width);
+                padding-right: Ink.page-inset(root.width);
+                padding-top: Ink.page-top(root.width);
+                padding-bottom: 24px;
+                spacing: 12px;
+
+                HorizontalLayout {
+                    cross-axis-alignment: center;
+                    spacing: 8px;
+
+                    PageTitle {
+                        page-width: root.width;
+                        text: Locale.t("Versions");
+                        horizontal-stretch: 1;
+                    }
+
+                    add-button := GameAction {
+                        private property <int> restore: Shell.restore-focus;
+                        changed restore => { if Shell.opener == Popup.track { self.focus(); } }
+                        text: "+ " + Locale.t("Add version") + "  ⌄";
+                        enabled: !Game.busy;
+                        clicked => {
+                            Shell.anchor-x = self.absolute-position.x + self.width;
+                            Shell.anchor-y = self.absolute-position.y + self.height;
+                            Shell.popup = Popup.track;
+                        }
+                    }
+
+                    GameAction {
+                        text: Game.checking ? Locale.t("Checking") : Locale.t("Check for updates");
+                        enabled: !Game.busy && !Game.checking && Game.version-rows.length > 0;
+                        clicked => { Game.check-updates(); }
+                    }
+                }
+
+                Note {
+                    text: Locale.t("Your saves work across every installed version of Longshot.");
+                }
+
+                Rule { }
+
+                PageList {
+                    VerticalLayout {
+                        alignment: start;
+                        spacing: 6px;
+                        if Game.version-rows.length > 0: VersionEntry {
+                            header: true;
+                        }
+                        for row[i] in Game.version-rows: VersionEntry {
+                            entry: row;
+                            index: i;
+                        }
+                        if Game.version-rows.length == 0: VerticalLayout {
+                            alignment: start;
+                            spacing: 9px;
+
+                            PanelTitle {
+                                text: Locale.t("Build your first version.");
+                            }
+
+                            Note {
+                                text: Game.stable-installations ? Locale.t("Your older games stay with the stable launcher. Choose Add version to build one here.") : Locale.t("Choose a channel under Add version and bring your own game file to get started.");
+                            }
+                        }
+                    }
+                }
+
+                if Game.status != "": Note {
+                    text: Game.status;
+                    font-size: 13px;
+                }
+                HorizontalLayout {
+                    cross-axis-alignment: center;
+
+                    Note {
+                        text: Game.library-size == "" ? Locale.t("Measuring installed versions…") : Locale.t("Versions use") + " " + Game.library-size;
+                        horizontal-stretch: 1;
+                    }
+
+                    GameAction {
+                        text: Locale.t("Storage") + "  ›";
+                        quiet: true;
+                        clicked => { Game.show-storage(); }
+                    }
+                }
+
+                meter := Rectangle {
+                    height: 7px;
+                    background: Ink.raised;
+
+                    HorizontalLayout {
+                        for version[i] in Game.version-rows: Rectangle {
+                            width: meter.width * version.share;
+                            background: [Ink.sage, Ink.mustard, Ink.russet, Ink.sand][mod(i,4)];
+                        }
+                    }
+                }
+                if Preferences.previous-files-available: Rectangle {
+                    border-radius: 9px;
+                    background: Ink.selected;
+                    height: banner.preferred-height;
+                    banner := HorizontalLayout {
+                        padding: 12px;
+                        spacing: 12px;
+                        cross-axis-alignment: center;
+                        VerticalLayout {
+                            spacing: 3px;
+                            horizontal-stretch: 1;
+                            Label { text: Locale.t("Previous launcher files"); }
+                            Note { text: Locale.t("Old builds and caches can be cleaned up. Your saves and mods are kept."); }
+                        }
+                        GameAction {
+                            text: Locale.t("Clean up");
+                            enabled: !Preferences.cleaning && !Game.busy && !Game.playing;
+                            clicked => { Preferences.reclaim-build-files(false, "previous", ""); }
+                        }
+                    }
+                }
+            }
+        }
+
+        SidePanel {
+            accent: Ink.mustard;
+            horizontal-stretch: 1;
+
+            VerticalLayout {
+                padding: Ink.panel-inset(Ink.detail-width(root.width));
+                spacing: 10px;
+
+                Kicker {
+                    text: Locale.t("SELECTED VERSION");
+                }
+
+                PanelTitle {
+                    text: Game.selected >= 0 ? root.entry.title + root.entry.copy-suffix : Locale.t("No version yet");
+                    font-size: root.width < 960px ? 27px : 38px;
+                }
+
+                Note {
+                    text: Game.selected >= 0 ? root.entry.track + "  ·  " + Locale.t(root.entry.status) : Locale.t("Add a version to play Longshot on this PC.");
+                }
+
+                PageList {
+                    VerticalLayout {
+                        alignment: start;
+                        spacing: 8px;
+                        if Game.selected >= 0: VerticalLayout {
+                            Rule { }
+                            Fact {
+                                label: Locale.t("Saves");
+                                value: "✓ " + Locale.t("Shared with profile");
+                                value-color: Ink.sage;
+                            }
+                            Fact {
+                                label: Locale.t("Size on disk");
+                                value: root.entry.size;
+                            }
+                        }
+                        if Game.selected >= 0: VerticalLayout {
+                            padding-top: 16px;
+                            padding-bottom: 32px;
+                            spacing: 8px;
+                            Kicker { text: Locale.t("Optional modules"); }
+                            ModuleCards {
+                                dlss: root.entry.dlss;
+                                fsr: root.entry.fsr;
+                                xess: root.entry.xess;
+                                enabled: !Game.busy && !Game.playing;
+                            }
+                        }
+                        if Game.selected >= 0: GameAction {
+                            text: Locale.t("Release notes") + "  ›";
+                            align-left: true;
+                            quiet: true;
+                            clicked => { root.open-notes(root.entry.tag); }
+                        }
+                        if Game.selected >= 0: GameAction {
+                            text: Locale.t("Open folder") + "  ›";
+                            align-left: true;
+                            quiet: true;
+                            clicked => { Game.open-folder(); }
+                        }
+                    }
+                }
+
+                Rule { }
+
+                VerticalLayout {
+                    padding-top: 8px;
+                    spacing: 10px;
+                    GameAction {
+                        text: root.has-update ? Locale.t("Update and play") : Game.selected >= 0 ? Locale.t("Play") + " " + root.entry.tag : Locale.t("Build Longshot");
+                        primary: true;
+                        enabled: !Game.busy && !Game.playing;
+                        clicked => { if root.has-update { Game.update-version(true); } else if Game.selected >= 0 { Game.play(); } else { Game.begin-build(); } }
+                    }
+
+                    if root.has-update: GameAction {
+                        text: Locale.t("Play");
+                        enabled: !Game.busy && !Game.playing;
+                        clicked => { Game.play(); }
+                    }
+
+                    if Game.selected >= 0: HorizontalLayout {
+                        spacing: 8px;
+
+                        FooterAction {
+                            text: Game.steam-shortcut-present ? Locale.t("Remove from Steam") : Locale.t("Add to Steam");
+                            enabled: !Game.busy;
+                            compact: root.width < 1050px;
+                            clicked => { Game.steam-shortcut(Game.steam-shortcut-present); }
+                        }
+
+                        FooterAction {
+                            text: Locale.t("Remove");
+                            danger: true;
+                            compact: root.width < 1050px;
+                            enabled: !Game.busy && !Game.playing;
+                            clicked => { Game.remove(); }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if Game.show-notes: viewer := ReleaseNotesPage {
+        entries: Game.releases;
+        allow-unlisted: true;
+        requested-tag: root.notes-tag;
+        back-label: Locale.t("Versions");
+        back => { Game.show-notes = false; }
+        if viewer.tag != "" && viewer.tag == Game.current-tag: GameAction {
+            primary: true;
+            text: Locale.t("Play") + " " + viewer.tag;
+            clicked => { Game.play(); }
+        }
+        if viewer.tag != "" && viewer.tag != Game.current-tag: GameAction {
+            primary: true;
+            text: Locale.t("Build this release");
+            enabled: Game.buildable-release(viewer.tag);
+            clicked => { Game.release-choice = viewer.tag; Game.show-notes = false; Game.begin-track("Earlier release"); }
+        }
+    }
+}

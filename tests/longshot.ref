@@ -1,2 +1,2 @@
-# The Longshot commit the contract tests check the launcher against (docs/ci.md, "The Longshot pin"): one full commit id.
-09dea503a2ef2abcfe3c073903c418b40b6d985d
+# Upstream Longshot commit used by the builder contract checks.
+7015105c64ba1d248dec559ce045b9b0e52c5b85

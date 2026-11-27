@@ -1,651 +1,87 @@
 <h1 align="center">
-  <br>
-  <a href="https://git.magicbean.dev/MagicBeanDev/LongshotLauncher">
-  <img src="App/Assets/longshot.png" alt="Longshot Launcher" width="200">
-</a>
-
-  <br>
-  <b>Longshot Launcher</b>
-  <br>
+  <img src="assets/longshot.png" width="144" alt=""><br>
+  Longshot Launcher
 </h1>
 
-<h4 align="center">Installs, builds, updates and starts <a href="https://git.magicbean.dev/MagicBeanDev/Longshot">Longshot</a>, which runs a supported console game natively on Windows & Linux.
-</h4>
-
+<p align="center"><strong>Build and play Longshot on Windows and Linux, from your own copy of the game.</strong></p>
 
 <p align="center">
-  <a href="https://longshot.magicbean.dev/"><b>Website</b></a> |
-  <a href="https://discord.gg/magicbean"><b>Discord</b></a> |
-  <a href="#what-it-does">What it does</a> |
-  <a href="#download">Download</a> |
-  <a href="#installing">Installing</a> |
-  <a href="#using-it">Using it</a> |
-  <a href="#saves">Saves</a> |
-  <a href="#updates-and-channels">Updates</a> |
-  <a href="#build-from-source">Build from source</a> |
-  <a href="#credits">Credits</a> |
-  <a href="#license">License</a>
+  <a href="https://longshot.magicbean.dev/download"><strong>Download</strong></a> ·
+  <a href="#install-and-play">Install and play</a> ·
+  <a href="#updates-and-storage">Updates and storage</a> ·
+  <a href="#development">Development</a> ·
+  <a href="https://discord.gg/magicbean">Discord</a>
 </p>
 
-<p align="center">This website is our Git hosting, similar to GitHub.</p>
+![The launcher Home screen with a profile, game version, save selector and Play Longshot button](docs/images/launcher-home.png)
 
-The Longshot Launcher is the one program players download to get [Longshot](https://git.magicbean.dev/MagicBeanDev/Longshot).
-It installs Longshot's builder, builds the game **on your PC, from your own copy of the game**, starts it, and keeps
-the game and itself up to date. It is a separate project from Longshot, with its own repository and its own releases.
+## Install and play
 
-<p align="center">
-  <img src="docs/images/nx2navi-save-offer.png" alt="The launcher's home: the default version, Play, and offers to import NX2navi and Hookshot saves" width="720">
-</p>
+| Windows | Linux and Steam Deck |
+| --- | --- |
+| [Download the Windows launcher](https://longshot.magicbean.dev/download/launcher/windows) and open it. | [Download the AppImage](https://longshot.magicbean.dev/download/launcher/linux), make it executable, then open it. |
 
-> [!NOTE]
-> Nothing of the game is in the launcher or downloaded by it. It downloads Longshot's builder, which builds the game from
-> the copy you own. Don't ask where to get the game.
+On first launch, choose **Install** to add Longshot to your account’s applications menu and use the usual data and cache locations. Choose **Run portable** to keep `Longshot/data` and `Longshot/cache` beside the download. On Linux, Install places the AppImage in `~/.local/share/longshot` (or `$XDG_DATA_HOME/longshot`). Move the whole portable `Longshot` folder with the executable when using portable mode. Its hidden `.portable` marker remembers the choice.
 
-Discord: https://discord.gg/magicbean
+An in-place update keeps your install choice and starts from the same location. Opening a newer download on the same channel upgrades a recognized installed copy. Opening an equal or older download opens the installed copy. To switch tracks, use **Settings → Launcher**.
 
-## What it does
+See [where Longshot keeps files](docs/paths.md) for the data, cache, portable and upgrade paths.
 
-| | |
-|---|---|
-| **Builds the game** | A three-step wizard: it finds your game files while that version's builder downloads, then the settings (DLSS, FSR 4, Intel XeSS, language, the builds folder), then the build with one progress bar |
-| **Several versions side by side** | Keep a stable build and a nightly; Play starts the default one; Set as default, Saves, Open folder and Delete for each |
-| **Two channels** | `stable` and `nightly`, chosen per build and, apart from that, for the launcher itself |
-| **Installs Longshot's builder** | For each version, from Longshot's signed release: every file checked against its SHA-256 before it is used |
-| **Updates the game** | Offers each build its channel's newest version and builds it from the game files the build kept |
-| **Updates itself** | From its own signed releases, checked and tested before it replaces itself; `--rollback` puts the previous one back |
-| **Saves** | One save folder for every build, imports saves from emulators and from Hookshot, exports them to emulators, and to and from one .zip file; a Progress view per slot shows what a save has and is missing and edits it, with a backup first; and it restores the backups every copy makes ([docs/saves.md](docs/saves.md)) |
-| **Pull requests** | The *Pull request* track builds an open Longshot pull request on your PC to help test it: the ones a BigBean wrote or approved are listed, any other found by its number, with warnings before its code is built; it updates with each push ([docs/pull-requests.md](docs/pull-requests.md)) |
-| **Controller and TV** | The whole launcher with a controller (the d-pad or stick moves, A presses, B goes back), and in Steam's Gaming Mode or Big Picture a full-screen view for the TV ([docs/controller.md](docs/controller.md)) |
-| **Storage** | What Longshot keeps on your PC by what it is for: the game files (one row a copy), the installed games, shader caches, the files that make updates faster, the build tools and your data, with what removing each costs; it also finds old versions' folders an update left behind |
-| **NFC** | Keeps the NFC tag dumps of figures you own, which the game's NFC tab lists: add one, many or a folder of them, scan one with a Switch 2 Pro Controller (Windows), delete them ([docs/nfc.md](docs/nfc.md)) |
+The downloads above follow the published stable release. This branch shows the Rust/Slint redesign. To try it from this checkout, follow [Development](#development).
 
-## Download
+1. Open the launcher and select your local `.nup` or `.nx` file, or an extracted game folder containing `romfs` and `exefs`. The launcher checks the copy you select.
+2. Choose a game version and start the build. Allow about **15 GiB** for a first build with shaders. Later builds can reuse the tools, compiled code and shaders.
+3. On **Home**, choose a version and a save, then select **Play Longshot**. You can leave setup and return from Home or Versions.
 
-# ⬇️ Download Longshot Launcher
+The launcher downloads the [Longshot builder](https://git.magicbean.dev/MagicBeanDev/Longshot). Your game files, generated game and saves stay on your PC.
 
-### [🪟 &nbsp;Download for Windows](https://longshot.magicbean.dev/download/launcher/windows)
+## Inside the launcher
 
-### [🐧 &nbsp;Download for Linux (AppImage)](https://longshot.magicbean.dev/download/launcher/linux)
+| Where | What you can do |
+| --- | --- |
+| **Profile menu** | Switch players or create a profile with its own saves, mods and game options. Installed versions are shared across profiles. |
+| **Saves** | Choose where to continue, rename or duplicate a slot, or import and export saves. [Profiles and saves](docs/saves.md) |
+| **Versions** | Add a separate installation, check all installations for updates, or change one installation’s optional upscaling modules. Updated modules take effect on its next launch. [Pull request builds](docs/pull-requests.md) |
+| **Mods** | Import a local mod or browse the selected builder’s catalog. Review permissions before building with a new or changed ExeFS patch. Builders with limited mod support can still use extracted RomFS and ExeFS folders. |
+| **Settings** | Choose data and cache locations, manage launcher updates, review logs, or add local figure dumps. [NFC tags](docs/nfc.md) |
 
-Windows without installing: [portable zip](https://longshot.magicbean.dev/download/launcher/windows-portable) · Not sure? [longshot.magicbean.dev/download](https://longshot.magicbean.dev/download) picks for your computer.
+You can navigate the launcher with a mouse, keyboard or controller. Gamepad hints appear along the bottom while you use a controller, including inside dialogs. [Controller navigation](docs/controller.md)
 
-These links always give the newest launcher: the stable one, or until there is one, the nightly. To pick a channel:
+## Updates and storage
 
-- **Stable** (for playing): [Windows](https://longshot.magicbean.dev/download/launcher/stable/windows) · [portable zip](https://longshot.magicbean.dev/download/launcher/stable/windows-portable) · [Linux](https://longshot.magicbean.dev/download/launcher/stable/linux) · [release page](https://longshot.magicbean.dev/download/launcher/stable)
-- **Nightly** (every change, untested): [Windows](https://longshot.magicbean.dev/download/launcher/nightly/windows) · [portable zip](https://longshot.magicbean.dev/download/launcher/nightly/windows-portable) · [Linux](https://longshot.magicbean.dev/download/launcher/nightly/linux) · [release page](https://longshot.magicbean.dev/download/launcher/nightly)
+**Game updates** replace the installation you choose in Versions. **Launcher updates** follow the channel in **Settings → Launcher**. When an update is available, Home offers **View changelog** and **Update launcher**. Switching channels in Settings shows the installed and offered releases. Choose **Install and restart** to switch.
 
-Every release is on [the releases page](https://git.magicbean.dev/MagicBeanDev/LongshotLauncher/releases). The files:
+When upgrading from the previous stable launcher, compatible installations are imported and saves and mods are copied into profiles. Returning to stable opens the original files. Older stable releases understand the original portable layouts. To use one from a new `Longshot/.portable` setup, open an installed copy and switch its channel to Stable. [Moving from stable](docs/saves.md#moving-from-the-stable-launcher)
 
-- **Windows 10 and 11 (x64):** `LongshotLauncher-<version>-windows-x64-setup.exe`. Start it, then choose *Install* or
-  *Run portable* ([Installing](#installing)).
-- **Windows, portable:** `LongshotLauncher-<version>-windows-x64-portable.zip`. Unzip it anywhere (a USB stick) and start
-  `LongshotLauncher.exe`.
-- **Linux and Steam Deck (x86-64):** `LongshotLauncher-<version>-x86_64.AppImage`. Make it executable (`chmod +x`) and
-  start it.
+| Folder | What it holds | Fresh Linux default | Fresh Windows default |
+| --- | --- | --- | --- |
+| Longshot data | Profiles, saves, mods and installed versions, including their builders | `~/.local/share/longshot` | `%LOCALAPPDATA%\Longshot\data` |
+| Cache | Downloaded tools, compiled objects and shared shader caches | `~/.cache/longshot` | `%LOCALAPPDATA%\Longshot\cache` |
 
-This is the one download: the launcher installs Longshot's builder for you. The builder files on
-[Longshot's releases](https://git.magicbean.dev/MagicBeanDev/Longshot/releases) are for the launcher, not for you.
+Linux respects `XDG_DATA_HOME` and `XDG_CACHE_HOME`. Existing installations keep their populated or custom locations. Use **Settings → Game** to move a folder. In **Settings → Storage**, **Clean up** previews removable build files and their sizes, including eligible files from the previous launcher. Open **Previous launcher** to clean up individual categories.
 
-All of them are in the release's signed `SHA256SUMS`. After that the launcher updates itself. Its numbers are its own:
-Longshot's start at v3.0.0, the launcher's at v1.0.0.
+## Development
 
-> [!TIP]
-> Windows may warn about an unknown program on its first start (the program is not code-signed yet). Choose *More info*,
-> then *Run anyway*.
-
-## Installing
-
-There is no installer program: the launcher installs itself.
-
-**Windows.** The first start of the setup file asks:
-
-- **Install** copies it to `%LOCALAPPDATA%\Programs\LongshotLauncher\LongshotLauncher.exe` (for your user only, no
-  administrator rights), adds a *Longshot Launcher* shortcut to the Start menu and an entry in *Apps & features*
-  (publisher Magic Bean), then starts the installed copy. After each of its own updates it makes the Start menu shortcut
-  (and the *Longshot* shortcuts it made) again, so they start the updated program. Its data goes in `%LOCALAPPDATA%\LongshotLauncher`. You can
-  delete the setup file afterwards. `LongshotLauncher-<v>-windows-x64-setup.exe --install` does the same without asking.
-  A setup file older than the launcher installed (which has updated itself since) never goes back over it: it starts the
-  installed launcher instead.
-- **Run portable** puts a file named `portable` beside the program, and from then on the launcher keeps everything in a
-  `LongshotLauncher-data` folder beside it: its settings, its list of builds, the builder's tools, the build files, and by
-  default the builds and the save backups too. It never writes the registry, and makes no shortcut unless you tick one
-  when a build is ready. The portable
-  zip has the `portable` file in it already, so it never asks.
-- **Switching between them.** An installed launcher and a portable one each keep their own list of builds and (on Windows)
-  their own saves. A portable launcher that starts with no build offers the installed launcher's builds and saves on this
-  PC: its builds are listed where they are, and its saves are copied in if the portable launcher has none yet. The other way,
-  *Add a build folder…* on the home takes a game folder, a folder of them, or a portable launcher's `LongshotLauncher-data`
-  (its builds, and its saves where there are none yet). A save is never copied over another: the *Saves* tab imports one, after a
-  backup.
-
-**Uninstalling** (Windows): *Settings > Apps > Installed apps > Longshot Launcher > Uninstall*, which runs
-`LongshotLauncher.exe --uninstall`. It removes the program, its Start menu shortcut, the *Longshot* shortcuts it made, and
-its *Apps & features* entry. Ticked, it also removes everything else Longshot put on the PC, as *Remove everything* below
-does; your saves and their backups are kept.
-
-**Removing everything** (Windows and Linux): *Storage > Remove everything…* lists what goes and what stays, with their sizes,
-then removes everything Longshot put on the PC in one go (`Core/RemoveEverything.cs`): the versions' folders (a save still in
-one backed up first, as Home's delete does), the build files, the builders and graphics libraries, the shader caches, the
-game's caches, the logs, the launcher's settings and list, and the shortcuts it made (desktop, applications menu, Steam's tile,
-Start menu); the installed Windows launcher also uninstalls itself. Your saves, their backups, the game's settings and the NFC
-tags stay unless you tick them too (then they go with no copy kept: export them first in *Saves* to keep one). A builds or
-build files folder you chose keeps whatever else is in it, an old version's folder holding mods of yours stays, nothing is
-deleted through a link, and Hookshot's folders are never touched. Then the launcher closes; on Linux, and for a portable
-launcher, delete the AppImage or the launcher's folder yourself.
-
-**Updates keep the kind.** An installed launcher updates its installed `LongshotLauncher.exe`, from the release's setup
-file; a portable one takes `LongshotLauncher.exe` out of the release's portable zip and updates itself in place, beside its
-`portable` file. Either way the file keeps the name it was installed or started as.
-
-**Linux and the Steam Deck.** The AppImage needs no installing. *Settings > Applications menu > Add to applications menu*
-writes `~/.local/share/applications/longshot-launcher.desktop` and its icon, starting the AppImage where it is now; add it
-again after moving the AppImage, or *Remove* it. **Portable on Linux** is the AppImage convention: make a folder named after
-the AppImage with `.home` added (`LongshotLauncher-v1.0.0-x86_64.AppImage.home`) beside it, and the launcher keeps its data
-there. (The AppImage runtime then also points `$HOME` there, for everything the launcher starts.)
-
-**One launcher at a time.** A second start of the launcher brings the open one's window forward instead (one per data
-folder: a portable launcher and an installed one can run side by side).
-
-**If an update was cut short on Windows** (the PC lost power during the swap), the launcher puts the earlier one back the
-next time it starts. If `LongshotLauncher.exe` itself is missing, rename `LongshotLauncher.exe.old` beside it back to
-`LongshotLauncher.exe`.
-
-## Using it
-
-1. **Build** on Home (the first time), or **Add version…** on the Versions tab, opens the wizard. Pick the channel:
-   *Stable* for playing, *Nightly* for the newest changes (Add version lists each channel's older versions too; its
-   *Advanced*, closed until opened, builds **main** or a **pull request** from source, WIP ones included and marked, after
-   a warning that their code is unreviewed and runs with your rights: `SourceBuilds`, which has the newest nightly's
-   longshot-builder build that commit's builder with its `from-source`).
-2. **Game files**: the launcher looks for your dump on this PC; point it at the folder if it doesn't find it.
-3. **Settings**: the builds folder (Settings' own: Change sets it for every build; this build goes in
-   `<builds>/<track>/<version>`, shown under it), the language, and DLSS, FSR 4 or, on Windows, Intel XeSS (their licences are shown
-   first; with XeSS on, the build downloads Intel's XeSS library for the game's Upscaler row). A red line warns when the
-   launcher's estimated Auto GPU cannot run DLSS or FSR 4; if the estimate is unavailable, it checks all display adapters.
-   The estimate can differ from the game, for example when a laptop has a per-executable graphics preference. The switch still
-   turns on: the build fetches its files for tools like OptiScaler. XeSS
-   is never red: it runs on other makers' cards too where their driver has what it needs, which the game checks at its
-   start. Your saves come
-   along: every build shares them. On Windows with Intel graphics, **Intel shader compiles** chooses how many shaders
-   Intel's driver is given at once, for the build and the game: *Auto* (recommended: the game's own choice, side by side
-   on the Arc B-series and one at a time on other Intel graphics, and the game's Intel shader compiles row stays free to
-   change), *Side by side* (faster on a CPU with many cores, but can crash Intel's driver) or *One at a time*. Side by side
-   and One at a time hold the game's row at that value. **Shader time limit** on *Longer* waits up to 30
-   minutes, not 5, on a driver that seems stuck before the shader preparation gives up, and 3 minutes, not 30 seconds,
-   for the last pipelines: for a slow Intel GPU whose build says the GPU driver stopped responding.
-4. **Build**: about 15 to 30 minutes the first time, shaders included. An update compiles only what changed.
-   A Longshot release of Longshot's new builder ships one self-contained `longshot-builder` file per system and a signed
-   manifest, `longshot-builder-<version>-<system>.json`. The launcher installs a version by asking a builder it has to fetch
-   it (`longshot-builder fetch <version> --out versions/<version> --from <every installed version folder>`): the builder
-   checks the signature, makes it from a zstd delta, or a chain of them, of a version the launcher keeps when it can (a few
-   MB), else downloads it whole, and puts it in the version's folder with its record (`Core/Toolchains.cs`). Only the first
-   builder on a PC with none is downloaded by the launcher itself, whole, checked against its signed manifest. A release
-   without a manifest was made for `make_game.py`, Longshot's old builder, which this launcher does not run: it says to build and play that version with the stable Longshot
-   Launcher ([Versions of the old builder](#versions-of-the-old-builder)). A game built by `longshot-builder`
-   reads its files from your .nup where it is, so **keep the .nup where it was when you built**: if it moves, Play says so
-   and asks you to pick it again, and the game is pointed at it there in seconds (`longshot-builder index`), not built again;
-   only another .nup than the one it was built from is built again from. Its build files go in the build files folder's
-   `longshot-builder/` (its `--cache`); a first build wants about 5 GB free: 4 GB on that folder's drive, 1 GB on the game's.
-   Choosing another build files folder in Settings deletes your builds' work folders in the old one (`work/launcher-*`), but
-   not one a build is using. Such a version is a folder of its own, `versions/<version>/` in the launcher's data, with the
-   builder as `Longshot.exe` (`Longshot.x86_64`) and the game in `builds/default/`; the launcher runs it as
-   `Longshot.exe build --profile <the current profile> --game <your .nup> --output json ...` (every command with `--output
-   json`, its events on stdout).
-5. **Play**. Ready can also make desktop and menu shortcuts, which start the default version. A version of the new builder's
-   kind is played as `Longshot.exe --profile <the current profile> --output json --cache <its build files>`, which updates
-   the game first when it needs it. Profiles (the chip in the title bar: who is playing, each with its own saves and game
-   settings) are in [docs/saves.md](docs/saves.md#profiles).
-
-**Home plays; the Versions tab manages.** Home is a front page: the band with the game's name and the logo, then the
-**Version** picker (the versions on this PC, a builder's version folders among them, then *Manage versions…* and *New
-version…*), the **Save slot** picker (the current profile's slots, `profiles/<p>/saves/save/<uid>/slot_NN`, the newest
-picked, *New game* with none, *Manage saves…*; the one picked is profile.json's `start_slot`; hidden, a quiet line in its
-place, for a version whose game can't start on one: a builder's version as its builder's `info` says, an older one by its
-stamp's `features=`), and one button: **Build** with no version, **Build it
-again** when its game is gone, **Play**, and **Update** beside Play when there is one. One line under it, only when it must
-be said. The **Versions** tab lists every version as a card (its channel, state, size, Set as default, Open folder,
-Delete), Add version…, a build folder to add and the update check. Deleting a builder's version takes its whole
-`versions/<v>/` folder, `Longshot.exe` too, but never while a game runs, and never one holding saves, a profile or
-settings (`BuilderVersions.WhyNotDelete`). After an update into another version folder, the one it left is kept for going
-back to (`RollbackVersion`), and the older ones nothing uses (no row, no profile's `version`, no game running) are pruned
-(`LauncherService.PruneVersions`, also at the launcher's start).
-
-The title bar's tabs move between the launcher's pages: **Home**, **Saves**, **Versions** and **Settings** (Storage and the
-NFC tags are reached from Settings), the
-one shown lit; a page that leads back has a round arrow left of its title, which B and Esc press. Settings has the **launcher's language**, the channel for new
-builds, the **launcher's own channel**, the builds folder (your versions, one folder per track and version; its folder
-button opens it in the file manager), the build files folder (working files every build reuses, not the game; and *Manage
-storage*; by
-default `~/.cache/longshot/launcher/work` on Linux, `%LOCALAPPDATA%\LongshotLauncher\work` on Windows),
-the update check at start, and on
-Linux the launcher's entry in the applications menu.
-
-The launcher speaks the game's sixteen languages. It starts in the system's (Windows' display language; on Linux `LANGUAGE`,
-`LC_ALL`, `LC_MESSAGES` or `LANG`), else English, until one is picked in Settings, and a pick changes the window at once. The
-game's own language is apart from it: a build setting (step 2), as before.
-
-<p align="center">
-  <img src="docs/images/settings.png" alt="The launcher's settings: the channel for new builds, the launcher's own channel, where builds go" width="720">
-</p>
-
-<p align="center">
-  <img src="docs/images/storage.png" alt="The Storage tab: what Longshot keeps by what it is for, one bar of its groups, the installed games with an old version's folder not in the list" width="720">
-</p>
-
-### With a controller, on a TV
-
-The d-pad or left stick moves between the buttons, **A** presses one, **B** goes back (Cancel or Keep, else to Home), the
-bumpers step through every control in turn and the right stick scrolls. Started from Steam's **Gaming Mode** (a Steam
-Deck, a ROG Ally on Bazzite) or **Big Picture**, the launcher fills the screen for the TV; **F11** does it anywhere. All
-of it: [docs/controller.md](docs/controller.md).
-
-## Saves
-
-Every build shares one save folder (`%APPDATA%\Longshot` on Windows, `~/.local/share/longshot/user` on Linux, or
-`~/.local/share/longshot` itself for builds from before it: [docs/saves.md](docs/saves.md#where-longshot-keeps-them)). On Windows the
-launcher brings in, once, the saves each build kept in its own folder before, and the 2.x Builder's, keeping the newest
-after backing them all up ([docs/saves.md](docs/saves.md#saves-from-before-windows)). The **Saves** page imports saves from
-Lichii, Eden, NX2navi and the other emulators, and exports them back, or the whole save folder into one .zip file to
-keep or send, which it imports again after checking it is safe. You can import before playing Longshot for the first time. Every copy
-backs up what it replaces first, and *Restore from a backup…* lists those backups and puts one back. *Open saves folder*
-shows the save folder in the file manager, to find the saves by hand.
-
-**Coming from NX2navi?** The home offers to import saves found in its usual game folder. Choose the profile and confirm
-the import; the originals stay where they are. Portable or custom installs can be chosen by hand.
-
-**Coming from Hookshot?** The launcher finds Hookshot's saves and offers once to copy them in, or use
-*Saves > Import from Hookshot…*. It copies them and never moves them, so Hookshot keeps its own. It checks the files
-first, and it asks, and backs up, before it replaces a Longshot save. **Import graphics and controls…** separately brings
-compatible Hookshot game settings into the Longshot version you choose, with its own confirmation and backup.
-
-<p align="center">
-  <img src="docs/images/hookshot-import.png" alt="Import saves from Hookshot: the saves found, with their slots, and Choose a folder" width="720">
-  <img src="docs/images/hookshot-settings-import.png" alt="Choose a Longshot version and review the Hookshot settings and backup before importing" width="720">
-</p>
-
-**Finishing a save?** *Saves > Progress* on a slot lists what it has and what is missing, by name and area, and sets or
-takes away a group, gives items, hearts, rupees or keys, sets where Link starts and copies a slot. It runs Longshot's own save
-editor from your build's tools, backs the save up first, and refuses while the game runs
-([docs/saves.md](docs/saves.md#progress-and-edits)).
-
-All of it, with where every save lives: [docs/saves.md](docs/saves.md). Longshot's own
-[saves guide](https://git.magicbean.dev/MagicBeanDev/Longshot/src/branch/main/docs/saves.md) has the same from the command
-line (`scripts/longshot_saves.py import|export`).
-
-### NFC
-
-The **NFC** page (the *NFC* tab in the title bar) keeps the NFC tag dumps of figures you own: `.bin`
-(a raw NTAG215 dump) and `.nfc` (Flipper Zero) files, in one folder every build of the game shares. Add one file, many,
-or a whole folder; each is checked first, and a file that is not a dump is skipped and named. Delete one, several or all of them
-(asked first), or open the folder. In the game, the Insert menu's NFC tab lists them by file name. Nothing of a dump leaves your PC. All of
-it: [docs/nfc.md](docs/nfc.md).
-
-**Scan a tag…** (Windows) reads a tag with a Nintendo Switch 2 Pro Controller plugged in over USB and saves it there as
-`Scanned <UID>.bin`. Close Steam, the game and any controller bridge first: only one program can hold the controller. Scan
-only tags you own. The tag is only read, never written.
-
-## Updates and channels
-
-Longshot and the launcher are released apart, from their own repositories, each on three channels:
-
-| Channel | Made from | For |
-|---|---|---|
-| `stable` | a tag `vX.Y.Z` | playing |
-| `nightly` | every change to `main` | the newest changes, untested |
-
-**Two choices in Settings.** *Channel for new builds* is the channel of Longshot a new build follows (each build keeps
-its own). Until you pick one, it follows the launcher's channel: a nightly launcher builds nightlies. *Launcher updates* is the channel the launcher updates **itself** from: LongshotLauncher's own stable or
-nightly, apart from any build's. It starts on the channel of the launcher you installed.
-
-**Back from nightly to stable.** Switching *Launcher updates* from nightly to stable offers to **replace this launcher with
-the stable Longshot Launcher** (`Core/StableSwitch.cs`, `StableLauncherViewModel`): the stable channel's newest launcher is
-downloaded, checked and put in place as an update is, and started. Before that it offers to copy the current profile's saves
-(`profiles/<p>/saves/save` and `save-work`) back to the `--user` folder the stable launcher reads saves from (the one the
-move to profile folders copied them from): a copy, the profile keeps its own, and a file there that is newer than the
-profile's is kept unless you tick *Replace the newer files too*. Versions built with the new builder won't run in the
-stable launcher; they stay on the PC for when you come back. *Cancel* leaves the channel, the saves and the launcher as they
-were.
-
-### Versions of the old builder
-
-This launcher (from the nightly that made the clean break) builds, updates and plays only versions of Longshot's new
-builder, `longshot-builder`. A version built with `make_game.py`, the builder before it (`Core/OldVersions.cs`: a game
-folder outside `versions/` with no `longshot-builder` record), stays listed, its card saying **Not supported by this
-launcher: use the stable Longshot Launcher to play it**, with *Switch to the stable launcher* (the offer above). It is not
-played, built or updated here, and never deleted unless you delete it; its build files and SDKs stay too while one is listed.
-A release that ships no `longshot-builder` manifest is refused the same way. The one-time moves are kept: saves and settings
-into profiles, older game folders into version folders.
-
-Every release's `SHA256SUMS` is signed with the release key, which the launcher has built in. The launcher installs nothing
-whose signature or SHA-256 does not check out, and never goes to a lower version by itself. A new launcher is downloaded
-beside the current one and checked. It is then started once with `--self-check`, and only then swapped in.
-`--rollback` puts the previous launcher back. How releases are made and checked: [docs/releases.md](docs/releases.md);
-how to make one: [RELEASING.md](RELEASING.md).
-
-## Build from source
-
-The [.NET 10 SDK](https://dotnet.microsoft.com/download), on Windows or Linux:
+The launcher is written in Rust with a Slint desktop interface. Install Rust and the platform libraries listed in the [CI guide](docs/ci.md), then run from the repository root.
 
 ```sh
-git clone --depth 1 https://git.magicbean.dev/MagicBeanDev/LongshotLauncher.git
-cd LongshotLauncher
-dotnet build LongshotLauncher.slnx
-dotnet run --project App
+cargo run --locked
 ```
 
-`scripts/package.sh <tag> <out folder>` makes the two release programs on Linux (a test build unless CI signs it).
+Slint uses FemtoVG with OpenGL by default. Set `SLINT_BACKEND=winit-software` to use the CPU renderer, or `SLINT_DEBUG_PERFORMANCE=refresh_lazy,overlay` to display frame timing during interaction. Set `LONGSHOT_LAUNCHER_HOME` to use a separate launcher home for testing.
 
-### Layout
+The executable also accepts `--self-check` to verify startup without opening a window, `--play` to start the selected build, and `--launch <folder>` to open the launcher with that installation selected.
 
-| | |
-|---|---|
-| `Core/` | `LongshotLauncher.Core`: the logic, no UI and no package. Versions and channels (`Versions`), the signed releases of Longshot and of the launcher (`Releases`, `ReleaseTrust`, `ReleaseManifest`), its own update (`SelfUpdate`) and the way back to the stable launcher (`StableSwitch`), each version's `longshot-builder` (`LongshotBuildRelease`, `Toolchains`, `ToolsSource`), its command lines, events, run and check (`LongshotBuilder`, `BuildEvents`, `MakeGameCommand`, `MakeGameProtocol`, `MakeGameRun`), the versions of the old builder (`OldVersions`), game folders, the installed versions' lists: `versions.json`, this launcher's, apart from the stable launcher's `builds.json` (`BuildRegistry`, `VersionLists`), remembered settings, the game files found on this PC (`GameFiles`), update offers (`UpdatePolicy`), saves (`Saves`, a port of Longshot's `scripts/longshot_saves.py`; `SaveText`) and Hookshot's (`HookshotSaves`), the NFC tag dumps the game reads (`NfcTags`) and scanning one with a Switch 2 Pro Controller (`NfcReader`), the save editor Progress runs from a build's tools (`SaveEditing`, `SaveEditorReport`), the game settings brought to a new build (`SettingsCarry`), disk space (`Disk`), this PC (`SystemInfo`), shortcuts (`Shortcuts`), installed or portable (`LauncherLayout`, `Installer`), one launcher per home (`InstanceLock`), a controller's presses and the TV view (`Gamepad`, `GamepadReaders`), the launcher's home and command line |
-| `Core/Lang/` | The launcher's translations, one catalog per language (`Tr`, [Translations](#translations)) |
-| `App/` | `LongshotLauncher`: the Avalonia window. `ViewModels/` (one per page and dialog), `Views/` (one .axaml each, compiled bindings), `Controls/` (icons, bars and spinner), `PadInput.cs` (a controller), `App.axaml` (the palette and the styles), `Assets/` (the Longshot logo and icon, the Inter font with its licence) |
-| `tools/screenshots/` | The screens drawn without a display into PNGs ([Screenshots](#screenshots)) |
-| `tests/` | `test_launcher_core.py` (builds `launcher_core/`, which compiles `Core/` and checks it), `fixtures/` (signed test releases, fake Hookshot saves, what Longshot's save editor answers as JSON), `save_editor_fixtures.py` (checks that text against a Longshot checkout) |
-| `scripts/` | `package.sh` (both release programs, from Linux), `make_icon.py` (`App/Assets/longshot.ico` from the logo), `translations.py` (the window's texts against each catalog) |
-| `.forgejo/workflows/` | `ci.yml` (compile and test, every pull request), `release.yml` (the nightly from `main`, a release from a `v*` tag) |
-| `docs/` | [releases.md](docs/releases.md), [saves.md](docs/saves.md), [nfc.md](docs/nfc.md), [controller.md](docs/controller.md), and the screenshots in this README |
+| Source | Contents |
+| --- | --- |
+| [ui](ui) | Slint screens and shared controls |
+| [src/game](src/game) | Release discovery, builder communication and launch |
+| [src/players](src/players) | Profiles, saves and NFC |
+| [src/update.rs](src/update.rs) · [src/update](src/update) | Launcher updates, package verification and rollback |
+| [tests/update_handoff](tests/update_handoff) | Compatibility with the previous stable updater |
 
-### Screenshots
-
-`tools/screenshots` draws the launcher's screens without a display (Avalonia.Headless, rendered by Skia), each in a launcher
-of its own: a home in a temporary folder, a player's folders as the screens show them, no game files and no network. For
-a pull request that changes a screen:
-
-```sh
-dotnet run --project tools/screenshots -- work/screenshots            # every scene
-dotnet run --project tools/screenshots -- work/screenshots build-log  # only these
-dotnet run --project tools/screenshots -- --lang de --size 960x560 work/screenshots home-update  # in German, the window at its smallest
-```
-
-Each scene is one PNG of the window at its default size, 1200x760 (`--small`: the smallest, 1040x680; the TV scenes: a 1080p screen), named after it; the scenes are in `tools/screenshots/Program.cs` (the home,
-the build settings on Linux and Windows, on Windows with a card that runs neither DLSS nor FSR 4, and with Intel graphics, the FSR 4 notice, Intel's XeSS licence, the build page with and
-without its details, the NFC page and its Delete all, Home's pickers, the Versions tab and its Add version). A change to a
-screen adds or updates the scene that shows it.
-
-### Environment and command line
-
-| | |
-|---|---|
-| `LONGSHOT_NFC_DIR=<folder>` | The NFC folder somewhere else (a full path), for the game and the launcher alike: the launcher passes it on to the game it starts, on Linux too, where it drops its other `LONGSHOT_` variables ([docs/nfc.md](docs/nfc.md)) |
-| `LONGSHOT_LAUNCHER_DEBUG_SLOW=<ms>` | A Debug build only: waits that long before each answer from git.magicbean.dev and a tenth of it after each MB downloaded, to see the busy states (the launcher's update, the check, the tools' download) |
-| `LONGSHOT_LAUNCHER_EXE=<path>` | What the shortcuts and the game folders (`builder=`) start this launcher with, for a package whose own path is only inside it (the Flatpak sets it). A launcher not started from its own file (the Flatpak's, `dotnet run`) is not offered its own updates |
-| `LONGSHOT_LAUNCHER_HOME=<folder>` | The launcher's home (`versions.json`, `settings.json`, `toolchains/`, `logs/`) somewhere else, for trying it out; the build files (`work/`) and the SDKs a build fetches go in it too, not in `~/.cache` |
-| `LONGSHOT_LAUNCHER_NO_CDN=1` | Every release list, release file and build tool from git.magicbean.dev itself, not through `git-cdn.magicbean.dev` (Cloudflare's cache of the same files and lists, tried first otherwise; a list there may be a minute old, and is still answered while git.magicbean.dev is down; the rest of the API is always git.magicbean.dev's). A file asked of git.magicbean.dev, here or after the CDN failed, has `cdn=0` in its link, without which the server redirects it to `git-cdn.magicbean.dev` |
-| `LONGSHOT_LAUNCHER_NO_PREFETCH=1` | The build tools download only in a build's first step. Otherwise, with no builds yet, the newest version's tools on your channel start downloading as soon as the update check answers; an update's too, only when Settings' "Download the build tools of an update as soon as it is out" is on (off at first) |
-| `LONGSHOT_LAUNCHER_OFFLINE=1` | No update check |
-| `LONGSHOT_LAUNCHER_TV=1` | The TV view (full screen, scaled up, square corners) anywhere; `=0` never, even in Steam's Gaming Mode or Big Picture ([docs/controller.md](docs/controller.md)) |
-| `LONGSHOT_LAUNCHER_TRUST=<public key .pem>` | Trust one more release key, for a release signed with a test key |
-| `--launch <folder>` | Opens on that build |
-| `--play [<folder>]` | Starts the game with no window (a direct start; the shortcuts open the launcher) |
-| `--self-check` | Prints `LongshotLauncher <version>` (a new launcher answers it before it is put in place) |
-| `--rollback` | Puts back the launcher the last update replaced |
-| `--install` | Windows: installs this launcher without asking ([Installing](#installing)), then starts the installed copy |
-| `--uninstall` | Windows: uninstalls the installed launcher (what *Apps & features* runs); it asks whether to remove everything else too (the saves kept) |
-
-### Tests
-
-```sh
-python -I tests/test_launcher_core.py [--longshot <checkout of Longshot>]
-LAUNCHER=$PWD python -I ../Tooling/tests/test_release.py
-```
-
-The first builds `tests/launcher_core`, which compiles the core with no package and checks it with no game, no network
-and no window. It covers the version order, the signed releases (signatures, channels, products, replays, hashes, against
-files Tooling's `release.py` signed with a test key), the launcher's own update (download, self-check, swap, rollback, the
-recovery from a swap cut short, the portable zip), install, uninstall and the portable layouts (with a fake registry and fake
-shortcuts: the tests never touch the real ones), one launcher per home, a download that stalls, a save copy that fails half
-way, the
-saves against Longshot's `tests/test_longshot_saves.py` cases, the Hookshot import against fake saves, the NFC folder against fake tags made in the test, a tag scan against a fake controller, and the rest over
-temporary folders. With `--longshot`, it also checks the languages and the DLSS, FSR 4 and XeSS licence texts against
-Longshot's `make_game.py` and `scripts/fetch.py` (before Longshot #1802: `ngx_sdk.py`, `ffx_sdk.py` and `xess_sdk.py`, XeSS's
-when that Longshot has it), and `longshot-builder`'s error codes. The second checks Tooling's `release.py` with keys it makes (it needs the
-`openssl` command line). CI runs both and compiles with warnings as errors. Contributing: [CONTRIBUTING.md](CONTRIBUTING.md).
-
-### Translations
-
-Every text the window shows is written in English in the sources, as `Tr.T("...")` (with parts, `Tr.F("... {0}", x)`; a
-count, `Tr.P(n, "1 slot", "{0} slots")`) in the C# and `{c:T '...'}` in the views. `Core/Lang/<code>.json` maps each English
-text to its translation, a count's entry to its forms by CLDR plural category (`one`, `few`, `many`, `other`: the categories
-the language has). A text missing from a catalog shows in English. `en-GB`, `fr-CA` and `es-419` hold only what differs from
-English, French and Spanish; the others hold every text.
-
-```sh
-python -I scripts/translations.py                 # what each catalog lacks or has left over, and broken placeholders
-python -I scripts/translations.py --missing de    # the texts de.json lacks, as JSON to fill in
-```
-
-`tests/test_launcher_core.py` runs the same check: a broken placeholder, a wrong set of plural forms or a catalog entry no
-source has any more (a changed English text) fails it; a text a catalog lacks is only said. A native speaker's fix to a
-catalog is welcome as a pull request. Logs and *Copy for a bug report* stay in English.
-
-### Planned next
-
-- **Profiles and a clean folder layout**: builds in `~/Games/Longshot/versions/<version>` and the player's saves and
-  settings in `~/Games/Longshot/profiles`. Until then, new builds go to `~/Games/Longshot/<channel>`, and Delete refuses
-  a folder that holds another build.
-- **Authenticode** for the Windows program.
-- An update check before `--play` (a windowless start checks nothing: the shortcuts open the launcher instead).
-
-## Design decisions
-
-Calls made here, most of them the design mockup's; each can be changed:
-
-- **On Linux, the data folder holds only what cannot be made again.** `~/.local/share/longshot/launcher` keeps the
-  settings, the list of builds, the logs and the versions (`versions/<version>/`: each one's builder and game folder; a
-  build is played, updated and reported with its version's builder, and an old version's may be gone; `toolchains/` is an
-  older launcher's, read until no build uses it); the build files (`work/`) and the
-  SDKs a build fetches (`ngx-sdk/`, `xess-sdk/`, `ffx-sdk/`) are in `~/.cache/longshot/launcher` (`$XDG_CACHE_HOME`;
-  `LauncherHome.Cache`). A launcher from before kept them in its home: the first start that holds the home moves each with
-  one rename (`LauncherHome.MoveToCache`), never a copy; one on another disk stays and is used where it is, and a build
-  files folder you chose stays yours. Without them a build is slower, never wrong. On Windows `%LOCALAPPDATA%` is not
-  roamed already, so they stay in `%LOCALAPPDATA%\LongshotLauncher`; a portable launcher and `LONGSHOT_LAUNCHER_HOME`
-  keep everything in their one folder.
-- **One folder of save backups.** New backups go to `save-backups` (`SaveEnvironment.BackupRoot`); the folders of before
-  (`oot-save-backups`, Linux's `longshot/save-backup`) are listed and restored from, never written, moved or emptied
-  (`SaveEnvironment.OldBackupRoots`).
-
-- **One save folder for every build.** The launcher starts each build with `--user %APPDATA%\Longshot` on Windows and
-  `--user ~/.local/share/longshot` on Linux (`GamePlay.UserFolder`; not on Linux while the build's folder has a `user/` of
-  its own, which the game takes in itself), so an update or a new build starts where you left off. The same `--user` for
-  every version: on Linux a newer game keeps its files in that folder's `user/`, moving them there itself at its first
-  start, an older one in the folder itself, and the launcher reads whichever the game uses (`SaveEnvironment.LongshotUser`:
-  `user/` once it is there; `LongshotRoot` is the folder passed). The saves builds kept in
-  their own folders before are brought in once (`Saves.Gather`): the one with the newest progress is kept, all of them
-  backed up, the old ones renamed aside and never deleted. Where one was, `user\save` becomes a link (a junction) to the shared
-  save, and `Saves.LinkSaves` makes the same link in a build that has none, so a build started on its own on Windows (no
-  `--user`) reads and writes the shared saves, and the next start has nothing to take in again (Longshot#639).
-- **The game settings follow too.** A Longshot that takes `--user` for them keeps `longshot_options.ini` in that folder.
-  Before Play, a build whose own file holds no setting (a new build: `compile_shaders=` alone) is filled
-  from the newest of the user folder's and the other builds' files, its `compile_shaders=` kept (`SettingsCarry`), so a
-  build from before that change keeps the player's settings as well. The launcher never writes the user folder's file.
-- **So do the program's own settings in Windows and NVIDIA's driver** (Windows). Both are kept by the program's full path,
-  which a new build's folder changes. Before Play, a build's program with none of its own gets the most recently updated other
-  build's (`DriverSettings`): its graphics preference (`HKCU\Software\Microsoft\DirectX\UserGpuPreferences`, which GPU it
-  runs on), and the NVIDIA program profile that names the old program by its path (the NVIDIA app's or Control Panel's
-  program settings, such as Smooth Motion), which the new program joins through NVAPI. Nothing is taken away; a refusal
-  leaves things as they were.
-- **NVIDIA's shader cache gets room for Longshot's shaders** (Windows). A start builds about 2 GB of pipelines into the
-  driver's own cache, and many players' caches are held at 1 GB (the control panel's Shader Cache Size): the driver throws
-  pipelines out as it fills, and they are compiled again in play. Before a build and before Play, a size under 4 GB is
-  raised to 10 GB through NVAPI (`DriverSettings.RaiseShaderCache`: the global profile's `PS_SHADERDISKCACHE_MAX_SIZE`,
-  for every program, as the control panel sets it), and Home says so. It is never lowered, and Disabled, Unlimited and a
-  cache turned off are left alone. When the driver saves only for an administrator (NVAPI -137), Home offers **Raise it
-  to 10 GB**, which starts the launcher again as one (`--raise-nvidia-shader-cache`, Windows asks) for that alone.
-- **Instances live in `<builds>/<track>/<version>`**: `<builds>/nightly/nightly-2029-c544828f`, `<builds>/stable/v3.0.1`
-  (`LauncherSettings.FolderFor`; the version's own name, safe for a folder on Windows and Linux; `Longshot` for a track
-  or a version with no such name). A second instance of the same version is `<version> (2)`, the only time a suffix
-  appears. The builds folder is one setting, Settings' and step 2's (its Change in step 2 changes it in Settings too), so
-  a folder always says what is in it, and a player cleaning up their disk sees which version is where.
-- **An update renames its instance's folder.** An update or a go-back builds in the folder its instance has, renamed to
-  the new version's name when the build starts, before longshot-builder (`BuildRegistry.FolderOf`, `InstanceFolders.Rename`):
-  `nightly/nightly-171-…` becomes `nightly/nightly-175-…`. A rename, not a copy: the game, its settings, mods, shader
-  caches and a save in its own `user/save` go with it, and no folder of the version before is left on the disk. The row
-  takes the new folder at once (saved), then the new version when the build finishes (`BuildRegistry.Replace`). Step 2
-  says it: *`<old>` becomes `<new>` when the build starts*. The launcher's own shortcuts open the launcher and keep working;
-  **a shortcut or a Steam entry made to the game's own program (`bin/longshot.exe`) points at the old path and has to be
-  made again after an update** (the price of a folder that names its version). A rename is refused, and nothing changes
-  or starts, while Longshot runs, onto a path that is there, and on Windows while a file in the folder is held open (a
-  File Explorer window in it, an editor, an antivirus scan): the problem page says why and Build again tries again. A
-  build that fails or is stopped renames the folder back (`InstanceFolders.MoveBack`, waiting up to 10 s for a file the
-  stopped build still holds), so the row's folder names the version the row still has. An instance in a folder the player
-  chose before (outside the builds folder's layout) is never renamed. So an update replaces the version before it, and
-  the way back is to build that version again: pick it in the home's **Version** dropdown (below), which lists its
-  track's releases the server still has (every release, the newest 5 nightlies: `VersionPick`),
-  and the button builds it the same way, as "Go back to". Update then offers the newest again. Your saves stay: every
-  build shares them. longshot-builder puts the new files in only once they are complete, so a build that stops leaves the old
-  game playable. It does not start while Longshot runs: Save and close it first. On Windows, Longshot started during the
-  build stops it at its last step, which then asks to close it and build again (what was built is kept).
-- **Old versions' folders.** Before an update stayed in its build's folder (#104), every update left a folder named after
-  a version, no longer in the list of versions. **The home offers to delete them** (*Old versions left on the disk*: Keep
-  or Delete; `Leftovers`): the game folders in the builds folder and in its tracks' folders (`InstanceFolders.Folders`)
-  that no build lists, once nothing of the player's is in them (no save left in `user/save`, which `Saves.Gather` takes in
-  first on Windows; neither `user/` nor `user/save` a link, but the launcher's own to the shared save; nothing in `mods/`),
-  and never one that holds a build's folder or the launcher's home. It says what deleting them frees (their files with no hard link outside them), deletes nothing
-  while Longshot runs, and Keep is remembered (`KeptFolders` in settings.json).
-- **Instances from before this layout move into it when the player says so.** They are right in the builds folder,
-  named after their track (`nightly`, `nightly (2)`: launchers v1.0.0-rc.7 and on) or after the version they were first
-  built with (`v3.0.0-rc.5`: launchers before). **The home offers to move them** (*Instances in the old folder layout*:
-  Keep or Move; `InstanceFolders.Plan`): each to `<builds>/<track>/<version>` past every name taken, the ones named after
-  their track first, since `<builds>/nightly` becomes the nightly's folder (moved by way of a name beside it). Nothing is
-  moved unless the player says so, and the same rules as an update's rename hold: everything in the folder goes with it,
-  the launcher's shortcuts follow, refused while Longshot runs, for a link, a folder that holds the home folder or
-  Longshot's shared saves, a name taken since, or a folder that would go inside another instance's; the list is saved
-  with the new folder, or the folder goes back. Until then a new instance never goes inside an old one's folder named
-  after its track (`<builds>/nightly (2)/<version>` instead). A folder elsewhere, which the player chose, is never
-  offered. Keep is remembered (`KeptFolderNames` in settings.json).
-- **An update keeps the shader caches.** The game keeps its translated shaders and pipelines in its folder's `cache/`
-  (10 GB and minutes of preparing), good for one shader translator. An update in its build's folder keeps them where they
-  are, a rename to its new version's name included (the same folder); the game drops them itself when its translator
-  stamp differs. An update built in another folder starts with none there. When the old and the new version's tools stamp the translator the same way
-  (`ShaderCaches.Translator`, Longshot's `nx2/translator_files.py`) and compile it with the same tools
-  (`ShaderCaches.Compiler`: the SHA-256 of `tools.lock`'s llvm-mingw and cpm on Windows; of emsdk, the sysroot and cpm
-  on Linux), the update takes the old build's caches into the new folder before make_game.py starts (`ShaderCaches.Keep`).
-  make_game.py keeps a `cache/` it finds in its folder, as a rebuild keeps its own, so the build's Prepare shaders step
-  (every build runs it) finds them and has little left to do; after the build it would already have made caches of its
-  own there. On the same drive these caches are moved, except for the pipeline notes (`longshot_pipelines.bin`), which
-  make_game.py writes over and which are copied to preserve the old build's notes. When the translators differ, their
-  tools are missing, or there are no translated programs, the driver's pipeline cache, its stamp, base and play files,
-  and the notes alone are copied, if the driver cache exists. This keeps the old build's cache intact if the target game
-  discards or changes it. Copies also serve a new folder on another drive and require room for the build beside them.
-  A build that fails or is stopped puts moved caches back and removes copies (`ShaderCaches.Undo`), so the build still
-  listed keeps its caches. Transfer is skipped when the new folder has caches already, while the game runs, or without
-  room for a copy; it also cannot carry the pipeline side without a driver's cache. What the game adds to the stamp itself (the GPU, its switches) the launcher cannot
-  see: if that differs too, the game drops them and prepares again.
-- **Add version** on the Versions tab picks what to build (`VersionPick`): Stable or Nightly, each with its newest, and that
-  channel's versions the server has in its Version list, a check beside each installed one. **Update to** or **Go back to**
-  when the channel has a build of another version, built in its place, in its folder (one build per track); **Build** when
-  it has none, into a folder of its own; a line under it says which. Its *Advanced* has main's newest commit
-  (`main-<sha8>`) and Beanstalk's open pull requests (`pr-<n>-<sha8>`), WIP ones too, each built from source after its
-  warnings (`SourceBuilds`). Home opens on the version the profile played last, else the default.
-- **Building a version you already have is a rebuild** of that build, in its folder ("Rebuild vX" in the channel picker).
-- **A version's card** on the Versions tab: its update (and What's new) or Build it again first, Set as default, Open
-  folder and Delete; Play is Home's.
-- **Deleting the default** makes a release build the default when one is left, else the first.
-- **Delete takes the folder**: only a game folder a builder made (an old builder's version too: Delete is the player's), and never a link, the home folder, or a folder that
-  holds another build or the launcher's home; not while Longshot runs. On Windows it warns that the build's saves go with
-  it.
-- **Build work is kept.** The build files folder keeps the last build's compiled objects
-  (`objcache`) and its translation's smaller files (`sa`), about 1.1 GB, which the next update takes as its start: a
-  nightly grows from the last stable and a stable is cut from a tested nightly, so the newest build is the best start for
-  either, and an update compiles only what changed. Longshot's object and lift stores (`LONGSHOT_OBJ_STORE`,
-  `LONGSHOT_LIFT_STORE`) also keep older work, capped at 4 GB of objects and two translations. *Keep build files and stores*
-  (the Storage page, on by default; `KeepBuildFiles`) off removes both stores and the build's work after a successful build.
-  A failed or stopped build can leave these files behind.
-- **Storage** (the title bar's *Storage* tab) shows what Longshot keeps on the PC by what it is for, never by build
-  (`Core/Storage.cs`): the game files, the installed games' programs, the shader caches (one row a version), the
-  faster-update files, the build tools and the player's data. One bar shows how the space is split, the groups' tabs above
-  it; the group shown lists its items, each with its size and what removing it costs, asked before it goes. Measured off
-  the window's thread with a pinned progress bar, kept while the launcher is open, measured again with the refresh
-  beside the drive. With things on more than one drive, a dropdown shows all of them or one, and Remove lets go only that
-  drive's. longshot-builder's cache (`longshot-builder/` in the build files folder) is shown as the newest installed
-  builder counts it, `storage --cache <it> --output json` (`Core/BuilderStorage.cs`): its work folders, stores, shader caches
-  and the builders' own unpacked tools, each kind in its group; an older builder with no `storage` leaves it walked.
-  - **Game files**: one row a copy on the disk (`Disk.MeasureCopies`: the versions' `romfs/` that share files by hard links
-    are one copy), named by the versions using it, with what removing them frees. A copy other folders link to as well (a
-    developer's base, an old builds folder) says so and frees only what is its own; on Windows it names those folders
-    (`FileLinks.Names`, a file's other names), on Linux there is no call for it.
-  - **Installed games**: each version's program and shader list, removed whole through Home's delete (its saves brought out
-    first). Also every game folder in the builds folder no row lists (`Leftovers.All`: an old version an update left, one
-    the player kept, a version taken off the list with its files kept), measured whole, its game files with the copies,
-    and deleted through the launcher's delete (`LauncherService.DeleteLeftover`, a save still in it backed up first);
-    never one with the player's mods in it.
-  - **What may go**: a version's shader caches (each version then prepares its shaders again before it can start, so only
-    recommended when not playing soon; never the pipeline notes, `longshot_pipelines.bin`), the most recent build's work
-    and what older builds left, a stopped build's leftovers, the graphics SDKs, unfinished downloads (never while one runs)
-    and earlier logs (never the one this run writes). The game files, the builders, the saves, the mods and the settings
-    never go from there. Nothing that Longshot holds goes while it runs; a Remove that cannot be pressed says why.
-  - Each file is measured once (`Disk.Measure`, hard links counted once), and only what a part is goes, by name
-    (`Disk.FreeWork`: never a name that is not one of the build files'), never the folder itself, which the player may
-    have chosen.
-- **A completely cold build** (step 2's Advanced, for that build only; the problem page after a failed build offers it as
-  *Try a completely cold build*, which opens step 2 with it ticked) uses nothing earlier builds kept: before longshot-builder
-  starts it deletes the build files (and any store an earlier launcher left), and the build's folder's shader caches with their pipeline notes
-  (`ColdBuild.Clear`; the build writes the notes again). It takes no caches from the build it replaces, so the .nup is
-  read again. It takes as long as a first build. Never
-  while Longshot runs; saves, settings
-  and mods stay. The bug report's settings line says `cold build`.
-- **The shortcuts** Ready makes (desktop, Start menu / applications menu), ticked by default and made as Ready shows,
-  open the launcher's window, whose start checks for updates and whose Play starts the default build, so they follow
-  "Play starts this version" and updates (Windows' start `--play`: that Start menu entry starts the game). A portable launcher's ticks
-  start as the shortcuts that start it already are, and it makes or removes them only when ticked; it never writes over
-  or removes a shortcut that starts another launcher, nor does a Windows launcher that is not installed
-  (`Shortcuts.MadeAtReady`, `TakesOver`). On Windows they and the
-  launcher's own Start menu shortcut are written through the shell's ShellLink (`Core/ShellLinks.cs`), each with its own
-  AppUserModelID (`MagicBean.Longshot`, `MagicBean.LongshotLauncher`, which the launcher's window takes too): the Start
-  menu lists one entry per id, and without them it showed only the game's *Longshot* of the two shortcuts to the same
-  program, so the launcher's seemed deleted. A launcher update writes both again (`Installer.Refresh`).
-- **Install, Run portable and uninstall on Windows** are checked by the tests with a fake registry and fake shortcuts, not
-  yet on a Windows PC. The uninstall deletes the running program through a hidden PowerShell once its window has closed.
-- **Play on Linux** starts `bin/longshot` from its folder without the AppImage's variables, as `make_game.game_env` says,
-  but not yet through `play-diagnostics.sh` or its own systemd scope as the 2.x Linux Builder does.
-- **Closing the window during a build** asks first, as Cancel does; stopping kills longshot-builder and everything it started.
-- **Copy from another build** is Windows only (Linux builds share one save folder).
-- **Time estimates**: step 2's "About 15–30 min, shaders included" (10–20 without) and step 3's step weights
-  (`BuildProgress` in `Core/MakeGameProtocol.cs`) come from two player builds of nightly-56 on a Ryzen 9 7900X (12 cores)
-  and an RTX 3090: 13 min 30 s and 14 min 7 s, the shaders 5-5.5 min of it (Longshot's `docs/development.md`, "Build
-  times"). The top of each range is an estimate for slower PCs, not a measurement. Step 3's time left is the pace so far
-  of longshot-builder's progress events. **Measure again** and update these after a change to the lift, the compile
-  flags, the shader preparation or the toolchain, and before each release, the way that section describes.
-- **Disk space**: step 2 wants what longshot-builder needs free (about 4 GB for its build files, 1 GB for the game), and stops Build below it.
-- **Slots are shown as "Slot N"** with the time they were saved: the place a slot was saved at (caption.sav) is not read.
-- **"Your GPU"** and the red "can't run it" lines use the launcher's estimate of Longshot's Auto GPU from Vulkan
-  (a discrete GPU over an integrated one). If its vendor or name is unavailable, every display adapter counts instead.
-  The game can select a different GPU through its GPU row, `RX_VK_DEVICE`, or a per-executable graphics preference.
-  The launcher log's `vulkan:` line has the estimate and every GPU Vulkan listed, to set beside the game log's `vk:` lines.
-
-## Credits
-
-The Longshot Launcher is for [Longshot](https://git.magicbean.dev/MagicBeanDev/Longshot), a fork of NotRexed's
-[Hookshot](https://github.com/NotRexed/Hookshot).
-
-- **HumanBean** (hckrman101 on GitHub): wrote the launcher as Hookshot's 3.0 launcher, then ported it here and renamed it to
-  Longshot.
-- **NotRexed and the Hookshot contributors**: [Hookshot](https://github.com/NotRexed/Hookshot) and its 2.x Builders, whose
-  palette, game file finder and save tool (`scripts/oot_saves.py`, now Longshot's `scripts/longshot_saves.py`) the launcher carries on.
-- Everyone who sent fixes to the Builders and the save tool in Hookshot and Longshot.
-- **[Avalonia](https://avaloniaui.net)** (MIT): the window toolkit.
-- **[Inter](https://rsms.me/inter/)** by Rasmus Andersson (SIL Open Font License 1.1, `App/Assets/Fonts/Inter-LICENSE.txt`):
-  the font.
-- **[AppImage](https://appimage.org)**'s appimagetool and runtime (MIT): the Linux package.
+See [Contributing](CONTRIBUTING.md) for the test commands and PR workflow, [CI](docs/ci.md) for packaging checks and [Releasing](RELEASING.md) for the maintainer guide.
 
 ## License
 
-The Longshot Launcher is free software under the [GNU General Public License, version 3 or later](LICENSE)
-(GPL-3.0-or-later), as Longshot is.
-
-    Copyright (C) 2026 the Longshot contributors
-
-The Inter font keeps its own licence. The launcher is an unofficial fan project, not affiliated with or endorsed by
-Nintendo. The Legend of Zelda and Ocarina of Time are trademarks of Nintendo.
-
-The game-files screen shows a status card above the builder download. Its first line keeps the status and requirements
-link together; the second line shows detected RAM and VRAM, mesh-shader availability and any limitations or unknown checks. Green means the checked OS, RAM (16 GB),
-free space, Vulkan 1.3, VRAM (8 GB) and mesh-shader requirements are met. Yellow highlights known limitations (such as
-4 GB VRAM or missing mesh shaders); gray means a check is unknown. Red identifies an unsupported OS
-or no Vulkan 1.3 hardware GPU (no CPU feature is checked: Longshot builds and runs without AVX2). A known limitation takes precedence over unknown checks. The status is advisory and never
-prevents a download or build. Use its System requirements link to open
-https://longshot.magicbean.dev/requirements/ for CPU model guidance and performance estimates. GPU memory comes from
-Vulkan's device-local heaps; shared-memory GPUs can report it differently.
+Longshot Launcher is distributed under the [GNU General Public License, version 3 or later](LICENSE).

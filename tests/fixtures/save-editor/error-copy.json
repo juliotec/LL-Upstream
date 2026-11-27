@@ -1,9 +1,0 @@
-{
-  "schema": 1,
-  "command": "copy",
-  "ok": false,
-  "error": {
-    "code": "would_overwrite",
-    "message": "slot_01 already holds a save: --overwrite replaces it (the backup keeps it)"
-  }
-}

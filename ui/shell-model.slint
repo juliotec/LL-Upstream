@@ -1,0 +1,16 @@
+import { Page } from "widgets.slint";
+
+export enum Popup { closed, profile, version, save, track }
+export global Shell {
+    in-out property <Popup> popup;
+    in-out property <Popup> opener;
+    in-out property <int> restore-focus;
+    in-out property <length> anchor-x;
+    in-out property <length> anchor-y;
+    in-out property <int> news-scroll;
+    in-out property <string> crash-message;
+    in property <string> last-played;
+    in property <int> profile-mods;
+    callback navigate(Page);
+    callback open-posts();
+}

@@ -1,0 +1,107 @@
+import { CheckBox } from "check-box.slint";
+import { ScrollView } from "scroll-view.slint";
+import { Ink, Action, Locale } from "widgets.slint";
+export component SetupWindow inherits Window {
+    in property <bool> removing;
+    in-out property <bool> cleanup;
+    in property <string> removal-list;
+    in property <string> description;
+    callback confirmed();
+    callback secondary();
+    callback cancel();
+
+    title: "Longshot Launcher";
+    icon: @image-url("../assets/longshot.png");
+    preferred-width: 520px;
+    min-width: 360px;
+    preferred-height: content.preferred-height;
+    background: Ink.page;
+    default-font-family: "Inter";
+    default-font-size: 13px;
+
+    // Wayland tiling compositors can float this standalone dialog from its size hints.
+    states [
+        choosing-install when !root.removing: {
+            root.min-width: 520px;
+            root.max-width: 520px;
+            root.min-height: content.min-height;
+        }
+    ]
+
+    FocusScope {
+        capture-key-pressed(event) => {
+            if event.text == Key.Escape && !root.removing { root.cancel(); return accept; }
+            reject
+        }
+        content := VerticalLayout {
+            padding: 26px;
+            spacing: 12px;
+
+            Text {
+                text: root.removing ? Locale.t("Uninstall the Longshot Launcher?") : Locale.t("Install the Longshot Launcher?");
+                color: Ink.text;
+                font-weight: 600;
+                font-size: 20px;
+                wrap: word-wrap;
+            }
+
+            if !root.removing: VerticalLayout {
+                padding-top: 6px;
+                Text {
+                    text: Locale.t("Install (Recommended)");
+                    font-weight: 700;
+                    color: Ink.text;
+                }
+            }
+            Text {
+                text: root.description;
+                color: Ink.muted;
+                wrap: word-wrap;
+            }
+
+            if root.removing && root.removal-list == "": CheckBox {
+                text: Locale.t("Also remove launcher data");
+                checked <=> root.cleanup;
+            }
+            if root.removal-list != "": ScrollView {
+                height: 160px;
+
+                Text {
+                    text: root.removal-list;
+                    color: Ink.muted;
+                    wrap: word-wrap;
+                }
+            }
+            if !root.removing: VerticalLayout {
+                padding-top: 6px;
+                Text {
+                    text: Locale.t("Run portable");
+                    font-weight: 700;
+                    color: Ink.text;
+                }
+            }
+            if !root.removing: Text {
+                text: Locale.t("Keep the launcher here. Its data and cache go in the Longshot folder beside this download. Move them together to keep your portable setup.");
+                color: Ink.muted;
+                wrap: word-wrap;
+            }
+            HorizontalLayout {
+                padding-top: 12px;
+                spacing: 10px;
+                alignment: end;
+
+                Action {
+                    init => { self.focus(); }
+                    label: root.removing ? Locale.t("Cancel") : Locale.t("Run portable");
+                    clicked => { root.secondary(); }
+                }
+
+                Action {
+                    label: root.cleanup ? Locale.t("Review") : root.removing ? Locale.t("Uninstall") : Locale.t("Install");
+                    primary: true;
+                    clicked => { root.confirmed(); }
+                }
+            }
+        }
+    }
+}

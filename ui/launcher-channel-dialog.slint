@@ -1,0 +1,49 @@
+import { ModalLayer, SideSheet } from "modal-layer.slint";
+import { Updates } from "updates.slint";
+import { Preferences } from "settings-model.slint";
+import { Action, Ink, Kicker, Locale, SideCard } from "widgets.slint";
+import { PanelTitle, Note, Rule } from "game-controls.slint";
+
+export component LauncherChannelDialog inherits ModalLayer {
+    dismiss-on-backdrop: true;
+    dismissed => { Updates.channel-prompt = false; }
+    wrap-focus(backwards) => { if backwards && install.enabled { install.focus(); } else { later.focus(); } }
+
+    SideSheet {
+        viewport-width: root.width;
+        viewport-height: root.height;
+        SideCard {
+            colour: Ink.mustard;
+            Kicker { text: Locale.t("LAUNCHER UPDATE"); }
+            PanelTitle {
+                text: Preferences.launcher-track == "stable" ? Locale.t("Switch to Stable?") : Locale.t("Switch to Nightly?");
+            }
+            Rule { }
+            Kicker { text: Locale.t("INSTALLED"); }
+            Note { text: Preferences.version; wrap: char-wrap; }
+            if Updates.offer != "": VerticalLayout {
+                spacing: 8px;
+                Kicker { text: Locale.t("AFTER RESTART"); }
+                Note { text: Updates.offer; wrap: char-wrap; }
+            }
+            Note {
+                text: Updates.offer == "" ? Updates.status : Updates.blocked ?
+                    Locale.t("Finish the current task and close the game before installing.") :
+                    Locale.t("The launcher will download this version and restart.");
+            }
+            Rectangle { vertical-stretch: 1; }
+            later := Action {
+                label: Updates.offer == "" && !Updates.busy ? Locale.t("Close") : Locale.t("Later");
+                clicked => { root.dismissed(); }
+            }
+            install := Action {
+                visible: Updates.offer != "";
+                enabled: self.visible && !Updates.busy && !Updates.blocked;
+                primary: true;
+                label: Locale.t("Install and restart");
+                clicked => { Updates.channel-prompt = false; Updates.apply(); }
+            }
+        }
+    }
+    init => { later.focus(); }
+}

@@ -1,0 +1,94 @@
+import { ModalLayer, SideSheet } from "modal-layer.slint";
+import { Game, GameStep } from "game-model.slint";
+import { GameAction, Label, Note, PanelTitle, Rule } from "game-controls.slint";
+import { Preferences } from "settings-model.slint";
+import { PageList } from "scroll-view.slint";
+import { Ink, Locale, SideCard } from "widgets.slint";
+
+component FolderChoice inherits VerticalLayout {
+    in property <string> title;
+    in property <string> description;
+    in property <string> path;
+    in property <string> key;
+    in property <bool> can-change;
+    forward-focus: change;
+    spacing: 5px;
+
+    HorizontalLayout {
+        cross-axis-alignment: center;
+        spacing: 10px;
+
+        Label {
+            text: root.title;
+            horizontal-stretch: 1;
+        }
+        change := GameAction {
+            text: Locale.t("Change");
+            accessible-label: Locale.t("Change") + " " + root.title;
+            enabled: root.can-change;
+            clicked => { Preferences.folder(root.key, false); }
+        }
+    }
+    Note { text: root.description; font-size: 13px; }
+    Note {
+        text: Locale.display-path(root.path);
+        accessible-label: root.path;
+        wrap: char-wrap;
+        font-size: 14px;
+    }
+}
+
+export component BuildFolders inherits ModalLayer {
+    private property <bool> can-change: Preferences.can-change-folders;
+    wrap-focus(backwards) => { if backwards || !root.can-change { done.focus(); } else { first.focus(); } }
+    dismiss-on-backdrop: true;
+    dismissed => { Game.folders-open = false; }
+
+    SideSheet {
+        viewport-width: root.width;
+        viewport-height: root.height;
+
+        SideCard {
+            PanelTitle { text: Locale.t("Data and cache folders"); }
+
+            PageList {
+                vertical-stretch: 1;
+                min-height: 0px;
+                end-padding: 0px;
+                VerticalLayout {
+                    alignment: start;
+                    spacing: 12px;
+                    first := FolderChoice {
+                        title: Locale.t("Longshot data");
+                        description: Locale.t("Your profiles, saves, mods and installed versions.");
+                        key: "dataFolder";
+                        path: Preferences.data-folder;
+                        can-change: root.can-change;
+                    }
+                    Rule { }
+                    FolderChoice {
+                        title: Locale.t("Cache");
+                        description: Locale.t("Downloaded tools, compiled code and shaders that speed up future builds.");
+                        key: "work";
+                        path: Preferences.work-folder;
+                        can-change: root.can-change;
+                    }
+                    if Game.step == GameStep.settings && Game.build-location != "": Note {
+                        text: Locale.t("Game folder") + " · " + Locale.display-path(Game.build-location);
+                        wrap: char-wrap;
+                        font-size: 12px;
+                    }
+                }
+            }
+
+            HorizontalLayout {
+                done := GameAction {
+                    text: Locale.t("Done");
+                    primary: true;
+                    clicked => { Game.folders-open = false; }
+                }
+            }
+        }
+    }
+    init => { done.focus(); }
+}

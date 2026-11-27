@@ -1,0 +1,356 @@
+import { Avatar } from "widgets.slint";
+import { Pressable } from "widgets.slint";
+import { ProfileSwatch } from "player-model.slint";
+import { EditableTitle } from "editable-title.slint";
+import { ScrollView, PageList } from "scroll-view.slint";
+import { Players, PlayerRow } from "player-model.slint";
+import { Game } from "game-model.slint";
+import { Ink, Locale, PageTitle } from "widgets.slint";
+import {
+    FooterAction,
+    GameAction,
+    PosterTitle,
+    PanelTitle,
+    Kicker,
+    Fact,
+    SidePanel,
+    Note,
+    Label,
+    Rule,
+} from "game-controls.slint";
+
+component ProfileLink inherits Fact {
+    in property <string> action;
+    in property <string> profile;
+    in property <bool> enabled:true;
+    value-color: Ink.gold;
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-action-default => { if root.enabled { Players.action(root.action,root.profile); } }
+    forward-focus: key;
+    border-width: (Ink.focus-visible && key.has-focus) ? 2px : 0px;
+    border-color: Ink.mustard;
+
+    key := Pressable {
+        enabled: root.enabled;
+        activate => { Players.action(root.action,root.profile); }
+    }
+}
+
+component Stat inherits VerticalLayout {
+    in property <string> label;
+    in property <string> value;
+    spacing: 4px;
+
+    Kicker {
+        text: root.label;
+        font-size: 10px;
+    }
+
+    Label {
+        text: root.value;
+    }
+}
+
+component ProfileTile inherits Rectangle {
+    in property <PlayerRow> player;
+    in property <bool> selected;
+    callback picked();
+    height: 148px;
+    border-radius: 13px;
+    clip: true;
+    border-color: (Ink.focus-visible && key.has-focus) || root.selected ? Ink.mustard : Ink.line;
+    border-width: 2px;
+    background: root.selected || key.hovered ? Ink.selected : Ink.raised;
+    accessible-role: button;
+    accessible-label: root.player.name;
+    accessible-action-default => { root.picked(); }
+    forward-focus: key;
+
+    Rectangle {
+        x: 3px;
+        y: 3px;
+        width: parent.width - 6px;
+        height: 7px;
+        background: root.player.colour;
+    }
+
+    VerticalLayout {
+        padding: 18px;
+        spacing: 10px;
+        alignment: center;
+
+        HorizontalLayout {
+            spacing: 9px;
+            cross-axis-alignment: center;
+
+            Avatar {
+                diameter: 38px;
+                border-radius: 0px;
+                initial: player.avatar;
+                colour: player.colour;
+                glyph-weight: 800;
+                glyph-size: 21px;
+            }
+
+            Text {
+                text: player.name;
+                font-size: 22px;
+                font-weight: 800;
+                color: Ink.text;
+                horizontal-stretch: 1;
+                overflow: elide;
+            }
+
+            if root.player.id == Players.profile-id: Rectangle {
+                width: 56px;
+                height: 22px;
+                background: player.colour;
+
+                Text {
+                    text: Locale.t("ACTIVE");
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                    color: Ink.black;
+                    font-size: 10px;
+                    font-weight: 800;
+                    letter-spacing: 0.5px;
+                }
+            }
+        }
+
+        if player.damaged: Note {
+            text: player.game-line;
+        }
+        if !player.damaged: HorizontalLayout {
+            spacing: 8px;
+
+            Stat {
+                label: Locale.t("OPTIONS");
+                value: player.has-options ? Locale.t("Saved") : Locale.t("Default");
+            }
+
+            Stat {
+                label: Locale.t("MODS");
+                value: player.mod-count == 0 ? Locale.t("Off") : "\{player.mod-count} " + Locale.t("on");
+            }
+
+            Stat {
+                label: Locale.t("SAVES");
+                value: player.save-count < 0 ? Locale.t("Unavailable") : "\{player.save-count} " + (player.save-count == 1 ? Locale.t("file") : Locale.t("files"));
+            }
+        }
+    }
+
+    key := Pressable {
+        activate => { root.picked(); }
+    }
+}
+
+export component ProfilePage inherits HorizontalLayout {
+    private property <int> selected-index:-1;
+    private property <int> active-index: Players.current-index;
+    private property <PlayerRow> player:Players.profiles[max(0,root.selected-index < 0 || root.selected-index >= Players.profiles.length ? root.active-index : root.selected-index)];
+    private property <length> inset: Ink.page-inset(root.width);
+    private property <length> rail: Ink.detail-width(root.width);
+
+    VerticalLayout {
+        horizontal-stretch: 1;
+        padding-left: root.inset;
+        padding-right: root.inset;
+        padding-top: Ink.page-top(root.width);
+
+        spacing: 22px;
+
+        VerticalLayout {
+            spacing: 6px;
+            HorizontalLayout {
+                spacing: 16px;
+                cross-axis-alignment: center;
+
+                PageTitle {
+                    page-width: root.width;
+                    horizontal-stretch: 1;
+                    text: Locale.t("Profiles");
+                }
+
+                GameAction {
+                    text: Locale.t("+ New profile");
+                    clicked => { Players.action("new",""); }
+                }
+            }
+
+            Note {
+                text: Locale.t("Each profile keeps its own default mods, saves and options. Every profile can play any version.");
+            }
+        }
+
+        PageList {
+            end-padding: 32px;
+            VerticalLayout {
+                alignment: start;
+                spacing: 12px;
+                for row[i] in Players.profiles: HorizontalLayout {
+                    visible: mod(i,2) == 0;
+                    height: self.visible ? 150px : 0px;
+                    spacing: 12px;
+
+                    ProfileTile {
+                        horizontal-stretch: 1;
+                        min-width: 0px;
+                        preferred-width: 0px;
+                        player: row;
+                        selected: root.player.id == row.id;
+                        picked => { root.selected-index = i; }
+                    }
+
+                    if i + 1 < Players.profiles.length: ProfileTile {
+                        horizontal-stretch: 1;
+                        min-width: 0px;
+                        preferred-width: 0px;
+                        player: Players.profiles[i + 1];
+                        selected: root.player.id == self.player.id;
+                        picked => { root.selected-index = i + 1; }
+                    }
+                    if i + 1 >= Players.profiles.length: Rectangle {
+                        horizontal-stretch: 1;
+                        min-width: 0px;
+                        preferred-width: 0px;
+                    }
+                }
+            }
+        }
+
+        if Players.message != "": Note {
+            text: Players.message;
+        }
+    }
+
+    SidePanel {
+        width: root.rail;
+        accent: root.player.colour;
+
+        VerticalLayout {
+            ScrollView {
+                horizontal-inset: Ink.panel-inset(Ink.detail-width(root.width));
+                VerticalLayout {
+                    padding-top: Ink.panel-inset(Ink.detail-width(root.width));
+                    padding-bottom: self.padding-top;
+                    alignment: start;
+                    spacing: 5px;
+
+                    Kicker {
+                        text: Locale.t("SELECTED PROFILE");
+                    }
+
+                    EditableTitle {
+                        title: root.player.name;
+                        item-id: root.player.id;
+                        enabled: !root.player.damaged;
+                        size: 35px;
+                        edit-label: Locale.t("Rename profile");
+                        submit(value) => { return Players.rename-profile(root.player.id, value); }
+                    }
+
+                    VerticalLayout {
+                        Rule { }
+
+                        ProfileLink {
+                            action: "profile-mods";
+                            profile: root.player.id;
+                            enabled: !root.player.damaged;
+                            label: Locale.t("Mods on by default");
+                            value: "\{root.player.mod-count}  ›";
+                        }
+
+                        Fact {
+                            label: Locale.t("Last played");
+                            value: root.player.last-played;
+                        }
+
+                        ProfileLink {
+                            action: "profile-saves";
+                            profile: root.player.id;
+                            enabled: !root.player.damaged;
+                            label: Locale.t("Saves");
+                            value: root.player.save-count >= 0 ? "\{root.player.save-count}  ›" : Locale.t("Unavailable");
+                        }
+
+                        ProfileLink {
+                            action: "profile-options";
+                            profile: root.player.id;
+                            enabled: !root.player.damaged;
+                            label: Locale.t("Profile options");
+                            value: (root.player.has-options ? Locale.t("Saved") : Locale.t("Default")) + "  ›";
+                        }
+                    }
+
+                    VerticalLayout {
+                        padding-top: 14px;
+                        Note { text: Locale.t("Colour"); }
+                    }
+                    for row in 2: HorizontalLayout {
+                        spacing: 6px;
+                        alignment: start;
+                        for col in 6: chip := Rectangle {
+                            private property <ProfileSwatch> swatch: Players.colours[row * 6 + col];
+                            width: root.width < 1000px ? 23px : 33px;
+                            height: self.width;
+                            border-radius: 8px;
+                            background: self.swatch.tone;
+                            border-width: 2px;
+                            border-color: (Ink.focus-visible && key.has-focus) || self.swatch.tone == root.player.colour ? Ink.mustard : Ink.black;
+                            accessible-role: button;
+                            accessible-label: Locale.t(self.swatch.name);
+                            accessible-action-default => { Players.profile-colour(root.player.id,chip.swatch.key); }
+                            forward-focus: key;
+
+                            key := Pressable {
+                                enabled: !root.player.damaged;
+                                activate => { Players.profile-colour(root.player.id,chip.swatch.key); }
+                            }
+                            if self.swatch.tone == root.player.colour: Text {
+                                text: "✓";
+                                color: Ink.black;
+                                font-weight: 800;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+                }
+            }
+
+            Rule { }
+
+            VerticalLayout {
+                padding: Ink.panel-inset(Ink.detail-width(root.width));
+                spacing: 8px;
+
+                GameAction {
+                    constrain-width: true;
+                    text: root.player.id == Players.profile-id ? Locale.t("Current profile") : Locale.t("Switch to") + " " + root.player.name;
+                    primary: true;
+                    enabled: !root.player.damaged && root.player.id != Players.profile-id;
+                    clicked => { Players.action("switch",root.player.id); }
+                }
+
+                HorizontalLayout {
+                    spacing: 6px;
+
+                    FooterAction {
+                        text: Locale.t("Duplicate");
+                        enabled: !root.player.damaged;
+                        clicked => { Players.action("duplicate",root.player.id); }
+                    }
+
+                    FooterAction {
+                        text: Locale.t("Delete");
+                        danger: true;
+                        clicked => { Players.action("delete-profile",root.player.id); }
+                    }
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,70 @@
+import { ModalLayer, SideSheet } from "modal-layer.slint";
+import { LogViewer } from "log-viewer.slint";
+import { Game } from "game-model.slint";
+import { FooterAction, GameAction, Kicker, PanelTitle } from "game-controls.slint";
+import { Ink, Locale, SideCard } from "widgets.slint";
+
+export component BuildLogDialog inherits ModalLayer {
+    in property <string> tag;
+    in property <string> title;
+    in property <bool> live;
+    init => { close.focus(); }
+    wrap-focus(backwards) => { if backwards { open-folder.focus(); } else { close.focus(); } }
+    changed live => { Game.refresh-log(); }
+    dismiss-on-backdrop: true;
+    dismissed => { Game.show-log = false; }
+
+    SideSheet {
+        viewport-width: root.width;
+        viewport-height: root.height;
+
+        SideCard {
+            HorizontalLayout {
+                cross-axis-alignment: center;
+
+                Kicker {
+                    min-width: 0px;
+                    wrap: word-wrap;
+                    text: Locale.t("BUILD LOG") + "  ·  " + root.tag + (root.live ? "  ·  " + Locale.t("LIVE") : "");
+                    horizontal-stretch: 1;
+                }
+
+                close := GameAction {
+                    text: Locale.t("Close");
+                    icon: @image-url("icons/close.svg");
+                    quiet: true;
+                    clicked => { Game.show-log = false; }
+                }
+            }
+
+            PanelTitle {
+                text: root.title;
+            }
+
+            viewer := LogViewer {
+                rows: Game.log-rows; tail: Game.log-tail; query <=> Game.log-filter;
+                live: root.live;
+                raw => { return Game.raw-log(); }
+                init => { Game.refresh-log(); }
+                changed follow => { if self.follow { Game.refresh-log(); } }
+            }
+            Timer {
+                interval: 500ms; running: root.live && viewer.follow;
+                triggered => { Game.refresh-log(); }
+            }
+            HorizontalLayout {
+                spacing: 10px;
+
+                FooterAction {
+                    text: Locale.t("Copy log");
+                    clicked => { viewer.copy-log(); }
+                }
+
+                open-folder := FooterAction {
+                    text: Locale.t("Open logs folder");
+                    clicked => { Game.open-logs(); }
+                }
+            }
+        }
+    }
+}

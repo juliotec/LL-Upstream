@@ -1,9 +1,0 @@
-{
-  "schema": 1,
-  "command": "set",
-  "ok": false,
-  "error": {
-    "code": "other_version",
-    "message": "slot_06/progress.sav was saved by another game version (flag list revision 4243; this game's is 4242): edit it with the game version that wrote it"
-  }
-}

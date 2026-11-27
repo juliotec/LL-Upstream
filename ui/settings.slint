@@ -1,0 +1,428 @@
+import { Pressable } from "widgets.slint";
+import { Hint, OptionRow, PathHint } from "settings-row.slint";
+import { NfcPanel } from "nfc.slint";
+import { LicenseDocument } from "license-document.slint";
+import { SourcePicker } from "source-chooser.slint";
+import { Dropdown } from "menu.slint";
+import { CheckBox } from "check-box.slint";
+import { ScrollView, PageList } from "scroll-view.slint";
+import { Action, Ink, Locale, Page, Kicker, PageTitle } from "widgets.slint";
+import { Game } from "game-model.slint";
+import { Updates } from "updates.slint";
+import { Players } from "players.slint";
+
+import { StorageSection } from "storage.slint";
+import { Preferences, SettingsGroup } from "settings-model.slint";
+export { Preferences, SettingsGroup, FolderStage, SettingToggle, DiskPart, DiskGroup } from "settings-model.slint";
+
+component LauncherTrack inherits HorizontalLayout {
+    spacing: 8px;
+    for item in ["stable", "nightly"]: Action {
+        horizontal-stretch: 1;
+        label: item == "stable" ? Locale.t("Stable") : Locale.t("Nightly");
+        selected: item == Preferences.launcher-track;
+        enabled: !Updates.applying;
+        clicked => { Preferences.choose-launcher-track(item); }
+    }
+}
+
+component Folder inherits HorizontalLayout {
+    in property <string> label;
+    in property <string> key;
+    in property <string> path;
+    in property <string> description;
+    spacing: 14px;
+    cross-axis-alignment: center;
+
+    VerticalLayout {
+        horizontal-stretch: 1;
+        spacing: 4px;
+        Text {
+            text: root.label;
+            color: Ink.text;
+            font-size: 17px;
+            font-weight: 700;
+        }
+        Hint { text: root.description; }
+        PathHint { path: root.path; }
+    }
+
+    if root.key == "work" || (root.key == "dataFolder" && Preferences.custom-data-folder): Action {
+        quiet: true;
+        label: Locale.t("Default");
+        enabled: Preferences.can-change-folders;
+        clicked => { Preferences.folder(root.key,true); }
+    }
+
+    Action {
+        label: Locale.t("Change");
+        enabled: Preferences.can-change-folders;
+        clicked => { Preferences.folder(root.key,false); }
+    }
+}
+
+component Category inherits Rectangle {
+    in property <string> label;
+    in property <string> detail;
+    in property <bool> selected;
+    callback clicked;
+    height: 54px;
+    border-radius: 10px;
+    background: root.selected || key.hovered ? Ink.selected : transparent;
+    border-width: (Ink.focus-visible && key.has-focus) ? 3px : 1px;
+    border-color: (Ink.focus-visible && key.has-focus) ? Ink.mustard : root.selected ? Ink.line : transparent;
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-action-default => { clicked(); }
+
+    HorizontalLayout {
+        padding-left: 12px;
+        padding-right: 9px;
+        spacing: 10px;
+        cross-axis-alignment: center;
+
+        Rectangle {
+            width: 6px;
+            height: 6px;
+            border-radius: 3px;
+            background: root.selected ? Ink.mustard : Ink.muted;
+        }
+
+        VerticalLayout {
+            alignment: center;
+
+            Text {
+                text: root.label;
+                color: Ink.text;
+                font-size: 16px;
+                font-weight: 700;
+            }
+
+            Hint {
+                text: root.detail;
+                overflow: elide;
+                wrap: no-wrap;
+            }
+        }
+    }
+
+    key := Pressable {
+        activate => { root.clicked(); }
+    }
+}
+
+export component SettingsPage inherits HorizontalLayout {
+    private property <bool> show-licenses;
+    private property <[{section: SettingsGroup, name: string, summary: string, help: string}]> categories: [
+        {section: SettingsGroup.game, name: Locale.t("Game"), summary: Locale.t("Game files and folders"), help: Locale.t("Your original game, Longshot data and build cache.")},
+        {section: SettingsGroup.launcher, name: Locale.t("Launcher"), summary: Locale.t("Language and updates"), help: Locale.t("Language, updates, shortcuts and sharing.")},
+        {section: SettingsGroup.storage, name: Locale.t("Storage"), summary: Locale.t("Disk usage and cleanup"), help: Locale.t("Review space used by Longshot on each drive.")},
+        {section: SettingsGroup.nfc, name: Locale.t("NFC tags"), summary: Locale.t(Players.can-scan ? "Tag files and controller scans" : "The NFC folder"), help: Locale.t("Drop files or folders here to add your figures to the game's NFC tab.")},
+        {section: SettingsGroup.troubleshooting, name: Locale.t("Troubleshooting"), summary: Locale.t("Logs, reports and rebuilds"), help: Locale.t("Fixes to try when something goes wrong, from gentlest to strongest.")}
+    ];
+    private property <int> active-index: Preferences.section == SettingsGroup.game ? 0 : Preferences.section == SettingsGroup.launcher ? 1 : Preferences.section == SettingsGroup.storage ? 2 : Preferences.section == SettingsGroup.nfc ? 3 : 4;
+
+    VerticalLayout {
+        width: root.width < 1050px ? 244px : 320px;
+        padding: 20px;
+        padding-left: Ink.page-inset(root.width);
+        padding-top: Ink.page-top(root.width);
+        spacing: 10px;
+
+        PageTitle {
+            page-width: root.width;
+            text: Locale.t("Settings");
+        }
+
+        ScrollView {
+            VerticalLayout {
+                spacing: 6px;
+                for item in root.categories: Category {
+                    label: item.name;
+                    detail: item.summary;
+                    selected: Preferences.section == item.section;
+                    clicked => { if !Players.busy && !Preferences.cleaning { Preferences.section = item.section; } }
+                }
+            }
+        }
+
+        VerticalLayout {
+            spacing: 2px;
+            Hint { text: "Longshot Launcher " + Preferences.version; }
+            StyledText {
+                text: @markdown("\{Locale.t("by")} [Team MagicBean](https://magicbean.dev)");
+                default-font-size: 13px;
+                default-color: Ink.muted;
+                link-color: Ink.gold;
+                link-clicked(url) => { Game.open-note-link(url); }
+            }
+        }
+    }
+
+    Rectangle {
+        background: Players.colour;
+
+        VerticalLayout {
+            padding: 20px;
+
+            if Preferences.section == SettingsGroup.storage: StorageSection { }
+            if Preferences.section != SettingsGroup.storage: Rectangle {
+                background: Ink.black;
+                border-radius: 15px;
+
+                VerticalLayout {
+                    padding: 26px;
+                    spacing: 9px;
+
+                    Text {
+                        text: root.categories[root.active-index].name;
+                        font-size: 30px;
+                        font-family: "Inter";
+                        font-weight: 900;
+                        color: Ink.text;
+                    }
+
+                    Hint {
+                        text: root.categories[root.active-index].help;
+                        font-size: 15px;
+                        color: Ink.sand;
+                    }
+
+                    if Preferences.status != "": Hint {
+                        text: Preferences.status;
+                        color: Ink.gold;
+                    }
+                    Rectangle {
+                        height: 1px;
+                        background: Ink.line;
+                    }
+
+                    PageList {
+                        VerticalLayout {
+                            alignment: start;
+                            spacing: 18px;
+                            padding-top: 12px;
+                            padding-bottom: 14px;
+                            if Preferences.section == SettingsGroup.game: VerticalLayout {
+                                init => { if Game.windows { Game.check-nvidia-cache(); } if Preferences.linux { Preferences.check-controller-rules(); } }
+                                alignment: start;
+                                spacing: 20px;
+
+                                Kicker {
+                                    text: Locale.t("FILES AND FOLDERS");
+                                }
+
+                                SourcePicker {
+                                    for-settings:true; current:Preferences.original-game; enabled:!Game.busy && !Game.playing;
+                                    browse(folder)=>{return Preferences.choose-source(folder);}
+                                    choose(path)=>{return Preferences.select-source(path);}
+                                }
+                                Folder {
+                                    label: Locale.t("Longshot data");
+                                    description: Locale.t("Your profiles, saves, mods and installed versions.");
+                                    key: "dataFolder";
+                                    path: Preferences.data-folder;
+                                }
+
+                                Folder {
+                                    label: Locale.t("Cache");
+                                    description: Locale.t("Downloaded tools, compiled code and shaders that speed up future builds.");
+                                    key: "work";
+                                    path: Preferences.work-folder;
+                                }
+
+                                CheckBox {
+                                    text: Locale.t("Keep build files for future builds");
+                                    checked: Preferences.keep-build-files;
+                                    toggled => { Preferences.toggle("keepBuildFiles",self.checked); }
+                                }
+
+                                Action {
+                                    label: Locale.t("Manage storage");
+                                    clicked => { Preferences.section = SettingsGroup.storage; }
+                                }
+
+                                Timer {
+                                    interval: 5s;
+                                    running: Preferences.linux;
+                                    triggered => { Preferences.check-controller-rules(); }
+                                }
+                                if Preferences.controller-rules-needed: OptionRow {
+                                    label: Locale.t("Controller permissions");
+                                    description: Locale.t("Install Linux device rules for the connected controller. Reconnect it after installation.");
+                                    Action {
+                                        label: Locale.t("Install controller rules");
+                                        enabled: !Preferences.installing-controller-rules;
+                                        clicked => { Preferences.install-controller-rules(); }
+                                    }
+                                }
+                                if Game.windows && Game.nvidia-cache-mb > 0: OptionRow {
+                                    label: Locale.t("NVIDIA shader cache");
+                                    description: Locale.t("Current driver limit") + " · " + Game.nvidia-cache-mb + " MB. " + Locale.t("Allow more space for shaders across all games.");
+
+                                    Action {
+                                        label: Locale.t("Raise to 10 GB");
+                                        enabled: !Game.nvidia-cache-busy && !Game.busy && !Game.playing;
+                                        clicked => { Game.raise-nvidia-cache(); }
+                                    }
+                                }
+                            }
+                            if Preferences.section == SettingsGroup.launcher: VerticalLayout {
+                                spacing: 20px;
+
+                                OptionRow {
+                                    label: Locale.t("Launcher language");
+
+                                    Dropdown {
+                                        model: Preferences.languages;
+                                        current-index: Preferences.language-index;
+                                        selected(_) => { Preferences.language(self.current-index); }
+                                    }
+                                }
+
+                                if Preferences.linux: OptionRow {
+                                    label: Locale.t("Applications menu");
+
+                                    Action {
+                                        label: Locale.t(Preferences.menu-label);
+                                        enabled: Preferences.menu-available;
+                                        clicked => { Preferences.menu(false); }
+                                    }
+
+                                    if Preferences.in-menu: Action {
+                                        label: Locale.t("Remove");
+                                        clicked => { Preferences.menu(true); }
+                                    }
+                                }
+                                if !Preferences.linux: CheckBox {
+                                    text: Locale.t("Desktop shortcut");
+                                    checked: Preferences.desktop-shortcut;
+                                    toggled => { Preferences.shortcut(true,self.checked); }
+                                }
+                                if !Preferences.linux: CheckBox {
+                                    text: Locale.t("Start menu shortcut");
+                                    checked: Preferences.start-shortcut;
+                                    toggled => { Preferences.shortcut(false,self.checked); }
+                                }
+                                Kicker {
+                                    text: Locale.t("LAUNCHER UPDATES");
+                                }
+
+                                LauncherTrack { }
+
+                                for item in Preferences.update-options: CheckBox {
+                                    text: Locale.t(item.label);
+                                    checked: item.checked;
+                                    enabled: item.enabled;
+                                    toggled => { Preferences.toggle(item.key,self.checked); }
+                                }
+                                HorizontalLayout {
+                                    spacing: 12px;
+                                    alignment: start;
+
+                                    if Updates.offer != "": Action {
+                                        primary: true;
+                                        label: Locale.t("Install") + " " + Updates.offer;
+                                        enabled: !Updates.busy && !Updates.blocked;
+                                        clicked => { Updates.apply(); }
+                                    }
+
+                                    Action {
+                                        label: Updates.busy && !Updates.applying ? Locale.t("Checking") : Locale.t("Check now");
+                                        enabled: !Updates.busy;
+                                        clicked => { Updates.check(); }
+                                    }
+
+                                    Action {
+                                        label: Locale.t("Release notes");
+                                        clicked => { Updates.open-notes(); }
+                                    }
+                                }
+
+                                Hint {
+                                    text: Updates.status;
+                                }
+                                Kicker {
+                                    text: Locale.t("SHARING WITH THE TEAM");
+                                }
+
+                                for item in Preferences.sharing-options: CheckBox {
+                                    text: Locale.t(item.label);
+                                    checked: item.checked;
+                                    enabled: item.enabled;
+                                    toggled => { Preferences.toggle(item.key,self.checked); }
+                                }
+                                HorizontalLayout {
+                                    alignment: start;
+                                    spacing: 12px;
+
+                                    Action {
+                                        label: Locale.t("Privacy ↗");
+                                        clicked => { Preferences.open("privacy"); }
+                                    }
+                                }
+                                OptionRow {
+                                    label: Locale.t("Launcher and font licences");
+                                    Action {
+                                        label: root.show-licenses ? Locale.t("Close") : Locale.t("View licences");
+                                        clicked => { root.show-licenses = !root.show-licenses; }
+                                    }
+                                }
+                                if root.show-licenses: VerticalLayout {
+                                    spacing: 10px;
+                                    document := Dropdown {
+                                        model: ["Longshot Launcher · GPL-3.0-or-later", "Inter · OFL-1.1", "Libertinus · OFL-1.1"];
+                                    }
+                                    LicenseDocument {
+                                        height: 240px;
+                                        title: document.current-value;
+                                        text: Preferences.bundled-license(document.current-index);
+                                    }
+                                }
+                            }
+                            if Preferences.section == SettingsGroup.nfc: VerticalLayout {
+                                spacing: 8px;
+                                if Players.message != "": Hint { text: Players.message; color: Ink.sand; }
+                                NfcPanel { }
+                            }
+                            if Preferences.section == SettingsGroup.troubleshooting: VerticalLayout {
+                                spacing: 20px;
+
+                                OptionRow {
+                                    label: Locale.t("Logs");
+                                    description: Locale.t("Review local launcher sessions.");
+
+                                    Action {
+                                        label: Locale.t("Open logs");
+                                        clicked => { Preferences.navigate(Page.logs); }
+                                    }
+                                }
+
+                                OptionRow {
+                                    label: Locale.t("Diagnostic report");
+                                    description: Locale.t("Save a local text report you can review before sharing.");
+
+                                    Action {
+                                        label: Locale.t("Save report");
+                                        clicked => { Preferences.save-diagnostics(); }
+                                    }
+                                }
+
+                                OptionRow {
+                                    label: Locale.t("Rebuild the game");
+                                    description: Locale.t("Choose the build options and rebuild the selected version from your original game.");
+
+                                    Action {
+                                        label: Locale.t("Set up rebuild");
+                                        enabled: Game.selected >= 0;
+                                        clicked => { Game.rebuild(); }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

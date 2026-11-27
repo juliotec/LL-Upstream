@@ -1,0 +1,97 @@
+import { Logbook, LogViewer } from "log-viewer.slint";
+export { Logbook }
+import { ScrollView } from "scroll-view.slint";
+import { Page, Action, Ink, Locale, Kicker } from "widgets.slint";
+export component LogsPage inherits HorizontalLayout {
+    width: 100%; height: 100%;
+    sidebar := VerticalLayout {
+        width: min(330px, root.width * 0.29);
+        padding: 24px;
+        spacing: 10px;
+
+        Text {
+            text: Locale.t("Logs");
+            color: Ink.text;
+            font-family: "Inter";
+            font-weight: 900;
+            font-size: 42px;
+        }
+
+        Kicker {
+            text: Locale.t("LOCAL SESSIONS");
+        }
+
+        ScrollView {
+            VerticalLayout {
+                alignment: start;
+                spacing: 8px;
+                for name[i] in Logbook.sessions: Action {
+                    label: Locale.t(name);
+                    selected: i == Logbook.selected;
+                    clicked => { Logbook.select(i); }
+                }
+            }
+        }
+
+        Action {
+            quiet: true;
+            label: Locale.t("Open logs folder");
+            clicked => { Logbook.folder(); }
+        }
+    }
+
+    Rectangle {
+        width: root.width - sidebar.width;
+        background: Ink.olive;
+
+        VerticalLayout {
+            padding: 24px;
+
+            Rectangle {
+                background: Ink.black;
+                border-radius: 12px;
+
+                VerticalLayout {
+                    padding: 24px;
+                    spacing: 14px;
+
+                    Text {
+                        text: Logbook.selected >= 0 ? Locale.t(Logbook.sessions[Logbook.selected]) : Locale.t("No log selected");
+                        color: Ink.text;
+                        font-weight: 800;
+                        font-size: 28px;
+                    }
+
+                    HorizontalLayout {
+                        alignment: start;
+                        spacing: 8px;
+
+                        Action {
+                            label: Locale.t("Copy log");
+                            enabled: Logbook.selected >= 0;
+                            clicked => { viewer.copy-log(); }
+                        }
+                        Action {
+                            label: Locale.t("Refresh");
+                            clicked => { Logbook.reload(); }
+                        }
+
+                        Action {
+                            label: Locale.t("Save a copy");
+                            enabled: Logbook.selected >= 0;
+                            clicked => { Logbook.save(); }
+                        }
+                    }
+
+                    viewer := LogViewer {
+                        rows: Logbook.rows; tail: Logbook.tail; query <=> Logbook.query;
+                        raw => { return Logbook.raw(); }
+                    }
+                    Kicker {
+                        text: Locale.t("STORED ON THIS PC");
+                    }
+                }
+            }
+        }
+    }
+}

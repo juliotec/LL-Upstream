@@ -1,0 +1,192 @@
+import { ListView } from "std-widgets.slint";
+import { Action, Ink, Locale } from "widgets.slint";
+import { TextField } from "text-field.slint";
+
+export struct LogEntry { time: string, level: string, source: string, message: string }
+export global Logbook {
+    in property <[string]> sessions;
+    in property <[LogEntry]> rows;
+    in property <bool> tail;
+    in property <int> selected;
+    in-out property <string> query;
+    callback select(int);
+    callback reload();
+    callback save();
+    callback raw() -> string;
+    callback folder();
+    pure callback filter([LogEntry], string, string) -> [LogEntry];
+}
+
+component Entry inherits Rectangle {
+    in property <LogEntry> line;
+    in property <bool> alternate;
+    in property <bool> compact;
+    property <color> tint: line.level == "ERROR" ? #ee9077 : line.level == "WARN" ? Ink.gold : line.level == "INFO" ? #a7bd82 : line.level == "DEBUG" ? #ac9fba : Ink.muted;
+    height: max(30px, cells.preferred-height);
+    background: alternate ? #19130e : Ink.well;
+    accessible-role: list-item;
+    accessible-label: line.time + " " + line.level + " " + line.source + " " + line.message;
+
+    cells := HorizontalLayout {
+        padding-top: 4px;
+        padding-bottom: 4px;
+        padding-left: 8px;
+        padding-right: 14px;
+        spacing: root.compact ? 6px : 12px;
+        cross-axis-alignment: start;
+
+        Text {
+            width: root.compact ? 65px : 99px;
+            height: 20px;
+            vertical-alignment: center;
+            text: root.line.time;
+            overflow: elide;
+            color: Ink.muted;
+            font-family: "monospace";
+            font-size: root.compact ? 10px : 12px;
+        }
+
+        Rectangle {
+            width: 47px;
+            height: 20px;
+            border-radius: 4px;
+            background: root.tint.transparentize(0.88);
+
+            Text {
+                text: root.line.level;
+                color: root.tint;
+                font-size: 10px;
+                font-family: "monospace";
+                font-weight: 700;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+
+        if !root.compact: Text {
+            width: 75px;
+            height: 20px;
+            vertical-alignment: center;
+            text: root.line.source;
+            color: Ink.sand;
+            overflow: elide;
+            font-family: "monospace";
+            font-size: 12px;
+        }
+        Text {
+            horizontal-stretch: 1;
+            min-width: 0px;
+            text: root.line.message;
+            color: root.line.level == "ERROR" || root.line.level == "WARN" ? root.tint : Ink.text;
+            wrap: word-wrap;
+            font-family: "monospace";
+            font-size: 13px;
+        }
+    }
+}
+
+export component LogViewer inherits VerticalLayout {
+    in property <[LogEntry]> rows;
+    in property <bool> tail;
+    in-out property <string> query;
+    in property <bool> live;
+    in-out property <bool> follow: live;
+    private property <string> level;
+    private property <[LogEntry]> shown: query == "" && level == "" ? rows : Logbook.filter(rows,query,level);
+    callback raw() -> string;
+    public function copy-log() {
+        clip.text = root.raw();
+        if clip.text != "" { clip.select-all(); clip.copy(); clip.text = ""; }
+    }
+    private property <bool> scrolling-log;
+    private property <int> count: shown.length;
+    private property <length> bottom: min(0px, list.visible-height - list.content-height);
+    function follow-end() {
+        if root.follow && root.count > 0 {
+            root.scrolling-log = false;
+            list.content-y = root.bottom;
+        }
+    }
+    function update-scroll-follow() {
+        if list.content-y > root.bottom + 1px {
+            root.follow = false;
+        } else if !root.follow {
+            root.scrolling-log = false;
+            root.follow = true;
+        }
+    }
+    changed bottom => { root.follow-end(); }
+    changed shown => { root.follow-end(); }
+    changed follow => { root.follow-end(); }
+    init => { root.follow-end(); }
+    spacing: 6px;
+
+    HorizontalLayout {
+        spacing: 8px;
+
+        TextField {
+            horizontal-stretch: 1;
+            placeholder-text: Locale.t("Search this log");
+            text <=> root.query;
+        }
+
+        if root.live: Action {
+            label: Locale.t("Follow latest");
+            selected: root.follow;
+            quiet: true;
+            clicked => { root.scrolling-log = false; root.follow = !root.follow; }
+        }
+    }
+
+    FlexboxLayout {
+        cross-axis-alignment: center;
+        spacing: 4px;
+        for severity in ["", "INFO", "WARN", "ERROR", "DEBUG", "OUT"]: Action {
+            min-height: 28px;
+            size: 11px;
+            quiet: true;
+            label: severity == "" ? Locale.t("All") : severity;
+            selected: severity == root.level;
+            clicked => { root.level = severity; }
+        }
+    }
+    if root.tail: Text {
+        text: Locale.t("Showing the latest 1 MiB. Copy or save for the full log.");
+        color: Ink.muted;
+        font-size: 12px;
+        wrap: word-wrap;
+    }
+
+    list := ListView {
+        vertical-stretch: 1;
+        // A wheel gesture can continue moving after the scrolled callback.
+        scrolled => {
+            if root.live {
+                root.scrolling-log = true;
+                root.update-scroll-follow();
+            }
+        }
+        changed content-y => {
+            if root.live && root.scrolling-log {
+                root.update-scroll-follow();
+            }
+        }
+        for record[i] in root.shown: Entry {
+            line: record;
+            alternate: mod(i,2) == 1;
+            compact: list.width < 550px;
+        }
+    }
+
+    if root.count == 0: Text {
+        text: root.rows.length == 0 ? Locale.t("No log entries yet.") : Locale.t("No matching entries.");
+        color: Ink.muted;
+        font-size: 14px;
+    }
+    clip := TextInput {
+        height: 0px;
+        width: 0px;
+        visible: false;
+        read-only: true;
+    }
+}

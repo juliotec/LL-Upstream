@@ -1,0 +1,182 @@
+import { ListView } from "std-widgets.slint";
+import { ScrollView } from "scroll-view.slint";
+import { Game, NoteBlock, ReleaseNote } from "game-model.slint";
+import { Ink, Locale } from "widgets.slint";
+import { Note, Rule, SidePanel, GameAction, PosterTitle, Kicker } from "game-controls.slint";
+
+component RichLine inherits HorizontalLayout {
+    in property <NoteBlock> block;
+    padding-left: block.kind == "heading" ? 0px : max(0,block.level - 1) * 16px;
+    padding-top: block.kind == "heading" ? 6px : 0px;
+    spacing: 7px;
+    if block.marker != "": Text {
+        text: root.block.marker;
+        color: Ink.sand;
+        font-size: 15px;
+        vertical-alignment: top;
+    }
+    if block.kind == "quote": Rectangle {
+        width: 3px;
+        background: Ink.sage;
+    }
+    StyledText {
+        horizontal-stretch: 1;
+        text: root.block.text;
+        default-font-family: root.block.kind == "code" ? "monospace" : "Inter";
+        default-font-size: root.block.kind == "heading" ? root.block.level == 1 ? 27px : root.block.level == 2 ? 22px : 18px : 15px;
+        default-color: root.block.kind == "heading" ? Ink.text : Ink.sand;
+        link-color: Ink.gold;
+        selectable: true;
+        accessible-role: text;
+        accessible-label: root.block.plain;
+        link-clicked(url) => { Game.open-note-link(url); }
+    }
+}
+
+component TableRow inherits VerticalLayout {
+    in property <NoteBlock> block;
+    spacing: 4px;
+
+    HorizontalLayout {
+        spacing: 12px;
+        for cell in root.block.cells: StyledText {
+            horizontal-stretch: 1;
+            min-width: 0px;
+            text: cell;
+            default-font-size: 15px;
+            default-color: root.block.kind == "table-head" ? Ink.text : Ink.sand;
+            link-color: Ink.gold;
+            selectable: true;
+            link-clicked(url) => { Game.open-note-link(url); }
+        }
+    }
+
+    Rule { }
+}
+
+export component ReleaseBody inherits ScrollView {
+    in property <string> body;
+    changed body => { root.content-y = 0px; }
+
+    VerticalLayout {
+        alignment: start;
+        spacing: 8px;
+        if root.body == "": Note {
+            text: Locale.t("Release notes are unavailable for this version.");
+        }
+        for block in Game.note-blocks(root.body): VerticalLayout {
+            if block.kind == "rule": VerticalLayout {
+                padding-top: 8px;
+                padding-bottom: 8px;
+                Rule { }
+            }
+            if block.kind == "table-head" || block.kind == "table-row": TableRow {
+                block: block;
+            }
+            if block.kind != "rule" && block.kind != "table-head" && block.kind != "table-row": RichLine {
+                block: block;
+            }
+        }
+    }
+}
+
+export component ReleaseNotesPage inherits Rectangle {
+    in property <[ReleaseNote]> entries;
+    in property <string> back-label;
+    in property <string> heading: Locale.t("RELEASE NOTES");
+    in-out property <string> requested-tag;
+    in property <string> status;
+    in property <bool> can-retry;
+    in property <bool> allow-unlisted;
+    callback back();
+    callback retry();
+    private property <[ReleaseNote]> filtered: Game.filter-notes(root.entries, root.filter);
+    private property <int> selected: Game.note-index(root.filtered, root.requested-tag);
+    out property <string> tag: allow-unlisted && filter == "All" && requested-tag != "" ? requested-tag : selected >= 0 ? filtered[selected].tag : "";
+    private property <string> filter: "All";
+    changed filter => { list.content-y = 0px; }
+
+    HorizontalLayout {
+        x: 0px;
+        y: 0px;
+        width: 100%;
+        height: 100%;
+
+        Rectangle {
+            width: min(root.width * 0.5, max(filters.min-width + 40px, root.width * 0.248));
+            background: Ink.page;
+
+            VerticalLayout {
+                padding: 20px;
+                spacing: 8px;
+
+                GameAction {
+                    text: "‹  " + root.back-label;
+                    filled: true;
+                    clicked => { root.back(); }
+                }
+
+                filters := HorizontalLayout {
+                    spacing: 3px;
+                    for choice in ["All", "Stable", "Nightly"]: GameAction {
+                        text: Locale.t(choice);
+                        quiet: true;
+                        primary: root.filter == choice;
+                        clicked => { root.filter = choice; }
+                    }
+                }
+
+                Rule { }
+
+                list := ListView {
+                    vertical-stretch: 1;
+                    for entry in root.filtered: Rectangle {
+                        height: 48px;
+                        GameAction {
+                            x: 0px; y: 0px;
+                            width: parent.width - 18px; height: 44px;
+                            text: entry.tag;
+                            primary: root.tag == entry.tag;
+                            clicked => { root.requested-tag = entry.tag; }
+                        }
+                    }
+                }
+            }
+        }
+
+        SidePanel {
+            accent: Ink.mustard;
+            horizontal-stretch: 1;
+
+            VerticalLayout {
+                padding: 24px;
+                spacing: 12px;
+
+                Kicker {
+                    text: root.heading;
+                }
+
+                if root.tag != "": PosterTitle {
+                    text: root.tag;
+                    font-size: 54px;
+                }
+
+                Rule { }
+
+                if root.status != "" || root.tag == "": Note {
+                    text: root.status != "" ? root.status : Locale.t("No releases in this channel.");
+                }
+                if root.can-retry: GameAction {
+                    text: Locale.t("Try again");
+                    clicked => { root.retry(); }
+                }
+                if root.tag == "": Rectangle { vertical-stretch: 1; }
+                if root.tag != "": ReleaseBody {
+                    body: root.selected >= 0 && root.filtered[root.selected].tag == root.tag ? root.filtered[root.selected].body : "";
+                }
+
+                @children
+            }
+        }
+    }
+}

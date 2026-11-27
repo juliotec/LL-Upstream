@@ -9,9 +9,8 @@ team's Forgejo, [git.magicbean.dev/MagicBeanDev/LongshotLauncher](https://git.ma
 
 **No game files, keys, or anything made from them leave your PC**, as in Longshot (its
 [CONTRIBUTING.md](https://git.magicbean.dev/MagicBeanDev/Longshot/src/branch/main/CONTRIBUTING.md)): no `.nup`, `romfs`,
-`exefs`, `.nso`, `.nca`, `.nsp`, `.xci`, `.nsz`/`.xcz`, no title keys, no build of the game, and **no saves**. The save
-tests use fake save folders made of text files (`tests/fixtures/hookshot-saves`, [docs/saves.md](docs/saves.md)); keep it that way. **No NFC tag dump** either: the NFC tests make fake tags in code
-(`tests/launcher_core/NfcChecks.cs`, [docs/nfc.md](docs/nfc.md)). A screenshot of the launcher is fine. Longshot's one exception, its scrubbed saves in `assets/saves/` (one slot each, picture grey, date reset,
+`exefs`, `.nso`, `.nca`, `.nsp`, `.xci`, `.nsz`/`.xcz`, no title keys, no build of the game, and **no saves**. The Rust save tests create synthetic temporary directories. **No NFC tag dump** either: the NFC tests make fake tags in code
+([docs/nfc.md](docs/nfc.md)). A screenshot of the launcher is fine. Longshot's one exception, its scrubbed saves in `assets/saves/` (one slot each, picture grey, date reset,
 added through a reviewed pull request), lives in Longshot's repository, never here.
 
 ## Get started
@@ -21,9 +20,9 @@ After clone, install git hooks once: `mise run setup` (pre-commit and Convention
 ```
 git clone --depth 1 https://git.magicbean.dev/MagicBeanDev/LongshotLauncher.git   (jj: jj git clone --colocate --depth 1 ...)
 cd LongshotLauncher
-dotnet build LongshotLauncher.slnx                     (the .NET 10 SDK, Windows or Linux)
-dotnet run --project App
-python -I tests/test_launcher_core.py                  (the core's tests: no game, no network, no window)
+cargo build --locked
+cargo run --locked
+python -I tests/test_launcher_core.py                  (Rust tests and translation catalogs, using game-free fixtures)
 LAUNCHER=$PWD python -I ../Tooling/tests/test_release.py   (Tooling's release.py; needs the openssl command line)
 ```
 
@@ -42,29 +41,15 @@ repository).
 /plugin install magicbean@magicbean
 ```
 
-### Tools: mise, CircleCI and AI agents
+### Local development tools
 
 - **mise** pins every tool this repo uses. Install it ([mise docs](https://mise.jdx.dev/getting-started.html)), then in the repo run `mise install` and, once per clone, `mise run setup` (it installs the pre-commit and commit-msg hooks). `mise run lint` and `mise run test` run the same checks CI does.
-- **CircleCI** runs CI for this repo; [docs/ci.md](docs/ci.md) has the flow and what runs when. Sign up at https://circleci.com/signup and ask in Discord to be added to the MagicBeanDev org, so you can see runs, read logs and rerun jobs.
-- **CircleCI CLI:** `mise install` installs the pinned version, or see the [official install docs](https://circleci.com/docs/guides/toolkit/circleci-cli/). Run `circleci auth login` once.
-- **CircleCI MCP server**, so an AI agent can read failures and logs and rerun jobs. Claude Code: `claude mcp add --transport http circleci-mcp-server https://mcp.circleci.com/v1/mcp`, then `/mcp` and Authenticate. Cursor: search "circleci" in the MCP marketplace.
-- **CircleCI docs MCP**, so an agent can look things up in CircleCI's docs (no account needed): `claude mcp add --transport http circleci-docs https://circleci.mcp.kapa.ai`.
-- **Chunk CLI** (optional) runs this repo's checks on a remote CircleCI sidecar, handy for an agent or a machine without the toolchain. Install with `brew install CircleCI-Public/circleci/chunk` (Windows: see its [README](https://github.com/CircleCI-Public/chunk-cli)), run `chunk auth login`, then `chunk sidecar create`, `chunk sidecar sync` and `chunk validate`. The commands it runs are in `.chunk/config.json`.
 
 ## Changes and tests
 
-- **Tests read the source.** `tests/launcher_core` compiles `Core/` with no package; the screens' logic it can reach is
-  checked there (`ScreenChecks.cs`). A change to the core comes with its check in the same pull request.
-- **The release format is shared.** `release.py` is Tooling's `scripts/release.py`, for both repositories (CI runs it at
-  the commit `.tooling-rev` names); `cliff.toml`, `docs/releases.md` and `RELEASING.md` are the same files in Longshot's
-  repository; a change to one goes to both. `tests/fixtures/release` holds a `SHA256SUMS` signed by `release.py` with a
-  test key, which the launcher's tests check with the launcher's own code.
-- **The key.** `Core/ReleaseTrust.cs` lists the public key the launcher trusts; Longshot's `scripts/release_keys.json` must
-  list the same one. Never commit a private key (the test key in `tests/fixtures/release` is public on purpose and is
-  never trusted).
-- **Packages are pinned.** `Directory.Packages.props` pins each package exactly and `packages.lock.json` records what
-  they bring; CI restores in locked mode. A package change updates the lock files in the same pull request.
-- **Two platforms.** Windows and Linux (and the Steam Deck) from the same code; keep paths portable and UTF-8.
+Compile the UI with the version of Slint in `Cargo.lock`. Keep filesystem, subprocess and network operations in Rust. The Slint views present models and invoke callbacks. Use synthetic fixtures and temporary launcher homes to test changes.
+
+Run `cargo fmt --all -- --check`, `cargo clippy --locked --all-targets -- -D warnings`, `python -I tests/test_launcher_core.py`, and the Tooling release suite before opening a PR. To exercise the Linux UI on a clean display, build the executable and run `xvfb-run -a python -I tests/test_rust_window.py target/debug/LongshotLauncher`. See [CI](docs/ci.md) for release packaging and the previous-stable handoff.
 
 ## Commits and pull requests
 
@@ -79,8 +64,8 @@ has the set-up).
    `main` and a line of the next release's notes.
 3. Start the description with why the pull request is needed, in one or two plain sentences, then what changed and how it
    was tested. Include screenshots when the change shows on screen.
-4. CI runs on Forgejo Actions (`.forgejo/workflows/`: lint, compile and test, and the packaging check when it is needed)
-   and on CircleCI ([docs/ci.md](docs/ci.md) has both); locally run `mise run ci:smoke` before you push.
+4. CI runs on Forgejo Actions (`.forgejo/workflows/`: lint, compile and test, and the packaging check when it is needed).
+   See [docs/ci.md](docs/ci.md) for the workflow. Locally run `mise run ci:smoke` before you push.
 
 A maintainer reviews and squash-merges it. Releases are tags on `main` ([RELEASING.md](RELEASING.md)): `vX.Y.Z`, on
 a tested nightly's commit, and every merge makes a nightly. The title decides the next version: CI refuses a tag lower than the titles
@@ -90,5 +75,4 @@ next patch), and git-cliff turns the titles into the release notes. The launcher
 ## Licensing
 
 The launcher is free software under the [GNU General Public License, version 3 or later](LICENSE), as Longshot is. By
-submitting a change you license it under those terms. The Inter and Noto Sans fonts (`App/Assets/Fonts`) keep their own
-licences, `Inter-LICENSE.txt` and `NotoSans-OFL.txt`.
+submitting a change you license it under those terms. Inter and Libertinus carry their own licences in `assets/fonts/`.

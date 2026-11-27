@@ -1,0 +1,14 @@
+Optional game module licence texts, embedded verbatim for offline review.
+The builder fetches the SDK files separately after consent. See scripts/fetch.py in Longshot for its SHA-256 pins.
+
+NVIDIA-DLSS.txt
+https://github.com/NVIDIA/DLSS/blob/9981c6350dc58c0ce21f024fd65e31e851c31689/LICENSE.txt
+
+AMD-FSR.md
+https://github.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK/blob/7539ae8b6568ad29ed78a753404351daf3b5cca7/Kits/FidelityFX/docs/license.md
+
+Intel-XeSS.txt
+https://github.com/intel/xess/blob/de0fb9c1c510661c571164e1418ceca8101dab69/LICENSE.txt
+
+Intel-XeSS-notices.txt
+https://github.com/intel/xess/blob/de0fb9c1c510661c571164e1418ceca8101dab69/third-party-programs.txt

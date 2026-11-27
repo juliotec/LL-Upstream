@@ -1,0 +1,120 @@
+import { Game } from "game-model.slint";
+import { Players } from "player-model.slint";
+import { GameAction, Kicker, Label, Note, PanelTitle, PosterTitle, Rule, Fact } from "game-controls.slint";
+import { Ink, Locale, SideCard, ProgressBar } from "widgets.slint";
+
+component RebuildProgress inherits VerticalLayout {
+    private property <bool> measured: Game.launch-fraction >= 0;
+    spacing: 7px;
+
+    HorizontalLayout {
+        Label {
+            text: Game.launch-step == "" ? Locale.t("Rebuilding") : Locale.t("Rebuilding") + " (" + Locale.t(Game.launch-step) + ")";
+            horizontal-stretch: 1;
+        }
+        if root.measured: Note {
+            text: round(clamp(Game.launch-fraction, 0, 1) * 100) + "%";
+            color: Ink.sand;
+        }
+    }
+    ProgressBar {
+        fraction: Game.launch-fraction;
+        striped: true;
+        track-colour: Ink.line;
+    }
+    HorizontalLayout {
+        cross-axis-alignment: center;
+        spacing: 8px;
+        Note {
+            text: Game.launch-eta != "" ? Game.launch-eta : Locale.t("Estimating time remaining…");
+            font-size: 14px;
+            horizontal-stretch: 1;
+        }
+        GameAction {
+            enabled: Game.launch-log-available && !Game.show-log;
+            quiet: true;
+            text: Locale.t("Show build log") + "  ›";
+            clicked => { Game.show-log = true; }
+        }
+    }
+}
+
+export component LaunchPage inherits Rectangle {
+    private property <bool> running: Game.launch-phase == "running";
+    private property <bool> steam: Game.launch-phase == "steam";
+    private property <bool> rebuilding: Game.launch-phase == "rebuilding";
+    pure function duration(seconds: int) -> string {
+        if seconds >= 3600 {
+            return floor(seconds / 3600) + "h " + floor(mod(seconds, 3600) / 60) + "m";
+        }
+        if seconds >= 60 {
+            return floor(seconds / 60) + "m " + mod(seconds, 60) + "s";
+        }
+        return seconds + "s";
+    }
+
+    Rectangle {
+        x: 0px;
+        y: 0px;
+        background: Ink.page;
+        width: root.width - info.width;
+        height: root.height;
+
+        VerticalLayout {
+            alignment: center;
+            padding-left: Ink.page-inset(root.width);
+            padding-right: Ink.page-inset(root.width);
+            spacing: 24px;
+            PosterTitle {
+                text: root.steam ? Locale.t("Opened in Steam.") : root.running ? Locale.t("Game is running.") : Locale.t("Game launching.");
+                font-size: root.width < 1050px ? 64px : 90px;
+                letter-spacing: -3px;
+            }
+            if root.rebuilding && Game.last-build-seconds < 0: RebuildProgress {
+                max-width: 420px;
+            }
+            if Game.last-build-seconds >= 0 || Game.last-rebuild-seconds >= 0: Note {
+                text: Game.last-rebuild-seconds >= 0
+                    ? Locale.t("Rebuild time") + " · " + root.duration(Game.last-rebuild-seconds)
+                    : Locale.t("Build time") + " · " + root.duration(Game.last-build-seconds);
+                color: Ink.sand;
+                font-size: 20px;
+            }
+            HorizontalLayout {
+                alignment: start;
+                close := GameAction {
+                    enabled: !Game.show-log;
+                    text: Locale.t("Close");
+                    primary: true;
+                    clicked => { Game.show-home(); }
+                }
+            }
+        }
+    }
+    info := SideCard {
+        x: root.width - self.width;
+        width: Ink.detail-width(root.width);
+        height: root.height;
+        colour: Players.colour;
+        Kicker { text: Locale.t("PLAYING WITH"); }
+        PanelTitle { text: Players.profile-name; font-size: 30px; }
+        VerticalLayout {
+            Rule { }
+            if Game.current-tag != "": Fact {
+                label: Locale.t("Version");
+                value: Game.current-tag;
+            }
+            Fact {
+                label: Locale.t("Saves");
+                value: Players.slots.length;
+            }
+            Fact {
+                label: Locale.t("Mods");
+                value: Players.profiles[Players.current-index].installed-mod-count;
+            }
+        }
+        Rectangle { vertical-stretch: 1; }
+    }
+
+    init => { close.focus(); }
+}

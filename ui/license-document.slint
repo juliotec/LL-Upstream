@@ -1,0 +1,31 @@
+import { ScrollView } from "scroll-view.slint";
+import { Ink } from "widgets.slint";
+
+export component LicenseDocument inherits Rectangle {
+    in property <string> title;
+    in property <string> text;
+    background: Ink.well;
+    border-width: body.has-focus ? 2px : 1px;
+    border-color: body.has-focus ? Ink.mustard : Ink.line;
+    border-radius: 8px;
+    clip: true;
+    forward-focus: body;
+
+    ScrollView {
+        x: 12px;
+        y: 10px;
+        width: parent.width - 24px;
+        height: parent.height - 20px;
+        body := TextInput {
+            text: root.text;
+            accessible-label: root.title;
+            read-only: true;
+            single-line: false;
+            wrap: word-wrap;
+            font-size: 14px;
+            color: Ink.text;
+            selection-background-color: Ink.mustard;
+            selection-foreground-color: Ink.black;
+        }
+    }
+}

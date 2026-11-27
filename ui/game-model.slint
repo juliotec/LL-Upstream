@@ -1,0 +1,169 @@
+import { LogEntry } from "log-viewer.slint";
+export enum GameStep { files, welcome, settings, building, ready, problem }
+
+export struct BuildStageRow { marker: string, title: string, detail: string }
+export struct VersionRow {
+    tag: string,
+    copy-suffix: string,
+    dlss: bool,
+    fsr: bool,
+    xess: bool,
+    title: string,
+    track: string,
+    status: string,
+    size: string,
+    update: string,
+    share: float
+}
+export struct ReleaseNote { tag: string, body: string }
+export struct NoteBlock {
+    kind: string,
+    level: int,
+    marker: string,
+    text: styled-text,
+    plain: string,
+    cells: [styled-text]
+}
+export global Game {
+    in property <bool> license-active;
+    in property <string> license-library;
+    in property <bool> mod-review-needed;
+    in property <string> mod-trust-review;
+    callback review-mods();
+    callback approve-mod-trust();
+    callback cancel-mod-trust();
+    in property <string> launch-phase: "launching";
+    in property <float> launch-fraction: -1;
+    in property <string> launch-step;
+    in property <bool> launch-log-available;
+    in property <string> launch-eta;
+    in property <int> last-build-seconds: -1;
+    in property <int> last-rebuild-seconds: -1;
+    in-out property <[VersionRow]> version-rows;
+    in-out property <bool> first-run;
+    in-out property <string> build-space;
+    in-out property <string> first-build-space;
+    in-out property <bool> low-build-space;
+    in-out property <bool> space-measured;
+    in-out property <string> work-folder;
+    in-out property <string> library-size;
+    in-out property <[float]> stage-fractions;
+    in property <[LogEntry]> log-rows;
+    in property <bool> log-tail;
+    callback refresh-log();
+    callback raw-log() -> string;
+    in-out property <float> overall: -1;
+    callback open-logs();
+    in-out property <bool> file-error;
+    pure callback intro-words(string) -> [string];
+    pure callback file-name(string) -> string;
+    callback get-started();
+    callback skip-setup();
+    callback begin-track(string);
+    callback inspect-library();
+    callback show-storage();
+    in-out property <int> catalog-generation;
+    pure callback note-blocks(string) -> [NoteBlock];
+    callback open-note-link(string);
+    pure callback notes-for(string, int) -> string;
+    in-out property <string> current-tag;
+    in-out property <bool> show-notes;
+    in-out property <string> update-tag;
+    in property <string> update-target;
+    in-out property <bool> checking;
+    in property <[ReleaseNote]> releases;
+    pure callback filter-notes([ReleaseNote], string) -> [ReleaseNote];
+    pure callback note-index([ReleaseNote], string) -> int;
+    in-out property <[string]> pulls;
+    in-out property <[string]> found;
+    callback check-updates();
+    callback update-version(play-after: bool);
+    in-out property <bool> play-after-build;
+    in property <bool> steam-shortcut-present;
+    callback remove();
+    in-out property <bool> confirming-removal;
+    callback confirm-remove();
+    callback steam-shortcut(bool);
+    callback find-files();
+    callback prepare-tools();
+    callback requirements-link();
+    in-out property <bool> folders-open;
+    in-out property <string> requirements;
+    in-out property <string> requirements-detail;
+    in-out property <color> requirements-colour: #a2a9b3;
+    in-out property <string> tools-tag;
+    in-out property <string> tools-note;
+    in-out property <float> tools-fraction;
+    in-out property <bool> tools-ready;
+    in-out property <bool> tools-busy;
+    in-out property <bool> tools-failed;
+    in-out property <bool> searching;
+    callback choose-library();
+    in-out property <string> fsr-library;
+    in-out property <int> selected: -1;
+    in-out property <bool> playable;
+    in-out property <string> status;
+    in-out property <bool> busy;
+    in-out property <bool> playing;
+    in-out property <GameStep> step;
+    in property <bool> stable-available;
+    in property <bool> stable-installations;
+    pure callback buildable-release(string) -> bool;
+    in property <[string]> build-releases;
+    in-out property <string> track: "Nightly";
+    in-out property <string> source-path;
+    in-out property <string> number;
+    in-out property <string> pending-tag;
+    in-out property <string> warning;
+    in-out property <string> confirm-number;
+    in-out property <string> typed-number;
+    in-out property <bool> source-approved;
+    in-out property <string> install-tag;
+    in-out property <string> release-choice;
+    in-out property <string> language: "en-US";
+    in-out property <[string]> languages;
+    in-out property <bool> dlss;
+    in-out property <bool> fsr;
+    in-out property <bool> xess;
+    in-out property <bool> windows;
+    in property <int> nvidia-cache-mb;
+    in property <bool> nvidia-cache-busy;
+    callback check-nvidia-cache();
+    callback raise-nvidia-cache();
+    in-out property <bool> shaders: true;
+    in-out property <[BuildStageRow]> stage-rows;
+    in-out property <string> eta;
+    in-out property <string> log-filter;
+    in-out property <bool> show-log;
+    in-out property <string> report-preview;
+    in-out property <string> report-status;
+    in-out property <bool> reporting;
+    in-out property <bool> report-sent;
+    in-out property <bool> can-report;
+    callback preview-report();
+    callback send-report();
+    callback save-diagnostic();
+    in-out property <string> build-location;
+    in-out property <string> license;
+    in property <bool> license-required;
+    in property <string> license-text;
+    in property <string> license-document;
+    in-out property <bool> license-expanded;
+    callback choose-source(bool) -> bool;
+    callback select-source(string) -> bool;
+    callback folders-changed();
+    callback schedule-check();
+    callback retry-check();
+    callback start();
+    callback cancel();
+    callback confirm-stop();
+    callback begin-build();
+    callback rebuild();
+    callback play();
+    callback open-folder();
+    callback select-version(int);
+    callback ask-license(string);
+    callback open-license();
+    callback accept-license();
+    callback show-home();
+}

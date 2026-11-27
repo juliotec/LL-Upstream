@@ -22,34 +22,6 @@ checksum = "sha256:f3e65c943795be7879e7ea2beda248321b6c8ae851dabc785522a432fb8ce
 url = "https://github.com/pre-commit/pre-commit/releases/download/v4.0.1/pre-commit-4.0.1.pyz"
 url_api = "https://api.github.com/repos/pre-commit/pre-commit/releases/assets/197703571"
 
-[[tools.dotnet]]
-version = "10.0.404"
-backend = "core:dotnet"
-specifiers = ["10.0.404"]
-
-[[tools."github:CircleCI-Public/circleci-cli"]]
-version = "1.14.0"
-backend = "github:CircleCI-Public/circleci-cli"
-specifiers = ["1.14.0"]
-
-[tools."github:CircleCI-Public/circleci-cli"."platforms.linux-arm64"]
-checksum = "sha256:d1cfb57078bcd0d3ff4c20f2765574e1f1022a3ba41cf164acd36a521a7a35f0"
-url = "https://github.com/CircleCI-Public/circleci-cli/releases/download/v1.14.0/circleci-cli_1.14.0_linux_arm64.tar.gz"
-url_api = "https://api.github.com/repos/CircleCI-Public/circleci-cli/releases/assets/710985566"
-provenance = "github-attestations"
-
-[tools."github:CircleCI-Public/circleci-cli"."platforms.linux-x64"]
-checksum = "sha256:5d0227b38ad65b2fb23ef1fbebfe98851c77102f76a72df2273eacca941665c4"
-url = "https://github.com/CircleCI-Public/circleci-cli/releases/download/v1.14.0/circleci-cli_1.14.0_linux_amd64.tar.gz"
-url_api = "https://api.github.com/repos/CircleCI-Public/circleci-cli/releases/assets/710985669"
-provenance = "github-attestations"
-
-[tools."github:CircleCI-Public/circleci-cli"."platforms.macos-arm64"]
-checksum = "sha256:ae3a9d0399bafc9169a6fca7bced2e0a35a51e1e870d6efc56955cb99b29941b"
-url = "https://github.com/CircleCI-Public/circleci-cli/releases/download/v1.14.0/circleci-cli_1.14.0_darwin_arm64.tar.gz"
-url_api = "https://api.github.com/repos/CircleCI-Public/circleci-cli/releases/assets/710985569"
-provenance = "github-attestations"
-
 [[tools."github:koalaman/shellcheck"]]
 version = "0.10.0"
 backend = "github:koalaman/shellcheck"
@@ -69,29 +41,6 @@ url_api = "https://api.github.com/repos/koalaman/shellcheck/releases/assets/1555
 checksum = "sha256:bbd2f14826328eee7679da7221f2bc3afb011f6a928b848c80c321f6046ddf81"
 url = "https://github.com/koalaman/shellcheck/releases/download/v0.10.0/shellcheck-v0.10.0.darwin.aarch64.tar.xz"
 url_api = "https://api.github.com/repos/koalaman/shellcheck/releases/assets/155543213"
-
-[[tools."github:open-policy-agent/conftest"]]
-version = "0.71.1"
-backend = "github:open-policy-agent/conftest"
-specifiers = ["0.71.1"]
-
-[tools."github:open-policy-agent/conftest"."platforms.linux-arm64"]
-checksum = "sha256:218c682e110ae7e826dc14a746a6f9b43eb782643dbe730b771fd305634e3f47"
-url = "https://github.com/open-policy-agent/conftest/releases/download/v0.71.1/conftest_0.71.1_Linux_arm64.tar.gz"
-url_api = "https://api.github.com/repos/open-policy-agent/conftest/releases/assets/614476733"
-provenance = "github-attestations"
-
-[tools."github:open-policy-agent/conftest"."platforms.linux-x64"]
-checksum = "sha256:c3f6b2a753bd56e377a1e51a95ae3e057f926f2e9139f7d5b5dfbbaf810f7985"
-url = "https://github.com/open-policy-agent/conftest/releases/download/v0.71.1/conftest_0.71.1_Linux_x86_64.tar.gz"
-url_api = "https://api.github.com/repos/open-policy-agent/conftest/releases/assets/614476638"
-provenance = "github-attestations"
-
-[tools."github:open-policy-agent/conftest"."platforms.macos-arm64"]
-checksum = "sha256:e1cc50d2590b6c5e3da6912666a71264bae82d60bdd62d7ae2b99971ccc8eedd"
-url = "https://github.com/open-policy-agent/conftest/releases/download/v0.71.1/conftest_0.71.1_Darwin_arm64.tar.gz"
-url_api = "https://api.github.com/repos/open-policy-agent/conftest/releases/assets/614476647"
-provenance = "github-attestations"
 
 [[tools."github:rhysd/actionlint"]]
 version = "1.7.12"

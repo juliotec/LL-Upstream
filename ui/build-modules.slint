@@ -1,0 +1,172 @@
+import { ModalLayer } from "modal-layer.slint";
+import { Action, Ink, Locale } from "widgets.slint";
+import { Game } from "game-model.slint";
+import { GameAction, Kicker, Note, PanelTitle } from "game-controls.slint";
+import { LicenseDocument } from "license-document.slint";
+
+component ModuleCard inherits Rectangle {
+    in property <string> name;
+    in property <string> key;
+    in property <bool> active;
+    in property <bool> enabled: true;
+    height: 58px;
+    min-width: 130px;
+    preferred-width: 130px;
+    horizontal-stretch: 1;
+    opacity: enabled ? 1 : 0.55;
+    background: (enabled && pointer.has-hover) || active ? Ink.selected : Ink.well;
+    border-radius: 8px;
+    border-width: (Ink.focus-visible && focus.has-focus) ? 2px : 1px;
+    border-color: (Ink.focus-visible && focus.has-focus) ? Ink.mustard : active ? Ink.sage : Ink.line;
+    accessible-role: button;
+    accessible-label: name + " · " + status.text;
+    forward-focus: focus;
+    accessible-enabled: root.enabled;
+    accessible-action-default => { if root.enabled { Game.ask-license(root.key); } }
+
+    VerticalLayout {
+        padding-left: 10px;
+        padding-right: 8px;
+        alignment: center;
+        spacing: 2px;
+
+        Text {
+            text: root.name;
+            font-size: 16px;
+            color: Ink.text;
+            font-weight: 700;
+            overflow: elide;
+        }
+
+        status := Text {
+            text: root.active ? "✓  " + Locale.t("Enabled") : Locale.t("Off");
+            color: root.active ? Ink.sage : Ink.muted;
+            font-size: 12px;
+            overflow: elide;
+        }
+    }
+
+    focus := FocusScope {
+        enabled: root.enabled;
+        key-pressed(event) => { if event.text == Key.Return || event.text == " " { Game.ask-license(root.key); return accept; } reject }
+
+        pointer := TouchArea {
+            enabled: root.enabled;
+            mouse-cursor: MouseCursor.pointer;
+            clicked => { Ink.focus-visible = false; focus.focus(); Game.ask-license(root.key); }
+        }
+    }
+}
+
+export component ModuleCards inherits FlexboxLayout {
+    in property <bool> dlss: Game.dlss;
+    in property <bool> fsr: Game.fsr;
+    in property <bool> xess: Game.xess;
+    in property <bool> enabled: true;
+    alignment: stretch;
+    spacing: 6px;
+
+    ModuleCard {
+        name: "NVIDIA DLSS";
+        key: "dlss";
+        active: root.dlss;
+        enabled: root.enabled;
+    }
+    ModuleCard {
+        name: "AMD FSR 4";
+        key: "fsr4";
+        active: root.fsr;
+        enabled: root.enabled;
+    }
+    if Game.windows: ModuleCard {
+        name: "Intel XeSS";
+        key: "xess";
+        active: root.xess;
+        enabled: root.enabled;
+    }
+}
+
+export component ModuleDialog inherits ModalLayer {
+    private property <bool> notice: Game.license == "fsr4" && !Game.windows;
+    private property <bool> active: Game.license-active;
+    wrap-focus(backwards) => { if backwards && accept.enabled { accept.focus(); } else { terms.focus(); } }
+    dismiss-on-backdrop: true;
+    dismissed => { Game.license = ""; }
+
+    Rectangle {
+        x: (root.width - self.width) / 2;
+        y: (root.height - self.height) / 2;
+        width: min(640px,root.width - 36px);
+        height: min(root.height - 32px, max(230px, form.preferred-height));
+        background: Ink.black;
+        border-radius: 12px;
+        border-width: 1px;
+        border-color: Ink.line;
+
+        TouchArea { }
+
+        form := VerticalLayout {
+            padding: 22px;
+            spacing: 10px;
+
+            Kicker {
+                text: Locale.t("Optional module");
+            }
+
+            PanelTitle {
+                text: Game.license == "dlss" ? "NVIDIA DLSS" : Game.license == "fsr4" ? "AMD FSR 4" : "Intel XeSS";
+            }
+
+            Note {
+                text: Locale.t(Game.license-text);
+            }
+
+            terms := GameAction {
+                text: root.notice ? Locale.t("Library notice") : Locale.t("Licence terms");
+                icon: Game.license-expanded ? @image-url("icons/chevron.svg") : @image-url("icons/chevron-right.svg");
+                align-left: true;
+                quiet: true;
+                accessible-expanded: Game.license-expanded;
+                clicked => { Game.license-expanded = !Game.license-expanded; }
+            }
+            if Game.license-expanded: LicenseDocument {
+                height: min(root.notice ? 115px : 230px, max(85px, root.height - 325px));
+                title: root.notice ? Locale.t("Library notice") : Locale.t("Licence terms");
+                text: Game.license-document;
+            }
+            if !root.notice && Game.license-expanded: GameAction {
+                text: Locale.t("View on vendor’s website") + " ↗";
+                align-left: true;
+                quiet: true;
+                clicked => { Game.open-license(); }
+            }
+            if Game.license == "fsr4" && !Game.windows: Action {
+                label: Game.license-library == "" ? Locale.t("Choose FSR 4 library") : Locale.t("Change FSR 4 library");
+                clicked => { Game.choose-library(); }
+            }
+            if Game.license == "fsr4" && !Game.windows && Game.license-library != "":Note {
+                text: Locale.display-path(Game.license-library);
+                font-size: 12px;
+                wrap: char-wrap;
+            }
+            HorizontalLayout {
+                spacing: 8px;
+                alignment: end;
+
+                close := Action {
+                    label: Locale.t("Close");
+                    clicked => { Game.license = ""; }
+                }
+
+                accept := Action {
+                    label: root.active ? Locale.t("Disable") : Game.license-required && !root.notice ? Locale.t("Accept and enable") : Locale.t("Enable");
+                    primary: !root.active;
+                    enabled: root.active || Game.license != "fsr4" || Game.windows || Game.license-library != "";
+                    clicked => { Game.accept-license(); }
+                }
+            }
+        }
+    }
+
+    init => { close.focus(); }
+}

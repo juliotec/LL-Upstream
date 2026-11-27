@@ -1,0 +1,80 @@
+export struct ProfileSwatch { name: string, key: string, tone: color }
+
+export struct PlayerRow {
+    id: string,
+    name: string,
+    detail: string,
+    game-line: string,
+    avatar: string,
+    save-count: int,
+    mod-count: int,
+    installed-mod-count: int,
+    has-options: bool,
+    last-played: string,
+    colour: color,
+    damaged: bool
+}
+export struct SlotRow {
+    id: string,
+    number: string,
+    name: string,
+    slot-label: string,
+    saved: string,
+    location: string,
+    scene: string,
+    health: string,
+    hearts: string,
+    health-fraction: float,
+    medals: [bool],
+    stones: [bool],
+    medals-have: int,
+    stones-have: int,
+    thumbnail: image,
+    bytes: string,
+    starts: bool
+}
+export struct ImportSource { label: string, path: string, slots: [string] }
+export struct TagRow { name: string, detail: string, format: string, selected: bool }
+
+export global Players {
+    in property <[ProfileSwatch]> colours;
+    in property <[PlayerRow]> profiles;
+    in property <[SlotRow]> slots;
+    in property <[TagRow]> tags;
+    callback refresh-tags();
+    in property <string> profile-name: "Default";
+    in property <string> profile-id: "default";
+    in property <string> initial: "D";
+    in property <color> colour: #7f9d53;
+    in property <int> slot-index: -1;
+    in property <int> current-index;
+    in property <string> message;
+    in property <bool> busy;
+    in-out property <bool> save-details-open;
+    in property <bool> asks-name;
+    in property <bool> asks-settings;
+    in property <string> prompt;
+    in property <string> question;
+    in property <[string]> choices;
+    in property <bool> browsing-saves;
+    in property <[ImportSource]> import-sources;
+    callback import-slot(int, int);
+    callback profile-colour(string, string);
+    in-out property <int> choice;
+    in-out property <string> entry;
+    in-out property <bool> keep-settings: true;
+    in property <bool> can-scan;
+    in property <bool> scanning;
+    in property <int> selected-tags;
+    in property <string> tag-folder;
+    callback toggle-tag(int);
+    callback scan();
+    callback cancel-scan();
+    callback load-slot-pictures();
+    callback pick-slot(int);
+    callback rename-profile(string, string) -> bool;
+    callback rename-save(string, string) -> bool;
+    callback action(string, string);
+    callback confirm();
+    callback cancel();
+}

@@ -1,0 +1,632 @@
+import { Pressable } from "widgets.slint";
+import { Preferences } from "settings-model.slint";
+import { ModuleCards } from "build-modules.slint";
+import { SourcePicker } from "source-chooser.slint";
+import { Dropdown } from "menu.slint";
+import { TextField } from "text-field.slint";
+import { CheckBox } from "check-box.slint";
+import { ScrollView, PageList } from "scroll-view.slint";
+import {
+    GameAction,
+    PosterTitle,
+    PanelTitle,
+    Label,
+    Note,
+    Kicker,
+    Rule,
+    SidePanel,
+} from "game-controls.slint";
+import { Ink, Locale } from "widgets.slint";
+import { Game, GameStep } from "game-model.slint";
+
+export component WizardSteps inherits HorizontalLayout {
+    spacing: 7px;
+    height: 34px;
+    private property <int> active:Game.step == GameStep.welcome ? 0 : Game.step == GameStep.files || Game.step == GameStep.settings ? 1 : 2;
+    for label[idx] in [Locale.t("Welcome"), Locale.t("Your game"), Locale.t("Build")]: VerticalLayout {
+        spacing: 4px;
+        max-width: 118px;
+
+        Rectangle {
+            height: 3px;
+            background: idx <= root.active ? Ink.mustard : Ink.line;
+        }
+
+        Text {
+            text: (idx + 1) + " · " + label;
+            color: idx == root.active ? Ink.text : Ink.muted;
+            font-size: 13px;
+            font-weight: idx == root.active ? 700 : 400;
+        }
+    }
+}
+
+component Statement inherits HorizontalLayout {
+    in property <bool> positive: true;
+    in property <string> title;
+    in property <string> detail;
+    spacing: 8px;
+
+    Rectangle {
+        width: 23px;
+        height: 23px;
+        border-radius: 6px;
+        background: root.positive ? Ink.sage : Ink.russet;
+
+        Text {
+            text: root.positive ? "✓" : "×";
+            color: Ink.black;
+            font-weight: 800;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+
+    VerticalLayout {
+        spacing: 3px;
+
+        Label {
+            text: root.title;
+        }
+
+        Note {
+            text: root.detail;
+            font-size: 14px;
+        }
+    }
+}
+
+component Need inherits HorizontalLayout {
+    in property <string> number;
+    in property <string> title;
+    in property <string> detail;
+    spacing: 12px;
+
+    Rectangle {
+        width: 32px;
+        height: 32px;
+        border-width: 1px;
+        border-color: Ink.line;
+        border-radius: 6px;
+
+        Label {
+            text: root.number;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+
+    VerticalLayout {
+        spacing: 4px;
+
+        Label {
+            text: root.title;
+        }
+
+        Note {
+            text: root.detail;
+        }
+    }
+}
+
+component WelcomeText inherits VerticalLayout {
+    in property <bool> compact;
+    spacing: 18px;
+
+    PosterTitle {
+        text: Locale.t("Welcome to\nLongshot.");
+        font-size: root.compact ? 48px : 72px;
+    }
+
+    Note {
+        text: Locale.t("A PC version of the game, built on your own computer from a copy of the game you own. Here’s what that means before you start.");
+        font-size: 18px;
+        color: Ink.text;
+    }
+
+    HorizontalLayout {
+        padding-top: 8px;
+        spacing: 20px;
+
+        VerticalLayout {
+            alignment: start;
+            spacing: 17px;
+
+            Kicker {
+                text: Locale.t("WHAT IT IS");
+            }
+
+            Rule { }
+
+            Statement {
+                title: Locale.t("Made for PC");
+                detail: Locale.t("The game’s code is translated to run directly on your PC.");
+            }
+
+            Statement {
+                title: Locale.t("Built from your copy");
+                detail: Locale.t("Your game stays on this PC while Longshot builds it.");
+            }
+
+            Statement {
+                title: Locale.t("Free and open source");
+                detail: Locale.t("Anyone can read the launcher’s source code.");
+            }
+        }
+
+        VerticalLayout {
+            alignment: start;
+            spacing: 17px;
+
+            Kicker {
+                text: Locale.t("WHAT IT ISN’T");
+            }
+
+            Rule { }
+
+            Statement {
+                positive: false;
+                title: Locale.t("Not the game itself");
+                detail: Locale.t("You’ll need a copy of the game from your own cartridge.");
+            }
+
+            Statement {
+                positive: false;
+                title: Locale.t("Not an emulator");
+                detail: Locale.t("The finished game runs as a PC program.");
+            }
+
+            Statement {
+                positive: false;
+                title: Locale.t("Not official");
+                detail: Locale.t("Longshot is an independent project.");
+            }
+        }
+    }
+}
+
+component BuildField inherits VerticalLayout {
+    in property <string> name;
+    spacing: 5px;
+    HorizontalLayout {
+        spacing: 8px;
+        min-height: 40px;
+        cross-axis-alignment: center;
+        Label {
+            width: 92px;
+            text: root.name;
+        }
+        VerticalLayout {
+            min-width: 0px;
+            horizontal-stretch: 1;
+            spacing: 5px;
+            @children
+        }
+    }
+    Rule { }
+}
+
+component BuildValue inherits HorizontalLayout {
+    in property <string> value;
+    in property <color> tone: Ink.sand;
+    padding-left: 12px;
+    cross-axis-alignment: center;
+    Note { text: root.value; color: root.tone; }
+}
+
+component VersionChoice inherits VerticalLayout {
+    private property <bool> pinned: Game.install-tag != "" || Game.update-target != "";
+    private property <bool> earlier: !root.pinned && Game.track == "Earlier release";
+    private property <bool> pull: !root.pinned && Game.track == "Pull request";
+    spacing: 5px;
+    if root.earlier && Game.build-releases.length == 0: VerticalLayout {
+        spacing: 6px;
+        Note { text: Game.checking ? Locale.t("Looking for compatible releases…") : Locale.t("No compatible releases are listed. Check again or choose a source build."); }
+        if !Game.checking: GameAction { text: Locale.t("Check again"); clicked => { Game.check-updates(); } }
+    }
+    if root.earlier && Game.build-releases.length > 0: Dropdown {
+        accessible-label: Locale.t("Version");
+        enabled: !Game.busy;
+        model: Game.build-releases;
+        current-value <=> Game.release-choice;
+        selected(_) => { Game.prepare-tools(); }
+    }
+    if root.pull: TextField {
+        enabled: !Game.busy;
+        accessible-label: Locale.t("Pull request number or link");
+        placeholder-text: Locale.t("Pull request number or link");
+        text <=> Game.number;
+        edited(_) => { Game.warning = ""; Game.pending-tag = ""; Game.source-approved = false; }
+    }
+    if root.pull && Game.pulls.length > 0: Dropdown {
+        enabled: !Game.busy;
+        accessible-label: Locale.t("Pull request");
+        model: Game.pulls;
+        selected(tag) => { Game.number = tag; Game.warning = ""; Game.pending-tag = ""; Game.source-approved = false; }
+    }
+    if !root.earlier && (!root.pull || Game.pending-tag != ""): BuildValue {
+        value: root.pinned ? (Game.install-tag != "" ? Game.install-tag : Game.update-target) : Game.pending-tag != "" ? Game.pending-tag : Game.tools-tag != "" ? Game.tools-tag
+            : Game.track == "Main" ? Locale.t("Latest main commit") : Game.track == "Nightly" ? Locale.t("Latest nightly build") : Locale.t("Latest stable release");
+    }
+}
+
+component Options inherits VerticalLayout {
+    private property <bool> advanced;
+    spacing: 10px;
+
+    Kicker {
+        text: Locale.t("Optional modules");
+    }
+
+    ModuleCards { }
+
+    VerticalLayout {
+        padding-top: 14px;
+        GameAction {
+            text: Locale.t("Advanced");
+            icon: root.advanced ? @image-url("icons/chevron.svg") : @image-url("icons/chevron-right.svg");
+            accessible-expanded: root.advanced;
+            align-left: true;
+            quiet: true;
+            clicked => { root.advanced = !root.advanced; }
+        }
+    }
+
+    if root.advanced: VerticalLayout {
+        spacing: 7px;
+
+        HorizontalLayout {
+            spacing: 8px;
+
+            Label {
+                text: Locale.t("Game language");
+                vertical-alignment: center;
+                horizontal-stretch: 1;
+            }
+
+            Dropdown {
+                max-width: Ink.form-control-width;
+                model: Game.languages;
+                current-value <=> Game.language;
+            }
+        }
+
+        CheckBox {
+            text: Locale.t("Prepare shaders before playing");
+            checked <=> Game.shaders;
+        }
+
+        if Game.requirements-detail != "": Note {
+            text: Game.requirements-detail;
+            font-size: 13px;
+        }
+    }
+}
+
+component SourceText inherits VerticalLayout {
+    in property <bool> compact;
+    spacing: 15px;
+
+    PosterTitle {
+        text: Locale.t("Your copy\nof the game.");
+        font-size: root.compact ? 48px : 72px;
+    }
+
+    FlexboxLayout {
+        spacing-horizontal: 4.5px;
+        cross-axis-alignment: center;
+        padding-bottom: root.compact ? 11px : 17px;
+        accessible-role: text;
+        accessible-label: intro;
+
+        private property <string> intro: Locale.t("Choose your own game file or drop it here. Longshot reads it on this PC and builds a separate PC version.");
+        for word in Game.intro-words(intro): Text {
+            text: word;
+            color: Ink.text;
+            font-size: 18px;
+            accessible-role: none;
+        }
+        Rectangle {
+            width: link.preferred-width;
+            height: max(25px, link.preferred-height);
+            accessible-role: button;
+            accessible-label: Locale.t("System requirements");
+            accessible-action-default => { Game.requirements-link(); }
+            border-width: Ink.focus-visible && link-key.has-focus ? 1px : 0px;
+            border-color: Ink.mustard;
+            forward-focus: link-key;
+            link := StyledText {
+                default-font-size: 15px;
+                link-color: Ink.gold;
+                vertical-alignment: center;
+                text: @markdown("[\{Locale.t("System requirements")} ↗](https://longshot.magicbean.dev/requirements/)");
+            }
+            link-key := Pressable {
+                activate => { Game.requirements-link(); }
+            }
+        }
+    }
+
+    SourcePicker {
+        current: Game.source-path;
+        checked: Game.step == GameStep.settings;
+        verifying: Game.step == GameStep.files && Game.busy;
+        file-error: Game.file-error;
+        enabled: !Game.busy;
+        browse(folder) => { return Game.choose-source(folder); }
+        choose(path) => { return Game.select-source(path); }
+    }
+
+    if Game.step == GameStep.settings && Game.mod-review-needed: Rectangle {
+        background: Ink.raised;
+        border-radius: 8px;
+        height: review.preferred-height;
+        review := HorizontalLayout {
+            padding: 12px;
+            spacing: 10px;
+            cross-axis-alignment: center;
+            Label {
+                text: Locale.t("Mods need your approval");
+                horizontal-stretch: 1;
+                min-width: 0px;
+            }
+            GameAction {
+                text: Locale.t("Review permissions");
+                enabled: !Game.busy && !Game.playing;
+                clicked => { Game.review-mods(); }
+            }
+        }
+    }
+
+    if Game.warning != "": VerticalLayout {
+        padding-top: 10px;
+        padding-bottom: 8px;
+        spacing: 16px;
+
+        Note {
+            text: Game.warning;
+            color: Ink.mustard;
+        }
+
+        CheckBox {
+            text: Locale.t("I want to build and run this commit");
+            checked <=> Game.source-approved;
+        }
+
+        if Game.confirm-number != "": TextField {
+            placeholder-text: Locale.t("Confirm PR number");
+            text <=> Game.typed-number;
+        }
+    }
+    if !Game.busy && Game.status != "": Note {
+        text: Game.status;
+        color: Game.file-error ? #f4a487 : Ink.sand;
+    }
+}
+
+export component FilesStep inherits Rectangle {
+    private property <bool> welcome:Game.step == GameStep.welcome;
+    private property <bool> checked:Game.step == GameStep.settings;
+    private property <{
+        source: string,
+        work: string,
+        tag: string,
+        track: string,
+        release: string,
+        pull: string,
+        approved: bool,
+        typed: string,
+        tools-busy: bool,
+        tools-failed: bool
+    }> check-input: {
+        source:Game.source-path,
+        work:Game.work-folder,
+        tag:Game.install-tag,
+        track:Game.track,
+        release:Game.release-choice,
+        pull:Game.number,
+        approved:Game.source-approved,
+        typed:Game.typed-number,
+        tools-busy:Game.tools-busy,
+        tools-failed:Game.tools-failed
+    };
+    changed check-input => { Game.schedule-check(); }
+    init => { Game.schedule-check(); }
+
+    FocusScope {
+        enabled: !Game.folders-open && Game.license == "" && !Preferences.changing-folder;
+        HorizontalLayout {
+            x: 0px;
+            y: 0px;
+            width: 100%;
+            height: 100%;
+            spacing: 0px;
+
+            Rectangle {
+                width: root.width - Ink.detail-width(root.width);
+                background: Ink.page;
+
+                ScrollView {
+                    VerticalLayout {
+                        alignment: start;
+                        padding: root.width < 960px ? 24px : 52px;
+                        padding-top: root.height < 530px ? 18px : 34px;
+                        spacing: 20px;
+
+                        WizardSteps { }
+
+                        if root.welcome: WelcomeText {
+                            compact: root.width < 1000px;
+                        }
+                        if !root.welcome: SourceText {
+                            compact: root.width < 1000px;
+                        }
+                        if !root.welcome: Options { }
+                    }
+                }
+            }
+
+            SidePanel {
+                horizontal-stretch: 1;
+
+                VerticalLayout {
+                    padding: root.width < 960px ? 18px : 23px;
+                    spacing: 10px;
+
+                    PageList {
+                        VerticalLayout {
+                            alignment: start;
+                            spacing: 10px;
+
+                            Kicker {
+                                text: root.welcome ? Locale.t("BEFORE YOU START") : Locale.t("STEP 2 OF 3");
+                            }
+
+                            PanelTitle {
+                                text: root.welcome ? Locale.t("What you’ll need") : Locale.t("Your build");
+                                font-size: 28px;
+                            }
+
+                            VerticalLayout {
+                                padding-top: root.welcome ? 8px : 0px;
+                                Rule { }
+                            }
+
+                            if root.welcome: VerticalLayout {
+                                spacing: 16px;
+
+                                Need {
+                                    number: "1";
+                                    title: Locale.t("Your own copy of the game");
+                                    detail: Locale.t("A supported game file or extracted romfs and exefs folders. Longshot checks them before building.");
+                                }
+
+                                Rule { }
+
+                                Need {
+                                    number: "2";
+                                    title: Locale.t("Free space for the first build");
+                                    detail: Locale.t(Game.first-build-space);
+                                }
+
+                                Rule { }
+
+                                Need {
+                                    number: "3";
+                                    title: Locale.t("Time for the first build");
+                                    detail: Locale.t("The first build takes the longest. Later updates can reuse the work.");
+                                }
+                            }
+                            if !root.welcome: VerticalLayout {
+                                spacing: 6px;
+
+                                BuildField {
+                                    name: Locale.t("Channel");
+                                    if Game.install-tag != "" || Game.update-target != "": BuildValue {
+                                        value: Locale.t(Game.track);
+                                    }
+                                    if Game.install-tag == "" && Game.update-target == "": Dropdown {
+                                        accessible-label: Locale.t("Channel");
+                                        enabled: !Game.busy;
+                                        model: Game.stable-available ? ["Stable", "Nightly", "Earlier release", "Main", "Pull request"] : ["Nightly", "Earlier release", "Main", "Pull request"];
+                                        current-value <=> Game.track;
+                                        selected(_) => {
+                                            Game.step = GameStep.files;
+                                            Game.warning = "";
+                                            Game.pending-tag = "";
+                                            Game.source-approved = false;
+                                            Game.prepare-tools();
+                                        }
+                                    }
+                                }
+                                BuildField {
+                                    name: Locale.t("Version");
+                                    VersionChoice { }
+                                }
+                                BuildField {
+                                    name: Locale.t("Game file");
+                                    BuildValue {
+                                        value: root.checked ? Locale.t("Verified") : Game.file-error ? Locale.t("Check failed") : Game.source-path == "" ? Locale.t("Choose a file") : Game.busy ? Locale.t("Verifying…") : Locale.t("Waiting for the builder");
+                                        tone: root.checked ? Ink.sage : Game.file-error ? Ink.russet : Ink.sand;
+                                    }
+                                }
+                                if !Game.tools-ready && Game.tools-note != "": Note {
+                                    text: Game.tools-note;
+                                    font-size: 12px;
+                                }
+                                if Game.tools-busy && Game.tools-fraction >= 0: meter := Rectangle {
+                                    height: 4px;
+                                    background: Ink.raised;
+
+                                    Rectangle {
+                                        x: 0px;
+                                        y: 0px;
+                                        width: meter.width * Game.tools-fraction;
+                                        height: 100%;
+                                        background: Ink.sage;
+                                    }
+                                }
+                                if Game.tools-failed: GameAction {
+                                    text: Locale.t("Retry download");
+                                    quiet: true;
+                                    clicked => { Game.prepare-tools(); }
+                                }
+                                if Game.build-space != "": BuildField {
+                                    name: Locale.t("Disk space");
+                                    BuildValue { value: Game.build-space; tone: Game.low-build-space ? #e2776b : Game.space-measured ? Ink.sage : Ink.muted; }
+                                }
+                                if Game.requirements != "": BuildField {
+                                    name: Locale.t("This PC");
+                                    BuildValue { value: Game.requirements; tone: Game.requirements-colour; }
+                                }
+                                HorizontalLayout {
+                                    alignment: start;
+                                    padding-top: 8px;
+                                    GameAction {
+                                        text: Locale.t("Data and cache folders");
+                                        icon: @image-url("icons/folder.svg");
+                                        quiet: true;
+                                        muted: true;
+                                        preferred-height: 30px;
+                                        enabled: Preferences.can-change-folders;
+                                        clicked => { Game.folders-open = true; }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Rule { }
+
+                    VerticalLayout {
+                        padding-top: 8px;
+                        spacing: 10px;
+                        if root.welcome: GameAction {
+                            text: Locale.t("Get started");
+                            primary: true;
+                            clicked => { Game.get-started(); }
+                        }
+                        if root.welcome: GameAction {
+                            text: Locale.t("Continue to Home");
+                            quiet: true;
+                            clicked => { Game.skip-setup(); }
+                        }
+                        if !root.welcome: GameAction {
+                            text: Game.busy && !root.checked ? Locale.t("Verifying…") : Game.file-error ? Locale.t("Try again") : Locale.t("Build Longshot");
+                            primary: true;
+                            enabled: !Game.busy && (root.checked || Game.file-error) && Game.license == "" && !Game.folders-open;
+                            clicked => { if Game.file-error { Game.retry-check(); } else { Game.start(); } }
+                        }
+                        if !root.welcome: GameAction {
+                            text: Locale.t("Back");
+                            quiet: true;
+                            enabled: !Game.busy;
+                            clicked => { if Game.first-run { Game.step = GameStep.welcome; } else { Game.show-home(); } }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+}

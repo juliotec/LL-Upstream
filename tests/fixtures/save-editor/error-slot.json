@@ -1,9 +1,0 @@
-{
-  "schema": 1,
-  "command": "set",
-  "ok": false,
-  "error": {
-    "code": "no_slot",
-    "message": "<save> has no slot_07 (slots: 00, 01, 02, 03, 06)"
-  }
-}

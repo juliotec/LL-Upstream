@@ -8,11 +8,8 @@
 #
 # 1. version: the version's name; a tag is checked first (Tooling's scripts/release.py check-tag: its form, on main, above every
 #    release, and as high as the commits since the last stable call for). A refused tag builds nothing.
-# 2. build: LongshotLauncher-<v>-windows-x64-setup.exe (the program, which offers to install itself), LongshotLauncher-<v>-
-#    windows-x64-portable.zip (the same program and its "portable" file) and LongshotLauncher-<v>-x86_64.AppImage
-#    (scripts/package.sh, on Linux). Each program is started with --self-check before it is kept: the AppImage's by package.sh,
-#    the Windows program's under Wine (there is no Windows runner): a build of it that unpacks itself to disk, since Wine cannot
-#    load the shipped one, which .NET maps from the uncompressed file. Whether the shipped file starts is a Windows tester's.
+# 2. build: Rust builds the Windows setup, portable zip and Linux AppImage. Both shipped programs
+#    run --self-check (the Windows executable under Wine).
 # 3. publish: SHA256SUMS over them, SHA256SUMS.sig (the release key), the notes (git-cliff, cliff.toml), then a draft
 #    release with every file, published last: until then no launcher sees it. A nightly also prunes the nightlies past the
 #    newest 5. Nothing is committed back to the repository.
@@ -61,9 +58,7 @@ jobs:
       - name: Tooling's release.py, at the commit .tooling-rev names
         run: |
           set -euo pipefail
-          git init -q "$RUNNER_TEMP/tooling"
-          git -C "$RUNNER_TEMP/tooling" fetch -q --depth 1 https://git.magicbean.dev/MagicBeanDev/Tooling.git "$(cat .tooling-rev)"
-          git -C "$RUNNER_TEMP/tooling" checkout -q FETCH_HEAD
+          scripts/ci_tooling.sh "$RUNNER_TEMP/tooling"
           echo "RELEASE_PY=$RUNNER_TEMP/tooling/scripts/release.py" >> "$GITHUB_ENV"
       - name: The version's name (a tag checked, or the nightly's)
         id: name
@@ -74,7 +69,7 @@ jobs:
           ref=$(git rev-parse HEAD)
           if [[ $GITHUB_REF == refs/tags/* ]]; then
             tag=${GITHUB_REF#refs/tags/}
-            python3 -I "$RELEASE_PY" check-tag "$tag" --main origin/main
+            python3 -I "$RELEASE_PY" --product launcher check-tag "$tag" --main origin/main
           else
             # (merges in a row build one nightly: the release runs queue one at a time, and a nightly whose commit is still
             # main's waits 5 minutes for more. One whose commit is no longer main's, then or before, skips: the newer one
@@ -88,7 +83,7 @@ jobs:
               fi
               head=$(git rev-parse origin/main)
               if [[ $head != "$ref" ]]; then
-                age=$(python3 -I "$RELEASE_PY" nightly-age) || age=none   # (no answer: it builds)
+                age=$(python3 -I "$RELEASE_PY" --product launcher nightly-age) || age=none   # (no answer: it builds)
                 if [[ $age != none ]] && (( age < 3600 )); then
                   echo "::notice::main has moved on to ${head:0:8}: this nightly skips, the newer one builds"
                   echo "tag=" >> "$GITHUB_OUTPUT"
@@ -102,8 +97,8 @@ jobs:
             # made: the next one comes with what follows. git-cliff decides, as for the notes; no answer: it builds)
             if [[ $GITHUB_EVENT_NAME == push ]]; then
               news=yes
-              if cliff=$(python3 -I "$RELEASE_PY" git-cliff "$RUNNER_TEMP/cliff"); then
-                news=$(GIT_CLIFF=$cliff python3 -I "$RELEASE_PY" nightly-news) || news=yes
+              if cliff=$(python3 -I "$RELEASE_PY" --product launcher git-cliff "$RUNNER_TEMP/cliff"); then
+                news=$(GIT_CLIFF=$cliff python3 -I "$RELEASE_PY" --product launcher nightly-news) || news=yes
               fi
               if [[ $news == no ]]; then
                 echo "::notice::nothing for the notes since the newest nightly (ci: or chore: commits only): no nightly"
@@ -112,7 +107,7 @@ jobs:
                 exit 0
               fi
             fi
-            tag=$(python3 -I "$RELEASE_PY" nightly-name)
+            tag=$(python3 -I "$RELEASE_PY" --product launcher nightly-name)
           fi
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "ref=$ref" >> "$GITHUB_OUTPUT"
@@ -130,61 +125,33 @@ jobs:
         with:
           ref: ${{ needs.version.outputs.ref }}
           persist-credentials: false
-      # (Wine for the check below, about 20 s of apt, installed in the background while package.sh builds; the check waits
-      # for it. Detached (setsid, every descriptor elsewhere), so this step ends at once; its status is written last, by mv)
-      - name: Wine (installed in the background)
+      - name: Release toolchain
         run: |
+          scripts/ci-rust-toolchain.sh
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
           sudo=; [[ $(id -u) == 0 ]] || sudo=sudo
-          # shellcheck disable=SC2016   # (the inner script's $0 and $1 are its own arguments, expanded there)
-          DEBIAN_FRONTEND=noninteractive setsid nohup bash -c '$0 dpkg --add-architecture i386 || true
-            $0 apt-get update -qq && $0 apt-get install -y -qq --no-install-recommends wine wine64
-            echo $? > "$1.tmp" && mv "$1.tmp" "$1.status"' "${sudo:-env}" "$RUNNER_TEMP/wine-apt" \
-            > "$RUNNER_TEMP/wine-apt.log" 2>&1 < /dev/null &
-      # (the release's own cache, of downloads only, each checked by its hash every time it is used, so a cache can cost
-      # a download, never change what is built: the .NET SDK's archive (Microsoft's SHA-512, scripts/ci_dotnet.sh) and
-      # package.sh's appimagetool and runtime (their SHA-256). Restored and saved only by a run of main or a v* tag, on the
-      # release runner; nothing unpacked or compiled is kept, and NuGet's packages are not cached here (docs/ci.md, The
-      # release's cache))
-      - name: Restore the release's downloads
+          $sudo apt-get install -y -qq --no-install-recommends wine wine64
+      - name: Restore checked release tools
         id: downloads
-        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
-        uses: https://github.com/actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        uses: https://github.com/actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
-          path: |
-            ${{ runner.temp }}/dotnet-download
-            .appimagetool
-          key: release-downloads-${{ hashFiles('global.json', 'scripts/ci_dotnet.sh', 'scripts/package.sh') }}
-      - name: The .NET SDK (global.json's)
-        run: scripts/ci_dotnet.sh "$RUNNER_TEMP/dotnet-download" "$RUNNER_TEMP/dotnet"
-      - name: The Windows setup, the portable zip and the AppImage
-        env:
-          WINE_CHECK_EXE: ${{ runner.temp }}/wine-check/LongshotLauncher.exe
-        run: scripts/package.sh "${{ needs.version.outputs.tag }}" dist
-      # (the same code built to unpack itself to disk: Wine cannot load the shipped program, whose code .NET maps from the
-      # uncompressed file, "Incorrect alignment (0x8007046C)". The shipped file is not started here: RELEASING.md)
-      - name: The Windows program starts (--self-check, under Wine)
+          path: .appimagetool
+          key: launcher-tools-${{ hashFiles('scripts/package.sh') }}
+      - name: Build and check the shipping files
         env:
           TAG: ${{ needs.version.outputs.tag }}
+          WINEDEBUG: '-all'
+          APPIMAGE_EXTRACT_AND_RUN: '1'
         run: |
-          # (the background install: its status, and its log when it failed; one that never ends stops here in 10 minutes)
-          echo "waiting for Wine's background install to end (at most 10 minutes)"
-          for _ in $(seq 600); do [[ -f $RUNNER_TEMP/wine-apt.status ]] && break; sleep 1; done
-          status=$(cat "$RUNNER_TEMP/wine-apt.status" 2>/dev/null || echo "no end in 10 minutes")
-          [[ $status == 0 ]] || { cat "$RUNNER_TEMP/wine-apt.log"; echo "::error::Wine's install failed ($status)"; exit 1; }
-          wine=$(command -v wine64 || command -v wine)
-          export WINEDEBUG=-all WINEPREFIX="$RUNNER_TEMP/wine"
-          "$wine" wineboot --init >/dev/null 2>&1 || true
-          out=$("$wine" "$RUNNER_TEMP/wine-check/LongshotLauncher.exe" --self-check | tr -d '\r')
-          echo "$out"
-          grep -qxF "LongshotLauncher $TAG" <<<"$out" || { echo "::error::the Windows launcher does not answer --self-check with $TAG"; exit 1; }
-      - name: Save the release's downloads
-        if: ${{ !cancelled() && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) && steps.downloads.outputs.cache-hit != 'true' }}
-        uses: https://github.com/actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+          scripts/package.sh "$TAG" dist
+          "dist/LongshotLauncher-$TAG-linux-x64.AppImage" --self-check | grep -Fx "LongshotLauncher $TAG"
+          wine "dist/LongshotLauncher-$TAG-windows-x64.exe" --self-check | tr -d '\r' | grep -Fx "LongshotLauncher $TAG"
+      - name: Cache verified downloads
+        if: ${{ success() && github.ref == 'refs/heads/main' && steps.downloads.outputs.cache-hit != 'true' }}
+        uses: https://github.com/actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
-          path: |
-            ${{ runner.temp }}/dotnet-download
-            .appimagetool
-          key: release-downloads-${{ hashFiles('global.json', 'scripts/ci_dotnet.sh', 'scripts/package.sh') }}
+          path: .appimagetool
+          key: launcher-tools-${{ hashFiles('scripts/package.sh') }}
       # (the files through the server's own address first, RELEASE_UPLOAD_API's host on this runner's network, as
       # Longshot's build-linux.yml does: upload-artifact talks to ACTIONS_RESULTS_URL, given here per step, and nothing is
       # recompressed (compression-level 0: the zip and the AppImage are compressed already, and on the server's own
@@ -259,9 +226,7 @@ jobs:
       - name: Tooling's release.py, at the commit .tooling-rev names
         run: |
           set -euo pipefail
-          git init -q "$RUNNER_TEMP/tooling"
-          git -C "$RUNNER_TEMP/tooling" fetch -q --depth 1 https://git.magicbean.dev/MagicBeanDev/Tooling.git "$(cat .tooling-rev)"
-          git -C "$RUNNER_TEMP/tooling" checkout -q FETCH_HEAD
+          scripts/ci_tooling.sh "$RUNNER_TEMP/tooling"
           echo "RELEASE_PY=$RUNNER_TEMP/tooling/scripts/release.py" >> "$GITHUB_ENV"
       # (the launchers from Forgejo's own address, RELEASE_UPLOAD_API on this runner's network, where the artifacts are on
       # its disk: through its public address behind Cloudflare, as download-artifact fetches them, they came at about
@@ -270,7 +235,7 @@ jobs:
       - name: The launchers, from Forgejo's own address
         id: artifacts
         continue-on-error: true
-        run: python3 -I "$RELEASE_PY" artifacts files --run "$GITHUB_RUN_ID" LongshotLauncher
+        run: python3 -I "$RELEASE_PY" --product launcher artifacts files --run "$GITHUB_RUN_ID" LongshotLauncher
       # (from Forgejo's public address behind Cloudflare, as the build jobs' upload: fetched once more when it failed)
       - name: The launchers, from the public address
         id: download_2
@@ -290,6 +255,8 @@ jobs:
         run: |
           git fetch -q --tags origin
           ls -l files
+          cmp "files/LongshotLauncher-$TAG-windows-x64.exe" "files/LongshotLauncher-$TAG-windows-x64-setup.exe"
+          cmp "files/LongshotLauncher-$TAG-linux-x64.AppImage" "files/LongshotLauncher-$TAG-x86_64.AppImage"
           test -f "files/LongshotLauncher-$TAG-windows-x64-setup.exe" && test -f "files/LongshotLauncher-$TAG-windows-x64-portable.zip" \
             && test -f "files/LongshotLauncher-$TAG-x86_64.AppImage"
       - name: seal.key, from the seal broker (a run of main or a v* tag only)
@@ -312,25 +279,25 @@ jobs:
         env:
           SEALED: ${{ secrets.RELEASE_SIGNING_KEY_SEALED }}
         run: |
+          trap 'rm -f -- "$RUNNER_TEMP/key.pem" "$RUNNER_TEMP/seal.key"' EXIT
           [[ -n $SEALED ]] || { echo "::error::no RELEASE_SIGNING_KEY_SEALED secret (RELEASING.md, One-time setup)"; exit 1; }
           [[ -r ${SEAL_KEY:-} ]] || { echo "::error::no seal.key: the step before fetches it from the seal broker"; exit 1; }
-          python3 -I "$RELEASE_PY" sums files/* --out files/SHA256SUMS
+          python3 -I "$RELEASE_PY" --product launcher sums files/* --out files/SHA256SUMS
           umask 077
           # (the key is sealed: only the seal broker's seal.key opens it; the same as Longshot's scripts/ci_secret.sh unseal)
           printf '%s\n' "$SEALED" | openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -md sha256 -a -A -pass "file:$SEAL_KEY" > "$RUNNER_TEMP/key.pem"
-          python3 -I "$RELEASE_PY" sign files/SHA256SUMS --key "$RUNNER_TEMP/key.pem" --out files/SHA256SUMS.sig
-          rm -f "$RUNNER_TEMP/key.pem"
+          python3 -I "$RELEASE_PY" --product launcher sign files/SHA256SUMS --key "$RUNNER_TEMP/key.pem" --out files/SHA256SUMS.sig
           # (checked with the key this launcher is built with, not the one just used: a key it does not trust stops here)
-          python3 -I "$RELEASE_PY" verify files/SHA256SUMS --files files
+          python3 -I "$RELEASE_PY" --product launcher verify files/SHA256SUMS --files files
           cat files/SHA256SUMS
       - name: The notes
         run: |
-          GIT_CLIFF=$(python3 -I "$RELEASE_PY" git-cliff "$RUNNER_TEMP/cliff")
+          GIT_CLIFF=$(python3 -I "$RELEASE_PY" --product launcher git-cliff "$RUNNER_TEMP/cliff")
           export GIT_CLIFF
-          python3 -I "$RELEASE_PY" notes "$TAG" --out notes.md
+          python3 -I "$RELEASE_PY" --product launcher notes "$TAG" --out notes.md
           cat notes.md
       - name: Publish
-        run: python3 -I "$RELEASE_PY" publish "$TAG" --target "$REF" --notes notes.md files/*
+        run: python3 -I "$RELEASE_PY" --product launcher publish "$TAG" --target "$REF" --notes notes.md files/*
       - name: Prune the nightlies
         if: startsWith(needs.version.outputs.tag, 'nightly-')
-        run: python3 -I "$RELEASE_PY" prune --keep 5
+        run: python3 -I "$RELEASE_PY" --product launcher prune --keep 5
