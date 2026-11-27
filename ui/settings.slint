@@ -115,12 +115,13 @@ export component SettingsPage inherits HorizontalLayout {
     private property <bool> show-licenses;
     private property <[{section: SettingsGroup, name: string, summary: string, help: string}]> categories: [
         {section: SettingsGroup.game, name: Locale.t("Game"), summary: Locale.t("Game files and folders"), help: Locale.t("Your original game, Longshot data and build cache.")},
+        {section: SettingsGroup.mods, name: Locale.t("Mods"), summary: Locale.t("Tools for mod makers"), help: Locale.t("Tools for mod makers")},
         {section: SettingsGroup.launcher, name: Locale.t("Launcher"), summary: Locale.t("Language and updates"), help: Locale.t("Language, updates, shortcuts and sharing.")},
         {section: SettingsGroup.storage, name: Locale.t("Storage"), summary: Locale.t("Disk usage and cleanup"), help: Locale.t("Review space used by Longshot on each drive.")},
         {section: SettingsGroup.nfc, name: Locale.t("NFC tags"), summary: Locale.t(Players.can-scan ? "Tag files and controller scans" : "The NFC folder"), help: Locale.t("Drop files or folders here to add your figures to the game's NFC tab.")},
         {section: SettingsGroup.troubleshooting, name: Locale.t("Troubleshooting"), summary: Locale.t("Logs, reports and rebuilds"), help: Locale.t("Fixes to try when something goes wrong, from gentlest to strongest.")}
     ];
-    private property <int> active-index: Preferences.section == SettingsGroup.game ? 0 : Preferences.section == SettingsGroup.launcher ? 1 : Preferences.section == SettingsGroup.storage ? 2 : Preferences.section == SettingsGroup.nfc ? 3 : 4;
+    private property <int> active-index: Preferences.section == SettingsGroup.game ? 0 : Preferences.section == SettingsGroup.mods ? 1 : Preferences.section == SettingsGroup.launcher ? 2 : Preferences.section == SettingsGroup.storage ? 3 : Preferences.section == SettingsGroup.nfc ? 4 : 5;
 
     VerticalLayout {
         width: root.width < 1050px ? 244px : 320px;
@@ -203,6 +204,19 @@ export component SettingsPage inherits HorizontalLayout {
                             spacing: 18px;
                             padding-top: 12px;
                             padding-bottom: 14px;
+                            if Preferences.section == SettingsGroup.mods: HorizontalLayout {
+                                cross-axis-alignment: center;
+                                spacing: 16px;
+                                Hint {
+                                    text: Locale.t("Copy the original game’s RomFS into a folder of your choice.");
+                                    horizontal-stretch: 1;
+                                }
+                                Action {
+                                    label: Locale.t("Extract game RomFS");
+                                    enabled: !Game.busy && !Game.playing && !Game.tools-busy && !Preferences.cleaning;
+                                    clicked => { Preferences.extract-romfs(); }
+                                }
+                            }
                             if Preferences.section == SettingsGroup.game: VerticalLayout {
                                 init => { if Game.windows { Game.check-nvidia-cache(); } if Preferences.linux { Preferences.check-controller-rules(); } }
                                 alignment: start;

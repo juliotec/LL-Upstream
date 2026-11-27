@@ -1875,5 +1875,12 @@
   "Translating the game to PC code": "正在将游戏转换为PC代码",
   "Unsafe": "不安全",
   "Won’t load": "无法加载",
-  "Interrupted folder move": "已中断的文件夹移动"
+  "Interrupted folder move": "已中断的文件夹移动",
+  "Tools for mod makers": "模组制作工具",
+  "Copy the original game’s RomFS into a folder of your choice.": "将原版游戏的 RomFS 复制到你选择的文件夹。",
+  "Extract game RomFS": "提取游戏 RomFS",
+  "Extracting game RomFS…": "正在提取游戏 RomFS…",
+  "RomFS extracted": "RomFS 提取完成",
+  "Could not extract RomFS": "无法提取 RomFS",
+  "Choose a RomFS output folder": "选择 RomFS 输出文件夹"
 }

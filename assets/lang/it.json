@@ -1969,5 +1969,12 @@
   "Translating the game to PC code": "Sto traducendo il gioco in codice PC",
   "Unsafe": "Non sicuro",
   "Won’t load": "Non si caricherà",
-  "Interrupted folder move": "Spostamento della cartella interrotto"
+  "Interrupted folder move": "Spostamento della cartella interrotto",
+  "Tools for mod makers": "Strumenti per creare mod",
+  "Copy the original game’s RomFS into a folder of your choice.": "Copia la RomFS del gioco originale in una cartella a tua scelta.",
+  "Extract game RomFS": "Estrai la RomFS del gioco",
+  "Extracting game RomFS…": "Estrazione della RomFS del gioco…",
+  "RomFS extracted": "RomFS estratta",
+  "Could not extract RomFS": "Impossibile estrarre la RomFS",
+  "Choose a RomFS output folder": "Scegli una cartella di destinazione per la RomFS"
 }

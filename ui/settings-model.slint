@@ -4,7 +4,7 @@ import { Page } from "widgets.slint";
 export struct SettingToggle { key: string, label: string, checked: bool, enabled: bool }
 export struct DiskPart { label: string, size: string, path: string, group: string, cache: string }
 export struct DiskGroup { name: string, size: string, fraction: float, offset: float, tone: color, parts: [DiskPart] }
-export enum SettingsGroup { game, launcher, storage, nfc, troubleshooting }
+export enum SettingsGroup { game, mods, launcher, storage, nfc, troubleshooting }
 export enum FolderStage { idle, review, applying, cancelling }
 export global Preferences {
     in property <FolderStage> folder-stage;
@@ -23,6 +23,14 @@ export global Preferences {
     in property <string> original-game;
     callback choose-source(bool) -> bool;
     callback select-source(string) -> bool;
+    callback extract-romfs();
+    callback cancel-romfs();
+    in-out property <bool> romfs-open;
+    in property <bool> romfs-running;
+    in-out property <bool> romfs-cancelling;
+    in property <float> romfs-progress;
+    in property <string> romfs-destination;
+    in property <string> romfs-error;
     in property <string> data-folder;
     in property <bool> custom-data-folder;
     in-out property <bool> moving-data-folder;

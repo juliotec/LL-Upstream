@@ -1875,5 +1875,12 @@
   "Translating the game to PC code": "게임을 PC 코드로 번역 중",
   "Unsafe": "위험",
   "Won’t load": "로드되지 않음",
-  "Interrupted folder move": "중단된 폴더 이동"
+  "Interrupted folder move": "중단된 폴더 이동",
+  "Tools for mod makers": "모드 제작 도구",
+  "Copy the original game’s RomFS into a folder of your choice.": "원본 게임의 RomFS를 원하는 폴더에 복사합니다.",
+  "Extract game RomFS": "게임 RomFS 추출",
+  "Extracting game RomFS…": "게임 RomFS 추출 중…",
+  "RomFS extracted": "RomFS 추출 완료",
+  "Could not extract RomFS": "RomFS를 추출할 수 없습니다",
+  "Choose a RomFS output folder": "RomFS 출력 폴더 선택"
 }

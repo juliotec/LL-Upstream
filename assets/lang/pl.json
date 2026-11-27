@@ -2016,5 +2016,12 @@
   "Translating the game to PC code": "Przetłumaczanie gry na kod PC",
   "Unsafe": "Niebezpieczne",
   "Won’t load": "Nie będzie ładowane",
-  "Interrupted folder move": "Przerwane przenoszenie folderu"
+  "Interrupted folder move": "Przerwane przenoszenie folderu",
+  "Tools for mod makers": "Narzędzia dla twórców modów",
+  "Copy the original game’s RomFS into a folder of your choice.": "Skopiuj RomFS oryginalnej gry do wybranego folderu.",
+  "Extract game RomFS": "Wypakuj RomFS gry",
+  "Extracting game RomFS…": "Wypakowywanie RomFS gry…",
+  "RomFS extracted": "Wypakowano RomFS",
+  "Could not extract RomFS": "Nie udało się wypakować RomFS",
+  "Choose a RomFS output folder": "Wybierz folder docelowy dla RomFS"
 }

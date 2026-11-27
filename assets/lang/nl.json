@@ -1922,5 +1922,12 @@
   "Translating the game to PC code": "Het spel wordt naar PC-code vertaald",
   "Unsafe": "Onveilig",
   "Won’t load": "Laadt niet",
-  "Interrupted folder move": "Onderbroken mapverplaatsing"
+  "Interrupted folder move": "Onderbroken mapverplaatsing",
+  "Tools for mod makers": "Hulpmiddelen voor modmakers",
+  "Copy the original game’s RomFS into a folder of your choice.": "Kopieer de RomFS van het originele spel naar een map naar keuze.",
+  "Extract game RomFS": "RomFS van het spel uitpakken",
+  "Extracting game RomFS…": "RomFS van het spel uitpakken…",
+  "RomFS extracted": "RomFS uitgepakt",
+  "Could not extract RomFS": "RomFS kon niet worden uitgepakt",
+  "Choose a RomFS output folder": "Kies een doelmap voor RomFS"
 }

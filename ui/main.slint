@@ -9,6 +9,7 @@ import { ModuleDialog } from "build-modules.slint";
 import { StorageReview, StorageReviewDialog } from "storage.slint";
 import { LaunchPage } from "launch.slint";
 import { FolderChangeDialog } from "folder-change.slint";
+import { RomfsDialog } from "romfs-dialog.slint";
 import { Palette } from "std-widgets.slint";
 
 import { Page, Ink, Locale, Action, Kicker, ColourStripe } from "widgets.slint";
@@ -162,10 +163,10 @@ export component MainWindow inherits Window {
     in-out property <string> notice;
     in property <bool> tv-mode;
     in-out property <bool> controller-active;
-    out property <bool> navigation-locked: (root.page == Page.launch && Game.show-log) || (root.page == Page.build && Game.folders-open) || Game.busy || Players.busy || Mods.busy || Preferences.cleaning || Preferences.changing-folder || Updates.applying;
+    out property <bool> navigation-locked: (root.page == Page.launch && Game.show-log) || (root.page == Page.build && Game.folders-open) || Game.busy || Players.busy || Mods.busy || Preferences.cleaning || Preferences.changing-folder || Preferences.romfs-running || Updates.applying;
     out property <bool> modal-open: Updates.channel-prompt || StorageReview.open || Game.mod-trust-review != "" || Mods.review != "" || Game.confirming-removal
         || Game.show-log || Game.folders-open || Game.license != "" || Players.prompt != ""
-        || Preferences.changing-folder || Updates.applying || root.asking-to-stop;
+        || Preferences.changing-folder || Preferences.romfs-open || Updates.applying || root.asking-to-stop;
     private property <bool> shortcuts-available: !root.header-disabled && Shell.popup == Popup.closed && !Game.show-notes && !Updates.show-notes;
     private property <bool> home-shortcuts: root.shortcuts-available && root.page == Page.home;
     private property <length> content-bottom: hints.y;
@@ -459,6 +460,7 @@ export component MainWindow inherits Window {
             stop => { root.stop-confirmed(); }
         }
         if Preferences.changing-folder: FolderChangeDialog { }
+        if Preferences.romfs-open: RomfsDialog { }
         if Updates.applying: Rectangle {
             background: #16100bf2;
 

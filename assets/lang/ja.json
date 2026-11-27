@@ -1875,5 +1875,12 @@
   "Translating the game to PC code": "ゲームを PC コードに翻訳中",
   "Unsafe": "危険",
   "Won’t load": "読み込まれません",
-  "Interrupted folder move": "中断されたフォルダー移動"
+  "Interrupted folder move": "中断されたフォルダー移動",
+  "Tools for mod makers": "Mod 制作者向けツール",
+  "Copy the original game’s RomFS into a folder of your choice.": "元のゲームの RomFS を任意のフォルダーにコピーします。",
+  "Extract game RomFS": "ゲームの RomFS を展開",
+  "Extracting game RomFS…": "ゲームの RomFS を展開中…",
+  "RomFS extracted": "RomFS の展開が完了しました",
+  "Could not extract RomFS": "RomFS を展開できませんでした",
+  "Choose a RomFS output folder": "RomFS の出力先フォルダーを選択"
 }

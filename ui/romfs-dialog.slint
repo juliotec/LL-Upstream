@@ -1,0 +1,53 @@
+import { ModalLayer, ConfirmDialog } from "modal-layer.slint";
+import { Preferences } from "settings-model.slint";
+import { Action, Ink, Locale, ProgressBar } from "widgets.slint";
+import { Note, PanelTitle } from "game-controls.slint";
+
+export component RomfsDialog inherits ModalLayer {
+    init => { action.focus(); }
+    dismissed => { if !Preferences.romfs-running { Preferences.romfs-open = false; } }
+    wrap-focus(_) => { if action.enabled { action.focus(); } else { root.focus(); } }
+
+    ConfirmDialog {
+        viewport-width: root.width;
+        viewport-height: root.height;
+        height: contents.preferred-height;
+
+        contents := VerticalLayout {
+            padding: 24px;
+            spacing: 14px;
+
+            PanelTitle {
+                text: Preferences.romfs-running
+                    ? (Preferences.romfs-cancelling ? Locale.t("Cancelling…") : Locale.t("Extracting game RomFS…"))
+                    : (Preferences.romfs-error == "" ? Locale.t("RomFS extracted") : Locale.t("Could not extract RomFS"));
+            }
+            Note {
+                text: Locale.display-path(Preferences.romfs-destination);
+                wrap: char-wrap;
+            }
+            if Preferences.romfs-running: ProgressBar {
+                fraction: Preferences.romfs-progress;
+            }
+            if Preferences.romfs-error != "": Note {
+                text: Preferences.romfs-error;
+                color: Ink.russet;
+                wrap: char-wrap;
+            }
+            action := Action {
+                label: Preferences.romfs-running ? Locale.t("Cancel") : Locale.t("Close");
+                enabled: !Preferences.romfs-running || !Preferences.romfs-cancelling;
+                primary: !Preferences.romfs-running;
+                clicked => {
+                    if Preferences.romfs-running {
+                        Preferences.romfs-cancelling = true;
+                        Preferences.cancel-romfs();
+                        root.focus();
+                    } else {
+                        Preferences.romfs-open = false;
+                    }
+                }
+            }
+        }
+    }
+}

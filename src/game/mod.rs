@@ -16,6 +16,7 @@ mod releases;
 mod report;
 mod requirements;
 mod reuse;
+mod romfs;
 mod sharing;
 mod source;
 mod steam;

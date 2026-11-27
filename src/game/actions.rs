@@ -64,6 +64,7 @@ impl Bindings {
 
 pub fn bind(ui: &MainWindow, home_dir: PathBuf) -> super::preload::Downloads {
     super::chooser::bind(ui, &home_dir);
+    super::romfs::bind(ui, home_dir.clone());
     let shortcut_home = home_dir.clone();
     thread::spawn(move || {
         if let Err(error) = super::steam::migrate_shortcuts(&shortcut_home) {
