@@ -1,12 +1,20 @@
 #[cfg(target_os = "linux")]
 mod controller_rules;
 mod folders;
-use crate::{Locale, MainWindow, Preferences, SettingToggle, Updates, home, i18n};
+use crate::{Locale, MainWindow, Preferences, SettingToggle, Updates, fsx, home, i18n};
 use anyhow::Result;
 pub(crate) use folders::bind as bind_folders;
 use serde_json::{Value, json};
 use slint::{ComponentHandle, Model, ModelRc, SharedString};
 use std::path::{Path, PathBuf};
+
+fn same_folder(current: &Path, default: &Path) -> bool {
+    current == default
+        || fsx::resolve_path(current)
+            .ok()
+            .zip(fsx::resolve_path(default).ok())
+            .is_some_and(|(current, default)| current == default)
+}
 
 fn model<T: Clone + 'static>(items: Vec<T>) -> ModelRc<T> {
     ModelRc::new(slint::VecModel::from(items))
@@ -123,11 +131,15 @@ pub fn refresh(ui: &MainWindow, root: &Path) -> Result<()> {
     ));
     let data_folder = home::data_folder(root, &data);
     p.set_custom_data_folder(
-        data_folder != root
-            || crate::game::install_root(root, &data) != data_folder.join("versions"),
+        !same_folder(&data_folder, &home::data_folder(root, &Value::Null))
+            || !same_folder(
+                &crate::game::install_root(root, &data),
+                &crate::game::install_root(root, &Value::Null),
+            ),
     );
     p.set_data_folder(data_folder.to_string_lossy().as_ref().into());
     let work = home::work(root, &data);
+    p.set_custom_work_folder(!same_folder(&work, &home::work(root, &Value::Null)));
     p.set_work_folder(work.to_string_lossy().as_ref().into());
     let original_game = crate::players::active_dir(root)?
         .map(|profile| crate::game::original_game(&profile, &data))

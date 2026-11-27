@@ -2,7 +2,7 @@ use super::{
     process::{Cancel, CancelWriter, Context, executable, run},
     versions::{installed, valid_name},
 };
-use crate::{home, update};
+use crate::{fsx, home, update};
 use anyhow::{Context as _, Result, bail, ensure};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -330,11 +330,24 @@ fn copy_prefetch(source: &Path, dest: &Path, tag: &str, cancel: &Cancel) -> Resu
 
 fn download_folder(ctx: &Context, tag: &str) -> Result<PathBuf> {
     ensure!(valid_name(tag), "Invalid release tag.");
-    let folder = ctx.cache.join("downloads").join(tag);
-    ensure!(
-        folder.ancestors().all(|p| !super::versions::linked(p)),
-        "The builder download folder is linked."
-    );
+    let root = ctx.cache.parent().context("Missing cache folder.")?;
+    let cache_name = ctx
+        .cache
+        .file_name()
+        .context("Missing builder cache folder.")?;
+    let root = fsx::resolve_path(root)
+        .with_context(|| format!("Could not open the cache folder {}.", home::display(root)))?;
+    // The configured cache can live at a linked location. The directories the
+    // launcher manages inside it must stay on that resolved path.
+    let mut folder = root;
+    for name in [cache_name, "downloads".as_ref(), tag.as_ref()] {
+        folder.push(name);
+        ensure!(
+            !fsx::linked_location(&folder)?,
+            "The builder cannot download through the folder link at {}. Choose a different cache folder in Data and cache folders.",
+            home::display(&folder)
+        );
+    }
     Ok(folder)
 }
 
@@ -559,6 +572,49 @@ fn install_builder(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn builder_download_resolves_cache_links_but_rejects_managed_folder_links() -> Result<()> {
+        use std::os::unix::fs::symlink;
+
+        let t = tempfile::tempdir()?;
+        let disk = t.path().join("disk");
+        fs::create_dir(&disk)?;
+        let alias = t.path().join("alias");
+        symlink(&disk, &alias)?;
+        let ctx = Context {
+            home: t.path().into(),
+            settings: json!({}),
+            profile: t.path().join("profiles/default"),
+            cache: alias.join("work/longshot-builder"),
+        };
+        let tag = "nightly-20-abcd";
+        let dest = download_folder(&ctx, tag)?;
+        assert_eq!(
+            dest,
+            disk.canonicalize()?
+                .join("work/longshot-builder/downloads")
+                .join(tag)
+        );
+        let exe = release_into_with(
+            &ctx,
+            tag,
+            dest.clone(),
+            &Cancel::default(),
+            &mut |_, _| {},
+            |_, folder, _, _| Ok(fs::write(folder.join(executable()), b"fixture builder")?),
+        )?;
+        assert_eq!(release(&ctx, tag, &Cancel::default(), &mut |_, _| {})?, exe);
+
+        let tag = "nightly-21-abcd";
+        let linked = dest.with_file_name(tag);
+        symlink(&disk, &linked)?;
+        let error = download_folder(&ctx, tag).unwrap_err().to_string();
+        assert!(error.contains(&home::display(&linked)), "{error}");
+        Ok(())
+    }
+
     #[cfg(unix)]
     #[test]
     fn failed_builder_fetch_leaves_the_signed_download_a_clean_destination() -> Result<()> {

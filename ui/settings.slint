@@ -47,7 +47,7 @@ component Folder inherits HorizontalLayout {
         PathHint { path: root.path; }
     }
 
-    if root.key == "work" || (root.key == "dataFolder" && Preferences.custom-data-folder): Action {
+    if (root.key == "work" && Preferences.custom-work-folder) || (root.key == "dataFolder" && Preferences.custom-data-folder): Action {
         quiet: true;
         label: Locale.t("Default");
         enabled: Preferences.can-change-folders;

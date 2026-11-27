@@ -1,6 +1,7 @@
 //! Stage data beside its destination. Copy links as links, preserve executable bits and file times,
 //! and use hard links on the same filesystem to keep large build stores cheap to relocate.
 use crate::fsx::plain;
+pub(super) use crate::fsx::resolve_path as absolute;
 use crate::storage::{hard_link_id, is_link};
 use anyhow::{Context, Result, bail, ensure};
 use std::{
@@ -21,15 +22,6 @@ pub(super) fn exists(path: &Path) -> Result<bool> {
         Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(false),
         Err(e) => Err(e.into()),
     }
-}
-
-pub(super) fn absolute(path: &Path) -> Result<PathBuf> {
-    ensure!(path.is_absolute(), "Choose an absolute folder path.");
-    if exists(path)? {
-        return fs::canonicalize(path).map_err(Into::into);
-    }
-    let parent = path.parent().context("Invalid folder.")?;
-    Ok(absolute(parent)?.join(path.file_name().context("Invalid folder name.")?))
 }
 
 fn relocated_link(

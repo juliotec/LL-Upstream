@@ -3,7 +3,7 @@ use std::{
     borrow::Cow,
     fs::{self, File, OpenOptions, TryLockError},
     io,
-    path::Path,
+    path::{Path, PathBuf},
 };
 
 pub(crate) fn is_link(meta: &fs::Metadata) -> bool {
@@ -23,6 +23,21 @@ pub(crate) fn linked_location(path: &Path) -> io::Result<bool> {
         Ok(meta) => Ok(is_link(&meta)),
         Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(false),
         Err(e) => Err(e),
+    }
+}
+
+/// Resolve links in an absolute path, preserving components that do not exist yet.
+pub(crate) fn resolve_path(path: &Path) -> anyhow::Result<PathBuf> {
+    use anyhow::{Context, ensure};
+
+    ensure!(path.is_absolute(), "Choose an absolute folder path.");
+    match fs::symlink_metadata(path) {
+        Ok(_) => Ok(fs::canonicalize(path)?),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => {
+            let parent = path.parent().context("Invalid folder.")?;
+            Ok(resolve_path(parent)?.join(path.file_name().context("Invalid folder name.")?))
+        }
+        Err(e) => Err(e.into()),
     }
 }
 
