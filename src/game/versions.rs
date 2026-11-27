@@ -34,15 +34,17 @@ impl Version {
     }
 
     fn owns_build(&self, path: &Path) -> bool {
-        let builds = self.folder.join("builds");
-        path.parent().is_some_and(|dir| {
-            dir == builds
-                || (cfg!(windows)
-                    && dir
-                        .canonicalize()
-                        .is_ok_and(|p| builds.canonicalize().ok().as_ref() == Some(&p)))
-        })
+        is_build_in(path, &self.folder.join("builds"))
     }
+}
+
+pub(super) fn is_build_in(path: &Path, builds: &Path) -> bool {
+    path.parent().is_some_and(|dir| {
+        dir == builds
+            || dir
+                .canonicalize()
+                .is_ok_and(|dir| builds.canonicalize().is_ok_and(|builds| dir == builds))
+    })
 }
 pub(super) fn valid_name(name: &str) -> bool {
     !name.is_empty()

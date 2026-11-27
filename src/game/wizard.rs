@@ -605,21 +605,12 @@ fn build_and_register(
 }
 
 /// `folder`, the game folder the builder reported, in the spelling of the version folder `version`, when it is a folder
-/// in that version's `builds`. On Windows the two can name one folder in two spellings: a version folder in a data
-/// folder of its own is reserved verbatim (`\\?\C:\...`) and the builder started from it, but the builder names its
-/// game folder from its own path, which Windows gives plain (Longshot issue 2661). So they are compared as folders on
-/// disk too, as `Version::owns_build` does, and the launcher goes on with its own spelling, the one its registry
-/// lookups use.
+/// in that version's `builds`. A Linux home symlink or a Windows verbatim path can give the builder a different
+/// spelling for the same directory. Keep the launcher's spelling for registry lookups.
 fn built_in(folder: &Path, version: &Path) -> Option<PathBuf> {
     let builds = version.join("builds");
-    let dir = folder.parent()?;
-    let same = dir == builds
-        || (cfg!(windows)
-            && dir
-                .canonicalize()
-                .is_ok_and(|p| builds.canonicalize().ok().as_ref() == Some(&p)));
-    let folder = builds.join(folder.file_name()?);
-    (same && folder.is_dir()).then_some(folder)
+    let registered = builds.join(folder.file_name()?);
+    (versions::is_build_in(folder, &builds) && registered.is_dir()).then_some(registered)
 }
 
 fn run_builder(
@@ -689,6 +680,30 @@ fn run_builder(
 mod tests {
     use super::*;
     use std::{fs, os::unix::fs::PermissionsExt};
+
+    #[test]
+    fn a_build_reported_under_the_real_home_registers_under_the_linked_home() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let real_home = temp.path().join("var/home");
+        let home_link = temp.path().join("home");
+        let version = real_home.join("player/versions/nightly-845-388c9d4b");
+        let game = version.join("builds/default");
+        fs::create_dir_all(&game)?;
+        std::os::unix::fs::symlink(&real_home, &home_link)?;
+        let linked_version = home_link.join("player/versions/nightly-845-388c9d4b");
+        let linked_game = linked_version.join("builds/default");
+
+        assert_eq!(built_in(&game, &linked_version), Some(linked_game.clone()));
+        assert_eq!(built_in(&linked_game, &version), Some(game));
+        assert_eq!(
+            built_in(&version.join("builds/missing"), &linked_version),
+            None
+        );
+        let other = real_home.join("player/versions/nightly-846/builds/default");
+        fs::create_dir_all(&other)?;
+        assert_eq!(built_in(&other, &linked_version), None);
+        Ok(())
+    }
 
     #[test]
     fn updating_an_instance_keeps_an_existing_copy_of_its_target_intact() -> Result<()> {
