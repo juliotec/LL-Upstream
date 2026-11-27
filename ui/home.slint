@@ -134,6 +134,7 @@ export component HomePage inherits Rectangle {
     }
     changed focus-request => { launch.focus(); }
     private property <bool> updating: Game.update-tag != "";
+    private property <bool> can-play-installed: root.updating && root.installed && !Game.playing && Shell.crash-message == "";
     private property <bool> installed: Game.playable;
     private property <bool> compact: self.width < 1120px;
     private property <bool> short-window: self.height < 510px;
@@ -251,13 +252,20 @@ export component HomePage inherits Rectangle {
                         clicked => { if Shell.crash-message != "" { Game.play(); } else if root.updating { Game.update-version(true); } else if root.installed { Game.play(); } else { Game.begin-build(); } }
                     }
 
-                    if root.updating && root.installed && !Game.playing && Shell.crash-message == "": Action {
+                    if root.can-play-installed: Action {
                         horizontal-padding: 26px;
                         height: launch.height;
                         size: 16px;
                         label: Locale.t("Play");
                         enabled: !Game.busy;
                         clicked => { Game.play(); }
+                    }
+                    if root.can-play-installed: Text {
+                        text: Locale.fill(Locale.t("Update to {0}"), Game.update-tag, "");
+                        color: Ink.sand;
+                        font-size: 14px;
+                        min-width: 0px;
+                        wrap: char-wrap;
                     }
                 }
 
