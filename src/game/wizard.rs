@@ -543,10 +543,8 @@ fn build_and_register(
         }
         run_builder(&p, options, settings, cancel, progress, monitor, record)?
     };
-    ensure!(
-        folder.parent() == p.exe.parent().map(|v| v.join("builds")).as_deref() && folder.is_dir(),
-        "The game folder is missing from this version."
-    );
+    let folder =
+        built_in(&folder, destination).context("The game folder is missing from this version.")?;
     if !cfg!(windows) && options.fsr {
         super::upscaler::install_for_build(destination, &folder)?;
     }
@@ -604,6 +602,24 @@ fn build_and_register(
         eprintln!("Build completed, but its temporary files could not be cleaned up: {error}");
     }
     Ok(())
+}
+
+/// `folder`, the game folder the builder reported, in the spelling of the version folder `version`, when it is a folder
+/// in that version's `builds`. On Windows the two can name one folder in two spellings: a version folder in a data
+/// folder of its own is reserved verbatim (`\\?\C:\...`) and the builder started from it, but the builder names its
+/// game folder from its own path, which Windows gives plain (Longshot issue 2661). So they are compared as folders on
+/// disk too, as `Version::owns_build` does, and the launcher goes on with its own spelling, the one its registry
+/// lookups use.
+fn built_in(folder: &Path, version: &Path) -> Option<PathBuf> {
+    let builds = version.join("builds");
+    let dir = folder.parent()?;
+    let same = dir == builds
+        || (cfg!(windows)
+            && dir
+                .canonicalize()
+                .is_ok_and(|p| builds.canonicalize().ok().as_ref() == Some(&p)));
+    let folder = builds.join(folder.file_name()?);
+    (same && folder.is_dir()).then_some(folder)
 }
 
 fn run_builder(
@@ -930,3 +946,47 @@ fi
 
 #[cfg(all(test, unix))]
 mod reuse_tests;
+
+#[cfg(all(test, windows))]
+mod windows_tests {
+    use super::built_in;
+    use anyhow::Result;
+    use std::fs;
+
+    /// Longshot issue 2661: a version folder in a data folder of its own is reserved by its verbatim spelling
+    /// (`\\?\C:\...`) and the builder started from it, but the builder names its game folder from its own path, which
+    /// Windows gives plain.
+    #[test]
+    fn a_game_folder_the_builder_names_plainly_is_in_a_verbatim_version_folder() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let plain = temp.path().join("versions").join("nightly-842-86b3b9e4");
+        let game = plain.join("builds").join("default");
+        fs::create_dir_all(&game)?;
+        let verbatim = fs::canonicalize(&plain)?;
+        assert!(
+            verbatim.to_string_lossy().starts_with(r"\\?\"),
+            "{}",
+            verbatim.display()
+        );
+        // (accepted, and carried on in the version folder's own spelling, the one the registry's lookups use)
+        let in_verbatim = verbatim.join("builds").join("default");
+        assert_eq!(
+            built_in(&game, &verbatim),
+            Some(in_verbatim.clone()),
+            "{} not in {}",
+            game.display(),
+            verbatim.display()
+        );
+        assert_eq!(built_in(&in_verbatim, &plain), Some(game.clone()));
+        assert_eq!(built_in(&game, &plain), Some(game.clone()));
+        // (still refused: a folder that isn't there, and one outside the version's builds)
+        assert_eq!(
+            built_in(&plain.join("builds").join("missing"), &verbatim),
+            None
+        );
+        let other = temp.path().join("elsewhere").join("default");
+        fs::create_dir_all(&other)?;
+        assert_eq!(built_in(&other, &verbatim), None);
+        Ok(())
+    }
+}
