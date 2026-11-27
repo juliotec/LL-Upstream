@@ -550,27 +550,6 @@ export component FilesStep inherits Rectangle {
                                         tone: root.checked ? Ink.sage : Game.file-error ? Ink.russet : Ink.sand;
                                     }
                                 }
-                                if !Game.tools-ready && Game.tools-note != "": Note {
-                                    text: Game.tools-note;
-                                    font-size: 12px;
-                                }
-                                if Game.tools-busy && Game.tools-fraction >= 0: meter := Rectangle {
-                                    height: 4px;
-                                    background: Ink.raised;
-
-                                    Rectangle {
-                                        x: 0px;
-                                        y: 0px;
-                                        width: meter.width * Game.tools-fraction;
-                                        height: 100%;
-                                        background: Ink.sage;
-                                    }
-                                }
-                                if Game.tools-failed: GameAction {
-                                    text: Locale.t("Retry download");
-                                    quiet: true;
-                                    clicked => { Game.prepare-tools(); }
-                                }
                                 if Game.build-space != "": BuildField {
                                     name: Locale.t("Disk space");
                                     BuildValue { value: Game.build-space; tone: Game.low-build-space ? #e2776b : Game.space-measured ? Ink.sage : Ink.muted; }
@@ -590,6 +569,31 @@ export component FilesStep inherits Rectangle {
                                         preferred-height: 30px;
                                         enabled: Preferences.can-change-folders;
                                         clicked => { Game.folders-open = true; }
+                                    }
+                                }
+                                if (!Game.tools-ready && Game.tools-note != "") || Game.tools-busy || Game.tools-failed: VerticalLayout {
+                                    padding-top: 12px;
+                                    spacing: 6px;
+                                    if !Game.tools-ready && Game.tools-note != "": Note {
+                                        text: Game.tools-note;
+                                        font-size: 12px;
+                                    }
+                                    if Game.tools-busy && Game.tools-fraction >= 0: meter := Rectangle {
+                                        height: 4px;
+                                        background: Ink.raised;
+
+                                        Rectangle {
+                                            x: 0px;
+                                            y: 0px;
+                                            width: meter.width * Game.tools-fraction;
+                                            height: 100%;
+                                            background: Ink.sage;
+                                        }
+                                    }
+                                    if Game.tools-failed: GameAction {
+                                        text: Locale.t("Retry download");
+                                        quiet: true;
+                                        clicked => { Game.prepare-tools(); }
                                     }
                                 }
                             }
