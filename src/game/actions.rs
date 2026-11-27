@@ -415,7 +415,11 @@ fn bind_library(game: &Game<'_>, session: &Rc<Bindings>) {
         open::that(v.folder)?;
         Ok(())
     }));
-    game.on_play(session.action(super::mod_review::play));
+    game.on_play(session.action(|ui, home, work| {
+        work.guard().finished_build = None;
+        super::mod_review::play(ui, home, work)
+    }));
+    game.on_play_completed_build(session.action(super::mod_review::play));
     game.on_check_updates(session.action(|window, home, work| {
         check_updates(window, home, work, true);
         Ok(())

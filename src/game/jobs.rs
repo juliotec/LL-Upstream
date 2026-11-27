@@ -231,7 +231,7 @@ fn finish(ui: &MainWindow, state: &SharedWork, home_dir: &Path, result: Result<P
             );
             refresh(ui, home_dir);
             if play && ui.get_page() == crate::Page::Build && !g.get_playing() {
-                g.invoke_play();
+                g.invoke_play_completed_build();
             }
         }
         Err(error) => {
@@ -333,7 +333,7 @@ mod tests {
         let calls = Rc::new(Cell::new(0));
         let plays = calls.clone();
         ui.global::<Game>()
-            .on_play(move || plays.set(plays.get() + 1));
+            .on_play_completed_build(move || plays.set(plays.get() + 1));
         ui.set_page(crate::Page::Build);
         let state = SharedWork::default();
         let requested = |profile: &Path, tag: &str| {

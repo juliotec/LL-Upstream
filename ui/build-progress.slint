@@ -281,7 +281,7 @@ export component BuildProgress inherits Rectangle {
                     text: Locale.t("Play Longshot");
                     primary: true;
                     enabled: !Game.playing;
-                    clicked => { Game.play(); }
+                    clicked => { Game.play-completed-build(); }
                 }
                 if root.done: GameAction {
                     text: Locale.t("Continue to Home");
