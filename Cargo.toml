@@ -1,3 +1,9 @@
+[workspace]
+members = ["ui"]
+
+[workspace.dependencies]
+slint = { version = "=1.19.1", default-features = false, features = ["std", "compat-1-18", "backend-winit", "unstable-winit-030", "renderer-femtovg", "renderer-software"] }
+
 [package]
 name = "longshot-launcher"
 version = "0.1.0"
@@ -13,7 +19,7 @@ path = "src/main.rs"
 anyhow = "1"
 ash = "0.38"
 libc = "0.2"
-base64 = "0.22"
+base64 = "0.23"
 chrono = { version = "0.4", features = ["clock"] }
 crc32fast = "1"
 open = "5"
@@ -27,14 +33,14 @@ gilrs = "0.11"
 image = { version = "0.25", default-features = false, features = ["jpeg"] }
 sha2 = "0.10"
 shlex = "2"
-slint = { version = "=1.19.1", default-features = false, features = ["std", "compat-1-18", "backend-winit", "unstable-winit-030", "renderer-femtovg", "renderer-software", "accessibility"] }
+slint = { workspace = true }
+launcher-ui = { path = "ui" }
 tempfile = "3"
 ureq = "3.5"
 zip = { version = "9.1.2", default-features = false, features = ["deflate"] }
 sysinfo = { version = "0.40", default-features = false, features = ["system"] }
 
 [build-dependencies]
-slint-build = "=1.19.1"
 embed-resource = "3.0.12"
 
 [profile.dev]

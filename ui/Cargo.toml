@@ -1,0 +1,14 @@
+# The launcher's interface (main.slint and what it imports), compiled by Slint into its own crate: a change to the
+# launcher's Rust leaves it compiled, and the release cache keeps it (docs/ci.md, The release's cache).
+[package]
+name = "launcher-ui"
+version = "0.1.0"
+edition = "2024"
+publish = false
+license = "GPL-3.0-or-later"
+
+[dependencies]
+slint = { workspace = true }
+
+[build-dependencies]
+slint-build = "=1.19.1"

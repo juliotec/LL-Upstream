@@ -165,6 +165,12 @@ jobs:
           path: target
           key: release-rust-target-${{ hashFiles('rust-toolchain.toml', 'Cargo.toml') }}-${{ hashFiles('Cargo.lock') }}
           restore-keys: release-rust-target-${{ hashFiles('rust-toolchain.toml', 'Cargo.toml') }}-
+      # (cargo takes a workspace crate's files' times for whether it changed, and the checkout made every file new: files
+      # whose SHA-256 is what the cached build recorded are dated 2000-01-01, so only what changed compiles again, the
+      # interface (launcher-ui, ui/) above all; scripts/ci_source_times.py)
+      - name: The checkout's unchanged files, as the cached build saw them
+        if: steps.rust-target.outputs.cache-matched-key != ''
+        run: python3 -I scripts/ci_source_times.py apply target
       - name: The cached crates, each checked by Cargo.lock's SHA-256
         id: crates
         run: python3 -I scripts/ci_check_crates.py Cargo.lock ~/.cargo/registry/cache
@@ -173,6 +179,9 @@ jobs:
           TAG: ${{ needs.version.outputs.tag }}
         run: scripts/package.sh "$TAG" dist
       # (saved right after the compile, not at the job's end, so a later step that fails still leaves the next run both)
+      - name: The checkout's files, recorded for the next run's build
+        if: (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) && steps.rust-target.outputs.cache-hit != 'true'
+        run: python3 -I scripts/ci_source_times.py record target
       - name: Save the shipped programs' compiled Rust (main's and tags' runs only)
         if: (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) && steps.rust-target.outputs.cache-hit != 'true'
         uses: https://github.com/actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0

@@ -40,7 +40,7 @@ use std::{
     time::Duration,
 };
 
-slint::include_modules!();
+pub use launcher_ui::*;
 
 #[derive(Debug, PartialEq)]
 enum Start {
