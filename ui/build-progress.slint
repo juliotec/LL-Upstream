@@ -26,7 +26,7 @@ component BuildGauge inherits Rectangle {
     private property <bool> done:Game.step == GameStep.ready;
     private property <[color]> colours:[Ink.sage, Ink.sand, Ink.mustard, Ink.russet, #735447];
     for index in [0, 1, 2, 3, 4]: Rectangle {
-        visible: index != 4 || Game.shaders;
+        visible: index != 4 || (Game.stage-fractions.length == 0 ? Game.shaders : Game.stage-fractions.length > 4);
 
         Arc {
             radius: 50 + index * 11;
@@ -43,7 +43,7 @@ component BuildGauge inherits Rectangle {
     Text {
         y: parent.height * 0.65;
         height: parent.height * 0.35;
-        text: root.done ? "100%" : Game.overall >= 0 ? min(99, round(Game.overall * 100)) + "%" : "…";
+        text: root.done ? "100%" : Game.overall >= 0 ? round(Game.overall * 100) + "%" : "…";
         color: Ink.text;
         font-family: "Inter";
         font-weight: 900;

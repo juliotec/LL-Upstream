@@ -1,5 +1,5 @@
-//! Estimate a build using the builder's stage, progress, compile-plan and ETA events.
-//! Translation and compilation scale with worker count; reading and assembly measure disk pace.
+//! Display the builder's plan and total progress. Released builders without those events use the
+//! stage-based forecast for compatibility.
 use crate::{Game, GameStep, MainWindow};
 use serde_json::Value;
 use slint::ComponentHandle;
@@ -25,6 +25,45 @@ const ACTIVE_LABELS: [&str; 5] = [
 ];
 const COMPILE: usize = 2;
 const SHADERS: usize = 4;
+#[derive(Default)]
+pub(super) struct BuilderProgress {
+    pub planned: bool,
+    pub fraction: Option<f64>,
+    until: Option<Instant>,
+}
+
+impl BuilderProgress {
+    pub fn observe(&mut self, event: &Value, now: Instant) {
+        match event["type"].as_str() {
+            Some("build_plan") => {
+                *self = Self {
+                    planned: true,
+                    ..Self::default()
+                };
+            }
+            Some("build_progress") if self.planned => {
+                self.fraction = event["fraction"]
+                    .as_f64()
+                    .filter(|f| (0. ..=1.).contains(f));
+                self.until = event["seconds"]
+                    .as_u64()
+                    .and_then(|s| now.checked_add(Duration::from_secs(s)));
+            }
+            _ => {}
+        }
+    }
+
+    pub fn seconds(&self, now: Instant) -> Option<u64> {
+        self.until
+            .map(|until| until.saturating_duration_since(now).as_secs())
+            .filter(|s| *s > 0)
+    }
+}
+
+pub(super) fn remaining(seconds: u64) -> String {
+    format!("About {} remaining", duration(seconds as f64))
+}
+
 struct StageRow {
     marker: &'static str,
     title: &'static str,
@@ -208,7 +247,7 @@ impl Clock {
             countdown(self.expected(i), now - s.start?)
         }
     }
-    fn view(&mut self, now: f64) -> (Vec<StageRow>, String) {
+    fn view(&mut self, now: f64, estimate: bool) -> (Vec<StageRow>, String) {
         let ran = now - self.begun.unwrap_or(now);
         if !self.settled && ran >= 20. {
             self.settled = ran >= 120.
@@ -227,7 +266,8 @@ impl Clock {
             .filter(|(i, _)| *i != SHADERS || self.shaders)
         {
             let left = self.left(i, now);
-            let showing = self.settled
+            let showing = estimate
+                && self.settled
                 && (i != SHADERS || self.current == Some(i) && self.moving(i).is_some());
             let marker = if s.done {
                 "✓"
@@ -269,7 +309,8 @@ impl Clock {
                 total = total.zip(left).map(|(a, b)| a + b);
             }
         }
-        let eta = if self.settled
+        let eta = if estimate
+            && self.settled
             && let Some(seconds) = total.filter(|n| *n > 0.)
         {
             format!(
@@ -315,6 +356,7 @@ pub(super) fn workers(setting: Option<u64>, available: u32) -> u32 {
 
 pub(super) struct Monitor {
     clock: Clock,
+    builder: BuilderProgress,
     pub stages: super::report::Stages,
     window: Option<slint::Weak<MainWindow>>,
     start: Instant,
@@ -331,6 +373,7 @@ impl Monitor {
         let workers = workers(settings["buildWorkers"].as_u64(), available);
         Self {
             clock: Clock::new(workers, shaders, update),
+            builder: BuilderProgress::default(),
             stages: Default::default(),
             window,
             start: Instant::now(),
@@ -338,8 +381,15 @@ impl Monitor {
         }
     }
     pub fn observe(&mut self, event: Option<&Value>) {
-        let now = self.start.elapsed().as_secs_f64();
+        let at = Instant::now();
+        let now = at.duration_since(self.start).as_secs_f64();
         if let Some(e) = event {
+            self.builder.observe(e, at);
+            if e["type"] == "build_plan"
+                && let Some(stages) = e["stages"].as_array()
+            {
+                self.clock.shaders = stages.iter().any(|stage| stage == "shaders");
+            }
             self.clock.observe(e, now);
             if matches!(e["type"].as_str(), Some("stage" | "progress"))
                 && let Some(id) = e["stage"].as_str()
@@ -348,7 +398,7 @@ impl Monitor {
             }
         }
         let Some(window) = &self.window else { return };
-        if event.is_none_or(|e| e["type"] != "done")
+        if event.is_none_or(|e| !matches!(e["type"].as_str(), Some("done" | "build_plan")))
             && self
                 .last
                 .is_some_and(|last| last.elapsed() < Duration::from_millis(500))
@@ -356,7 +406,7 @@ impl Monitor {
             return;
         }
         self.last = Some(Instant::now());
-        let (rows, eta) = self.clock.view(now);
+        let (rows, mut eta) = self.clock.view(now, !self.builder.planned);
         let fractions: Vec<f32> = self
             .clock
             .samples
@@ -364,15 +414,23 @@ impl Monitor {
             .take(rows.len())
             .map(|s| if s.done { 1. } else { s.fraction as f32 })
             .collect();
-        let expected: Vec<f64> = (0..fractions.len())
-            .map(|i| self.clock.expected(i))
-            .collect();
-        let total = expected.iter().sum::<f64>();
-        let overall = fractions
-            .iter()
-            .zip(expected)
-            .map(|(fraction, weight)| f64::from(*fraction) * weight / total)
-            .sum::<f64>() as f32;
+        let overall = if self.builder.planned {
+            eta = self.builder.seconds(at).map(remaining).unwrap_or_default();
+            self.builder
+                .fraction
+                .map_or(-1., |fraction| fraction as f32)
+        } else {
+            let expected: Vec<f64> = (0..fractions.len())
+                .map(|i| self.clock.expected(i))
+                .collect();
+            let total = expected.iter().sum::<f64>();
+            fractions
+                .iter()
+                .zip(expected)
+                .map(|(fraction, weight)| f64::from(*fraction) * weight / total)
+                .sum::<f64>()
+                .min(0.99) as f32
+        };
         let _ = window.upgrade_in_event_loop(move |window| {
             let g = window.global::<Game>();
             if g.get_step() == GameStep::Building {
@@ -398,25 +456,51 @@ mod tests {
     use super::*;
     use serde_json::json;
     #[test]
+    fn builder_estimate_counts_down_and_expires_until_the_builder_updates_it() {
+        let now = Instant::now();
+        let mut builder = BuilderProgress::default();
+        builder.observe(
+            &json!({"type":"build_plan","stages":["compile","shaders"]}),
+            now,
+        );
+        assert!(builder.planned);
+        assert_eq!(builder.fraction, None);
+        builder.observe(
+            &json!({"type":"build_progress","fraction":0.36,"seconds":60}),
+            now,
+        );
+        builder.observe(&json!({"type":"eta","seconds":5}), now);
+        assert_eq!(builder.fraction, Some(0.36));
+        assert_eq!(builder.seconds(now + Duration::from_secs(30)), Some(30));
+        assert_eq!(builder.seconds(now + Duration::from_secs(60)), None);
+        builder.observe(
+            &json!({"type":"build_progress","fraction":1.0,"seconds":0}),
+            now,
+        );
+        assert_eq!(builder.fraction, Some(1.0));
+        assert_eq!(builder.seconds(now), None);
+    }
+
+    #[test]
     fn forecast_waits_for_evidence_keeps_shader_estimates_separate_and_expires_stale_eta() {
         let mut c = Clock::new(24, true, false);
         c.observe(&json!({"type":"stage","stage":"compile"}), 0.);
         c.observe(&json!({"type":"eta","seconds":22.}), 5.);
-        assert!(c.view(10.).1.is_empty());
-        let (rows, eta) = c.view(20.);
+        assert!(c.view(10., true).1.is_empty());
+        let (rows, eta) = c.view(20., true);
         assert!(eta.contains("before shader preparation"));
         assert!(
             rows.iter()
                 .filter(|row| row.marker == "○")
                 .all(|row| row.detail.is_empty())
         );
-        assert!(c.view(150.).1.is_empty());
+        assert!(c.view(150., true).1.is_empty());
         c.observe(&json!({"type":"stage","stage":"shaders"}), 200.);
         c.observe(
             &json!({"type":"progress","stage":"shaders","fraction":0.5}),
             220.,
         );
-        let (rows, eta) = c.view(220.);
+        let (rows, eta) = c.view(220., true);
         assert!(eta.contains("remaining"));
         assert_eq!(rows[COMPILE].title, "Compile");
         assert_eq!(rows[COMPILE].detail, "done in 3m 20s");

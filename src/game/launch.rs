@@ -115,7 +115,11 @@ fn finished(ui: &MainWindow, home: &Path, steam_opener: bool, result: io::Result
 
 #[derive(Default)]
 struct Rebuild {
+    play_plan: bool,
+    game_started: bool,
+    builder: super::forecast::BuilderProgress,
     started: Option<Instant>,
+    shaders_started: Option<Instant>,
     elapsed: Option<Duration>,
     step: String,
     fraction: Option<f64>,
@@ -124,25 +128,83 @@ struct Rebuild {
 
 impl Rebuild {
     fn observe(&mut self, event: &Value, now: Instant) {
-        match event["type"].as_str() {
-            Some("stage" | "progress") => {
-                self.elapsed = None;
-                let start = *self.started.get_or_insert(now);
-                if let Some(text) = event["text"].as_str().filter(|s| !s.is_empty()) {
-                    self.step = text.to_owned();
-                } else if event["type"] == "stage" || self.step.is_empty() {
-                    self.step = event["stage"].as_str().unwrap_or_default().to_owned();
-                }
-                if let Some(f) = event["overall"].as_f64().filter(|f| *f > 0. && *f < 1.) {
-                    self.fraction = Some(f);
-                    let elapsed = now.duration_since(start).as_secs_f64();
-                    if elapsed >= 1. {
-                        self.eta = deadline(now, elapsed * (1. - f) / f);
-                    }
+        let kind = event["type"].as_str();
+        self.builder.observe(event, now);
+        match kind {
+            Some("play_plan") => {
+                let rebuilding = event["rebuild"].is_string();
+                *self = Self {
+                    play_plan: true,
+                    started: rebuilding.then_some(now),
+                    elapsed: if rebuilding { None } else { self.elapsed },
+                    ..Self::default()
+                };
+            }
+            Some("game_started") => {
+                self.game_started = true;
+                if let Some(started) = self.started.take() {
+                    self.elapsed = Some(now.saturating_duration_since(started));
                 }
             }
-            Some("eta") if self.started.is_some() => {
+            Some("build_plan") => {
+                self.started.get_or_insert(now);
+            }
+            Some("stage" | "progress") if self.builder.planned => {
+                if kind == Some("stage")
+                    && let Some(text) = event["text"].as_str()
+                {
+                    self.step = text.to_owned();
+                }
+            }
+            Some("stage" | "progress") if !self.game_started => {
+                self.elapsed = None;
+                let start = *self.started.get_or_insert(now);
+                if let Some(stage) = event["stage"].as_str() {
+                    let shaders = stage == "shaders";
+                    if shaders != self.shaders_started.is_some() {
+                        self.shaders_started = shaders.then_some(now);
+                        self.fraction = None;
+                        self.eta = None;
+                    }
+                }
+                if let Some(text) = event["text"].as_str().filter(|s| !s.is_empty()) {
+                    self.step = text.to_owned();
+                } else if kind == Some("stage") || self.step.is_empty() {
+                    self.step = event["stage"].as_str().unwrap_or_default().to_owned();
+                }
+                // The builder assigns shaders no share of overall progress and reports them separately.
+                let (fraction, since) = if let Some(shaders_started) = self.shaders_started {
+                    (
+                        event["fraction"]
+                            .as_f64()
+                            .filter(|f| (0. ..=1.).contains(f)),
+                        shaders_started,
+                    )
+                } else {
+                    (
+                        event["overall"].as_f64().filter(|f| *f > 0. && *f < 1.),
+                        start,
+                    )
+                };
+                if let Some(f) = fraction {
+                    self.fraction = Some(if self.shaders_started.is_some() {
+                        f
+                    } else {
+                        f.min(0.99)
+                    });
+                    let elapsed = now.duration_since(since).as_secs_f64();
+                    self.eta = if elapsed >= 1. && f > 0. && f < 1. {
+                        deadline(now, elapsed * (1. - f) / f)
+                    } else {
+                        None
+                    };
+                }
+            }
+            Some("eta") if !self.builder.planned && self.started.is_some() => {
                 self.eta = event["seconds"].as_f64().and_then(|s| deadline(now, s));
+            }
+            Some("done") if self.play_plan && self.builder.planned => {
+                self.step = "Game launching.".into();
             }
             Some("done") => {
                 if let Some(started) = self.started {
@@ -312,16 +374,19 @@ fn wait(
                 ("stderr", &mut output.stderr),
             ] {
                 if let Err(error) = file.drain(exit.is_some(), |text| {
-                    if let Some(log) = &mut transcript
+                    let event = (kind == "stdout" && text.starts_with('{'))
+                        .then(|| serde_json::from_str::<Value>(text).ok())
+                        .flatten()
+                        .filter(|event| event["v"] == 1);
+                    // While playing, keep listening for reloads without recording ordinary game output.
+                    if (!state.game_started || event.is_some())
+                        && let Some(log) = &mut transcript
                         && let Err(error) = log.line(kind, text)
                     {
                         eprintln!("Could not write the local launch log: {error}");
                         transcript = None;
                     }
-                    if kind == "stdout"
-                        && text.starts_with('{')
-                        && let Ok(event) = serde_json::from_str::<Value>(text)
-                    {
+                    if let Some(event) = event {
                         state.observe(&event, now);
                         if event["type"] == "warning" && event["code"] == "mod_needs_import" {
                             let _ = window.upgrade_in_event_loop(|ui| {
@@ -350,30 +415,42 @@ fn wait(
         } else if !rebuilding {
             inhibitor.take();
         }
-        let fraction = state.fraction.map_or(-1., |f| f.min(0.99) as f32);
-        let eta = state
-            .eta
-            .map(|until| until.saturating_duration_since(now).as_secs())
-            .filter(|s| *s > 0);
+        let (fraction, eta) = if state.builder.planned {
+            (state.builder.fraction, state.builder.seconds(now))
+        } else {
+            (
+                state.fraction,
+                state
+                    .eta
+                    .map(|until| until.saturating_duration_since(now).as_secs())
+                    .filter(|s| *s > 0),
+            )
+        };
+        let fraction = fraction.map_or(-1., |f| f as f32);
         let step = state.step.clone();
         let rebuild_seconds = state
             .elapsed
             .map_or(-1, |elapsed| elapsed.as_secs().min(i32::MAX as u64) as i32);
-        if !rebuilding && last_scan.is_none_or(|t| now.duration_since(t) >= Duration::from_secs(1))
+        if !state.play_plan
+            && !state.game_started
+            && !rebuilding
+            && last_scan.is_none_or(|t| now.duration_since(t) >= Duration::from_secs(1))
         {
             last_scan = Some(now);
             if let Some(system) = &mut system
                 && running(system, Pid::from_u32(session.child.id()), &builds)
             {
-                let _ = window.upgrade_in_event_loop(move |ui| {
-                    let game = ui.global::<Game>();
-                    game.set_last_rebuild_seconds(rebuild_seconds);
-                    game.set_launch_phase("running".into());
-                });
-                return session.child.wait();
+                state.game_started = true;
             }
         }
-        let view = (rebuilding, fraction, eta, step, rebuild_seconds);
+        let phase = if state.game_started {
+            "running"
+        } else if rebuilding {
+            "rebuilding"
+        } else {
+            "launching"
+        };
+        let view = (phase, fraction, eta, step, rebuild_seconds);
         if previous.as_ref() != Some(&view) {
             let step = view.3.clone();
             previous = Some(view);
@@ -382,25 +459,22 @@ fn wait(
                 if rebuilding {
                     g.set_last_build_seconds(-1);
                 }
-                g.set_launch_phase(
-                    if rebuilding {
-                        "rebuilding"
-                    } else {
-                        "launching"
-                    }
-                    .into(),
-                );
+                g.set_launch_phase(phase.into());
                 g.set_last_rebuild_seconds(rebuild_seconds);
                 g.set_launch_step(step.into());
                 g.set_launch_fraction(fraction);
                 g.set_launch_eta(
-                    eta.map(|s| format!("About {} remaining", super::forecast::duration(s as f64)))
+                    eta.map(super::forecast::remaining)
                         .unwrap_or_default()
                         .into(),
                 );
             });
         }
-        thread::sleep(Duration::from_millis(200));
+        thread::sleep(Duration::from_millis(if state.game_started {
+            500
+        } else {
+            200
+        }));
     }
 }
 
@@ -483,6 +557,21 @@ mod tests {
             now + Duration::from_secs(5),
         );
         assert_eq!(state.step, "Preparing shaders");
+        assert!(state.fraction.is_none());
+        assert!(state.eta.is_none());
+        state.observe(
+            &json!({"type":"progress","stage":"shaders","fraction":0.25,"overall":1.0}),
+            now + Duration::from_secs(6),
+        );
+        assert_eq!(state.fraction, Some(0.25));
+        assert_eq!(state.eta, Some(now + Duration::from_secs(9)));
+        state.observe(
+            &json!({"type":"progress","stage":"shaders","fraction":1.0,"overall":1.0}),
+            now + Duration::from_secs(7),
+        );
+        assert_eq!(state.fraction, Some(1.0));
+        assert!(state.started.is_some());
+        assert!(state.eta.is_none());
         state.observe(&json!({"type":"done"}), now + Duration::from_secs(7));
         assert!(state.step.is_empty());
         assert!(state.started.is_none());
@@ -493,5 +582,46 @@ mod tests {
         let mut unchanged = Rebuild::default();
         unchanged.observe(&json!({"type":"done"}), now);
         assert!(unchanged.elapsed.is_none());
+    }
+    #[test]
+    fn builder_progress_spans_the_shader_stage_and_game_handoff_on_each_reload() {
+        let start = Instant::now();
+        let mut state = Rebuild::default();
+        let planned = json!({"type":"play_plan","rebuild":"the game asked to build again"});
+        let plan = json!({"type":"build_plan","stages":["read","shaders","start"]});
+        let progress = json!({"type":"build_progress","fraction":0.64,"seconds":40});
+        for offset in [0, 60] {
+            let now = start + Duration::from_secs(offset);
+            state.observe(&planned, now);
+            assert!(!state.game_started);
+            assert_eq!(state.started, Some(now));
+            assert!(state.elapsed.is_none());
+            state.observe(&plan, now);
+            state.observe(
+                &json!({"type":"stage","stage":"shaders","text":"Preparing the shaders"}),
+                now,
+            );
+            state.observe(
+                &json!({"type":"progress","stage":"shaders","fraction":0.25,"overall":1.0}),
+                now,
+            );
+            state.observe(&progress, now);
+            assert_eq!(state.step, "Preparing the shaders");
+            assert_eq!(state.builder.fraction, Some(0.64));
+            assert_eq!(
+                state.builder.seconds(now + Duration::from_secs(10)),
+                Some(30)
+            );
+            state.observe(&json!({"type":"done"}), now + Duration::from_secs(20));
+            assert_eq!(state.started, Some(now));
+            assert!(!state.game_started);
+            state.observe(
+                &json!({"type":"game_started"}),
+                now + Duration::from_secs(22),
+            );
+            assert!(state.game_started);
+            assert!(state.started.is_none());
+            assert_eq!(state.elapsed, Some(Duration::from_secs(22)));
+        }
     }
 }
