@@ -382,7 +382,7 @@ fn rename_result(ui: &MainWindow, result: Result<()>) -> bool {
     }
 }
 
-pub fn bind(ui: &MainWindow, home: PathBuf) -> Result<()> {
+pub fn bind(ui: &MainWindow, home: PathBuf) -> Result<bool> {
     let players = ui.global::<Players>();
     players.set_colours(model(
         profiles::COLORS
@@ -527,13 +527,14 @@ pub fn bind(ui: &MainWindow, home: PathBuf) -> Result<()> {
     });
     initialize(&home)?;
     let migration = migrate_stable(&home);
+    let selected = profiles::apply_startup_profile(&home)?;
     refresh(ui, &home)?;
     if let Err(error) = migration {
         ui.set_notice(
             format!("Could not import saves and mods from the stable launcher. {error:#}").into(),
         );
     }
-    Ok(())
+    Ok(selected)
 }
 
 #[cfg(test)]

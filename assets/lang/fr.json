@@ -1,4 +1,6 @@
 {
+  "Profile on start-up": "Profil au démarrage",
+  "None": "Aucun",
   "Install (Recommended)": "Installer (recommandé)",
   "Install for your account in {0} and open Longshot from your applications menu.": "Installez Longshot pour votre compte dans {0} et ouvrez-le depuis le menu des applications.",
   "Keep the launcher here. Its data and cache go in the Longshot folder beside this download. Move them together to keep your portable setup.": "Gardez le lanceur ici. Le dossier Longshot à côté de ce téléchargement contient ses données et son cache. Déplacez-les ensemble pour conserver votre installation portable.",

@@ -70,6 +70,17 @@ pub fn refresh(ui: &MainWindow, root: &Path) -> Result<()> {
         "System language",
     ))];
     languages.extend(i18n::LANGUAGES.iter().map(|&(_, name)| name.into()));
+    let profiles = ui.global::<crate::Players>().get_profiles();
+    let mut options = vec![i18n::lookup(locale.unwrap_or(system), "None").into()];
+    let mut selected = 0;
+    for row in profiles.iter().filter(|row| !row.damaged) {
+        if data["startupProfile"].as_str() == Some(row.id.as_str()) {
+            selected = options.len() as i32;
+        }
+        options.push(row.name);
+    }
+    p.set_startup_profiles(model(options));
+    p.set_startup_profile_index(selected);
     p.set_languages(model(languages));
     p.set_language_index(
         locale
@@ -211,6 +222,24 @@ pub fn bind(ui: &MainWindow, root: &Path) -> Result<()> {
         .on_display_path(|path| crate::home::display(Path::new(path.as_str())).into());
     crate::storage::cleanup::bind(ui, root);
     i18n::bind_messages(&ui.global::<Locale>());
+    let (weak, path) = (ui.as_weak(), root.to_owned());
+    p.on_choose_startup_profile(move |index| {
+        let Some(ui) = weak.upgrade() else { return };
+        let profiles = ui.global::<crate::Players>().get_profiles();
+        let id = if index == 0 {
+            None
+        } else {
+            let Some(row) = profiles
+                .iter()
+                .filter(|row| !row.damaged)
+                .nth((index - 1) as usize)
+            else {
+                return;
+            };
+            Some(row.id.to_string())
+        };
+        save(&ui, &path, json!({"startupProfile":id}));
+    });
     let (weak, path) = (ui.as_weak(), root.to_owned());
     p.on_language(move |index| {
         if let Some(ui) = weak.upgrade() {

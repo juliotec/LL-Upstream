@@ -294,6 +294,17 @@ export component SettingsPage inherits HorizontalLayout {
                                     }
                                 }
 
+                                OptionRow {
+                                    label: Locale.t("Profile on start-up");
+
+                                    Dropdown {
+                                        accessible-label: Locale.t("Profile on start-up");
+                                        model: Preferences.startup-profiles;
+                                        current-index: Preferences.startup-profile-index;
+                                        selected(_) => { Preferences.choose-startup-profile(self.current-index); }
+                                    }
+                                }
+
                                 if Preferences.linux: OptionRow {
                                     label: Locale.t("Applications menu");
 

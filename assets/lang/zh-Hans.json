@@ -1,4 +1,6 @@
 {
+  "Profile on start-up": "启动时使用的个人资料",
+  "None": "无",
   "Install (Recommended)": "安装（推荐）",
   "Install for your account in {0} and open Longshot from your applications menu.": "将 Longshot 安装到当前账户的 {0}，然后从应用程序菜单启动。",
   "Keep the launcher here. Its data and cache go in the Longshot folder beside this download. Move them together to keep your portable setup.": "将启动器保留在此处。数据和缓存保存在下载文件旁的 Longshot 文件夹中。移动便携版时，请将两者一起移动。",

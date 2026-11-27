@@ -1,4 +1,6 @@
 {
+  "Profile on start-up": "시작 시 프로필",
+  "None": "없음",
   "Install (Recommended)": "설치 (권장)",
   "Install for your account in {0} and open Longshot from your applications menu.": "현재 계정의 {0}에 Longshot을 설치하고 앱 메뉴에서 실행합니다.",
   "Keep the launcher here. Its data and cache go in the Longshot folder beside this download. Move them together to keep your portable setup.": "런처를 여기에 둡니다. 데이터와 캐시는 다운로드한 파일 옆의 Longshot 폴더에 저장됩니다. 휴대용 설치를 옮길 때는 둘을 함께 이동하세요.",

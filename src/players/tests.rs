@@ -550,3 +550,34 @@ fn stable_migration_and_slot_transfers_share_a_profile_lock() -> Result<()> {
     assert!(saves::SaveEdit::begin(&whole).is_ok());
     Ok(())
 }
+
+#[test]
+fn startup_profile_selects_by_id_and_ignores_missing_profiles() -> Result<()> {
+    let temp = tempfile::tempdir()?;
+    let home = temp.path();
+    let data = home.join("library");
+    home::patch_settings(home, &json!({"dataFolder":data,"currentProfile":"default"}))?;
+    initialize(home)?;
+    let other = data.join("profiles/p-12345678");
+    fs::create_dir(&other)?;
+    crate::home::write_json(
+        &other.join("profile.json"),
+        &profiles::default_file("Player Two"),
+    )?;
+    for choice in [Value::Null, json!("p-00000000"), json!("p-12345678")] {
+        home::patch_settings(home, &json!({"startupProfile":choice}))?;
+        assert_eq!(
+            profiles::apply_startup_profile(home)?,
+            choice == "p-12345678"
+        );
+        assert_eq!(
+            home::settings(home)?["currentProfile"],
+            if choice == "p-12345678" {
+                "p-12345678"
+            } else {
+                "default"
+            }
+        );
+    }
+    Ok(())
+}

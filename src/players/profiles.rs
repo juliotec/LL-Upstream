@@ -62,6 +62,20 @@ pub(crate) fn active_dir(home: &Path) -> Result<Option<PathBuf>> {
     Ok(list(home)?.first().map(|row| root.join(&row.id)))
 }
 
+pub(super) fn apply_startup_profile(home: &Path) -> Result<bool> {
+    let settings = home::settings(home)?;
+    if let Some(id) = settings["startupProfile"].as_str()
+        && valid_id(id)
+        && read(&home::data_folder(home, &settings).join("profiles").join(id)).is_ok()
+    {
+        if settings["currentProfile"] != id {
+            home::patch_settings(home, &json!({"currentProfile":id}))?;
+        }
+        return Ok(true);
+    }
+    Ok(false)
+}
+
 pub fn current_dir(home: &Path) -> Result<PathBuf> {
     active_dir(home)?.context("Create a profile first.")
 }

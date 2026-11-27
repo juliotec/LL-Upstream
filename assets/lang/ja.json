@@ -1,4 +1,6 @@
 {
+  "Profile on start-up": "起動時のプロフィール",
+  "None": "なし",
   "Install (Recommended)": "インストール（推奨）",
   "Install for your account in {0} and open Longshot from your applications menu.": "このアカウント用に Longshot を {0} にインストールし、アプリケーションメニューから起動します。",
   "Keep the launcher here. Its data and cache go in the Longshot folder beside this download. Move them together to keep your portable setup.": "ランチャーをこの場所で使います。データとキャッシュはダウンロードしたファイルの隣にある Longshot フォルダーに保存されます。持ち運ぶ際は両方を一緒に移動してください。",

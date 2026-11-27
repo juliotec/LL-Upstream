@@ -1,4 +1,6 @@
 {
+  "Profile on start-up": "Профиль при запуске",
+  "None": "Нет",
   "Install (Recommended)": "Установить (рекомендуется)",
   "Install for your account in {0} and open Longshot from your applications menu.": "Установите Longshot для своей учётной записи в {0} и запускайте его из меню приложений.",
   "Keep the launcher here. Its data and cache go in the Longshot folder beside this download. Move them together to keep your portable setup.": "Оставьте программу запуска здесь. Данные и кэш будут храниться в папке Longshot рядом со скачанным файлом. Перемещайте их вместе, чтобы сохранить переносную установку.",

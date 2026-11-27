@@ -15,6 +15,9 @@ export global Preferences {
     callback apply-folder(bool);
     callback cancel-folder();
     in-out property <SettingsGroup> section: SettingsGroup.game;
+    in property <[string]> startup-profiles;
+    in property <int> startup-profile-index;
+    callback choose-startup-profile(int);
     in property <[string]> languages;
     in property <int> language-index;
     in property <string> launcher-track;

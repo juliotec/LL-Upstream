@@ -177,8 +177,11 @@ fn window(root: PathBuf, folder: Option<PathBuf>) -> Result<()> {
         game::registry::prepare(&root, home::is_portable(&root)),
     );
     preferences::bind(&ui, &root)?;
-    notice(&ui, players::bind(&ui, root.clone()));
-    let choose_profile = ui.global::<Players>().get_profiles().row_count() != 1;
+    let startup_profile = players::bind(&ui, root.clone()).unwrap_or_else(|error| {
+        notice(&ui, Err(error));
+        false
+    });
+    let choose_profile = !startup_profile && ui.global::<Players>().get_profiles().row_count() != 1;
     let pending_folder = std::rc::Rc::new(std::cell::RefCell::new(folder));
     if choose_profile {
         ui.set_page(Page::ChoosePlayer);
