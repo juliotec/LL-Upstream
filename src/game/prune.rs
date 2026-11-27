@@ -184,7 +184,7 @@ fn remove_tools(home: &Path, folder: &Path, retired: bool, expected: &mut Value)
     let Some(base) = folder.parent() else {
         return Ok(());
     };
-    let Ok(guards) = versions::safe_tree(folder) else {
+    let Ok(mut guards) = versions::safe_tree(folder) else {
         return Ok(());
     };
     let lock = fs::OpenOptions::new()
@@ -199,9 +199,10 @@ fn remove_tools(home: &Path, folder: &Path, retired: bool, expected: &mut Value)
         .prefix(".obsolete-")
         .tempdir_in(base)?;
     let staged = quarantine.path().join("version");
-    if fs::rename(folder, &staged).is_err() {
+    guards.push(lock);
+    let Ok(guards) = versions::stage_for_removal(folder, &staged, guards) else {
         return Ok(());
-    }
+    };
     let publish = (|| -> Result<()> {
         ensure!(
             only_tools(&staged, retired)? && (!retired || is_retired(&staged)),
@@ -230,7 +231,6 @@ fn remove_tools(home: &Path, folder: &Path, retired: bool, expected: &mut Value)
         return Err(error);
     }
     drop(guards);
-    drop(lock);
     quarantine.close()?;
     super::library::forget_moved_version(home, folder);
     Ok(())

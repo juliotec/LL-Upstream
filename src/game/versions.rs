@@ -600,6 +600,7 @@ pub(super) fn overlaps_private(folder: &Path, sources: &[PathBuf]) -> Result<boo
     }))
 }
 pub(super) fn delete(home_dir: &Path, version: &Version) -> Result<()> {
+    let _library = super::move_lease(home_dir)?;
     players::ensure_idle()?;
     delete_when_idle(home_dir, version)
 }
@@ -634,7 +635,8 @@ pub(super) fn delete_when_idle(home_dir: &Path, version: &Version) -> Result<()>
         .prefix(".removing-")
         .tempdir_in(parent)?;
     let staged = quarantine.path().join(&version.tag);
-    fs::rename(&version.folder, &staged).context("The version folder is in use.")?;
+    let guards = stage_for_removal(&version.folder, &staged, guards)
+        .context("Could not move the version folder before removal")?;
     if let Err(e) = crate::game::registry::write(home_dir, &data) {
         // Retain the entire staged folder if a concurrent mover prevents rollback.
         if fs::rename(&staged, &version.folder).is_err() {
@@ -653,9 +655,53 @@ pub(super) fn delete_when_idle(home_dir: &Path, version: &Version) -> Result<()>
     Ok(())
 }
 
+pub(super) fn stage_for_removal(
+    folder: &Path,
+    staged: &Path,
+    mut guards: Vec<home::FileLease>,
+) -> std::io::Result<Vec<home::FileLease>> {
+    // Windows refuses to move a directory while files inside it are open.
+    // Check the leases first, then let the rename reject any remaining opens.
+    if cfg!(windows) {
+        guards.clear();
+    }
+    fs::rename(folder, staged)?;
+    Ok(guards)
+}
+
 #[cfg(test)]
 mod removal {
     use super::*;
+    #[test]
+    fn removes_an_idle_version_with_a_builder_lock_file() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let home = temp.path();
+        let folder = home.join("versions/nightly-1");
+        crate::game::fake_version(&folder)?;
+        let build = folder.join("builds/default");
+        let lock = build.join(".longshot-builder.lock");
+        let guard = home::FileLease::try_acquire(
+            fs::File::create(&lock)?,
+            crate::fsx::LockMode::Exclusive,
+        )?;
+        register(home, "nightly-1", home, &build, &[], None)?;
+        let version = installed(home)?.pop().unwrap();
+        let before = registry(home)?;
+        let error = delete_when_idle(home, &version).unwrap_err();
+        assert_eq!(
+            error.to_string(),
+            "This version is being used by a builder."
+        );
+        assert!(build.is_dir());
+        assert_eq!(registry(home)?, before);
+
+        drop(guard);
+        delete_when_idle(home, &version)?;
+        assert!(!folder.exists());
+        assert!(registry(home)?["builds"].as_array().unwrap().is_empty());
+        Ok(())
+    }
+
     #[test]
     fn preserves_saves_held_inside_a_version() -> Result<()> {
         let temp = tempfile::tempdir()?;
