@@ -1,4 +1,6 @@
 {
+  "Checking files…": "파일 확인 중…",
+  "Removed {0} of {1} files": "파일 {1}개 중 {0}개 삭제됨",
   "Profile on start-up": "시작 시 프로필",
   "None": "없음",
   "Install (Recommended)": "설치 (권장)",

@@ -148,10 +148,14 @@ impl Plan {
 
     #[cfg(test)]
     fn execute(&self, root: &Path) -> Result<()> {
-        self.execute_with_progress(root, |_| {})
+        self.execute_with_progress(root, |_, _| {})
     }
 
-    fn execute_with_progress(&self, root: &Path, mut progress: impl FnMut(f32)) -> Result<()> {
+    fn execute_with_progress(
+        &self,
+        root: &Path,
+        mut progress: impl FnMut(usize, usize),
+    ) -> Result<()> {
         let _lease = game::move_lease(root)?;
         let groups: BTreeSet<_> = self
             .files
@@ -211,6 +215,8 @@ impl Plan {
                 }
             }
         }
+        let total = self.files.len();
+        progress(0, total);
         for (index, (path, file)) in self.files.iter().enumerate() {
             let meta = fs::symlink_metadata(path)?;
             ensure!(
@@ -223,7 +229,7 @@ impl Plan {
                 "A file changed. Review the cleanup again."
             );
             super::Removal::File.execute(path)?;
-            progress((index + 1) as f32 / self.files.len() as f32);
+            progress(index + 1, total);
         }
         Ok(())
     }
@@ -327,7 +333,8 @@ pub(crate) fn bind(ui: &MainWindow, root: &Path, snapshot: Arc<Mutex<Option<supe
             let choices = selected(&prefs);
             prefs.set_cleaning(true);
             prefs.set_reclaim_running(confirm);
-            prefs.set_reclaim_progress(0.);
+            prefs.set_reclaim_total(0);
+            prefs.set_reclaim_removed(0);
             if !confirm {
                 prefs.set_reclaim_categories(Default::default());
                 prefs.set_reclaim_list("".into());
@@ -346,13 +353,17 @@ pub(crate) fn bind(ui: &MainWindow, root: &Path, snapshot: Arc<Mutex<Option<supe
                             ensure!(!choices.is_empty(), "Select files to clean up.");
                             plan.select(choices);
                         }
-                        let mut last_percent = 0;
-                        plan.execute_with_progress(&root, |fraction| {
-                            let percent = (fraction * 100.) as u32;
-                            if percent > last_percent {
-                                last_percent = percent;
+                        let mut last_update = std::time::Instant::now();
+                        plan.execute_with_progress(&root, |removed, total| {
+                            if removed <= 1
+                                || removed == total
+                                || last_update.elapsed() >= std::time::Duration::from_millis(100)
+                            {
+                                last_update = std::time::Instant::now();
                                 let _ = weak.upgrade_in_event_loop(move |ui| {
-                                    ui.global::<Preferences>().set_reclaim_progress(fraction)
+                                    let prefs = ui.global::<Preferences>();
+                                    prefs.set_reclaim_total(total as i32);
+                                    prefs.set_reclaim_removed(removed as i32);
                                 });
                             }
                         })?;

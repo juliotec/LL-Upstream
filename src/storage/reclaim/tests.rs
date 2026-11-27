@@ -168,7 +168,12 @@ fn reclaims_only_owned_obsolete_outputs_and_keeps_sources_backups_and_unknown_ne
             path.display()
         );
     }
-    plan.execute(&root)?;
+    let mut counts = Vec::new();
+    plan.execute_with_progress(&root, |removed, total| {
+        assert_eq!(total, plan.files.len());
+        counts.push(removed);
+    })?;
+    assert_eq!(counts, (0..=plan.files.len()).collect::<Vec<_>>());
     assert!(
         !runtime.exists()
             && !obj.exists()

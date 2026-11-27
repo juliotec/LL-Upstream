@@ -1,4 +1,6 @@
 {
+  "Checking files…": "Проверка файлов…",
+  "Removed {0} of {1} files": "Удалено файлов: {0} из {1}",
   "Profile on start-up": "Профиль при запуске",
   "None": "Нет",
   "Install (Recommended)": "Установить (рекомендуется)",

@@ -72,7 +72,8 @@ export global Preferences {
     callback reclaim-build-files(bool, string, string);
     in property <[SettingToggle]> reclaim-categories;
     in property <bool> reclaim-running;
-    in property <float> reclaim-progress;
+    in property <int> reclaim-removed;
+    in property <int> reclaim-total;
     in property <bool> reclaim-selected: true;
     callback toggle-reclaim(int, bool);
     in property <string> reclaim-folder;

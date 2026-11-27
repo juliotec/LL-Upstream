@@ -71,6 +71,18 @@ impl Scan {
             return Ok(());
         }
         let actual = path.canonicalize()?;
+        let meta = fs::symlink_metadata(path)?;
+        self.record(actual, &meta, group, lock, stable_game)
+    }
+
+    fn record(
+        &mut self,
+        actual: PathBuf,
+        meta: &fs::Metadata,
+        group: &Path,
+        lock: Option<&Path>,
+        stable_game: Option<&Path>,
+    ) -> Result<()> {
         if self.protected.iter().any(|p| overlap(p, &actual))
             || self
                 .stable
@@ -79,8 +91,7 @@ impl Scan {
         {
             return Ok(());
         }
-        let meta = fs::symlink_metadata(path)?;
-        let Some(identity) = storage::file_identity(path, &meta) else {
+        let Some(identity) = storage::file_identity(&actual, meta) else {
             return Ok(());
         };
         self.plan.files.insert(
@@ -186,8 +197,16 @@ impl Scan {
     fn generated_tree(&mut self, dir: &Path, group: &Path, stable: Option<&Path>) -> Result<()> {
         let mut folders = vec![dir.to_owned()];
         while let Some(folder) = folders.pop() {
-            for path in children(&folder)? {
-                let meta = fs::symlink_metadata(&path)?;
+            if !direct(&folder) || !players::is_dir(&folder) {
+                continue;
+            }
+            // Each entry is one child of this verified directory. Resolve the parent
+            // once per directory and reuse the entry metadata for the review record.
+            let actual = folder.canonicalize()?;
+            for entry in fs::read_dir(&actual)? {
+                let entry = entry?;
+                let path = entry.path();
+                let meta = entry.metadata()?;
                 if storage::is_link(&meta) {
                     continue;
                 }
@@ -208,9 +227,13 @@ impl Scan {
                 if meta.is_dir() {
                     folders.push(path);
                 } else if meta.is_file() {
-                    self.add(&path, group, None, stable)?;
+                    self.record(path, &meta, group, None, stable)?;
                 }
             }
+            anyhow::ensure!(
+                direct(&folder) && folder.canonicalize()? == actual,
+                "A generated folder changed. Review the cleanup again."
+            );
         }
         Ok(())
     }

@@ -1,4 +1,6 @@
 {
+  "Checking files…": "正在檢查檔案…",
+  "Removed {0} of {1} files": "已移除 {0}/{1} 個檔案",
   "Profile on start-up": "啟動時使用的個人檔案",
   "None": "無",
   "Install (Recommended)": "安裝（建議）",

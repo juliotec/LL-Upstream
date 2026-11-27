@@ -1,4 +1,6 @@
 {
+  "Checking files…": "Sprawdzanie plików…",
+  "Removed {0} of {1} files": "Usunięte pliki: {0} z {1}",
   "Profile on start-up": "Profil przy uruchomieniu",
   "None": "Brak",
   "Install (Recommended)": "Zainstaluj (zalecane)",

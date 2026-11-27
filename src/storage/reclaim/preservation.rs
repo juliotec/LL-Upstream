@@ -270,6 +270,13 @@ fn old_extraction_requires_its_original_and_can_be_cleaned_in_parts() -> Result<
         b"unpacked by this builder: fixture.nup 4",
     )?;
     write(&old.join("romfs/assets/scene"), b"scene")?;
+    #[cfg(unix)]
+    {
+        let personal = tmp.path().join("personal");
+        write(&personal.join("keep.bin"), b"keep")?;
+        std::os::unix::fs::symlink(&personal, old.join("romfs/linked-folder"))?;
+        std::os::unix::fs::symlink(personal.join("keep.bin"), old.join("romfs/linked-file"))?;
+    }
     write(&old.join("romfs/save/keep.sav"), b"save")?;
     write(&old.join(".longshot_exefs/main"), b"code")?;
     let rom = super::Scope::Folder(old.clone(), "Extracted RomFS".into());
@@ -285,6 +292,8 @@ fn old_extraction_requires_its_original_and_can_be_cleaned_in_parts() -> Result<
             .contains_key(&old.join(".longshot_exefs/main").canonicalize()?)
     );
     all.execute(&home)?;
+    #[cfg(unix)]
+    assert_eq!(fs::read(tmp.path().join("personal/keep.bin"))?, b"keep");
     assert_eq!(fs::read(package)?, b"game");
     assert_eq!(fs::read(old.join("romfs/save/keep.sav"))?, b"save");
     Ok(())

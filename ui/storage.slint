@@ -377,8 +377,11 @@ export component StorageReviewDialog inherits ModalLayer {
                 if Preferences.reclaim-running: VerticalLayout {
                     height: self.preferred-height;
                     spacing: 6px;
-                    Note { text: Locale.t("Cleaning up") + " · " + round(Preferences.reclaim-progress * 100) + "%"; }
-                    ProgressBar { fraction: Preferences.reclaim-progress; }
+                    Note {
+                        text: Preferences.reclaim-total == 0 ? Locale.t("Checking files…")
+                            : Locale.fill(Locale.t("Removed {0} of {1} files"), "\{Preferences.reclaim-removed}", "\{Preferences.reclaim-total}");
+                    }
+                    ProgressBar { fraction: Preferences.reclaim-total == 0 ? -1 : Preferences.reclaim-removed / Preferences.reclaim-total; }
                 }
                 Rule { }
 
