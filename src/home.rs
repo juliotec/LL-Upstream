@@ -716,7 +716,10 @@ mod tests {
 
 /// A local path as shown to the player. Filesystem operations retain the original path.
 pub fn display(path: &Path) -> String {
-    abbreviate_home(path, std::env::home_dir().as_deref())
+    let path = crate::fsx::plain(path);
+    let home = std::env::home_dir();
+    let home = home.as_deref().map(crate::fsx::plain);
+    abbreviate_home(path.as_ref(), home.as_deref())
         .to_string_lossy()
         .into_owned()
 }

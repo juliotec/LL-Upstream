@@ -9,6 +9,8 @@ component VersionCell inherits Rectangle {
     clip: true;
 
     if root.heading: Kicker {
+        x: 0px;
+        width: parent.width;
         text: root.heading-text;
         vertical-alignment: center;
         overflow: elide;
@@ -24,7 +26,7 @@ export component VersionEntry inherits Rectangle {
     in property <bool> header;
     private property <bool> compact: self.width < 640px;
     private property <bool> selected: !root.header && root.index == Game.selected;
-    private property <string> status-text: root.entry.update == "" ? Locale.t(root.entry.status) : Locale.fill(Locale.t("Update to {0}"), "\n" + root.entry.update, "");
+    private property <string> status-text: Locale.t(root.entry.status);
     height: header ? 28px : 60px;
     background: selected ? Ink.raised : transparent;
     border-width: header ? 0 : 1px;
@@ -79,7 +81,7 @@ export component VersionEntry inherits Rectangle {
 
         VersionCell {
             height: root.height;
-            width: root.compact ? 72px : 80px;
+            width: 90px;
             heading: root.header;
             heading-text: Locale.t("CHANNEL");
             if !root.header: Rectangle {
@@ -103,7 +105,7 @@ export component VersionEntry inherits Rectangle {
 
         if !root.compact: VersionCell {
             height: root.height;
-            width: 100px;
+            width: 186px;
             heading: root.header;
             heading-text: Locale.t("STATUS");
             if !root.header: Text {
@@ -112,7 +114,7 @@ export component VersionEntry inherits Rectangle {
                 width: parent.width;
                 height: parent.height;
                 horizontal-alignment: left;
-                text: root.status-text;
+                text: root.entry.update == "" ? root.status-text : root.status-text + "\n" + root.entry.update;
                 color: root.entry.update == "" ? Ink.sage : Ink.gold;
                 font-size: 13px;
                 vertical-alignment: center;
@@ -121,7 +123,7 @@ export component VersionEntry inherits Rectangle {
         }
         VersionCell {
             height: root.height;
-            width: 65px;
+            width: 100px;
             heading: root.header;
             heading-text: Locale.t("SIZE");
             if !root.header: Text {
@@ -138,23 +140,24 @@ export component VersionEntry inherits Rectangle {
             }
         }
 
-        Rectangle {
+        actions := HorizontalLayout {
             height: root.height;
-            width: root.compact ? 65px : 145px;
-            if !root.header: HorizontalLayout {
-                alignment: end;
-                cross-axis-alignment: center;
-                spacing: 5px;
-                if root.entry.update != "" && !root.compact: GameAction {
-                    text: Locale.t("Update");
-                    enabled: !Game.busy;
-                    clicked => { Game.select-version(root.index); Game.update-version(false); }
-                }
-                GameAction {
-                    text: Locale.t("Play");
-                    enabled: !Game.busy && !Game.playing;
-                    clicked => { Game.select-version(root.index); Game.play(); }
-                }
+            width: self.min-width;
+            alignment: end;
+            cross-axis-alignment: center;
+            spacing: 5px;
+            // Reserve the same measured space in the header and every row.
+            if !root.compact: GameAction {
+                text: Locale.t("Update");
+                visible: !root.header && root.entry.update != "";
+                enabled: self.visible && !Game.busy;
+                clicked => { Game.select-version(root.index); Game.update-version(false); }
+            }
+            GameAction {
+                text: Locale.t("Play");
+                visible: !root.header;
+                enabled: self.visible && !Game.busy && !Game.playing;
+                clicked => { Game.select-version(root.index); Game.play(); }
             }
         }
     }

@@ -7,7 +7,6 @@ import { PageList } from "scroll-view.slint";
 import { Ink, Locale, PageTitle } from "widgets.slint";
 import { Game, GameStep, VersionRow } from "game-model.slint";
 import {
-    FooterAction,
     GameAction,
     PanelTitle,
     Note,
@@ -157,32 +156,43 @@ export component VersionsPage inherits Rectangle {
                 padding-bottom: 24px;
                 spacing: 12px;
 
-                HorizontalLayout {
-                    cross-axis-alignment: center;
-                    spacing: 8px;
+                header := Rectangle {
+                    private property <bool> stacked: self.width < title.preferred-width + actions.preferred-width + 8px;
+                    height: self.stacked ? title.height + 8px + actions.height : max(title.height, actions.height);
 
-                    PageTitle {
+                    title := PageTitle {
+                        x: 0px;
+                        y: header.stacked ? 0px : (header.height - self.height) / 2;
+                        width: header.stacked ? header.width : header.width - actions.width - 8px;
                         page-width: root.width;
                         text: Locale.t("Versions");
-                        horizontal-stretch: 1;
                     }
 
-                    add-button := GameAction {
-                        private property <int> restore: Shell.restore-focus;
-                        changed restore => { if Shell.opener == Popup.track { self.focus(); } }
-                        text: "+ " + Locale.t("Add version") + "  ⌄";
-                        enabled: !Game.busy;
-                        clicked => {
-                            Shell.anchor-x = self.absolute-position.x + self.width;
-                            Shell.anchor-y = self.absolute-position.y + self.height;
-                            Shell.popup = Popup.track;
+                    actions := HorizontalLayout {
+                        x: header.width - self.width;
+                        y: header.stacked ? title.height + 8px : (header.height - self.height) / 2;
+                        width: self.preferred-width;
+                        height: self.preferred-height;
+                        cross-axis-alignment: center;
+                        spacing: 8px;
+
+                        add-button := GameAction {
+                            private property <int> restore: Shell.restore-focus;
+                            changed restore => { if Shell.opener == Popup.track { self.focus(); } }
+                            text: "+ " + Locale.t("Add version") + "  ⌄";
+                            enabled: !Game.busy;
+                            clicked => {
+                                Shell.anchor-x = self.absolute-position.x + self.width;
+                                Shell.anchor-y = self.absolute-position.y + self.height;
+                                Shell.popup = Popup.track;
+                            }
                         }
-                    }
 
-                    GameAction {
-                        text: Game.checking ? Locale.t("Checking") : Locale.t("Check for updates");
-                        enabled: !Game.busy && !Game.checking && Game.version-rows.length > 0;
-                        clicked => { Game.check-updates(); }
+                        GameAction {
+                            text: Game.checking ? Locale.t("Checking") : Locale.t("Check for updates");
+                            enabled: !Game.busy && !Game.checking && Game.version-rows.length > 0;
+                            clicked => { Game.check-updates(); }
+                        }
                     }
                 }
 
@@ -354,17 +364,19 @@ export component VersionsPage inherits Rectangle {
                         clicked => { Game.play(); }
                     }
 
-                    if Game.selected >= 0: HorizontalLayout {
+                    if Game.selected >= 0: FlexboxLayout {
                         spacing: 8px;
 
-                        FooterAction {
+                        GameAction {
+                            horizontal-stretch: 1;
                             text: Game.steam-shortcut-present ? Locale.t("Remove from Steam") : Locale.t("Add to Steam");
                             enabled: !Game.busy;
                             compact: root.width < 1050px;
                             clicked => { Game.steam-shortcut(Game.steam-shortcut-present); }
                         }
 
-                        FooterAction {
+                        GameAction {
+                            horizontal-stretch: 1;
                             text: Locale.t("Remove");
                             danger: true;
                             compact: root.width < 1050px;
