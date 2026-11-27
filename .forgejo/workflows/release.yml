@@ -118,40 +118,92 @@ jobs:
     needs: version
     if: needs.version.outputs.tag != ''
     runs-on: release  # (a release's build: only the runners kept for them take it, Longshot's docs/forgejo-runners.md)
-    timeout-minutes: 45
+    timeout-minutes: 60  # (as Longshot's: a cold compile, after a Rust or Cargo.toml change, is the long one)
     steps:
       - name: Check out the version's commit
         uses: https://github.com/actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.version.outputs.ref }}
           persist-credentials: false
-      - name: Release toolchain
+      # (Wine for the --self-check below, installed in the background while package.sh compiles; the check waits for it.
+      # Detached (setsid, every descriptor elsewhere), so this step ends at once; its status is written last, by mv)
+      - name: Release toolchain, Wine in the background
         run: |
           scripts/ci-rust-toolchain.sh
           echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
           sudo=; [[ $(id -u) == 0 ]] || sudo=sudo
-          $sudo apt-get install -y -qq --no-install-recommends wine wine64
-      - name: Restore checked release tools
+          # shellcheck disable=SC2016   # (the inner script's $0 and $1 are its own arguments, expanded there)
+          DEBIAN_FRONTEND=noninteractive setsid nohup bash -c '$0 apt-get install -y -qq --no-install-recommends wine wine64
+            echo $? > "$1.tmp" && mv "$1.tmp" "$1.status"' "${sudo:-env}" "$RUNNER_TEMP/wine-apt" \
+            > "$RUNNER_TEMP/wine-apt.log" 2>&1 < /dev/null &
+      # (the release's own cache, of downloads only, as Longshot's build-linux.yml: Cargo.lock's .crate files (each checked
+      # against Cargo.lock's SHA-256 before the build, scripts/ci_check_crates.py: cargo checks only what it downloads) and package.sh's appimagetool and runtime (their SHA-256), so
+      # whoever saved it can't change what is built. Read and written only by a run of main or a v* tag; another
+      # Cargo.lock restores the newest entry)
+      - name: Restore the release's downloads
         id: downloads
-        uses: https://github.com/actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+        uses: https://github.com/actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: .appimagetool
-          key: launcher-tools-${{ hashFiles('scripts/package.sh') }}
-      - name: Build and check the shipping files
+          path: |
+            ~/.cargo/registry/cache
+            .appimagetool
+          key: release-downloads-${{ hashFiles('Cargo.lock', 'scripts/package.sh') }}-${{ github.run_id }}
+          restore-keys: |
+            release-downloads-${{ hashFiles('Cargo.lock', 'scripts/package.sh') }}-
+            release-downloads-
+      # (the compiled Rust of the two shipped programs: cargo's target folder, both targets, kept for trusted runs only
+      # (a run of main or a v* tag, on the release runner), by the pinned Rust and Cargo.toml (its profiles), then
+      # Cargo.lock; another Cargo.lock restores the newest entry of the same Rust and Cargo.toml. Unlike the downloads, what
+      # it holds is not checked again, the weaker guarantee Longshot chose for the time (its docs/dev/reference/ci.md, The
+      # release's cache): cold, the two compiles passed 45 minutes on the release runner's 2 cores)
+      - name: Restore the shipped programs' compiled Rust (main's and tags' runs only)
+        id: rust-target
+        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+        uses: https://github.com/actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: target
+          key: release-rust-target-${{ hashFiles('rust-toolchain.toml', 'Cargo.toml') }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: release-rust-target-${{ hashFiles('rust-toolchain.toml', 'Cargo.toml') }}-
+      - name: The cached crates, each checked by Cargo.lock's SHA-256
+        id: crates
+        run: python3 -I scripts/ci_check_crates.py Cargo.lock ~/.cargo/registry/cache
+      - name: Build the shipping files
+        env:
+          TAG: ${{ needs.version.outputs.tag }}
+        run: scripts/package.sh "$TAG" dist
+      # (saved right after the compile, not at the job's end, so a later step that fails still leaves the next run both)
+      - name: Save the shipped programs' compiled Rust (main's and tags' runs only)
+        if: (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) && steps.rust-target.outputs.cache-hit != 'true'
+        uses: https://github.com/actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: target
+          key: release-rust-target-${{ hashFiles('rust-toolchain.toml', 'Cargo.toml') }}-${{ hashFiles('Cargo.lock') }}
+      - name: Save the release's downloads
+        # (saved under this run's key when the entry restored was another Cargo.lock's or none, or the check above removed
+        # a crate: a repaired entry replaces the bad one, the newest being what the next run restores)
+        if: >-
+          (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) &&
+          (!startsWith(steps.downloads.outputs.cache-matched-key, format('release-downloads-{0}-', hashFiles('Cargo.lock', 'scripts/package.sh')))
+           || steps.crates.outputs.removed != '0')
+        uses: https://github.com/actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/cache
+            .appimagetool
+          key: release-downloads-${{ hashFiles('Cargo.lock', 'scripts/package.sh') }}-${{ github.run_id }}
+      - name: Both shipped programs start (--self-check, the Windows one under Wine)
         env:
           TAG: ${{ needs.version.outputs.tag }}
           WINEDEBUG: '-all'
           APPIMAGE_EXTRACT_AND_RUN: '1'
         run: |
-          scripts/package.sh "$TAG" dist
           "dist/LongshotLauncher-$TAG-linux-x64.AppImage" --self-check | grep -Fx "LongshotLauncher $TAG"
+          # (the background install: its status, and its log when it failed; one that never ends stops here in 10 minutes)
+          for _ in $(seq 600); do [[ -f $RUNNER_TEMP/wine-apt.status ]] && break; sleep 1; done
+          status=$(cat "$RUNNER_TEMP/wine-apt.status" 2>/dev/null || echo "no end in 10 minutes")
+          [[ $status == 0 ]] || { cat "$RUNNER_TEMP/wine-apt.log"; echo "::error::Wine's install failed ($status)"; exit 1; }
           wine "dist/LongshotLauncher-$TAG-windows-x64.exe" --self-check | tr -d '\r' | grep -Fx "LongshotLauncher $TAG"
-      - name: Cache verified downloads
-        if: ${{ success() && github.ref == 'refs/heads/main' && steps.downloads.outputs.cache-hit != 'true' }}
-        uses: https://github.com/actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-        with:
-          path: .appimagetool
-          key: launcher-tools-${{ hashFiles('scripts/package.sh') }}
       # (the files through the server's own address first, RELEASE_UPLOAD_API's host on this runner's network, as
       # Longshot's build-linux.yml does: upload-artifact talks to ACTIONS_RESULTS_URL, given here per step, and nothing is
       # recompressed (compression-level 0: the zip and the AppImage are compressed already, and on the server's own
