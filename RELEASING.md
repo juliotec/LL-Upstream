@@ -32,8 +32,9 @@ Examples below select the launcher explicitly. When working in Longshot, select 
 
 ## The commands
 
-Everything is Tooling's `scripts/release.py` (one file for both repositories; run it from this repository's root, and CI
-clones Tooling at the commit `.tooling-rev` names), and for Longshot's tools `scripts/tools.py`.
+Everything is Tooling's `scripts/release.py` (one file for both repositories; run it from this repository's root. Longshot's
+CI clones Tooling at the commit `.tooling-rev` names, the launcher's releases the one [MagicBeanAdmin/Release](https://git.magicbean.dev/MagicBeanAdmin/Release)'s
+`tooling-rev` names), and for Longshot's tools `scripts/tools.py`.
 `release.py next` and `notes` need git-cliff:
 
 ```sh
@@ -47,14 +48,18 @@ The remote is called `forge` here (`forge.py login`, MagicBeanDev/Tooling's, set
 
 ## A nightly
 
-Nothing to do: every push to `main` (every merged pull request) runs `release.yml`. It builds, signs, and publishes
-`nightly-<count>-<commit>` as a pre-release, then deletes the nightlies past the newest 5.
+Nothing to do. Longshot: every push to `main` (every merged pull request) runs `release.yml`. The launcher:
+[`launcher.yml`](https://git.magicbean.dev/MagicBeanAdmin/Release/src/branch/main/.forgejo/workflows/launcher.yml) in MagicBeanAdmin/Release looks every 5 minutes, and releases `main` once it has been still
+for 5 minutes (hourly while merges keep coming). Either builds, signs, and publishes `nightly-<count>-<commit>` as a
+pre-release, then deletes the nightlies past the newest 5.
 
 **If one fails:**
 
-1. Open the run (repository > *Actions* > *Release*) and read the failed step.
+1. Open the run and read the failed step: Longshot's under its *Actions* > *Release*, the launcher's under
+   [MagicBeanAdmin/Release's *Actions* > *Launcher*](https://git.magicbean.dev/MagicBeanAdmin/Release/actions).
 2. If the problem is in the code, fix it in a pull request; its merge makes the next nightly. If it was the runner or the
-   network, use *Re-run* on the run.
+   network, use *Re-run* on the run (Longshot), or *Run workflow* with **publish** on (the launcher: its schedule does
+   not retry a release that failed).
 3. A failed run may leave a **draft** release named after the nightly. Players never see drafts. The next successful run
    of the same commit reuses it; otherwise delete it from *Releases*.
 
@@ -91,7 +96,7 @@ nightly channel is where the next version is tried). There is no release candida
    Or in the web UI: *Releases* > *New release*. Type the tag (`v3.1.0`), choose the target commit, and press
    **Create tag** (the tag only). Do not *Publish release* or *Save draft*: CI makes the release itself, and a release
    made by hand would have none of the files.
-4. **What CI does** (`release.yml`): it checks the tag (`check-tag`: its form, on `main`, above every release, as high as the
+4. **What CI does** (Longshot's `release.yml`; for the launcher [`launcher.yml`](https://git.magicbean.dev/MagicBeanAdmin/Release/src/branch/main/.forgejo/workflows/launcher.yml), within 5 minutes of the tag): it checks the tag (`check-tag`: its form, on `main`, above every release, as high as the
    commits call for). It builds both systems' files, writes and signs `SHA256SUMS`, checks the signature with the key the
    launcher trusts, writes the notes with git-cliff (every change since the previous stable), uploads everything to a
    draft, and publishes it. The page has a header above the notes: the launcher's links its own files; Longshot's sends
@@ -132,7 +137,7 @@ Players should not get a version that breaks:
 
 ## When CI refuses a tag
 
-The *version* step of `release.yml` says why. Nothing was built. Delete the tag (`git push forge :refs/tags/<tag>` and
+The *version* step of Longshot's `release.yml` says why; for the launcher, a warning of the *What to release* job. Nothing was built. Delete the tag (`git push forge :refs/tags/<tag>` and
 `git tag -d <tag>`, or *Tags* > delete in the web UI), then:
 
 | The error says | Do |
@@ -200,7 +205,8 @@ theirs. Packages are never pruned, so older versions' tools stay downloadable.
 
 ## Rotate the key
 
-When the key may have leaked, or on a schedule:
+When the key may have leaked, or on a schedule. The launcher's releases read it, unsealed, from MagicBeanAdmin/Release's
+secret `RELEASE_SIGNING_KEY`: replace that one too in step 3.
 
 1. `python -I ../Tooling/scripts/release.py --product launcher keygen <safe folder>` makes `release.pem` and `release.pub.pem` and prints the lines.
 2. **The launcher first.** Add the new public key to `assets/keys/release_keys.json`, beside the old one, and
@@ -217,7 +223,9 @@ anything.
 
 ## One-time setup
 
-None of this is done yet. In order (the org secret is shared by both repositories):
+The launcher's releases need two secrets in [MagicBeanAdmin/Release](https://git.magicbean.dev/MagicBeanAdmin/Release): `RELEASE_SIGNING_KEY`, `release.pem` as it
+is, and `PUBLISH_TOKEN`, a token that writes this repository. Don't protect `nightly-*` tags here: the prune deletes
+them. The rest, in order, is Longshot's (the org secret and the variables are its own):
 
 1. **The key.** On a PC you trust: `python -I ../Tooling/scripts/release.py --product launcher keygen <safe folder>`. Put the printed line in the launcher's
    `assets/keys/release_keys.json` and in Longshot's `scripts/release_keys.json` (a pull request to each). Keep `release.pem` backed

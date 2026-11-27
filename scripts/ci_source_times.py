@@ -1,4 +1,5 @@
-"""Let a restored cargo target folder see the checkout's unchanged files as unchanged (release.yml).
+"""Let a restored cargo target folder see the checkout's unchanged files as unchanged (the release build,
+MagicBeanAdmin/Release's launcher.yml).
 
 Cargo decides that a workspace crate (the launcher, launcher-ui) is up to date by its files' times, and a fresh checkout
 makes every file new, so every run would compile the interface again (about 2 minutes of 2 cores' time, the most of a
