@@ -119,6 +119,10 @@ jobs:
     if: needs.version.outputs.tag != ''
     runs-on: release  # (a release's build: only the runners kept for them take it, Longshot's docs/forgejo-runners.md)
     timeout-minutes: 60  # (as Longshot's: a cold compile, after a Rust or Cargo.toml change, is the long one)
+    outputs:
+      rust-key: ${{ steps.rust-save.outcome == 'success' && steps.rust-cache.outputs.key || '' }}
+      rust-sha256: ${{ steps.rust-pack.outputs.sha256 }}
+      rust-sig-key: ${{ steps.rust-cache.outputs.sig-key }}
     steps:
       - name: Check out the version's commit
         uses: https://github.com/actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -152,24 +156,61 @@ jobs:
           restore-keys: |
             release-downloads-${{ hashFiles('Cargo.lock', 'scripts/package.sh') }}-
             release-downloads-
-      # (the compiled Rust of the two shipped programs: cargo's target folder, both targets, kept for trusted runs only
-      # (a run of main or a v* tag, on the release runner), by the pinned Rust and Cargo.toml (its profiles), then
-      # Cargo.lock; another Cargo.lock restores the newest entry of the same Rust and Cargo.toml. Unlike the downloads, what
-      # it holds is not checked again, the weaker guarantee Longshot chose for the time (its docs/dev/reference/ci.md, The
-      # release's cache): cold, the two compiles passed 45 minutes on the release runner's 2 cores)
-      - name: Restore the shipped programs' compiled Rust (main's and tags' runs only)
-        id: rust-target
+      # (the compiled Rust of the two shipped programs: cargo's target folder, both targets, as one archive, used only when
+      # signed by the release cache key (scripts/ci_release_cache.py): the newest signature for this Rust and Cargo.toml
+      # (rust-toolchain.toml and its profiles) first, then the archive it names, unpacked only when the signature holds
+      # against scripts/release_cache_key.pub.pem. The build holds no secret: the cache-sign job signs. An entry anyone else
+      # saved costs a cold build, never a different program; cold, the two compiles passed 45 minutes on the release
+      # runner's 2 cores. Off until the public key is committed. Main's and tags' runs only)
+      - name: Whether the compiled Rust is cached (the release cache key's public half committed)
+        id: rust-cache
         if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+        run: |
+          if [[ -f scripts/release_cache_key.pub.pem ]]; then
+            {
+              echo "on=true"
+              echo "prefix=release-rust-target-${{ hashFiles('rust-toolchain.toml', 'Cargo.toml') }}-"
+              echo "key=release-rust-target-${{ hashFiles('rust-toolchain.toml', 'Cargo.toml') }}-${{ hashFiles('Cargo.lock') }}-${{ github.run_id }}"
+              echo "sig-key=release-rust-sig-${{ hashFiles('rust-toolchain.toml', 'Cargo.toml') }}-${{ github.run_id }}"
+            } >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::no scripts/release_cache_key.pub.pem: the compiled Rust is not cached (docs/ci.md)"
+          fi
+      - name: Restore the newest signature for this Rust and Cargo.toml
+        if: steps.rust-cache.outputs.on == 'true'
         uses: https://github.com/actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: target
-          key: release-rust-target-${{ hashFiles('rust-toolchain.toml', 'Cargo.toml') }}-${{ hashFiles('Cargo.lock') }}
-          restore-keys: release-rust-target-${{ hashFiles('rust-toolchain.toml', 'Cargo.toml') }}-
+          path: ${{ runner.temp }}/rust-sig
+          key: release-rust-sig-${{ hashFiles('rust-toolchain.toml', 'Cargo.toml') }}-${{ github.run_id }}
+          restore-keys: release-rust-sig-${{ hashFiles('rust-toolchain.toml', 'Cargo.toml') }}-
+      - name: The archive it names
+        id: rust-entry
+        if: steps.rust-cache.outputs.on == 'true'
+        run: echo "key=$(python3 -I scripts/ci_release_cache.py entry "$RUNNER_TEMP/rust-sig" "${{ steps.rust-cache.outputs.prefix }}")" >> "$GITHUB_OUTPUT"
+      - name: Restore that archive
+        if: steps.rust-entry.outputs.key != ''
+        uses: https://github.com/actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/rust-target.tar
+          key: ${{ steps.rust-entry.outputs.key }}
+      - name: Its signature checked, then unpacked (a cold build otherwise)
+        id: rust-target
+        if: steps.rust-cache.outputs.on == 'true'
+        run: |
+          set +e
+          python3 -I scripts/ci_release_cache.py check scripts/release_cache_key.pub.pem "$RUNNER_TEMP/rust-sig" \
+            "$RUNNER_TEMP/rust-target.tar" "${{ steps.rust-cache.outputs.prefix }}" target
+          case $? in
+            0) echo "hit=true" >> "$GITHUB_OUTPUT" ;;
+            3) echo "hit=false" >> "$GITHUB_OUTPUT" ;;
+            *) exit 1 ;;
+          esac
       # (cargo takes a workspace crate's files' times for whether it changed, and the checkout made every file new: files
-      # whose SHA-256 is what the cached build recorded are dated 2000-01-01, so only what changed compiles again, the
-      # interface (launcher-ui, ui/) above all; scripts/ci_source_times.py)
+      # whose SHA-256 is what the cached build recorded (in the signed archive) are dated 2000-01-01, so only what changed
+      # compiles again, the interface (launcher-ui, ui/) above all; scripts/ci_source_times.py)
       - name: The checkout's unchanged files, as the cached build saw them
-        if: steps.rust-target.outputs.cache-matched-key != ''
+        id: source-times
+        if: steps.rust-target.outputs.hit == 'true'
         run: python3 -I scripts/ci_source_times.py apply target
       - name: The cached crates, each checked by Cargo.lock's SHA-256
         id: crates
@@ -178,16 +219,26 @@ jobs:
         env:
           TAG: ${{ needs.version.outputs.tag }}
         run: scripts/package.sh "$TAG" dist
-      # (saved right after the compile, not at the job's end, so a later step that fails still leaves the next run both)
-      - name: The checkout's files, recorded for the next run's build
-        if: (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) && steps.rust-target.outputs.cache-hit != 'true'
-        run: python3 -I scripts/ci_source_times.py record target
-      - name: Save the shipped programs' compiled Rust (main's and tags' runs only)
-        if: (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) && steps.rust-target.outputs.cache-hit != 'true'
+      # (packed and saved right after the compile, unless it was this Cargo.lock's signed entry already and no file of the
+      # checkout changed since, so a later step that fails still leaves the next run its compile, and a change compiled
+      # once is not compiled again by every later run; cache-sign signs it once this job ends)
+      - name: Pack the compiled Rust
+        id: rust-pack
+        if: >-
+          steps.rust-cache.outputs.on == 'true' &&
+          !(steps.rust-target.outputs.hit == 'true' && steps.source-times.outputs.changed == '0' &&
+            startsWith(steps.rust-entry.outputs.key, format('release-rust-target-{0}-{1}-', hashFiles('rust-toolchain.toml', 'Cargo.toml'), hashFiles('Cargo.lock'))))
+        # (the checkout's files' SHA-256 recorded into the target folder first, so they are packed and signed with it)
+        run: |
+          python3 -I scripts/ci_source_times.py record target
+          echo "sha256=$(python3 -I scripts/ci_release_cache.py pack target "$RUNNER_TEMP/rust-target.tar")" >> "$GITHUB_OUTPUT"
+      - name: Save it, unsigned until cache-sign signs it
+        id: rust-save
+        if: steps.rust-pack.outputs.sha256 != ''
         uses: https://github.com/actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: target
-          key: release-rust-target-${{ hashFiles('rust-toolchain.toml', 'Cargo.toml') }}-${{ hashFiles('Cargo.lock') }}
+          path: ${{ runner.temp }}/rust-target.tar
+          key: ${{ steps.rust-cache.outputs.key }}
       - name: Save the release's downloads
         # (saved under this run's key when the entry restored was another Cargo.lock's or none, or the check above removed
         # a crate: a repaired entry replaces the bad one, the newest being what the next run restores)
@@ -259,6 +310,54 @@ jobs:
           name: LongshotLauncher
           path: dist/LongshotLauncher-*
           if-no-files-found: error
+
+  # (signs the compiled Rust the build just cached, so a later build unpacks it (scripts/ci_release_cache.py). It runs no
+  # code of the checkout or of any crate, and checks nothing out: only the build job's archive key and SHA-256, openssl,
+  # and seal.key from the seal broker, which opens RELEASE_CACHE_KEY_SEALED (an Ed25519 private key). On the release
+  # runner, whose cache the build reads (forgejo-runner's cache is per runner). The build never holds the key: crates'
+  # build scripts run there, and a job with enable-openid-connect could ask the broker for seal.key itself)
+  cache-sign:
+    name: Sign the compiled Rust's cache
+    needs: build
+    if: needs.build.outputs.rust-key != '' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    runs-on: release
+    enable-openid-connect: true   # (the ID token the seal broker checks: this job and publish only)
+    timeout-minutes: 10
+    env:
+      SEAL_BROKER_PIN: ${{ vars.SEAL_BROKER_PIN }}
+      KEY: ${{ needs.build.outputs.rust-key }}
+      SHA256: ${{ needs.build.outputs.rust-sha256 }}
+    steps:
+      - name: The signature
+        env:
+          SEALED: ${{ secrets.RELEASE_CACHE_KEY_SEALED }}
+        run: |
+          umask 077
+          trap 'rm -f -- "$RUNNER_TEMP/cache-key.pem" "$RUNNER_TEMP/seal.key"' EXIT
+          [[ -n $SEALED ]] || { echo "::error::no RELEASE_CACHE_KEY_SEALED secret (docs/ci.md, The release's cache)"; exit 1; }
+          [[ $KEY =~ ^release-rust-target-[0-9a-f]{64}-[0-9a-f]{64}-[0-9]+$ && $SHA256 =~ ^[0-9a-f]{64}$ ]] ||
+            { echo "::error::not a release cache entry: $KEY $SHA256"; exit 1; }
+          case $ACTIONS_ID_TOKEN_REQUEST_URL in *\?*) sep='&' ;; *) sep='?' ;; esac
+          idt=$(curl -fsS -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}${sep}audience=magicbean-seal-broker" | jq -r '.value // empty')
+          [[ -n $idt ]] || { echo "::error::no ID token: this job needs enable-openid-connect: true"; exit 1; }
+          # (as publish's: the broker's key pinned, seal.key for runs of main and v* tags only)
+          curl -sS -k --pinnedpubkey "sha256//$SEAL_BROKER_PIN" --fail-with-body -X POST \
+            -H "Authorization: Bearer $idt" -o "$RUNNER_TEMP/seal.key" https://magicbean-seal-broker:8443/seal-key ||
+            { echo "::error::the seal broker gave no key"; exit 1; }
+          printf '%s\n' "$SEALED" | openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -md sha256 -a -A \
+            -pass "file:$RUNNER_TEMP/seal.key" > "$RUNNER_TEMP/cache-key.pem"
+          mkdir -p "$RUNNER_TEMP/rust-sig"
+          # (scripts/ci_release_cache.py's message: the same three lines, which check rebuilds)
+          printf 'longshot-launcher release-rust-target v1\n%s\n%s\n' "$KEY" "$SHA256" > "$RUNNER_TEMP/msg"
+          openssl pkeyutl -sign -inkey "$RUNNER_TEMP/cache-key.pem" -rawin -in "$RUNNER_TEMP/msg" -out "$RUNNER_TEMP/rust-sig/sig"
+          printf '%s\n' "$KEY" > "$RUNNER_TEMP/rust-sig/entry"
+          echo "signed $KEY ($SHA256)"
+      - name: Save the signature
+        uses: https://github.com/actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/rust-sig
+          key: ${{ needs.build.outputs.rust-sig-key }}
 
   publish:
     name: Sign and publish

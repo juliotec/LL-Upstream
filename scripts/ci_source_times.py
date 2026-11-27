@@ -8,7 +8,7 @@ every other file new, so cargo compiles again exactly the crates whose files cha
 dates: a commit merged with an older date than the cached build must still be compiled.
 
   record <target dir>    tracked files' SHA-256, to <target dir>/source-hashes.json
-  apply  <target dir>    unchanged files dated 2000-01-01
+  apply  <target dir>    unchanged files dated 2000-01-01 (and `changed=<count>` to $GITHUB_OUTPUT, in a job)
 
 Python's standard library and git only.
 """
@@ -54,6 +54,9 @@ def main(argv: list[str]) -> int:
                 else:
                     changed += 1
             print(f"{same} files unchanged since the cached build (dated 2000-01-01), {changed} new or changed")
+            if os.environ.get("GITHUB_OUTPUT"):
+                with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as out:
+                    out.write(f"changed={changed}\n")
         case _:
             print(__doc__, file=sys.stderr)
             return 2
