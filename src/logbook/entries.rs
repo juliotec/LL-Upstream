@@ -91,12 +91,7 @@ fn text_entry(time: &str, source: &str, text: &str) -> LogEntry {
             return entry(time, level, source, text);
         }
     }
-    entry(
-        time,
-        if source == "launcher" { "INFO" } else { "OUT" },
-        source,
-        text,
-    )
+    entry(time, "INFO", source, text)
 }
 
 // The builder also emits a detail line giving unit size, elapsed seconds and total compile time.
@@ -189,7 +184,39 @@ impl Reader {
             match kind {
                 "stage" => return self.stage(time, stage, body),
                 // Fine-grained progress and estimates already have live gauges. Keep every event on disk.
-                "progress" | "eta" | "fetch_progress" => return None,
+                "progress" | "build_progress" | "eta" | "fetch_progress" => return None,
+                "startup_progress" => {
+                    return match stage {
+                        "shaders" => self.stage(time, stage, "Preparing shaders"),
+                        "pipelines" => self.stage(time, stage, "Loading pipelines"),
+                        _ => None,
+                    };
+                }
+                "build_plan" => {
+                    let stages = event["stages"]
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .filter_map(Value::as_str)
+                        .collect::<Vec<_>>()
+                        .join(" → ");
+                    let message = if stages.is_empty() {
+                        "Build planned".into()
+                    } else {
+                        format!("Build plan · {stages}")
+                    };
+                    return Some(entry(time, "INFO", "build", &message));
+                }
+                "play_plan" => {
+                    let message = event["rebuild"].as_str().map_or_else(
+                        || "Game is up to date".into(),
+                        |why| format!("Rebuild needed · {why}"),
+                    );
+                    return Some(entry(time, "INFO", "launch", &message));
+                }
+                "game_starting" => return self.stage(time, "launch", "Starting the game"),
+                "game_started" => return self.stage(time, "launch", "Game process started"),
+                "game_ready" => return self.stage(time, "launch", "Game ready"),
                 "unit" => {
                     let name = event["name"].as_str().unwrap_or("Unnamed unit");
                     let result = event["result"].as_str().unwrap_or("processed");
@@ -259,7 +286,10 @@ impl Reader {
                     return Some(entry(
                         time,
                         level,
-                        event["code"].as_str().unwrap_or(&self.stage),
+                        event["code"]
+                            .as_str()
+                            .or(event["source"].as_str())
+                            .unwrap_or(&self.stage),
                         body,
                     ));
                 }
@@ -304,6 +334,28 @@ impl Reader {
 mod tests {
     use super::*;
     #[test]
+    fn progress_updates_render_once_per_startup_stage() {
+        let mut reader = Reader::new("build");
+        assert!(
+            reader
+                .line(
+                    "15:30:00.012\tstdout\t{\"v\":1,\"type\":\"build_progress\",\"fraction\":0.1}"
+                )
+                .is_none()
+        );
+        let sample = r#"{"v":1,"type":"startup_progress","stage":"pipelines","permille":20}"#;
+        assert_eq!(reader.line(sample).unwrap().message, "Loading pipelines");
+        assert!(reader.line(sample).is_none());
+        assert_eq!(
+            reader
+                .line(r#"{"v":1,"type":"game_ready"}"#)
+                .unwrap()
+                .message,
+            "Game ready"
+        );
+    }
+
+    #[test]
     fn alternating_compile_events_keep_units_and_real_warnings() {
         let mut read = Reader::new("build");
         assert_eq!(
@@ -339,7 +391,7 @@ mod tests {
             ),
             ("18:02:04.882", "WARN", "sample warning")
         );
-        assert_eq!(read.line("plain stdout").unwrap().level, "OUT");
+        assert_eq!(read.line("plain stdout").unwrap().level, "INFO");
         assert_eq!(
             read.line("demo.c:42:7: error: sample error").unwrap().level,
             "ERROR"

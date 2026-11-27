@@ -198,17 +198,21 @@ pub fn bind(ui: &MainWindow, root: &Path) {
         }
     });
     book.on_filter(|rows, search, level| {
-        if search.is_empty() && level.is_empty() {
+        if search.is_empty() && level == "DEBUG" {
             return rows;
         }
         let needle = search.to_lowercase();
         let filtered = rows
             .iter()
             .filter(|row| {
-                (level.is_empty() || row.level == level)
-                    && [&row.time, &row.level, &row.source, &row.message]
-                        .iter()
-                        .any(|part| part.to_lowercase().contains(&needle))
+                (match level.as_str() {
+                    "ERROR" => row.level == "ERROR",
+                    "WARN" => matches!(row.level.as_str(), "WARN" | "ERROR"),
+                    "INFO" => row.level != "DEBUG",
+                    _ => true,
+                }) && [&row.time, &row.level, &row.source, &row.message]
+                    .iter()
+                    .any(|part| part.to_lowercase().contains(&needle))
             })
             .collect::<Vec<_>>();
         ModelRc::new(VecModel::from(filtered))

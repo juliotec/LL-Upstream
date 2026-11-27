@@ -36,14 +36,14 @@ component Entry inherits Rectangle {
         cross-axis-alignment: start;
 
         Text {
-            width: root.compact ? 65px : 99px;
+            width: root.compact ? 67px : 83px;
             height: 20px;
             vertical-alignment: center;
             text: root.line.time;
             overflow: elide;
             color: Ink.muted;
             font-family: "monospace";
-            font-size: root.compact ? 10px : 12px;
+            font-size: root.compact ? 9px : 11px;
         }
 
         Rectangle {
@@ -64,7 +64,7 @@ component Entry inherits Rectangle {
         }
 
         if !root.compact: Text {
-            width: 75px;
+            width: 96px;
             height: 20px;
             vertical-alignment: center;
             text: root.line.source;
@@ -91,8 +91,8 @@ export component LogViewer inherits VerticalLayout {
     in-out property <string> query;
     in property <bool> live;
     in-out property <bool> follow: live;
-    private property <string> level;
-    private property <[LogEntry]> shown: query == "" && level == "" ? rows : Logbook.filter(rows,query,level);
+    private property <string> level: "INFO";
+    private property <[LogEntry]> shown: query == "" && level == "DEBUG" ? rows : Logbook.filter(rows,query,level);
     callback raw() -> string;
     public function copy-log() {
         clip.text = root.raw();
@@ -141,11 +141,11 @@ export component LogViewer inherits VerticalLayout {
     FlexboxLayout {
         cross-axis-alignment: center;
         spacing: 4px;
-        for severity in ["", "INFO", "WARN", "ERROR", "DEBUG", "OUT"]: Action {
+        for severity in ["DEBUG", "INFO", "WARN", "ERROR"]: Action {
             min-height: 28px;
             size: 11px;
             quiet: true;
-            label: severity == "" ? Locale.t("All") : severity;
+            label: severity;
             selected: severity == root.level;
             clicked => { root.level = severity; }
         }
