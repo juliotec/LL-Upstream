@@ -1,5 +1,6 @@
 //! Filesystem checks shared by the launcher, including Windows junctions.
 use std::{
+    borrow::Cow,
     fs::{self, File, OpenOptions, TryLockError},
     io,
     path::Path,
@@ -30,6 +31,61 @@ pub(crate) fn direct(path: &Path) -> bool {
         && path
             .ancestors()
             .all(|p| fs::symlink_metadata(p).is_ok_and(|m| !is_link(&m)))
+}
+
+/// The plain spelling of a Windows path: `X:\...` for the verbatim `\\?\X:\...` that
+/// `fs::canonicalize` and a junction's target give, `\\server\share\...` for `\\?\UNC\server\share\...`;
+/// paths that require verbatim semantics are kept. Folders are saved and passed on in this spelling: clang, run by
+/// longshot-builder in the build files folder, finds no header from a verbatim path (#297).
+pub(crate) fn plain(path: &Path) -> Cow<'_, Path> {
+    #[cfg(windows)]
+    {
+        use std::{os::windows::ffi::OsStrExt as _, path::PathBuf};
+        let Some(text) = path.to_str() else {
+            return Cow::Borrowed(path);
+        };
+        if let Some(rest) = text.strip_prefix(r"\\?\") {
+            let candidate = if let Some(unc) = rest.strip_prefix(r"UNC\") {
+                ordinary_components(unc).then(|| PathBuf::from(format!(r"\\{unc}")))
+            } else if rest.as_bytes().first().is_some_and(u8::is_ascii_alphabetic)
+                && rest.get(1..3) == Some(r":\")
+                && ordinary_components(&rest[3..])
+            {
+                Some(PathBuf::from(rest))
+            } else {
+                None
+            };
+            if let Some(candidate) = candidate
+                && candidate.as_os_str().encode_wide().count() < 260
+            {
+                return Cow::Owned(candidate);
+            }
+        }
+    }
+    Cow::Borrowed(path)
+}
+
+#[cfg(windows)]
+fn ordinary_components(tail: &str) -> bool {
+    tail.trim_end_matches('\\').split('\\').all(|part| {
+        if part.ends_with(['.', ' ']) || part.chars().any(|c| c < ' ' || "<>:\"/|?*".contains(c)) {
+            return false;
+        }
+        let stem = part
+            .split('.')
+            .next()
+            .unwrap_or_default()
+            .trim_end_matches(' ');
+        let stem = stem.to_ascii_uppercase();
+        let device_port = stem
+            .strip_prefix("COM")
+            .or_else(|| stem.strip_prefix("LPT"))
+            .is_some_and(|n| n.chars().count() == 1 && "123456789¹²³".contains(n));
+        !matches!(
+            stem.as_str(),
+            "CON" | "PRN" | "AUX" | "NUL" | "CONIN$" | "CONOUT$"
+        ) && !device_port
+    })
 }
 
 /// Compare already-resolved paths in both directions.
@@ -156,5 +212,33 @@ pub(crate) fn rename_new(from: &Path, to: &Path) -> io::Result<()> {
         Err(error) if error.kind() == io::ErrorKind::NotFound => fs::rename(from, to),
         Ok(_) => Err(io::ErrorKind::AlreadyExists.into()),
         Err(error) => Err(error),
+    }
+}
+
+#[cfg(all(test, windows))]
+mod plain_tests {
+    use super::*;
+
+    #[test]
+    fn converts_only_paths_valid_in_the_ordinary_namespace() {
+        assert_eq!(
+            plain(Path::new(r"\\?\X:\Build Files")).as_ref(),
+            Path::new(r"X:\Build Files")
+        );
+        assert_eq!(
+            plain(Path::new(r"\\?\UNC\server\share\cache")).as_ref(),
+            Path::new(r"\\server\share\cache")
+        );
+        for name in [
+            r"\\?\X:\Cache.",
+            r"\\?\X:\Cache ",
+            r"\\?\X:\NUL.txt.log\cache",
+            r"\\?\UNC\server\share\Cache.\build",
+        ] {
+            let path = Path::new(name);
+            assert_eq!(plain(path).as_ref(), path);
+        }
+        let long = format!(r"\\?\X:\{}\{}", "c".repeat(150), "d".repeat(150));
+        assert_eq!(plain(Path::new(&long)).as_ref(), Path::new(&long));
     }
 }

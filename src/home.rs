@@ -388,7 +388,7 @@ pub fn data_folder(root: &Path, settings: &Value) -> PathBuf {
         .as_str()
         .map(Path::new)
         .filter(|path| path.is_absolute())
-        .map(Path::to_owned)
+        .map(|path| crate::fsx::plain(path).into_owned())
         .unwrap_or_else(|| {
             installed_folders(root).map_or_else(|| root.to_owned(), |(data, _)| data)
         })
@@ -407,10 +407,12 @@ pub fn data_dir(root: &Path) -> Result<PathBuf> {
     Ok(data_folder(root, &settings(root)?))
 }
 
-/// A configured cache folder overrides the platform default.
+/// A configured cache folder overrides the platform default. Folders are read in their plain
+/// spelling: a launcher before this one saved them verbatim (`\\?\X:\...`), which
+/// longshot-builder's clang can't read (#297).
 pub fn work(root: &Path, settings: &Value) -> PathBuf {
     if let Some(path) = settings["work"].as_str().filter(|s| !s.is_empty()) {
-        return PathBuf::from(path);
+        return crate::fsx::plain(Path::new(path)).into_owned();
     }
     if root.file_name().is_some_and(|name| name == "data")
         && let Some(parent) = root.parent()

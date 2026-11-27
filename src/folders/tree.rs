@@ -1,5 +1,6 @@
 //! Stage data beside its destination. Copy links as links, preserve executable bits and file times,
 //! and use hard links on the same filesystem to keep large build stores cheap to relocate.
+use crate::fsx::plain;
 use crate::storage::{hard_link_id, is_link};
 use anyhow::{Context, Result, bail, ensure};
 use std::{
@@ -31,39 +32,6 @@ pub(super) fn absolute(path: &Path) -> Result<PathBuf> {
     Ok(absolute(parent)?.join(path.file_name().context("Invalid folder name.")?))
 }
 
-/// Windows APIs return a junction target as a DOS path and a canonical directory with a
-/// verbatim prefix. Compare their components in the same spelling without following the link.
-pub(super) fn link_path(path: &Path) -> std::borrow::Cow<'_, Path> {
-    #[cfg(windows)]
-    {
-        use std::path::{Component, Prefix};
-        let mut parts = path.components();
-        if let Some(Component::Prefix(prefix)) = parts.next() {
-            let base = match prefix.kind() {
-                Prefix::VerbatimDisk(letter) => {
-                    Some(PathBuf::from(format!("{}:\\", char::from(letter))))
-                }
-                Prefix::VerbatimUNC(server, share) => {
-                    let mut network = std::ffi::OsString::from(r"\\");
-                    network.push(server);
-                    Some(PathBuf::from(network).join(share))
-                }
-                _ => None,
-            };
-            if let Some(base) = base {
-                return std::borrow::Cow::Owned(
-                    base.join(
-                        parts
-                            .filter(|c| !matches!(c, Component::RootDir))
-                            .collect::<PathBuf>(),
-                    ),
-                );
-            }
-        }
-    }
-    std::borrow::Cow::Borrowed(path)
-}
-
 fn relocated_link(
     path: &Path,
     raw: &Path,
@@ -88,7 +56,7 @@ fn relocated_link(
             other => actual.push(other.as_os_str()),
         }
     }
-    if let Ok(tail) = link_path(&actual).strip_prefix(link_path(old).as_ref()) {
+    if let Ok(tail) = plain(&actual).strip_prefix(plain(old).as_ref()) {
         return Ok(if raw.is_absolute() {
             new.join(tail)
         } else {
@@ -96,7 +64,7 @@ fn relocated_link(
         });
     }
     for entry in entries {
-        if let Ok(tail) = link_path(&actual).strip_prefix(link_path(&entry.old).as_ref()) {
+        if let Ok(tail) = plain(&actual).strip_prefix(plain(&entry.old).as_ref()) {
             return Ok(entry.new.join(tail));
         }
     }
@@ -256,7 +224,7 @@ pub(super) fn same(
             let logical = original.join(from.strip_prefix(src)?);
             let raw = fs::read_link(&from)?;
             let expected = relocated_link(&logical, &raw, original, final_path, entries)?;
-            if link_path(&fs::read_link(&to)?) != link_path(&expected) {
+            if plain(&fs::read_link(&to)?) != plain(&expected) {
                 return Ok(false);
             }
         } else if a.is_dir() && b.is_dir() {

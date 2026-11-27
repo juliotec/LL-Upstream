@@ -38,7 +38,7 @@ pub fn install_root(home: &Path, settings: &Value) -> PathBuf {
     settings["buildsFolder"]
         .as_str()
         .filter(|s| !s.trim().is_empty())
-        .map(|s| home.join(s))
+        .map(|s| home.join(crate::fsx::plain(Path::new(s))))
         .unwrap_or_else(|| home.join("versions"))
 }
 

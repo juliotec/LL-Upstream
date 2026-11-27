@@ -331,7 +331,11 @@ fn moves_profiles_and_custom_installs_together_and_can_restore_the_default() -> 
     let dest = data.canonicalize()?;
     let settings = home::settings(&control)?;
     assert!(settings["buildsFolder"].is_null());
-    assert_eq!(home::data_folder(&control, &settings), dest);
+    // (saved in its plain spelling: no \\?\ on Windows, #297)
+    assert_eq!(
+        home::data_folder(&control, &settings),
+        crate::fsx::plain(&dest)
+    );
     assert_eq!(home::work(&control, &settings), cache);
     assert_eq!(fs::read(dest.join("mods/blobs/package"))?, b"shared mod");
     assert_eq!(
@@ -485,5 +489,38 @@ fn resume_publication_on_either_side_of_directory_and_link_switches() -> Result<
         assert_eq!(fs::read(new.join("profiles/default/test"))?, b"save");
         assert_eq!(fs::read(old.join("profiles/default/test"))?, b"save");
     }
+    Ok(())
+}
+
+/// A folder chosen in Settings is saved, and a saved one read, in its plain spelling: a verbatim one
+/// (`\\?\X:\...`, as `fs::canonicalize` gives it on Windows) went to longshot-builder as its cache, and
+/// clang found no header from it (#297).
+#[cfg(windows)]
+#[test]
+fn a_chosen_folder_is_saved_and_read_without_a_verbatim_prefix() -> Result<()> {
+    let verbatim = |p: &Path| p.as_os_str().to_string_lossy().starts_with(r"\\?\");
+    let tmp = tempdir()?;
+    let root = tmp.path().join("launcher");
+    let chosen = tmp.path().join("build files");
+    fs::create_dir_all(&chosen)?;
+    Change::prepare(&root, "work", Some(&chosen))?.apply(true, &AtomicBool::new(false))?;
+    let saved = PathBuf::from(home::settings(&root)?["work"].as_str().unwrap_or_default());
+    assert!(!verbatim(&saved), "saved as {}", saved.display());
+    assert_eq!(fs::canonicalize(&saved)?, fs::canonicalize(&chosen)?);
+    // (a setting an earlier launcher saved verbatim: read plain)
+    let old = fs::canonicalize(&chosen)?;
+    assert!(verbatim(&old));
+    home::patch_settings(&root, &json!({"work": old, "dataFolder": old}))?;
+    let settings = home::settings(&root)?;
+    for read in [
+        home::work(&root, &settings),
+        home::data_folder(&root, &settings),
+        game::install_root(&root, &settings),
+    ] {
+        assert!(!verbatim(&read), "read as {}", read.display());
+    }
+    home::patch_settings(&root, &json!({"dataFolder": null, "buildsFolder": old}))?;
+    let builds = game::install_root(&root, &home::settings(&root)?);
+    assert!(!verbatim(&builds), "read as {}", builds.display());
     Ok(())
 }

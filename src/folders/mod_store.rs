@@ -20,7 +20,7 @@ fn make_link(target: &Path, link: &Path) -> Result<()> {
 fn points_to(link: &Path, target: &Path) -> Result<bool> {
     let raw = fs::read_link(link)?;
     let path = link.parent().context("Invalid mod store path.")?.join(raw);
-    Ok(tree::link_path(&path) == tree::link_path(target))
+    Ok(crate::fsx::plain(&path) == crate::fsx::plain(target))
 }
 
 // Park the original only once the new link is ready. On success, the caller can

@@ -216,8 +216,11 @@ impl Change {
         };
         let mut settings = home::settings(home)?;
         let from = tree::absolute(&kind.path(home, &settings))?;
+        // (saved in its plain spelling: tree::absolute's is fs::canonicalize's, \\?\X:\... on
+        // Windows, and the build files folder goes on to longshot-builder, whose clang can't
+        // read a verbatim path (#297); the folders compared below are each canonicalized again)
         let selection = match selected {
-            Some(path) => json!(tree::absolute(path)?),
+            Some(path) => json!(crate::fsx::plain(&tree::absolute(path)?)),
             None => Value::Null,
         };
         settings[key] = selection.clone();

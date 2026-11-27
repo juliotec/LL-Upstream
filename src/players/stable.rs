@@ -128,8 +128,8 @@ pub(crate) fn old_builds(control: &Path) -> Result<Vec<PathBuf>> {
         .as_str()
         .map(Path::new)
         .filter(|path| path.is_absolute())
-        .unwrap_or(&standard);
-    old_game_folders(library, cfg!(windows))
+        .map_or(standard, |path| crate::fsx::plain(path).into_owned());
+    old_game_folders(&library, cfg!(windows))
 }
 
 pub(super) fn sources(control: &Path) -> Result<Vec<PathBuf>> {

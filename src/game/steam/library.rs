@@ -176,6 +176,16 @@ impl Shortcuts {
         let Ok(profile) = std::path::absolute(profile) else {
             return vec![];
         };
+        let option_prefix = play_options(builder, &profile).ok();
+        // Older shortcuts stored the verbatim spelling from the settings file.
+        let old_prefix = if cfg!(windows) {
+            profile
+                .canonicalize()
+                .ok()
+                .and_then(|old| play_options(builder, &old).ok())
+        } else {
+            None
+        };
         let mut found = Vec::new();
         for tile in &self.tiles {
             let exe = Path::new(
@@ -188,10 +198,14 @@ impl Shortcuts {
                 .claims
                 .iter()
                 .find(|c| c.app == tile.app && c.exe == tile.exe)
-                && let Ok(prefix) = play_options(builder, &profile)
-                && tile.options.strip_prefix(&prefix).is_some_and(|home| {
-                    home.starts_with(" --launcher-home \"") && home.ends_with('"')
-                })
+                && [option_prefix.as_deref(), old_prefix.as_deref()]
+                    .into_iter()
+                    .flatten()
+                    .any(|prefix| {
+                        tile.options.strip_prefix(prefix).is_some_and(|home| {
+                            home.starts_with(" --launcher-home \"") && home.ends_with('"')
+                        })
+                    })
             {
                 found.push((claim.name.clone(), tile.app));
                 continue;

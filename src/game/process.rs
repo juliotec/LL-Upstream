@@ -41,19 +41,29 @@ impl Context {
 
     pub fn for_profile(root: &Path, profile: &Path) -> Result<Self> {
         let settings = home::settings(root)?;
-        ensure!(
-            profile.parent() == Some(&home::data_folder(root, &settings).join("profiles"))
-                && profile
-                    .file_name()
-                    .and_then(|s| s.to_str())
-                    .is_some_and(players::valid_id),
-            "This profile no longer belongs to the launcher."
-        );
-        players::require_dir(profile)?;
+        let profiles = home::data_folder(root, &settings).join("profiles");
+        let same_library = profile.parent().is_some_and(|parent| {
+            parent == profiles
+                || (cfg!(windows)
+                    && parent.canonicalize().is_ok_and(|actual| {
+                        profiles
+                            .canonicalize()
+                            .is_ok_and(|expected| actual == expected)
+                    }))
+        });
+        let id = profile
+            .file_name()
+            .and_then(|name| name.to_str())
+            .filter(|id| players::valid_id(id));
+        let id = id
+            .filter(|_| same_library)
+            .context("This profile no longer belongs to the launcher.")?;
+        let profile = profiles.join(id);
+        players::require_dir(&profile)?;
         Ok(Self {
             home: root.to_owned(),
             cache: home::work(root, &settings).join("longshot-builder"),
-            profile: profile.to_owned(),
+            profile,
             settings,
         })
     }
@@ -693,6 +703,28 @@ impl<W: io::Write> io::Write for CancelWriter<'_, W> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(windows)]
+    #[test]
+    fn an_existing_shortcut_can_use_the_verbatim_profile_path() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let home = temp.path().join("launcher");
+        let data = temp.path().join("game data");
+        let profile = data.join("profiles/default");
+        fs::create_dir_all(&profile)?;
+        crate::home::patch_settings(
+            &home,
+            &serde_json::json!({"dataFolder": data.canonicalize()?}),
+        )?;
+        let old_shortcut = profile.canonicalize()?;
+        assert_ne!(old_shortcut, profile);
+        assert_eq!(Context::for_profile(&home, &old_shortcut)?.profile, profile);
+
+        let foreign = temp.path().join("foreign/profiles/default");
+        fs::create_dir_all(&foreign)?;
+        assert!(Context::for_profile(&home, &foreign).is_err());
+        Ok(())
+    }
+
     #[test]
     fn preparing_and_playing_use_the_same_managed_cache_and_store() -> Result<()> {
         let temp = tempfile::tempdir()?;
