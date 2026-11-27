@@ -113,10 +113,17 @@ fn finished(ui: &MainWindow, home: &Path, steam_opener: bool, result: io::Result
     }
 }
 
+struct Startup {
+    base: f64,
+    fraction: Option<f64>,
+    eta: Option<Instant>,
+}
+
 #[derive(Default)]
 struct Rebuild {
     play_plan: bool,
     game_started: bool,
+    startup: Option<Startup>,
     builder: super::forecast::BuilderProgress,
     started: Option<Instant>,
     shaders_started: Option<Instant>,
@@ -145,11 +152,48 @@ impl Rebuild {
                     ..Self::default()
                 };
             }
-            Some("game_started") => {
-                self.game_started = true;
-                if let Some(started) = self.started.take() {
-                    self.elapsed = Some(now.saturating_duration_since(started));
+            Some("game_starting") => {
+                self.game_started = false;
+                let base = self.builder.fraction.unwrap_or(0.0);
+                self.startup = Some(Startup {
+                    base,
+                    fraction: self.builder.fraction,
+                    eta: self
+                        .builder
+                        .seconds(now)
+                        .and_then(|seconds| now.checked_add(Duration::from_secs(seconds))),
+                });
+                self.step = crate::i18n::key("Starting the game").into();
+            }
+            Some("startup_progress") => {
+                if let Some(startup) = &mut self.startup {
+                    self.step = match stage {
+                        Some("shaders") => "Preparing shaders",
+                        Some("pipelines") => crate::i18n::key("Loading pipelines"),
+                        _ => return,
+                    }
+                    .into();
+                    if let Some(permille) = event["permille"].as_u64().filter(|&n| n <= 1000) {
+                        let fraction =
+                            startup.base + (1.0 - startup.base) * (permille as f64 / 1000.0);
+                        startup.fraction =
+                            Some(fraction.max(startup.fraction.unwrap_or(0.0)).min(0.99));
+                        if permille == 1000 {
+                            self.step = crate::i18n::key("Starting the game").into();
+                        }
+                    }
+                    startup.eta = event["seconds"]
+                        .as_u64()
+                        .and_then(|seconds| now.checked_add(Duration::from_secs(seconds)));
                 }
+            }
+            Some("game_started") => {
+                self.game_started = self.startup.is_none();
+                self.finish_rebuild(now);
+            }
+            Some("game_ready") if self.startup.take().is_some() => {
+                self.game_started = true;
+                self.finish_rebuild(now);
             }
             Some("build_plan") => {
                 self.started.get_or_insert(now);
@@ -220,6 +264,12 @@ impl Rebuild {
                 }
             }
             _ => {}
+        }
+    }
+
+    fn finish_rebuild(&mut self, now: Instant) {
+        if let Some(started) = self.started.take() {
+            self.elapsed = Some(now.saturating_duration_since(started));
         }
     }
 }
@@ -415,21 +465,23 @@ fn wait(
             return Ok(exit);
         }
         let rebuilding = state.started.is_some();
-        if rebuilding && inhibitor.is_none() {
+        let loading = state.startup.is_some();
+        if (rebuilding || loading) && inhibitor.is_none() {
             inhibitor = Some(super::awake::BuildInhibitor::acquire());
-        } else if !rebuilding {
+        } else if !rebuilding && !loading {
             inhibitor.take();
         }
-        let (fraction, eta) = if state.builder.planned {
+        let seconds_left = |until: Option<Instant>| {
+            until
+                .map(|until| until.saturating_duration_since(now).as_secs())
+                .filter(|s| *s > 0)
+        };
+        let (fraction, eta) = if let Some(startup) = &state.startup {
+            (startup.fraction, seconds_left(startup.eta))
+        } else if state.builder.planned {
             (state.builder.fraction, state.builder.seconds(now))
         } else {
-            (
-                state.fraction,
-                state
-                    .eta
-                    .map(|until| until.saturating_duration_since(now).as_secs())
-                    .filter(|s| *s > 0),
-            )
+            (state.fraction, seconds_left(state.eta))
         };
         let fraction = fraction.map_or(-1., |f| f as f32);
         let step = state.step.clone();
@@ -439,6 +491,7 @@ fn wait(
         if !state.play_plan
             && !state.game_started
             && !rebuilding
+            && !loading
             && last_scan.is_none_or(|t| now.duration_since(t) >= Duration::from_secs(1))
         {
             last_scan = Some(now);
@@ -450,6 +503,8 @@ fn wait(
         }
         let phase = if state.game_started {
             "running"
+        } else if loading {
+            "starting"
         } else if rebuilding {
             "rebuilding"
         } else {
@@ -628,5 +683,56 @@ mod tests {
             assert!(state.started.is_none());
             assert_eq!(state.elapsed, Some(Duration::from_secs(22)));
         }
+    }
+    #[test]
+    fn managed_startup_waits_for_window_readiness_and_preserves_total_progress() {
+        let now = Instant::now();
+        let mut state = Rebuild::default();
+        let start = json!({"type":"game_starting"});
+        let spawned = json!({"type":"game_started"});
+        let pipeline =
+            json!({"type":"startup_progress","stage":"pipelines","permille":500,"seconds":12});
+        let ready = json!({"type":"game_ready"});
+
+        // A warm launch still has renderer startup work and can receive progress before the spawn notification.
+        state.observe(&start, now);
+        assert!(state.startup.as_ref().unwrap().fraction.is_none());
+        state.observe(&pipeline, now);
+        state.observe(&spawned, now);
+        assert!(!state.game_started);
+        let startup = state.startup.as_ref().unwrap();
+        assert_eq!(startup.fraction, Some(0.5));
+        assert_eq!(startup.eta, Some(now + Duration::from_secs(12)));
+        assert_eq!(state.step, "Loading pipelines");
+        state.observe(&ready, now);
+        assert!(state.game_started);
+        assert!(state.startup.is_none());
+
+        // When Reload rebuilds, startup consumes the remaining share of the builder's overall estimate.
+        state.observe(
+            &json!({"type":"play_plan","rebuild":"the game asked for a build"}),
+            now,
+        );
+        state.observe(
+            &json!({"type":"build_plan","stages":["compile","start"]}),
+            now,
+        );
+        state.observe(
+            &json!({"type":"build_progress","fraction":0.8,"seconds":15}),
+            now,
+        );
+        state.observe(&json!({"type":"done"}), now);
+        state.observe(&start, now);
+        state.observe(&spawned, now);
+        state.observe(&pipeline, now);
+        assert_eq!(state.startup.as_ref().unwrap().fraction, Some(0.9));
+        state.observe(
+            &json!({"type":"startup_progress","stage":"pipelines","permille":1000}),
+            now,
+        );
+        assert_eq!(state.startup.as_ref().unwrap().fraction, Some(0.99));
+        assert!(!state.game_started);
+        state.observe(&ready, now);
+        assert!(state.game_started);
     }
 }

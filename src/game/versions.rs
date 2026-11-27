@@ -400,6 +400,9 @@ pub(super) fn start_for(
         } else {
             enabled.join(",")
         });
+    if mode == LaunchMode::Window {
+        cmd.env("LONGSHOT_LAUNCHER_STARTUP", "1");
+    }
     if builder.statistics() {
         cmd.arg("--send-build-statistics");
     }

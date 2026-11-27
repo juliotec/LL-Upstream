@@ -42,6 +42,7 @@ component RebuildProgress inherits VerticalLayout {
 export component LaunchPage inherits Rectangle {
     private property <bool> running: Game.launch-phase == "running";
     private property <bool> steam: Game.launch-phase == "steam";
+    private property <bool> starting: Game.launch-phase == "starting";
     private property <bool> rebuilding: Game.launch-phase == "rebuilding";
     pure function duration(seconds: int) -> string {
         if seconds >= 3600 {
@@ -70,7 +71,7 @@ export component LaunchPage inherits Rectangle {
                 font-size: root.width < 1050px ? 64px : 90px;
                 letter-spacing: -3px;
             }
-            if root.rebuilding && Game.last-build-seconds < 0: RebuildProgress {
+            if root.starting || (root.rebuilding && Game.last-build-seconds < 0): RebuildProgress {
                 max-width: 420px;
             }
             if Game.last-build-seconds >= 0 || Game.last-rebuild-seconds >= 0: Note {
