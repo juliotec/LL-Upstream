@@ -378,7 +378,7 @@ pub(super) fn start_for(
     )?;
     let enabled = version.modules()?;
     modules::prepare_licenses(&builder, &enabled)?;
-    let mut cmd = builder.command(&exe, true)?;
+    let mut cmd = builder.command_for(&exe, true, mode == LaunchMode::Window)?;
     if !cfg!(windows)
         && enabled.contains(&"fsr4")
         && let Some(library) = super::upscaler::library_for(&version.folder)

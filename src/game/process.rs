@@ -99,9 +99,13 @@ impl Context {
         self.settings["sendPerformanceStatistics"].as_bool() == Some(true)
     }
     pub fn command(&self, exe: &Path, play: bool) -> Result<Command> {
+        self.command_for(exe, play, false)
+    }
+
+    pub(super) fn command_for(&self, exe: &Path, play: bool, independent: bool) -> Result<Command> {
         let mut command = if cfg!(target_os = "linux") && play && self.settings["gamescope"] == true
         {
-            let mut scope = Command::new("gamescope");
+            let mut scope = launch_program(Path::new("gamescope"), independent);
             let options = self.settings["gamescopeOptions"]
                 .as_str()
                 .unwrap_or_default();
@@ -111,7 +115,7 @@ impl Context {
             scope.arg("--").arg(exe);
             scope
         } else {
-            Command::new(exe)
+            launch_program(exe, independent)
         };
         command.current_dir(exe.parent().context("Builder has no version folder")?);
         for (key, _) in std::env::vars_os() {
@@ -503,6 +507,35 @@ pub(super) fn restore_host_environment(command: &mut Command) {
             }
         }
     }
+}
+
+/// Set up the window-launched game before it can fork compiler or renderer children.
+/// Steam and shortcut callers own their session and keep the normal launch path.
+fn launch_program(program: &Path, independent: bool) -> Command {
+    #[cfg(target_os = "linux")]
+    if independent {
+        use std::os::unix::process::CommandExt;
+        // Enroll the shell's PID in a sibling user scope, then replace it with the
+        // builder. This preserves wait status, environment, file descriptors and argv.
+        let mut command = Command::new("/bin/sh");
+        command
+            .arg("-c")
+            .arg(include_str!("process/game-scope.sh"))
+            .arg("longshot-play")
+            .arg(program);
+        // SAFETY: setsid is async-signal-safe and only affects the forked child.
+        unsafe {
+            command.pre_exec(|| {
+                if libc::setsid() == -1 {
+                    return Err(io::Error::last_os_error());
+                }
+                Ok(())
+            });
+        }
+        return command;
+    }
+    let _ = independent;
+    Command::new(program)
 }
 
 /// A newly installed executable can briefly remain open for writing on Linux.
