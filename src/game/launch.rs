@@ -129,6 +129,11 @@ struct Rebuild {
 impl Rebuild {
     fn observe(&mut self, event: &Value, now: Instant) {
         let kind = event["type"].as_str();
+        let stage = event["stage"].as_str();
+        let label = match stage {
+            Some("shaders") => Some("Preparing shaders"),
+            _ => event["text"].as_str().filter(|s| !s.is_empty()),
+        };
         self.builder.observe(event, now);
         match kind {
             Some("play_plan") => {
@@ -151,7 +156,7 @@ impl Rebuild {
             }
             Some("stage" | "progress") if self.builder.planned => {
                 if kind == Some("stage")
-                    && let Some(text) = event["text"].as_str()
+                    && let Some(text) = label
                 {
                     self.step = text.to_owned();
                 }
@@ -159,7 +164,7 @@ impl Rebuild {
             Some("stage" | "progress") if !self.game_started => {
                 self.elapsed = None;
                 let start = *self.started.get_or_insert(now);
-                if let Some(stage) = event["stage"].as_str() {
+                if let Some(stage) = stage {
                     let shaders = stage == "shaders";
                     if shaders != self.shaders_started.is_some() {
                         self.shaders_started = shaders.then_some(now);
@@ -167,10 +172,10 @@ impl Rebuild {
                         self.eta = None;
                     }
                 }
-                if let Some(text) = event["text"].as_str().filter(|s| !s.is_empty()) {
+                if let Some(text) = label {
                     self.step = text.to_owned();
                 } else if kind == Some("stage") || self.step.is_empty() {
-                    self.step = event["stage"].as_str().unwrap_or_default().to_owned();
+                    self.step = stage.unwrap_or_default().to_owned();
                 }
                 // The builder assigns shaders no share of overall progress and reports them separately.
                 let (fraction, since) = if let Some(shaders_started) = self.shaders_started {
@@ -606,7 +611,7 @@ mod tests {
                 now,
             );
             state.observe(&progress, now);
-            assert_eq!(state.step, "Preparing the shaders");
+            assert_eq!(state.step, "Preparing shaders");
             assert_eq!(state.builder.fraction, Some(0.64));
             assert_eq!(
                 state.builder.seconds(now + Duration::from_secs(10)),

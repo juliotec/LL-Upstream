@@ -9,7 +9,7 @@ component RebuildProgress inherits VerticalLayout {
 
     HorizontalLayout {
         Label {
-            text: Game.launch-step == "" ? Locale.t("Rebuilding") : Locale.t("Rebuilding") + " (" + Locale.t(Game.launch-step) + ")";
+            text: Game.launch-step == "" ? Locale.t("Rebuilding") : Locale.t(Game.launch-step);
             horizontal-stretch: 1;
         }
         if root.measured: Note {
