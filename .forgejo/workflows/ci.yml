@@ -128,7 +128,7 @@ jobs:
           git init -q "$longshot"
           git -C "$longshot" sparse-checkout set --no-cone \
             /builder/crates/build-driver/src/options.rs /docs/dev/reference/build-events.md \
-            /host/nn_applet.c /scripts/fetch.py /scripts/devtools/packs.py
+            /gpu/vk/dlss_nr_model.h /host/nn_applet.c /scripts/fetch.py /scripts/devtools/packs.py
           pin=$(sed -nE '/^[0-9a-f]{40}$/p' tests/longshot.ref)
           [[ "$pin" =~ ^[0-9a-f]{40}$ ]]
           git -C "$longshot" fetch -q --depth 1 --filter=blob:none https://git.magicbean.dev/MagicBeanDev/Longshot.git "$pin"

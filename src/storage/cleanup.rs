@@ -1,7 +1,7 @@
 //! Bulk cleanup enumerates the launcher's own files first. A custom work folder,
 //! a registered external installation, and a source dump can all share a drive.
 use super::{CACHES, Protected, Protection, Removal, is_link, removal_target};
-use crate::{game, home, players};
+use crate::{dlss5, game, home, players};
 use anyhow::{Context, Result, ensure};
 use std::{
     collections::BTreeMap,
@@ -16,12 +16,15 @@ enum Kind {
     UserData,
     File,
     Preferences,
+    /// (Windows) one of the DLSS 5 files the launcher copied ([`dlss5::added`]), removed only while it is still the launcher's
+    Dlss5(dlss5::Kind),
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct Plan {
     root: PathBuf,
     include_profiles: bool,
+    dlss5: Option<PathBuf>,
     entries: BTreeMap<PathBuf, Kind>,
 }
 
@@ -37,7 +40,7 @@ impl Plan {
     pub fn execute(self) -> Result<()> {
         players::ensure_idle()?;
         ensure!(
-            self == plan(&self.root, self.include_profiles)?,
+            self == plan_with(&self.root, self.include_profiles, self.dlss5.as_deref())?,
             "The folders changed. Review the list again before removing anything."
         );
         crate::diagnostics::close_file();
@@ -48,21 +51,41 @@ impl Plan {
                 Kind::Cache | Kind::UserData => {
                     Removal::Directory.execute(path)?;
                 }
-                Kind::File | Kind::Preferences => {}
+                Kind::File | Kind::Preferences | Kind::Dlss5(_) => {}
             }
         }
         for (path, kind) in &self.entries {
-            if *kind == Kind::Preferences {
-                home::reset_preferences(&self.root)?;
-            } else if *kind == Kind::File && path.try_exists()? {
-                Removal::File.execute(path)?;
+            match kind {
+                Kind::Preferences => home::reset_preferences(&self.root)?,
+                Kind::File if path.try_exists()? => Removal::File.execute(path)?,
+                Kind::Dlss5(dlss5) => {
+                    if let Some(folder) = &self.dlss5 {
+                        remove_dlss5(folder, *dlss5)?;
+                    }
+                }
+                _ => {}
             }
         }
         Ok(())
     }
 }
 
+/// kind's DLSS 5 file removed, once a full check says it is still the launcher's copy; one put there by hand since (or
+/// changed) is the player's, and stays
+fn remove_dlss5(folder: &Path, kind: dlss5::Kind) -> Result<()> {
+    let _work = dlss5::exclusive().context("Could not lock the DLSS 5 files.")?;
+    match dlss5::remove(folder, kind) {
+        Ok(()) | Err(dlss5::Failure::Refused(_) | dlss5::Failure::InTheWay(_)) => Ok(()),
+        Err(dlss5::Failure::Failed(error)) => Err(error).context("Could not remove a DLSS 5 file."),
+    }
+}
+
 pub fn plan(root: &Path, include_profiles: bool) -> Result<Plan> {
+    plan_with(root, include_profiles, dlss5::folder().as_deref())
+}
+
+/// The plan, with the DLSS 5 files' folder (none: none on this system)
+fn plan_with(root: &Path, include_profiles: bool, dlss5: Option<&Path>) -> Result<Plan> {
     let anchor = root.canonicalize()?;
     ensure!(
         anchor.parent().is_some(),
@@ -135,9 +158,16 @@ pub fn plan(root: &Path, include_profiles: bool) -> Result<Plan> {
         )?;
         add(root, Path::new("save-backups"), Kind::UserData)?;
     }
+    // (outside the launcher's home: only the copies the launcher placed, never a file the player put there by hand)
+    if let Some(folder) = dlss5 {
+        for (kind, path) in dlss5::added(folder) {
+            entries.insert(path, Kind::Dlss5(kind));
+        }
+    }
     Ok(Plan {
         root: root.into(),
         include_profiles,
+        dlss5: dlss5.map(Path::to_owned),
         entries,
     })
 }
@@ -276,6 +306,50 @@ mod tests {
             fs::read(data.join("mods/example/pinned"))?,
             b"installed mod"
         );
+        Ok(())
+    }
+
+    #[test]
+    fn remove_everything_takes_the_launchers_dlss5_copies_and_leaves_the_players() -> Result<()> {
+        let tmp = tempfile::tempdir()?;
+        let root = tmp.path().join("launcher");
+        crate::players::initialize(&root)?;
+        let ngx = tmp.path().join("local/Longshot/ngx");
+        let chosen = tmp.path().join("chosen.dll");
+        let mut bytes = vec![3u8; 2 << 20];
+        bytes[..2].copy_from_slice(b"MZ");
+        fs::write(&chosen, &bytes)?;
+        let placed = dlss5::install(
+            &chosen,
+            &ngx,
+            |_| dlss5::NvidiaCheck::DlssModel,
+            |_| {},
+            dlss5::FP16_KNOWN,
+            None,
+        )
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
+        // (the FP16 place holds a file put there by hand: the player's)
+        let by_hand = dlss5::place(&ngx, dlss5::Kind::Fp16);
+        fs::create_dir_all(by_hand.parent().unwrap())?;
+        fs::write(&by_hand, &bytes)?;
+
+        let reviewed = plan_with(&root, false, Some(&ngx))?;
+        assert_eq!(reviewed.dlss5.as_deref(), Some(ngx.as_path()));
+        assert_eq!(
+            reviewed.entries.get(&placed.path),
+            Some(&Kind::Dlss5(dlss5::Kind::Nvidia))
+        );
+        assert!(!reviewed.entries.contains_key(&by_hand));
+        assert!(reviewed.review().contains("nvngx_dlssnr.dll"));
+        assert!(
+            !plan_with(&root, false, None)?
+                .entries
+                .contains_key(&placed.path)
+        );
+
+        remove_dlss5(&ngx, dlss5::Kind::Nvidia)?;
+        remove_dlss5(&ngx, dlss5::Kind::Fp16)?;
+        assert!(!placed.path.exists() && by_hand.is_file() && chosen.is_file());
         Ok(())
     }
 

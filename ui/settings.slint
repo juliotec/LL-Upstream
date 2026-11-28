@@ -12,8 +12,8 @@ import { Updates } from "updates.slint";
 import { Players } from "players.slint";
 
 import { StorageSection } from "storage.slint";
-import { Preferences, SettingsGroup } from "settings-model.slint";
-export { Preferences, SettingsGroup, FolderStage, SettingToggle, DiskPart, DiskGroup } from "settings-model.slint";
+import { Preferences, SettingsGroup, Dlss5Row } from "settings-model.slint";
+export { Preferences, SettingsGroup, FolderStage, SettingToggle, DiskPart, DiskGroup, Dlss5Row, Dlss5Note } from "settings-model.slint";
 
 component LauncherTrack inherits HorizontalLayout {
     spacing: 8px;
@@ -58,6 +58,38 @@ component Folder inherits HorizontalLayout {
         label: Locale.t("Change");
         enabled: Preferences.can-change-folders;
         clicked => { Preferences.folder(root.key,false); }
+    }
+}
+
+// (Windows) one of the player's DLSS 5 files: what it is, what is in place, and Remove for the launcher's own copy only (a file
+// put there by hand is the player's)
+component Dlss5File inherits HorizontalLayout {
+    in property <Dlss5Row> entry;
+    in property <int> index;
+    spacing: 14px;
+    cross-axis-alignment: center;
+
+    VerticalLayout {
+        horizontal-stretch: 1;
+        spacing: 4px;
+        Text {
+            text: Locale.t(root.entry.title);
+            color: Ink.text;
+            font-weight: 700;
+            font-size: 17px;
+            wrap: word-wrap;
+        }
+        Hint { text: Locale.t(root.entry.about); }
+        Hint {
+            text: Locale.fill(Locale.t(root.entry.line), root.entry.value, "");
+            color: Ink.sand;
+        }
+    }
+
+    if root.entry.removable: Action {
+        label: Locale.t("Remove");
+        enabled: !Preferences.dlss5-busy && !Game.busy && !Game.playing;
+        clicked => { Preferences.dlss5-remove(root.index); }
     }
 }
 
@@ -142,7 +174,7 @@ export component SettingsPage inherits HorizontalLayout {
                     label: item.name;
                     detail: item.summary;
                     selected: Preferences.section == item.section;
-                    clicked => { if !Players.busy && !Preferences.cleaning { Preferences.section = item.section; } }
+                    clicked => { if !Players.busy && !Preferences.cleaning && !Preferences.dlss5-busy { Preferences.section = item.section; } }
                 }
             }
         }
@@ -218,7 +250,7 @@ export component SettingsPage inherits HorizontalLayout {
                                 }
                             }
                             if Preferences.section == SettingsGroup.game: VerticalLayout {
-                                init => { if Game.windows { Game.check-nvidia-cache(); } if Preferences.linux { Preferences.check-controller-rules(); } }
+                                init => { if Game.windows { Game.check-nvidia-cache(); Preferences.dlss5-check(); } if Preferences.linux { Preferences.check-controller-rules(); } }
                                 alignment: start;
                                 spacing: 20px;
 
@@ -253,6 +285,7 @@ export component SettingsPage inherits HorizontalLayout {
 
                                 Action {
                                     label: Locale.t("Manage storage");
+                                    enabled: !Preferences.dlss5-busy;
                                     clicked => { Preferences.section = SettingsGroup.storage; }
                                 }
 
@@ -278,6 +311,48 @@ export component SettingsPage inherits HorizontalLayout {
                                         label: Locale.t("Raise to 10 GB");
                                         enabled: !Game.nvidia-cache-busy && !Game.busy && !Game.playing;
                                         clicked => { Game.raise-nvidia-cache(); }
+                                    }
+                                }
+                                // (Windows, an NVIDIA RTX GPU: the player's own DLSS 5 files, copied once to the folder every
+                                // version's game looks in. One Add for both: the launcher tells them apart by their content)
+                                if Game.windows && Preferences.dlss5-shown: VerticalLayout {
+                                    spacing: 14px;
+
+                                    Kicker {
+                                        text: Locale.t("DLSS 5 FILES (EXPERIMENTAL)");
+                                    }
+                                    for row[index] in Preferences.dlss5-rows: Dlss5File {
+                                        entry: row;
+                                        index: index;
+                                    }
+                                    HorizontalLayout {
+                                        spacing: 14px;
+                                        cross-axis-alignment: center;
+
+                                        Action {
+                                            label: Locale.t("Add DLSS 5 file…");
+                                            enabled: !Preferences.dlss5-busy && !Game.busy && !Game.playing;
+                                            clicked => { Preferences.dlss5-add(); }
+                                        }
+                                        VerticalLayout {
+                                            horizontal-stretch: 1;
+                                            spacing: 4px;
+                                            if Preferences.dlss5-busy && Preferences.dlss5-percent >= 0: Hint {
+                                                text: Locale.fill(Locale.t("Copying and checking… {0}%"), "" + Preferences.dlss5-percent, "");
+                                                color: Ink.sand;
+                                            }
+                                            for note in Preferences.dlss5-notes: Hint {
+                                                text: (note.file == "" ? "" : note.file + ": ") + Locale.fill(Locale.t(note.text), note.value, "");
+                                                color: note.bad ? Ink.gold : Ink.sage;
+                                            }
+                                        }
+                                    }
+                                    if Preferences.dlss5-gpu-line != "": Hint {
+                                        text: Locale.t(Preferences.dlss5-gpu-line);
+                                    }
+                                    Hint {
+                                        text: Locale.fill(Locale.t("Longshot does not include or download NVIDIA's DLSS 5. Add the files you have: the launcher tells NVIDIA's own file from the community FP16 file and copies each to {0}, which every version uses and no update changes."), Preferences.dlss5-folder, "")
+                                            + " " + Locale.t("They need a version built with NVIDIA DLSS. Turn DLSS 5 on in the game's Graphics tab. A file in a version's own ngx folder comes first.");
                                     }
                                 }
                             }

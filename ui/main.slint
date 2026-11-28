@@ -39,6 +39,8 @@ import {
     SettingToggle,
     DiskGroup,
     DiskPart,
+    Dlss5Row,
+    Dlss5Note,
 } from "settings.slint";
 import { HomePage, Shell, Popup } from "home.slint";
 import { Switcher } from "switcher.slint";
@@ -68,6 +70,8 @@ export {
     SettingToggle,
     DiskGroup,
     DiskPart,
+    Dlss5Row,
+    Dlss5Note,
     Shell,
     Popup,
     Logbook,
@@ -165,10 +169,10 @@ export component MainWindow inherits Window {
     in-out property <bool> controller-active;
     out property <bool> editing-text: Ink.editing-text;
     changed page => { Ink.editing-text = false; }
-    out property <bool> navigation-locked: (root.page == Page.launch && Game.show-log) || (root.page == Page.build && Game.folders-open) || Game.busy || Players.busy || Mods.busy || Preferences.cleaning || Preferences.changing-folder || Preferences.romfs-running || Updates.applying;
+    out property <bool> navigation-locked: (root.page == Page.launch && Game.show-log) || (root.page == Page.build && Game.folders-open) || Game.busy || Players.busy || Mods.busy || Preferences.cleaning || Preferences.changing-folder || Preferences.romfs-running || Preferences.dlss5-busy || Updates.applying;
     out property <bool> modal-open: Updates.channel-prompt || StorageReview.open || Game.mod-trust-review != "" || Mods.review != "" || Game.confirming-removal
         || Game.show-log || Game.folders-open || Game.license != "" || Players.prompt != ""
-        || Preferences.changing-folder || Preferences.romfs-open || Updates.applying || root.asking-to-stop;
+        || Preferences.changing-folder || Preferences.romfs-open || Preferences.dlss5-replace != "" || Updates.applying || root.asking-to-stop;
     private property <bool> shortcuts-available: !root.header-disabled && Shell.popup == Popup.closed && !Game.show-notes && !Updates.show-notes;
     private property <Page> home-destination: Game.playing ? Page.launch : Page.home;
     private property <bool> home-shortcuts: root.shortcuts-available && root.page == Page.home;
@@ -466,6 +470,15 @@ export component MainWindow inherits Window {
             confirm-label: Locale.t("Allow and continue");
             cancel-review => { Game.cancel-mod-trust(); }
             confirm-review => { Game.approve-mod-trust(); }
+        }
+        // (Settings' DLSS 5 files: an Add stopped at files put there by hand, which it replaces only when asked to)
+        if Preferences.dlss5-replace != "": ModReviewDialog {
+            title: Locale.t("Replace files put there by hand?");
+            details: Preferences.dlss5-replace;
+            busy: Preferences.dlss5-busy;
+            confirm-label: Locale.t("Replace");
+            cancel-review => { Preferences.dlss5-answer(false); }
+            confirm-review => { Preferences.dlss5-answer(true); }
         }
         if Updates.channel-prompt: LauncherChannelDialog { }
         if StorageReview.open: StorageReviewDialog { }

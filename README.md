@@ -43,9 +43,13 @@ The launcher downloads the [Longshot builder](https://git.magicbean.dev/MagicBea
 | **Saves** | Choose where to continue, rename or duplicate a slot, or import and export saves. [Profiles and saves](docs/saves.md) |
 | **Versions** | Add a separate installation, check all installations for updates, or change one installation’s optional upscaling modules. Updated modules take effect on its next launch. [Pull request builds](docs/pull-requests.md) |
 | **Mods** | Import a local mod or browse the selected builder’s catalog. Review permissions before building with a new or changed ExeFS patch. Builders with limited mod support can still use extracted RomFS and ExeFS folders. |
-| **Settings** | Choose data and cache locations, manage launcher updates, review logs, or add local figure dumps. [NFC tags](docs/nfc.md) |
+| **Settings** | Choose data and cache locations, add your own DLSS 5 files (Windows), manage launcher updates, review logs, or add local figure dumps. [NFC tags](docs/nfc.md) |
 
 You can navigate the launcher with a mouse, keyboard or controller. Gamepad hints appear along the bottom while you use a controller, including inside dialogs. [Controller navigation](docs/controller.md)
+
+### DLSS 5 files (Windows, experimental)
+
+Longshot does not include or download NVIDIA's DLSS 5. On Windows with an NVIDIA RTX GPU, **Settings → Game** has **DLSS 5 files**. **Add DLSS 5 file…** takes the files you have, tells by its content which of the two each one is, and copies it once to `%LOCALAPPDATA%\Longshot\ngx`, the folder every version's game looks in. Updates and new versions do not copy it again, and adding a newer file replaces the old copy. **NVIDIA's file** is `nvngx_dlssnr.dll` as NVIDIA ships it, signed by NVIDIA (RTX 50 GPUs), copied as `ngx\nvngx_dlssnr.dll`. The **community FP16 file** is a converted copy of it (RTX 20, 30, 40 and 50), copied as `ngx\fp16\nvngx_dlssnr.dll`: only the copy whose SHA-256 the game knows. Any other file is refused. Adding the same file again copies nothing (one you put there by hand becomes the launcher's copy); adding a different file where you put one by hand first asks whether to replace it. **Remove** deletes only the launcher's copy, never the file you added it from or a file you put in the folder by hand; **Remove everything** in Settings → Storage removes the launcher's copies too. Which file runs on which GPU: Longshot's [docs/user/dlss5.md](https://git.magicbean.dev/MagicBeanDev/Longshot/src/branch/main/docs/user/dlss5.md).
 
 ## Updates and storage
 

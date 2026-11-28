@@ -4,6 +4,11 @@ import { Page } from "widgets.slint";
 export struct SettingToggle { key: string, label: string, checked: bool, enabled: bool }
 export struct DiskPart { label: string, size: string, path: string, group: string, cache: string }
 export struct DiskGroup { name: string, size: string, fraction: float, offset: float, tone: color, parts: [DiskPart] }
+// (Windows) one of the player's two DLSS 5 files: its title, what it is, what is in place (a key and its {0}), and whether it
+// is the launcher's copy (only that one has a Remove)
+export struct Dlss5Row { title: string, about: string, line: string, value: string, removable: bool }
+// What an Add or a Remove did: the file it was about (when several were picked), a key and its {0}, and whether it failed
+export struct Dlss5Note { file: string, text: string, value: string, bad: bool }
 export enum SettingsGroup { game, mods, launcher, storage, nfc, troubleshooting }
 export enum FolderStage { idle, review, applying, cancelling }
 export global Preferences {
@@ -87,6 +92,20 @@ export global Preferences {
     callback review-removal(bool);
     callback remove-reviewed();
     callback clear-cache(string, string);
+    // (Windows) the player's DLSS 5 files (src/preferences/dlss5.rs): shown with an NVIDIA RTX GPU or none found
+    in property <bool> dlss5-shown;
+    in property <[Dlss5Row]> dlss5-rows;
+    in property <bool> dlss5-busy;
+    in property <int> dlss5-percent;
+    in property <[Dlss5Note]> dlss5-notes;
+    in property <string> dlss5-gpu-line;
+    in property <string> dlss5-folder;
+    // (the question about files put there by hand that an Add would replace: empty, no question)
+    in property <string> dlss5-replace;
+    callback dlss5-check();
+    callback dlss5-add();
+    callback dlss5-answer(bool);
+    callback dlss5-remove(int);
     callback navigate(Page);
     pure callback bundled-license(int) -> string;
 }

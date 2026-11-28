@@ -55,6 +55,16 @@ def compare_builder(longshot):
         if not re.search(rf'/blob/{pin}/[^"]+', licenses):
             raise SystemExit(f"{sdk} license document must link to the same pinned SDK.")
 
+    # The FP16 DLSS 5 files Settings accepts are the ones the game runs, by size and SHA-256.
+    model = read(longshot, "gpu/vk/dlss_nr_model.h")
+    known = re.search(r"kFp16Known\[\]\s*=\s*\{(.*?)\n\};", model, re.S)
+    if known is None:
+        raise SystemExit("Cannot find kFp16Known in gpu/vk/dlss_nr_model.h; update the contract check.")
+    expected_fp16 = sorted((int(size), sha) for size, sha in re.findall(r'\{\s*(\d+)ull\s*,\s*"([0-9a-f]{64})"\s*\}', known[1]))
+    fp16 = sorted((int(size.replace("_", "")), sha) for size, sha in re.findall(
+        r'size: ([0-9_]+),\s*sha256: "([0-9a-f]{64})"', rust_array(read(ROOT, "src/dlss5.rs"), "FP16_KNOWN")))
+    check("FP16 DLSS 5 files", fp16, expected_fp16)
+
     applet = read(longshot, "host/nn_applet.c")
     uid = re.search(r"user_uid\[2\]\s*=\s*\{\s*0x([0-9a-fA-F]+)ULL,\s*0x([0-9a-fA-F]+)ULL\s*\}", applet)
     saves = read(ROOT, "src/players/saves.rs")
@@ -90,7 +100,7 @@ def compare_builder(longshot):
     for status in (120, 121, 123):
         if not re.search(rf"\b{status}\b", events) or f"Some({status}) =>" not in play_status:
             raise SystemExit(f"Review the builder play exit status {status}.")
-    print(f"Verified languages, licenses, save user, shader names and error codes against {ref[:10]}.", flush=True)
+    print(f"Verified languages, licenses, FP16 DLSS 5 files, save user, shader names and error codes against {ref[:10]}.", flush=True)
 
 
 def check_desktop_names():

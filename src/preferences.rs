@@ -1,5 +1,6 @@
 #[cfg(target_os = "linux")]
 mod controller_rules;
+mod dlss5;
 mod folders;
 use crate::{Locale, MainWindow, Preferences, SettingToggle, Updates, fsx, home, i18n};
 use anyhow::Result;
@@ -228,6 +229,7 @@ pub fn bind(ui: &MainWindow, root: &Path) -> Result<()> {
     ui.global::<Locale>()
         .on_display_path(|path| crate::home::display(Path::new(path.as_str())).into());
     crate::storage::cleanup::bind(ui, root);
+    dlss5::bind(ui);
     i18n::bind_messages(&ui.global::<Locale>());
     let (weak, path) = (ui.as_weak(), root.to_owned());
     p.on_choose_startup_profile(move |index| {

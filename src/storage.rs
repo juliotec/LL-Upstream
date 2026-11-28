@@ -342,6 +342,18 @@ pub fn measure(root: &Path) -> Result<Snapshot> {
         "Your data",
         None,
     );
+    // (Windows) the DLSS 5 files the launcher copied, which every version uses: removed in Settings, not here. A file the
+    // player put there by hand is theirs, and not counted
+    if let Some(folder) = crate::dlss5::folder() {
+        for (_, path) in crate::dlss5::added(&folder) {
+            add(
+                path,
+                crate::i18n::key("DLSS 5 files").into(),
+                "Your data",
+                None,
+            );
+        }
+    }
     for part in CACHES {
         add(
             work.join(part.subdir),

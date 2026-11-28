@@ -15,6 +15,7 @@ impl<T> UiMutexExt<T> for std::sync::Mutex<T> {
 mod controller;
 mod desktop;
 mod diagnostics;
+mod dlss5;
 mod folders;
 mod fsx;
 use folders::mod_store;
