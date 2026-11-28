@@ -6,7 +6,7 @@ Open **Saves** to see the files in the active profile. Select a file to see its 
 
 ## Moving from the stable launcher
 
-Launcher preferences start fresh after upgrading from 1.3.x. Select your language, update channel and active profile again. If you used a custom cache drive, choose it in **Settings → Game** before your first build. The save editor and its binary-editing contract tests were retired. The Progress view displays save details read-only. Hookshot game settings must be configured in Longshot.
+Launcher preferences start fresh after upgrading from 1.3.x, except what would only make the player repeat setup: the launcher language, the game language and a custom build-files folder are reused when the previous launcher had them set. The update channel, active profile and every consent are chosen here. Choose a cache drive in **Settings → Game** before your first build if the previous launcher used one. The save editor and its binary-editing contract tests were retired. The Progress view displays save details read-only. Hookshot game settings must be configured in Longshot.
 
 On the first upgrade from stable, the launcher copies the shared save and its pending writes into the default profile. Existing adventures stay intact. If the default profile already has different saves, the launcher creates a separate **Stable saves** profile. Windows installations with saves still inside individual game folders can produce additional profiles. The original files stay available to stable, and later launches keep the progress you make in each launcher. **Saves → Import** also lists detected stable save slots.
 

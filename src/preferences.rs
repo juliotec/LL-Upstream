@@ -206,6 +206,13 @@ fn save(ui: &MainWindow, root: &Path, patch: Value) {
 }
 
 pub fn bind(ui: &MainWindow, root: &Path) -> Result<()> {
+    // Reuse the launcher language, game language and a custom build-files
+    // folder the previous launcher had chosen; the update channel, profile and
+    // every consent stay the player's choices here. Best effort: a start
+    // succeeds even when the old settings cannot be read.
+    if let Err(error) = crate::home::link_from_stable(root) {
+        eprintln!("Could not reuse the previous launcher's settings: {error:#}");
+    }
     let p = ui.global::<Preferences>();
     #[cfg(target_os = "linux")]
     controller_rules::bind(ui);

@@ -160,7 +160,7 @@ pub fn remove_managed(home: &Path, folder: &Path) -> Result<()> {
 }
 static CATALOG: std::sync::RwLock<Option<catalog::Catalog>> = std::sync::RwLock::new(None);
 
-const LANGS: &[&str] = &[
+pub(crate) const LANGS: &[&str] = &[
     "en-US", "en-GB", "fr", "fr-CA", "de", "it", "es", "es-419", "pt-BR", "nl", "pl", "ru", "ja",
     "ko", "zh-Hans", "zh-Hant",
 ];

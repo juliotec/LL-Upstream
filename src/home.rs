@@ -83,8 +83,10 @@ pub fn resolve() -> Result<PathBuf> {
 }
 
 mod portable;
+mod stable_prefs;
 use portable::portable_home;
 pub(crate) use portable::{enable_portable, is_portable, portable_at};
+pub(crate) use stable_prefs::link_from_stable;
 
 /// Resolve owned versions within the current portable copy. Repair missing game
 /// inputs when the same relative path exists on the relocated drive.
