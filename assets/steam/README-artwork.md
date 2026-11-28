@@ -16,9 +16,11 @@ capsules back in would cut the glyph out of a picture of itself, so the script r
 look at the output, commit. The recipe mirrors the emulator's own start-up screen (Longshot
 `gpu/vk/vk_menu.cpp` `draw_startup`, `gpu/vk/vk_ui.h`): the Longshot glyph, `LONGSHOT` under it
 in Libertinus Serif Semibold (the fallback face the start-up screen itself uses; the game's own
-menu font cannot ship) in cream `(246,232,204)` spaced by 0.14 em, the gold `(214,170,96)`
-flourish rule — faint line, two mirrored curls, centre diamond — under the word, on the same flat
-field the source art carries (sampled, never assumed). If the artwork changes upstream, replace
+menu font cannot ship) in cream `(246,232,204)` spaced by 0.14 em, on the same flat field the
+source art carries (sampled, never assumed). The start-up screen's gold `(214,170,96)` flourish
+rule under the word — line, two mirrored curls, centre diamond — is deliberately not drawn:
+review had the line under the wording out of the artwork, and the banner the game build draws
+leaves it out too. If the artwork changes upstream, replace
 the `src_` originals and re-run the script; a visual review of the output is part of the change,
 not optional. The compositor is deterministic: re-running on unchanged originals reproduces the
 slot files byte for byte.
