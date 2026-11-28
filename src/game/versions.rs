@@ -743,17 +743,6 @@ pub(super) fn safe_tree(folder: &Path) -> Result<Vec<home::FileLease>> {
     Ok(locks)
 }
 
-pub(super) fn overlaps_private(folder: &Path, sources: &[PathBuf]) -> Result<bool> {
-    Ok(protected_overlap(folder, sources)?.is_some())
-}
-
-fn protected_overlap<'a>(folder: &Path, sources: &'a [PathBuf]) -> Result<Option<&'a Path>> {
-    let folder = folder.canonicalize()?;
-    Ok(sources.iter().map(PathBuf::as_path).find(|&source| {
-        let path = source.canonicalize().unwrap_or_else(|_| source.to_owned());
-        crate::fsx::overlaps(&folder, &path)
-    }))
-}
 pub(super) fn delete(home_dir: &Path, version: &Version) -> Result<()> {
     let _library = super::move_lease(home_dir)?;
     players::ensure_idle()?;
@@ -779,12 +768,18 @@ pub(super) fn delete_when_idle(home_dir: &Path, version: &Version) -> Result<()>
         super::owned_folder(home_dir, &version.folder) && managed_folder(&version.folder),
         "Only managed version folders can be deleted."
     );
-    if let Some(path) =
-        protected_overlap(&version.folder, &crate::storage::protected_paths(home_dir)?)?
-    {
+    if let Some(protection) = crate::storage::installation_protection(home_dir, &version.folder)? {
+        let reason = match protection {
+            crate::storage::InstallationProtection::StableRegistry(_) => {
+                "The previous launcher's build list still references this folder"
+            }
+            crate::storage::InstallationProtection::Other(_) => {
+                "This version overlaps a protected game source or external build"
+            }
+        };
         bail!(
-            "Removal stopped. This version overlaps a protected game source or installation folder: {}",
-            home::display(path)
+            "Removal stopped. {reason}: {}",
+            home::display(protection.path())
         );
     }
     super::library::removable(home_dir, &version.folder)?;

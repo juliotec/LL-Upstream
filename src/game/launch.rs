@@ -460,9 +460,16 @@ fn wait(
         drop(requests);
         return session.child.wait().map(Some);
     };
-    let mut transcript = Transcript::start(home, BuildLog::Launch)
-        .inspect_err(|e| eprintln!("Could not open the local launch log: {e}"))
-        .ok();
+    let mut transcript = Transcript::start(
+        home,
+        BuildLog::Launch,
+        &[
+            ("<installed version>", &session.folder),
+            ("<profile>", &session.profile),
+        ],
+    )
+    .inspect_err(|e| eprintln!("Could not open the local launch log: {e}"))
+    .ok();
     let available = transcript.is_some();
     let _ = window
         .upgrade_in_event_loop(move |ui| ui.global::<Game>().set_launch_log_available(available));

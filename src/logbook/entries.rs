@@ -18,8 +18,7 @@ fn entry(time: &str, level: &str, source: &str, message: &str) -> LogEntry {
     }
 }
 
-// Keep the raw transcript intact for Copy and Save. A builder message can contain
-// several paths interleaved with prose, unlike the launcher's path-valued labels.
+// Older transcripts and game logs can still contain home paths.
 fn display_message(message: &str) -> std::borrow::Cow<'_, str> {
     use std::sync::LazyLock;
     static HOME: LazyLock<Option<String>> =
@@ -27,26 +26,49 @@ fn display_message(message: &str) -> std::borrow::Cow<'_, str> {
     let Some(home) = HOME.as_deref() else {
         return message.into();
     };
-    shorten_paths(message, home)
+    replace_path(message, home, "~")
 }
 
-fn shorten_paths<'a>(message: &'a str, home: &str) -> std::borrow::Cow<'a, str> {
-    if home.is_empty() || home == std::path::MAIN_SEPARATOR_STR {
+pub(super) fn replace_path<'a>(
+    message: &'a str,
+    path: &str,
+    replacement: &str,
+) -> std::borrow::Cow<'a, str> {
+    if path == std::path::MAIN_SEPARATOR_STR {
         return message.into();
     }
+    replace_bounded(message, path, replacement, |before, after| {
+        before.is_none_or(|c| c.is_whitespace() || "\"'`=:([,".contains(c))
+            && after.is_none_or(|c| {
+                std::path::is_separator(c) || c.is_whitespace() || "\"'`),]:;".contains(c)
+            })
+    })
+}
+
+pub(super) fn replace_bounded<'a>(
+    message: &'a str,
+    value: &str,
+    replacement: &str,
+    boundary: impl Fn(Option<char>, Option<char>) -> bool,
+) -> std::borrow::Cow<'a, str> {
+    if value.is_empty() {
+        return message.into();
+    }
+    #[cfg(windows)]
+    let (folded_message, folded_value) = (message.to_ascii_lowercase(), value.to_ascii_lowercase());
+    #[cfg(windows)]
+    let (haystack, needle) = (folded_message.as_str(), folded_value.as_str());
+    #[cfg(not(windows))]
+    let (haystack, needle) = (message, value);
     let mut output = String::new();
     let mut start = 0;
-    for (at, _) in message.match_indices(home) {
+    for (at, _) in haystack.match_indices(needle) {
         let before = message[..at].chars().next_back();
-        let end = at + home.len();
+        let end = at + value.len();
         let after = message[end..].chars().next();
-        if before.is_none_or(|c| c.is_whitespace() || "\"'`=:([".contains(c))
-            && after.is_none_or(|c| {
-                std::path::is_separator(c) || c.is_whitespace() || "\"'`),]".contains(c)
-            })
-        {
+        if boundary(before, after) {
             output.push_str(&message[start..at]);
-            output.push('~');
+            output.push_str(replacement);
             start = end;
         }
     }
@@ -410,7 +432,7 @@ mod path_tests {
     fn shorten_local_paths_without_rewriting_other_paths_or_urls() {
         let message = "Copy /home/ada/run to '/home/ada/two games' via /mnt/home/ada/file. Keep /home/adam and https://example/home/ada/test.";
         assert_eq!(
-            super::shorten_paths(message, "/home/ada"),
+            super::replace_path(message, "/home/ada", "~"),
             "Copy ~/run to '~/two games' via /mnt/home/ada/file. Keep /home/adam and https://example/home/ada/test."
         );
     }

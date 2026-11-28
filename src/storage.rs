@@ -648,9 +648,66 @@ pub(crate) fn protected_paths(root: &Path) -> Result<Vec<PathBuf>> {
     protected_inputs(root, true)
 }
 
+pub(crate) fn overlaps_private(folder: &Path, sources: &[PathBuf]) -> Result<bool> {
+    Ok(protected_overlap(&folder.canonicalize()?, sources).is_some())
+}
+
+fn protected_overlap(folder: &Path, sources: &[PathBuf]) -> Option<PathBuf> {
+    sources
+        .iter()
+        .find(|source| {
+            let path = source.canonicalize().unwrap_or_else(|_| (*source).clone());
+            crate::fsx::overlaps(folder, &path)
+        })
+        .cloned()
+}
+
+pub(crate) enum InstallationProtection {
+    StableRegistry(PathBuf),
+    Other(PathBuf),
+}
+
+impl InstallationProtection {
+    pub(crate) fn path(&self) -> &Path {
+        match self {
+            Self::StableRegistry(path) | Self::Other(path) => path,
+        }
+    }
+}
+
+pub(crate) fn installation_protection(
+    root: &Path,
+    folder: &Path,
+) -> Result<Option<InstallationProtection>> {
+    let folder = folder.canonicalize()?;
+    let stable = crate::game::registry::stable_view(root)?;
+    let stable_folders = stable["builds"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|row| field_path(row, "folder"))
+        .collect::<Vec<_>>();
+    if let Some(path) = protected_overlap(&folder, &stable_folders) {
+        return Ok(Some(InstallationProtection::StableRegistry(path)));
+    }
+    Ok(protected_overlap(
+        &folder,
+        &protected_inputs_from_registry(root, &stable, false)?,
+    )
+    .map(InstallationProtection::Other))
+}
+
 fn protected_inputs(root: &Path, include_stable_folders: bool) -> Result<Vec<PathBuf>> {
+    let stable = crate::game::registry::stable_view(root)?;
+    protected_inputs_from_registry(root, &stable, include_stable_folders)
+}
+
+fn protected_inputs_from_registry(
+    root: &Path,
+    stable: &Value,
+    include_stable_folders: bool,
+) -> Result<Vec<PathBuf>> {
     use crate::game::registry::{self, OWN};
-    let stable = registry::stable_view(root)?;
     let mut protected = Vec::new();
     for row in stable["builds"].as_array().unwrap() {
         for key in ["folder", "nup", "romfs", "exefs"] {

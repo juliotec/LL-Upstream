@@ -113,8 +113,8 @@ fn link_with_settings_writer(
     let mut attached = false;
     players::patch_profile(&profile, |record| {
         let game = record.get("game").and_then(Value::as_str);
-        let own_pending = game == Some(text.as_ref())
-            && record.get(PENDING).and_then(Value::as_str) == game;
+        let own_pending =
+            game == Some(text.as_ref()) && record.get(PENDING).and_then(Value::as_str) == game;
         if !non_empty(game) || own_pending {
             record.insert("game".into(), json!(text));
             record.insert(PENDING.into(), json!(text));

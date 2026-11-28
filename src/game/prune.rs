@@ -351,7 +351,7 @@ fn prune(home: &Path, retired_only: bool) -> Result<()> {
             || keep.iter().any(|path| path.starts_with(&folder))
             || super::library::removable(home, &folder).is_err()
             || folder.extension().is_some_and(|s| s == "part")
-            || versions::overlaps_private(&folder, &private)?
+            || crate::storage::overlaps_private(&folder, &private)?
         {
             continue;
         }

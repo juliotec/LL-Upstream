@@ -60,6 +60,9 @@ impl BuildIntent {
                 "This copy was added outside the launcher. Choose Add version to install a separate managed copy."
             );
         }
+        if let Self::Update(instance) = self {
+            check_upgrade_paths(home, &instance.folder)?;
+        }
         Ok(())
     }
 
@@ -499,9 +502,21 @@ fn execute_build(
     progress: &mut dyn FnMut(&str, Option<f32>),
     monitor: &mut super::forecast::Monitor,
 ) -> Result<()> {
-    p.ctx.prepare_mod_store()?;
+    let destination = p.exe.parent().context("Invalid builder folder")?;
+    let mut locations = vec![
+        ("<game source>", p.game.as_path()),
+        ("<profile>", p.ctx.profile.as_path()),
+        ("<builder cache>", p.ctx.cache.as_path()),
+        ("<build destination>", destination),
+    ];
+    if let BuildIntent::Update(old) = &p.intent {
+        locations.push(("<installed version>", old.folder.as_path()));
+    }
+    if let Some(library) = settings["fsrLibraryPath"].as_str() {
+        locations.push(("<FSR library>", Path::new(library)));
+    }
     let mut transcript =
-        crate::logbook::Transcript::start(&p.ctx.home, crate::logbook::BuildLog::Build)
+        crate::logbook::Transcript::start(&p.ctx.home, crate::logbook::BuildLog::Build, &locations)
             .inspect_err(|e| eprintln!("Could not open the local build log: {e}"))
             .ok();
     let mut record = |source: &str, line: &str| {
@@ -512,7 +527,47 @@ fn execute_build(
             transcript = None;
         }
     };
-    record("launcher", "[INFO] Build started");
+    let operation = match &p.intent {
+        BuildIntent::New => "Install",
+        BuildIntent::Rebuild(_) => "Rebuild",
+        BuildIntent::Update(_) => "Update",
+    };
+    record(
+        "launcher",
+        &format!("[INFO] {operation} started · target {}", p.tag),
+    );
+    if let BuildIntent::Update(old) = &p.intent {
+        record(
+            "launcher",
+            &format!("[INFO] Updating {} at <installed version>", old.tag),
+        );
+    }
+    let location = destination.strip_prefix(&p.ctx.home).map_or_else(
+        |_| "outside <launcher>".to_owned(),
+        |relative| format!("under <launcher> at {relative:?}"),
+    );
+    record(
+        "launcher",
+        &format!("[INFO] <build destination> is {location}"),
+    );
+    record(
+        "launcher",
+        "[INFO] Input <game source> · profile <profile> · cache <builder cache>",
+    );
+    let upscalers = options.upscalers();
+    record(
+        "launcher",
+        &format!(
+            "[INFO] Language {} · upscalers {} · prepare shaders {}",
+            options.language,
+            if upscalers.is_empty() {
+                "none".to_owned()
+            } else {
+                upscalers.join(", ")
+            },
+            if options.shaders { "yes" } else { "no" },
+        ),
+    );
     build_and_register(p, options, settings, cancel, progress, monitor, &mut record)
         .inspect_err(|error| record("launcher", &format!("[ERROR] {error:#}")))
 }
@@ -527,6 +582,7 @@ fn build_and_register(
     record: &mut dyn FnMut(&str, &str),
 ) -> Result<()> {
     let destination = p.exe.parent().context("Invalid builder folder")?;
+    p.ctx.prepare_mod_store()?;
     p.intent.validate(&p.ctx.home, destination)?;
     if !cfg!(windows) && options.fsr {
         let source = settings["fsrLibraryPath"]
@@ -653,6 +709,19 @@ fn build_and_register(
 mod upgrade_files;
 use upgrade_files::carry_runtime_files;
 
+fn check_upgrade_paths(home: &Path, folder: &Path) -> Result<()> {
+    use crate::storage::InstallationProtection;
+    match crate::storage::installation_protection(home, folder)? {
+        Some(InstallationProtection::StableRegistry(_)) => bail!(
+            "The previous launcher's build list still references this installation. Choose Add version to install the update separately."
+        ),
+        Some(InstallationProtection::Other(_)) => bail!(
+            "A registered game source or external build overlaps this installation folder. Choose Add version to install the update separately."
+        ),
+        None => Ok(()),
+    }
+}
+
 /// Keep the ownership marker and unrelated files in place. Move the old build to
 /// the staging slot so normal manifest-aware cleanup can reclaim its outputs.
 fn replace_instance(
@@ -666,10 +735,7 @@ fn replace_instance(
         super::owned_folder(home, active) && super::owned_folder(home, staged),
         "The installation ownership changed."
     );
-    ensure!(
-        !versions::overlaps_private(active, &crate::storage::protected_paths(home)?)?,
-        "The installation contains a game source."
-    );
+    check_upgrade_paths(home, active)?;
     let guards = versions::safe_tree(active)?;
     if cfg!(windows) {
         drop(guards);
@@ -679,10 +745,24 @@ fn replace_instance(
         .tempdir_in(staged)?;
     let mut moves = Vec::new();
     let mut relocate = |from: PathBuf, to: PathBuf| -> Result<()> {
-        ensure!(
-            std::fs::symlink_metadata(&to).is_err_and(|e| e.kind() == std::io::ErrorKind::NotFound),
-            "An upgrade destination is occupied."
-        );
+        let (root, label) = if to.starts_with(temp.path()) {
+            (temp.path(), "temporary upgrade folder")
+        } else if to.starts_with(active) {
+            (active, "installed version")
+        } else {
+            (staged, "staged version")
+        };
+        let relative = to.strip_prefix(root)?;
+        match fs::symlink_metadata(&to) {
+            Ok(_) => bail!(
+                "An upgrade destination is occupied. The {label} already contains {relative:?}."
+            ),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => {
+                return Err(error)
+                    .with_context(|| format!("Could not check {relative:?} in the {label}"));
+            }
+        }
         fs::rename(&from, &to)?;
         moves.push((from, to));
         Ok(())
@@ -858,6 +938,31 @@ mod tests {
     }
 
     #[test]
+    fn shared_updates_explain_why_a_separate_installation_is_needed() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let root = temp.path();
+        let active = root.join("versions/nightly-1");
+        crate::game::fake_version(&active)?;
+        let build = active.join("builds/default");
+        let stable = root.join(crate::game::registry::STABLE);
+        home::write_json(&stable, &json!({"format":1,"builds":[{"folder":build}]}))?;
+        let error = check_upgrade_paths(root, &active).unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("previous launcher's build list still references")
+        );
+        assert!(error.to_string().contains("Choose Add version"));
+
+        let original = active.join("original.nup");
+        home::write_json(&stable, &json!({"format":1,"builds":[{"nup":original}]}))?;
+        let error = check_upgrade_paths(root, &active).unwrap_err();
+        assert!(error.to_string().contains("registered game source"));
+        assert!(error.to_string().contains("Choose Add version"));
+        Ok(())
+    }
+
+    #[test]
     fn failed_registration_restores_both_builds() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let home = temp.path();
@@ -869,6 +974,20 @@ mod tests {
             fs::write(path.join("builds/default/longshot_options.ini"), contents)?;
         }
         fs::write(active.join("personal.txt"), "keep")?;
+        let conflict = staged.join("personal.txt");
+        fs::write(&conflict, "staged")?;
+        let error = replace_instance(home, &active, &staged, || panic!("unexpected registration"))
+            .unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("installed version already contains \"personal.txt\"")
+        );
+        assert_eq!(fs::read(active.join("personal.txt"))?, b"keep");
+        assert_eq!(fs::read(&conflict)?, b"staged");
+        assert_eq!(fs::read(active.join("builds/default/output"))?, b"old");
+        fs::remove_file(conflict)?;
+
         let result = replace_instance(home, &active, &staged, || bail!("registration failed"));
         assert_eq!(result.unwrap_err().to_string(), "registration failed");
         assert_eq!(fs::read(active.join("builds/default/output"))?, b"old");
@@ -1098,6 +1217,8 @@ fi
             &mut super::super::forecast::Monitor::new(None, &json!({}), false, false),
         )?;
         let transcript = fs::read_to_string(root.join("logs/last-build.log"))?;
+        assert!(transcript.contains("Install started · target v3.2.0"));
+        assert!(transcript.contains("Input <game source> · profile <profile>"));
         let (_, finalization) = transcript
             .split_once(r#""type":"done""#)
             .expect("builder finished");
