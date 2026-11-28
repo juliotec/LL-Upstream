@@ -644,9 +644,15 @@ fn build_and_register(
             "The selected installation changed during the upgrade."
         );
         let installed = old.folder.join(folder.strip_prefix(destination)?);
-        replace_instance(&p.ctx.home, &old.folder, destination, || {
+        let preserved = replace_instance(&p.ctx.home, &old.folder, destination, || {
             register(&installed, Some(destination))
         })?;
+        for path in preserved {
+            record(
+                "launcher",
+                &format!("[WARN] Kept an existing installation entry at {path:?}"),
+            );
+        }
         installed
     } else {
         register(&folder, None)?;
@@ -753,7 +759,7 @@ fn build_output(
 }
 
 mod upgrade_files;
-use upgrade_files::carry_runtime_files;
+use upgrade_files::{carry_runtime_files, collision_destination, occupied};
 
 fn check_upgrade_paths(home: &Path, folder: &Path) -> Result<()> {
     use crate::storage::InstallationProtection;
@@ -768,14 +774,14 @@ fn check_upgrade_paths(home: &Path, folder: &Path) -> Result<()> {
     }
 }
 
-/// Keep the ownership marker and unrelated files in place. Move the old build to
-/// the staging slot so normal manifest-aware cleanup can reclaim its outputs.
+/// Keep the ownership marker and unrelated files. Move the old build to the
+/// staging slot so normal manifest-aware cleanup can reclaim its outputs.
 fn replace_instance(
     home: &Path,
     active: &Path,
     staged: &Path,
     register: impl FnOnce() -> Result<()>,
-) -> Result<()> {
+) -> Result<Vec<PathBuf>> {
     use std::fs;
     ensure!(
         super::owned_folder(home, active) && super::owned_folder(home, staged),
@@ -799,24 +805,28 @@ fn replace_instance(
             (staged, "staged version")
         };
         let relative = to.strip_prefix(root)?;
-        match fs::symlink_metadata(&to) {
-            Ok(_) => bail!(
+        match crate::fsx::rename_new(&from, &to) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => bail!(
                 "An upgrade destination is occupied. The {label} already contains {relative:?}."
             ),
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
             Err(error) => {
-                return Err(error)
-                    .with_context(|| format!("Could not check {relative:?} in the {label}"));
+                return Err(error).with_context(|| {
+                    format!("Could not move an upgrade entry to {relative:?} in the {label}")
+                });
             }
         }
-        fs::rename(&from, &to)?;
         moves.push((from, to));
         Ok(())
     };
+    let mut preserved = Vec::new();
     let result = (|| -> Result<()> {
         for entry in fs::read_dir(active)? {
             let entry = entry?;
             let name = entry.file_name();
+            if name == super::upscaler::LIBRARY && !occupied(&staged.join(&name))? {
+                continue;
+            }
             if name != ".longshot-launcher-owner"
                 && (super::library::tool_file(&name) || name == "builds")
             {
@@ -830,7 +840,15 @@ fn replace_instance(
                 && name != ".longshot-launcher-owner"
                 && name != versions::INSTALLING
             {
-                relocate(entry.path(), active.join(name))?;
+                let source = entry.path();
+                let target = active.join(name);
+                if occupied(&target)? {
+                    let saved = collision_destination(&target, &source)?;
+                    let relative = saved.strip_prefix(active)?.to_owned();
+                    relocate(target.clone(), saved)?;
+                    preserved.push(relative);
+                }
+                relocate(source, target)?;
             }
         }
         for entry in fs::read_dir(temp.path())? {
@@ -842,7 +860,7 @@ fn replace_instance(
     })();
     if let Err(error) = result {
         for (from, to) in moves.into_iter().rev() {
-            if let Err(rollback) = fs::rename(&to, &from) {
+            if let Err(rollback) = crate::fsx::rename_new(&to, &from) {
                 let kept = temp.keep();
                 anyhow::bail!(
                     "{error}; rollback failed: {rollback}. Recovery files: {}",
@@ -853,7 +871,7 @@ fn replace_instance(
         return Err(error);
     }
     super::prune::mark_retired(staged);
-    Ok(())
+    Ok(preserved)
 }
 
 /// `folder`, the game folder the builder reported, in the spelling of the version folder `version`, when it is a folder
@@ -1050,23 +1068,13 @@ mod tests {
         fs::write(active.join("personal.txt"), "keep")?;
         let conflict = staged.join("personal.txt");
         fs::write(&conflict, "staged")?;
-        let error = replace_instance(home, &active, &staged, || panic!("unexpected registration"))
-            .unwrap_err();
-        assert!(
-            error
-                .to_string()
-                .contains("installed version already contains \"personal.txt\"")
-        );
-        assert_eq!(fs::read(active.join("personal.txt"))?, b"keep");
-        assert_eq!(fs::read(&conflict)?, b"staged");
-        assert_eq!(fs::read(active.join("builds/default/output"))?, b"old");
-        fs::remove_file(conflict)?;
-
         let result = replace_instance(home, &active, &staged, || bail!("registration failed"));
         assert_eq!(result.unwrap_err().to_string(), "registration failed");
         assert_eq!(fs::read(active.join("builds/default/output"))?, b"old");
         assert_eq!(fs::read(staged.join("builds/default/output"))?, b"new");
         assert_eq!(fs::read(active.join("personal.txt"))?, b"keep");
+        assert_eq!(fs::read(&conflict)?, b"staged");
+        assert!(!active.join("personal.txt.pre-upgrade").exists());
         assert_eq!(
             fs::read(active.join("builds/default/longshot_options.ini"))?,
             b"old"
@@ -1075,6 +1083,38 @@ mod tests {
             fs::read(staged.join("builds/default/longshot_options.ini"))?,
             b"new"
         );
+        Ok(())
+    }
+
+    #[test]
+    fn upgrade_replaces_the_fsr_pin_and_keeps_conflicting_local_files() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let home = temp.path();
+        let active = home.join("versions/nightly-1");
+        let staged = home.join("versions/nightly-2");
+        let library = super::super::upscaler::LIBRARY;
+        for (folder, text) in [(&active, "old"), (&staged, "new")] {
+            crate::game::fake_version(folder)?;
+            fs::write(folder.join(library), text)?;
+            fs::write(folder.join("personal.txt"), text)?;
+        }
+        fs::write(active.join("personal.txt.pre-upgrade"), b"previous backup")?;
+
+        let preserved = replace_instance(home, &active, &staged, || Ok(()))?;
+        assert_eq!(fs::read(active.join(library))?, b"new");
+        assert_eq!(fs::read(staged.join(library))?, b"old");
+        assert_eq!(preserved, [PathBuf::from("personal.txt.pre-upgrade-1")]);
+        assert_eq!(fs::read(active.join("personal.txt"))?, b"new");
+        assert_eq!(fs::read(active.join("personal.txt.pre-upgrade-1"))?, b"old");
+        assert_eq!(
+            fs::read(active.join("personal.txt.pre-upgrade"))?,
+            b"previous backup"
+        );
+
+        let no_fsr = home.join("versions/nightly-3");
+        crate::game::fake_version(&no_fsr)?;
+        assert!(replace_instance(home, &active, &no_fsr, || Ok(()))?.is_empty());
+        assert_eq!(fs::read(active.join(library))?, b"new");
         Ok(())
     }
 

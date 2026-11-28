@@ -5,7 +5,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-const LIBRARY: &str = "amd_fidelityfx_upscaler_vk.so";
+pub(super) const LIBRARY: &str = "amd_fidelityfx_upscaler_vk.so";
 
 pub(super) fn open_library(path: &Path) -> Result<File> {
     let mut file = File::open(path).context("Could not open the FSR 4 library.")?;

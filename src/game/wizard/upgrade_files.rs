@@ -14,7 +14,7 @@ fn setting(build: &Path, name: &str) -> PathBuf {
     }
 }
 
-fn occupied(path: &Path) -> std::io::Result<bool> {
+pub(super) fn occupied(path: &Path) -> std::io::Result<bool> {
     match fs::symlink_metadata(path) {
         Ok(_) => Ok(true),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(false),
@@ -22,7 +22,7 @@ fn occupied(path: &Path) -> std::io::Result<bool> {
     }
 }
 
-fn collision_destination(target: &Path, original: &Path) -> Result<PathBuf> {
+pub(super) fn collision_destination(target: &Path, original: &Path) -> Result<PathBuf> {
     for index in 0u32.. {
         let suffix = if index == 0 {
             ".pre-upgrade".to_owned()

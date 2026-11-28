@@ -18,6 +18,7 @@ pub(crate) const FETCH_LOCK: &str = ".launcher-fetch.lock";
 
 pub(super) fn tool_file(name: &std::ffi::OsStr) -> bool {
     name == super::process::executable()
+        || name == super::upscaler::LIBRARY
         || matches!(
             name.to_str(),
             Some(
@@ -222,12 +223,7 @@ pub(super) fn discard_build(home: &Path, folder: &Path, game: Option<&Path>) -> 
         let entry = entry?;
         let name = entry.file_name();
         ensure!(
-            tool_file(&name)
-                || matches!(
-                    name.to_str(),
-                    Some("builds" | "amd_fidelityfx_upscaler_vk.so")
-                )
-                || name == versions::INSTALLING,
+            tool_file(&name) || name == "builds" || name == versions::INSTALLING,
             "The cancelled build folder contains additional files."
         );
     }
