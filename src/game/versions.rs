@@ -744,9 +744,13 @@ pub(super) fn safe_tree(folder: &Path) -> Result<Vec<home::FileLease>> {
 }
 
 pub(super) fn overlaps_private(folder: &Path, sources: &[PathBuf]) -> Result<bool> {
+    Ok(protected_overlap(folder, sources)?.is_some())
+}
+
+fn protected_overlap<'a>(folder: &Path, sources: &'a [PathBuf]) -> Result<Option<&'a Path>> {
     let folder = folder.canonicalize()?;
-    Ok(sources.iter().any(|source| {
-        let path = source.canonicalize().unwrap_or_else(|_| source.clone());
+    Ok(sources.iter().map(PathBuf::as_path).find(|&source| {
+        let path = source.canonicalize().unwrap_or_else(|_| source.to_owned());
         crate::fsx::overlaps(&folder, &path)
     }))
 }
@@ -775,10 +779,14 @@ pub(super) fn delete_when_idle(home_dir: &Path, version: &Version) -> Result<()>
         super::owned_folder(home_dir, &version.folder) && managed_folder(&version.folder),
         "Only managed version folders can be deleted."
     );
-    ensure!(
-        !overlaps_private(&version.folder, &crate::storage::protected_paths(home_dir)?)?,
-        "This version contains a registered game source and has been kept."
-    );
+    if let Some(path) =
+        protected_overlap(&version.folder, &crate::storage::protected_paths(home_dir)?)?
+    {
+        bail!(
+            "Removal stopped. This version overlaps a protected game source or installation folder: {}",
+            home::display(path)
+        );
+    }
     super::library::removable(home_dir, &version.folder)?;
     let guards = safe_tree(&version.folder)?;
     let parent = version.folder.parent().unwrap();
@@ -823,6 +831,32 @@ pub(super) fn stage_for_removal(
 #[cfg(test)]
 mod removal {
     use super::*;
+    #[test]
+    fn removal_identifies_and_preserves_a_registered_source() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let home = temp.path();
+        let folder = home.join("versions/nightly-1");
+        crate::game::fake_version(&folder)?;
+        let source = folder.join("original.nup");
+        fs::write(&source, b"fixture")?;
+        register(
+            home,
+            "nightly-1",
+            &source,
+            &folder.join("builds/default"),
+            &[],
+            None,
+            None,
+        )?;
+        let version = installed(home)?.pop().unwrap();
+        let before = registry(home)?;
+        let error = delete_when_idle(home, &version).unwrap_err();
+        assert!(error.to_string().contains(&home::display(&source)));
+        assert_eq!(fs::read(source)?, b"fixture");
+        assert_eq!(registry(home)?, before);
+        Ok(())
+    }
+
     #[test]
     fn removes_an_idle_version_with_a_builder_lock_file() -> Result<()> {
         let temp = tempfile::tempdir()?;

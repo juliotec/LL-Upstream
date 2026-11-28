@@ -1,4 +1,4 @@
-import { Action } from "widgets.slint";
+import { Action, ProgressBar } from "widgets.slint";
 import { ConfirmDialog, ModalLayer } from "modal-layer.slint";
 import {
     Game,
@@ -33,14 +33,15 @@ export component RemoveVersionDialog inherits ModalLayer {
             spacing: 15px;
 
             PanelTitle {
-                text: Locale.t("Remove") + " " + Game.current-tag + "?";
+                text: Game.busy ? Locale.fill(Locale.t("Removing {0}…"), Game.current-tag, "") : Locale.t("Remove") + " " + Game.current-tag + "?";
             }
 
             Note {
                 text: Locale.t("This removes the selected version and its built games. Your profile keeps its saves.");
             }
 
-            if Game.status != "": Note {
+            if Game.busy: ProgressBar { fraction: -1; }
+            if !Game.busy && Game.status != "": Note {
                 text: Game.status;
             }
             HorizontalLayout {
