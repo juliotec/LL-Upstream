@@ -1,4 +1,10 @@
 {
+  "Download": "下載",
+  "Installed on this PC": "已安裝在此電腦上",
+  "Finalizing": "正在完成安裝",
+  "Registering the installation…": "正在登錄安裝資訊…",
+  "Checking older installations…": "正在檢查舊版本…",
+  "Cleaning up temporary build files…": "正在清理暫存建置檔案…",
   "Checking files…": "正在檢查檔案…",
   "Removed {0} of {1} files": "已移除 {0}/{1} 個檔案",
   "Profile on start-up": "啟動時使用的個人檔案",

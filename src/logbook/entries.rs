@@ -265,7 +265,7 @@ impl Reader {
                         "INFO",
                         "build",
                         if body.is_empty() {
-                            "Build completed"
+                            "Builder finished"
                         } else {
                             body
                         },

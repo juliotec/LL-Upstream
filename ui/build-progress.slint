@@ -21,6 +21,35 @@ component Arc inherits GaugeArc {
     stroke-width: self.width * 0.036;
 }
 
+component StageRow inherits HorizontalLayout {
+    in property <color> swatch;
+    in property <string> marker;
+    in property <string> title;
+    in property <string> detail;
+    spacing: 7px;
+    cross-axis-alignment: start;
+    Rectangle {
+        width: 10px;
+        height: 18px;
+        Rectangle {
+            y: 4px;
+            height: 10px;
+            background: root.swatch;
+        }
+    }
+    Note { width: 14px; horizontal-alignment: center; text: root.marker; font-size: 14px; }
+    VerticalLayout {
+        horizontal-stretch: 1;
+        spacing: 2px;
+        Note { text: root.title; font-size: 14px; }
+        if root.detail != "": Note {
+            text: root.detail;
+            font-size: 12px;
+            color: Ink.sand;
+        }
+    }
+}
+
 component BuildGauge inherits Rectangle {
     height: self.width * 0.51;
     private property <bool> done:Game.step == GameStep.ready;
@@ -43,7 +72,7 @@ component BuildGauge inherits Rectangle {
     Text {
         y: parent.height * 0.65;
         height: parent.height * 0.35;
-        text: root.done ? "100%" : Game.overall >= 0 ? round(Game.overall * 100) + "%" : "…";
+        text: root.done ? "100%" : Game.finalizing ? "…" : Game.overall >= 0 ? round(Game.overall * 100) + "%" : "…";
         color: Ink.text;
         font-family: "Inter";
         font-weight: 900;
@@ -148,6 +177,7 @@ export component BuildProgress inherits Rectangle {
 
                 if !root.problem: BuildGauge { }
                 if !root.problem && !root.done: Note {
+                    visible: !Game.finalizing;
                     text: Game.eta == "" ? Locale.t("Estimating time remaining…") : Game.eta;
                     horizontal-alignment: center;
                     font-size: 13px;
@@ -160,31 +190,19 @@ export component BuildProgress inherits Rectangle {
                         spacing: 8px;
                         if !root.problem: VerticalLayout {
                             spacing: 8px;
-                            for stage[idx] in Game.stage-rows: HorizontalLayout {
-                                spacing: 7px;
-                                cross-axis-alignment: start;
-                                Rectangle {
-                                    width: 10px;
-                                    height: 18px;
-                                    Rectangle {
-                                        y: 4px;
-                                        height: 10px;
-                                        background: [Ink.sage, Ink.sand, Ink.mustard, Ink.russet, #735447][idx];
-                                    }
-                                }
-                                Note { text: stage.marker; font-size: 14px; }
-                                VerticalLayout {
-                                    horizontal-stretch: 1;
-                                    spacing: 2px;
-                                    Note { text: Locale.t(stage.title); font-size: 14px; }
-                                    if stage.detail != "": Note {
-                                        text: stage.detail;
-                                        font-size: 12px;
-                                        color: Ink.sand;
-                                    }
-                                }
+                            for stage[idx] in Game.stage-rows: StageRow {
+                                swatch: [Ink.sage, Ink.sand, Ink.mustard, Ink.russet, #735447][idx];
+                                marker: stage.marker;
+                                title: Locale.t(stage.title);
+                                detail: stage.detail;
                             }
-                            if Game.stage-rows.length == 0: Note {
+                            if Game.finalizing: StageRow {
+                                swatch: Ink.sage;
+                                marker: root.done ? "✓" : "●";
+                                title: Locale.t("Finalizing");
+                                detail: root.done ? "" : Locale.t(Game.status);
+                            }
+                            if Game.stage-rows.length == 0 && !Game.finalizing: Note {
                                 text: root.done ? Locale.t("Build finished.") : Game.status;
                             }
                         }

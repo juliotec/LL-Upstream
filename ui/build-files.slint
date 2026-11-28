@@ -1,4 +1,4 @@
-import { Pressable } from "widgets.slint";
+import { Pressable, ProgressBar } from "widgets.slint";
 import { Preferences } from "settings-model.slint";
 import { ModuleCards } from "build-modules.slint";
 import { SourcePicker } from "source-chooser.slint";
@@ -350,7 +350,7 @@ component SourceText inherits VerticalLayout {
     SourcePicker {
         current: Game.source-path;
         checked: Game.step == GameStep.settings;
-        verifying: Game.step == GameStep.files && Game.busy;
+        verifying: Game.step == GameStep.files && Game.busy && Game.checking-file;
         file-error: Game.file-error;
         enabled: !Game.busy;
         browse(folder) => { return Game.choose-source(folder); }
@@ -543,13 +543,6 @@ export component FilesStep inherits Rectangle {
                                     name: Locale.t("Version");
                                     VersionChoice { }
                                 }
-                                BuildField {
-                                    name: Locale.t("Game file");
-                                    BuildValue {
-                                        value: root.checked ? Locale.t("Verified") : Game.file-error ? Locale.t("Check failed") : Game.source-path == "" ? Locale.t("Choose a file") : Game.busy ? Locale.t("Verifying…") : Locale.t("Waiting for the builder");
-                                        tone: root.checked ? Ink.sage : Game.file-error ? Ink.russet : Ink.sand;
-                                    }
-                                }
                                 if Game.build-space != "": BuildField {
                                     name: Locale.t("Disk space");
                                     BuildValue { value: Game.build-space; tone: Game.low-build-space ? #e2776b : Game.space-measured ? Ink.sage : Ink.muted; }
@@ -557,6 +550,40 @@ export component FilesStep inherits Rectangle {
                                 if Game.requirements != "": BuildField {
                                     name: Locale.t("This PC");
                                     BuildValue { value: Game.requirements; tone: Game.requirements-colour; }
+                                }
+                                BuildField {
+                                    name: Locale.t("Download");
+                                    VerticalLayout {
+                                        padding-left: 12px;
+                                        spacing: 5px;
+                                        private property <bool> preparing: Game.busy && !Game.checking-file && !Game.tools-ready;
+                                        private property <bool> installed: Game.tools-ready || root.checked || (Game.busy && Game.checking-file);
+                                        Note {
+                                            text: installed ? Locale.t("Installed on this PC") : preparing && Game.status != "" ? Game.status : Game.tools-note;
+                                            color: installed ? Ink.sage : Game.tools-failed ? Ink.russet : Ink.sand;
+                                        }
+                                        if Game.tools-busy || preparing: ProgressBar {
+                                            fraction: Game.tools-busy ? Game.tools-fraction : Game.check-fraction;
+                                        }
+                                        if Game.tools-failed: GameAction {
+                                            text: Locale.t("Retry download");
+                                            quiet: true;
+                                            clicked => { Game.prepare-tools(); }
+                                        }
+                                    }
+                                }
+                                BuildField {
+                                    name: Locale.t("Game file");
+                                    VerticalLayout {
+                                        padding-left: 12px;
+                                        spacing: 5px;
+                                        private property <bool> verifying: Game.busy && Game.checking-file;
+                                        Note {
+                                            text: root.checked ? Locale.t("Verified") : verifying ? Locale.t("Verifying…") : Game.file-error ? Locale.t("Check failed") : Game.source-path == "" ? Locale.t("Choose a file") : Locale.t("Waiting for the builder");
+                                            color: root.checked ? Ink.sage : Game.file-error ? Ink.russet : Ink.sand;
+                                        }
+                                        if verifying: ProgressBar { fraction: Game.check-fraction; }
+                                    }
                                 }
                                 HorizontalLayout {
                                     alignment: start;
@@ -571,31 +598,7 @@ export component FilesStep inherits Rectangle {
                                         clicked => { Game.folders-open = true; }
                                     }
                                 }
-                                if (!Game.tools-ready && Game.tools-note != "") || Game.tools-busy || Game.tools-failed: VerticalLayout {
-                                    padding-top: 12px;
-                                    spacing: 6px;
-                                    if !Game.tools-ready && Game.tools-note != "": Note {
-                                        text: Game.tools-note;
-                                        font-size: 12px;
-                                    }
-                                    if Game.tools-busy && Game.tools-fraction >= 0: meter := Rectangle {
-                                        height: 4px;
-                                        background: Ink.raised;
 
-                                        Rectangle {
-                                            x: 0px;
-                                            y: 0px;
-                                            width: meter.width * Game.tools-fraction;
-                                            height: 100%;
-                                            background: Ink.sage;
-                                        }
-                                    }
-                                    if Game.tools-failed: GameAction {
-                                        text: Locale.t("Retry download");
-                                        quiet: true;
-                                        clicked => { Game.prepare-tools(); }
-                                    }
-                                }
                             }
                         }
                     }
@@ -616,7 +619,7 @@ export component FilesStep inherits Rectangle {
                             clicked => { Game.skip-setup(); }
                         }
                         if !root.welcome: GameAction {
-                            text: Game.busy && !root.checked ? Locale.t("Verifying…") : Game.file-error ? Locale.t("Try again") : Locale.t("Build Longshot");
+                            text: Game.busy && Game.checking-file && !root.checked ? Locale.t("Verifying…") : Game.file-error ? Locale.t("Try again") : Locale.t("Build Longshot");
                             primary: true;
                             enabled: !Game.busy && (root.checked || Game.file-error) && Game.license == "" && !Game.folders-open;
                             clicked => { if Game.file-error { Game.retry-check(); } else { Game.start(); } }

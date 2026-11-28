@@ -390,10 +390,18 @@ impl Monitor {
             last: None,
         }
     }
+    pub fn finalizing(&self) {
+        if let Some(window) = &self.window {
+            let _ = window.upgrade_in_event_loop(|ui| ui.global::<Game>().set_finalizing(true));
+        }
+    }
     pub fn observe(&mut self, event: Option<&Value>) {
         let at = Instant::now();
         let now = at.duration_since(self.start).as_secs_f64();
         if let Some(e) = event {
+            if e["type"] == "done" {
+                self.finalizing();
+            }
             self.builder.observe(e, at);
             if e["type"] == "build_plan"
                 && let Some(stages) = e["stages"].as_array()

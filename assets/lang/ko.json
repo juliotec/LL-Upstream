@@ -1,4 +1,10 @@
 {
+  "Download": "다운로드",
+  "Installed on this PC": "이 PC에 설치됨",
+  "Finalizing": "마무리 중",
+  "Registering the installation…": "설치 등록 중…",
+  "Checking older installations…": "이전 설치 확인 중…",
+  "Cleaning up temporary build files…": "임시 빌드 파일 정리 중…",
   "Checking files…": "파일 확인 중…",
   "Removed {0} of {1} files": "파일 {1}개 중 {0}개 삭제됨",
   "Profile on start-up": "시작 시 프로필",

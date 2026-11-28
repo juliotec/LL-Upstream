@@ -304,6 +304,9 @@ pub(super) fn check(ui: &MainWindow, home_dir: &Path, work: &SharedWork) -> Resu
         .clone()
         .filter(|t| t.tag() == g.get_pending_tag().as_str() && approved);
     g.set_status("".into());
+    g.set_checking_file(false);
+    g.set_check_fraction(-1.);
+    let check_window = ui.as_weak();
     worker(ui, home_dir, work, move |cancel, progress| {
         let target = if !tag.is_empty() {
             Target::Release(tag)
@@ -341,6 +344,11 @@ pub(super) fn check(ui: &MainWindow, home_dir: &Path, work: &SharedWork) -> Resu
             releases::ensure_build_destination(&ctx, &target, cancel, progress)?
         };
         intent.validate(&ctx.home, exe.parent().context("Invalid builder folder")?)?;
+        let _ = check_window.upgrade_in_event_loop(|ui| {
+            let g = ui.global::<Game>();
+            g.set_checking_file(true);
+            g.set_check_fraction(-1.);
+        });
         progress("Checking your game files…", None);
         let mut cmd = ctx.command(&exe, false)?;
         cmd.args(["check", "--game"]).arg(&source);
@@ -440,6 +448,7 @@ pub(super) fn build(ui: &MainWindow, home_dir: &Path, work: &SharedWork) -> Resu
         options.shaders,
     );
     g.set_log_rows(slint::ModelRc::default());
+    g.set_finalizing(false);
     g.set_overall(-1.);
     g.set_stage_fractions(slint::ModelRc::default());
     g.set_show_log(false);
@@ -556,6 +565,9 @@ fn build_and_register(
         }
         run_builder(&p, options, settings, cancel, progress, monitor, record)?
     };
+    monitor.finalizing();
+    progress("Registering the installation…", None);
+    record("launcher", "[INFO] Registering the installation");
     let folder =
         built_in(&folder, destination).context("The game folder is missing from this version.")?;
     if !cfg!(windows) && options.fsr {
@@ -615,16 +627,23 @@ fn build_and_register(
         patch[key] = value;
     }
     home::patch_settings(&p.ctx.home, &patch)?;
-    if p.intent.updating()
-        && let Err(e) = super::prune::after_update(&p.ctx.home)
-    {
-        eprintln!("Version cleanup deferred: {e}");
+    if p.intent.updating() {
+        progress("Checking older installations…", None);
+        record("launcher", "[INFO] Checking older installations");
+        if let Err(e) = super::prune::after_update(&p.ctx.home) {
+            eprintln!("Version cleanup deferred: {e}");
+        }
     }
     let keep = home::settings(&p.ctx.home)?["keepBuildFiles"] != false;
+    if !keep {
+        progress("Cleaning up temporary build files…", None);
+        record("launcher", "[INFO] Cleaning up temporary build files");
+    }
     if let Err(error) = crate::storage::after_build(&p.ctx.home, keep) {
         crate::diagnostics::event("Build file cleanup did not complete");
         eprintln!("Build completed, but its temporary files could not be cleaned up: {error}");
     }
+    record("launcher", "[INFO] Build completed");
     Ok(())
 }
 
@@ -1137,6 +1156,11 @@ fi
             &mut super::super::forecast::Monitor::new(None, &json!({}), false, false),
         )?;
         let transcript = fs::read_to_string(root.join("logs/last-build.log"))?;
+        let (_, finalization) = transcript
+            .split_once(r#""type":"done""#)
+            .expect("builder finished");
+        assert!(finalization.contains("Registering the installation"));
+        assert!(finalization.trim_end().ends_with("[INFO] Build completed"));
         assert_eq!(transcript.matches("Compiling the game").count(), 2);
         assert_eq!(transcript.matches(r#""type":"progress""#).count(), 2);
         assert!(transcript.contains("stdout\tunstructured fixture stdout"));

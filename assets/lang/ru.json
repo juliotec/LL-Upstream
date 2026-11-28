@@ -1,4 +1,10 @@
 {
+  "Download": "Загрузка",
+  "Installed on this PC": "Установлен на этом ПК",
+  "Finalizing": "Завершение",
+  "Registering the installation…": "Регистрация установки…",
+  "Checking older installations…": "Проверка предыдущих установок…",
+  "Cleaning up temporary build files…": "Удаление временных файлов сборки…",
   "Checking files…": "Проверка файлов…",
   "Removed {0} of {1} files": "Удалено файлов: {0} из {1}",
   "Profile on start-up": "Профиль при запуске",

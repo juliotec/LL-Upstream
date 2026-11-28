@@ -1,4 +1,10 @@
 {
+  "Download": "Download",
+  "Installed on this PC": "Geïnstalleerd op deze pc",
+  "Finalizing": "Afronden",
+  "Registering the installation…": "Installatie registreren…",
+  "Checking older installations…": "Oudere installaties controleren…",
+  "Cleaning up temporary build files…": "Tijdelijke buildbestanden opruimen…",
   "Checking files…": "Bestanden controleren…",
   "Removed {0} of {1} files": "{0} van {1} bestanden verwijderd",
   "Profile on start-up": "Profiel bij opstarten",

@@ -1,4 +1,10 @@
 {
+  "Download": "ダウンロード",
+  "Installed on this PC": "この PC にインストール済み",
+  "Finalizing": "最終処理中",
+  "Registering the installation…": "インストールを登録中…",
+  "Checking older installations…": "以前のインストールを確認中…",
+  "Cleaning up temporary build files…": "ビルドの一時ファイルを削除中…",
   "Checking files…": "ファイルを確認中…",
   "Removed {0} of {1} files": "{1} 個中 {0} 個のファイルを削除",
   "Profile on start-up": "起動時のプロフィール",

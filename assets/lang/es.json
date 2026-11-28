@@ -1,4 +1,10 @@
 {
+  "Download": "Descarga",
+  "Installed on this PC": "Instalado en este PC",
+  "Finalizing": "Finalizando",
+  "Registering the installation…": "Registrando la instalación…",
+  "Checking older installations…": "Comprobando instalaciones anteriores…",
+  "Cleaning up temporary build files…": "Limpiando archivos temporales de compilación…",
   "Checking files…": "Comprobando archivos…",
   "Removed {0} of {1} files": "Archivos eliminados: {0} de {1}",
   "Profile on start-up": "Perfil al iniciar",

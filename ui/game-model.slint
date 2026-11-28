@@ -57,6 +57,9 @@ export global Game {
     callback raw-log() -> string;
     in-out property <float> overall: -1;
     callback open-logs();
+    in-out property <bool> finalizing;
+    in-out property <bool> checking-file;
+    in-out property <float> check-fraction: -1;
     in-out property <bool> file-error;
     pure callback intro-words(string) -> [string];
     pure callback file-name(string) -> string;

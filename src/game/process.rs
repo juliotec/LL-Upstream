@@ -684,7 +684,14 @@ pub(super) fn run_with_stages(
                     }
                     Some("progress") => notify(
                         &stage,
-                        e["overall"].as_f64().map(|f| f.clamp(0., 1.) as f32),
+                        e["overall"]
+                            .as_f64()
+                            .or_else(|| {
+                                (terminal == "check")
+                                    .then(|| e["fraction"].as_f64())
+                                    .flatten()
+                            })
+                            .map(|f| f.clamp(0., 1.) as f32),
                     ),
                     Some("log" | "warning") if !text.is_empty() => notify(text, None),
                     Some("fetch_progress") => {

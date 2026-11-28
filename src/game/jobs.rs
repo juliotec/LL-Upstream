@@ -108,7 +108,7 @@ pub(super) fn worker(
         let mut last = std::time::Instant::now() - std::time::Duration::from_secs(1);
         let mut previous = String::new();
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            task(&cancel, &mut |msg, _| {
+            task(&cancel, &mut |msg, fraction| {
                 if previous == msg && last.elapsed().as_millis() < 80 {
                     return;
                 }
@@ -123,6 +123,11 @@ pub(super) fn worker(
                         return;
                     }
                     let g = ui.global::<Game>();
+                    if check.is_some()
+                        && let Some(value) = fraction
+                    {
+                        g.set_check_fraction(value);
+                    }
                     g.set_status(msg.into());
                 });
             })

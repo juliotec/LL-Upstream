@@ -168,10 +168,8 @@ struct Rebuild {
 
 impl Rebuild {
     fn can_cancel(&self) -> bool {
-        self.started.is_some()
-            && !self.build_finished
-            && !self.game_started
-            && self.startup.is_none()
+        !self.game_started
+            && (self.startup.is_some() || (self.started.is_some() && !self.build_finished))
     }
 
     fn observe(&mut self, event: &Value, now: Instant) {
@@ -508,7 +506,7 @@ fn wait(
             return Ok(Some(exit));
         }
         if cancel.take_request() {
-            // Process the latest events first so a click at handoff leaves a starting game alone.
+            // Process the latest events first so a click at handoff leaves a ready game alone.
             if state.can_cancel() {
                 match session.cancel_rebuild() {
                     Ok(()) => return session.child.wait().map(|_| None),
@@ -800,7 +798,9 @@ mod tests {
         assert_eq!(startup.fraction, Some(0.5));
         assert_eq!(startup.eta, Some(now + Duration::from_secs(12)));
         assert_eq!(state.step, "Loading pipelines");
+        assert!(state.can_cancel());
         state.observe(&ready, now);
+        assert!(!state.can_cancel());
         assert!(state.game_started);
         assert!(state.startup.is_none());
 
