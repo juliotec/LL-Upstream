@@ -84,6 +84,10 @@ pub(super) fn registry(home_dir: &Path) -> Result<Value> {
 }
 
 pub(super) fn installed(home_dir: &Path) -> Result<Vec<Version>> {
+    installed_with_records(home_dir, &registry(home_dir)?)
+}
+
+fn installed_with_records(home_dir: &Path, registry: &Value) -> Result<Vec<Version>> {
     let mut versions = Vec::new();
     for folder in super::managed_folders(home_dir)? {
         let tag = folder
@@ -102,7 +106,6 @@ pub(super) fn installed(home_dir: &Path) -> Result<Vec<Version>> {
             previous_tags: vec![],
         });
     }
-    let registry = registry(home_dir)?;
     for row in registry["builds"].as_array().expect("validated registry") {
         let Some(folder) = row["folder"]
             .as_str()
@@ -111,24 +114,8 @@ pub(super) fn installed(home_dir: &Path) -> Result<Vec<Version>> {
         else {
             continue;
         };
-        let id = row["id"].as_str().unwrap_or_default();
-        let default = row["default"].as_bool().unwrap_or(false);
         if let Some(v) = versions.iter_mut().find(|v| v.owns_build(&folder)) {
-            if let Some(tag) = row["version"].as_str().filter(|tag| valid_name(tag)) {
-                v.tag = tag.to_owned();
-            }
-            if !id.is_empty() {
-                v.id = id.to_owned();
-            }
-            v.previous_tags = row["previousTags"]
-                .as_array()
-                .into_iter()
-                .flatten()
-                .filter_map(|tag| tag.as_str().map(str::to_owned))
-                .collect();
-            v.modules = modules::recorded(row);
-            v.registered = true;
-            v.default |= default;
+            apply_registration(v, row);
         }
     }
     for folder in registry["retiredFolders"]
@@ -153,14 +140,38 @@ pub(super) fn installed(home_dir: &Path) -> Result<Vec<Version>> {
     Ok(versions)
 }
 
+fn apply_registration(version: &mut Version, row: &Value) {
+    if let Some(tag) = row["version"].as_str().filter(|tag| valid_name(tag)) {
+        version.tag = tag.to_owned();
+    }
+    if let Some(id) = row["id"].as_str().filter(|id| !id.is_empty()) {
+        version.id = id.to_owned();
+    }
+    version.previous_tags = row["previousTags"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|tag| tag.as_str().map(str::to_owned))
+        .collect();
+    version.modules = modules::recorded(row);
+    version.registered = true;
+    version.default |= row["default"] == true;
+}
+
 /// Read playable releases directly from the configured library. Discovery does
 /// not grant ownership of a copied directory or make it eligible for deletion.
 pub(super) fn disk_release(folder: &Path) -> Option<String> {
+    if folder.join(INSTALLING).exists() {
+        return None;
+    }
+    completed_disk_release(folder)
+}
+
+fn completed_disk_release(folder: &Path) -> Option<String> {
     let build = folder.join("builds/default");
     let release = folder.join("longshot_release.json");
     let record = build.join("longshot_build.json");
     if !managed_folder(folder)
-        || folder.join(INSTALLING).exists()
         || !players::is_dir(&folder.join("builds"))
         || !players::is_dir(&build)
         || !players::is_file(&release)
@@ -193,7 +204,8 @@ pub(super) fn discovered_id(folder: &Path) -> String {
     )
 }
 pub(super) fn listed(home_dir: &Path) -> Result<Vec<Version>> {
-    let mut found = installed(home_dir)?;
+    let registry = registry(home_dir)?;
+    let mut found = installed_with_records(home_dir, &registry)?;
     let library = super::install_root(home_dir, &home::settings(home_dir)?);
     let stable = super::registry::stable_only(home_dir)?;
     if players::is_dir(&library) {
@@ -205,8 +217,8 @@ pub(super) fn listed(home_dir: &Path) -> Result<Vec<Version>> {
                 continue;
             }
             if let Some(tag) = disk_release(&folder) {
-                found.push(Version {
-                    id: String::new(),
+                let mut version = Version {
+                    id: discovered_id(&folder),
                     tag,
                     folder,
                     default: false,
@@ -214,7 +226,16 @@ pub(super) fn listed(home_dir: &Path) -> Result<Vec<Version>> {
                     retired: false,
                     modules: None,
                     previous_tags: vec![],
-                });
+                };
+                if let Some(row) = registry["builds"].as_array().unwrap().iter().find(|row| {
+                    row["version"] == version.tag
+                        && row["folder"]
+                            .as_str()
+                            .is_some_and(|path| version.owns_build(Path::new(path)))
+                }) {
+                    apply_registration(&mut version, row);
+                }
+                found.push(version);
             }
         }
     }
@@ -222,7 +243,15 @@ pub(super) fn listed(home_dir: &Path) -> Result<Vec<Version>> {
         if v.registered {
             return true;
         }
-        if let Some(tag) = disk_release(&v.folder) {
+        // A completed replacement leaves its old build in the staging slot.
+        // The installing marker in that slot also identifies transferred runtime
+        // state to retirement cleanup. A registry-backed retirement can be listed.
+        let release = if v.retired {
+            completed_disk_release(&v.folder)
+        } else {
+            disk_release(&v.folder)
+        };
+        if let Some(tag) = release {
             v.tag = tag;
             v.id = discovered_id(&v.folder);
             return true;
@@ -695,7 +724,19 @@ pub(super) fn make_default(home_dir: &Path, selected: &Version) -> Result<()> {
     crate::game::registry::write(home_dir, &registry)
 }
 
+pub(super) fn organized_build(build: &Path) -> bool {
+    players::is_file(&build.join("data/image.bin"))
+}
+
 pub(super) fn safe_tree(folder: &Path) -> Result<Vec<home::FileLease>> {
+    scan_version_tree(folder, false)
+}
+
+pub(super) fn upgrade_tree(folder: &Path) -> Result<Vec<home::FileLease>> {
+    scan_version_tree(folder, true)
+}
+
+fn scan_version_tree(folder: &Path, allow_runtime_settings: bool) -> Result<Vec<home::FileLease>> {
     let mut locks = Vec::new();
     ensure!(
         !linked(folder) && folder.is_dir(),
@@ -706,20 +747,31 @@ pub(super) fn safe_tree(folder: &Path) -> Result<Vec<home::FileLease>> {
         for e in fs::read_dir(&dir)? {
             let e = e?;
             let name = e.file_name().to_string_lossy().to_ascii_lowercase();
+            let path = e.path();
+            let runtime_settings = allow_runtime_settings
+                && name == "settings.ini"
+                && dir.file_name().is_some_and(|name| name == "config")
+                && dir.parent().is_some_and(|build| {
+                    build.parent() == Some(folder.join("builds").as_path())
+                        && organized_build(build)
+                })
+                && players::is_file(&path);
             ensure!(
-                !matches!(
-                    name.as_str(),
-                    "save"
-                        | "save-work"
-                        | "saves"
-                        | "user"
-                        | "profile"
-                        | "profiles"
-                        | "profile.json"
-                        | "settings.ini"
-                ) && !name.ends_with(".nup")
-                    && !name.ends_with(".nx"),
-                "This folder contains saves, settings, or a game copy. Its contents have been kept."
+                runtime_settings
+                    || (!matches!(
+                        name.as_str(),
+                        "save"
+                            | "save-work"
+                            | "saves"
+                            | "user"
+                            | "profile"
+                            | "profiles"
+                            | "profile.json"
+                            | "settings.ini"
+                    ) && !name.ends_with(".nup")
+                        && !name.ends_with(".nx")),
+                "This folder contains protected data at {:?}. Its contents have been kept.",
+                path.strip_prefix(folder)?
             );
             let kind = e.file_type()?;
             ensure!(
@@ -937,6 +989,7 @@ mod tests {
             )?;
         }
         super::super::prune::mark_retired(&retired);
+        fs::write(retired.join(INSTALLING), [])?;
         super::super::registry::write(
             root.path(),
             &json!({"format":1,"builds":[],"retiredFolders":[retired]}),
@@ -950,6 +1003,40 @@ mod tests {
         assert_ne!(versions[0].id, versions[1].id);
         fs::rename(&renamed, root.path().join("outside"))?;
         assert_eq!(listed(root.path())?.len(), 1);
+        Ok(())
+    }
+
+    #[test]
+    fn copied_registered_build_keeps_its_identity_without_gaining_ownership() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let home = temp.path().join("launcher");
+        let data = temp.path().join("data");
+        let folder = data.join("versions/renamed-copy");
+        let tag = "nightly-860-c6022bcd";
+        let build = folder.join("builds/default");
+        crate::game::fake_version(&folder)?;
+        fs::write(build.join("longshot"), b"fixture")?;
+        home::write_json(
+            &folder.join("longshot_release.json"),
+            &json!({"v":1,"version":tag}),
+        )?;
+        home::write_json(
+            &build.join("longshot_build.json"),
+            &json!({"format":1,"builder":tag}),
+        )?;
+        home::patch_settings(&home, &json!({"dataFolder":data}))?;
+        crate::game::registry::write(
+            &home,
+            &json!({"format":1,"builds":[
+                {"id":"original-id","version":tag,"folder":build,"default":true}
+            ]}),
+        )?;
+
+        let listed = listed(&home)?;
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0].id, "original-id");
+        assert!(listed[0].default);
+        assert!(!super::super::owned_folder(&home, &folder));
         Ok(())
     }
 

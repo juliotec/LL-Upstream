@@ -263,7 +263,14 @@ fn finish(ui: &MainWindow, state: &SharedWork, home_dir: &Path, result: Result<P
                 state.guard().report = None;
                 report_ui.set_can_report(false);
                 report_ui.set_report_preview("".into());
-                g.set_step(crate::GameStep::Problem);
+                let mut work = state.guard();
+                if work.cancel.check().is_err() {
+                    work.prepared = None;
+                    g.set_file_error(true);
+                    g.set_step(crate::GameStep::Files);
+                } else {
+                    g.set_step(crate::GameStep::Problem);
+                }
             } else {
                 crate::diagnostics::event("Game operation did not complete");
                 refresh(ui, home_dir);

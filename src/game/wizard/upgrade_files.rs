@@ -1,10 +1,7 @@
 use super::*;
 use std::fs;
-fn organized(build: &Path) -> bool {
-    players::is_file(&build.join("data/image.bin"))
-}
 fn setting(build: &Path, name: &str) -> PathBuf {
-    if organized(build) {
+    if versions::organized_build(build) {
         build
             .join("config")
             .join(if name == "longshot_options.ini" {
@@ -151,29 +148,31 @@ fn carry_local_changes(
                 continue;
             }
             let source = entry.path();
-            let mut target = if from == old && organized(new) && !organized(old) {
-                match name.to_str() {
-                    Some("logs" | "bug-reports" | "perf_pending" | "perf_sent") => {
-                        new.join("diagnostics").join(&name)
+            let mut target =
+                if from == old && versions::organized_build(new) && !versions::organized_build(old)
+                {
+                    match name.to_str() {
+                        Some("logs" | "bug-reports" | "perf_pending" | "perf_sent") => {
+                            new.join("diagnostics").join(&name)
+                        }
+                        Some(
+                            "image.bin"
+                            | "longshot_romfs.idx"
+                            | ".longshot_romfs.json"
+                            | "longshot_shaders.bin"
+                            | "longshot_pipeline_states_shipped.bin"
+                            | "longshot.png"
+                            | "licenses"
+                            | "prompts"
+                            | "texts"
+                            | "longshot_title.txt"
+                            | "longshot_damaged_files.txt",
+                        ) => new.join("data").join(&name),
+                        _ => to.join(&name),
                     }
-                    Some(
-                        "image.bin"
-                        | "longshot_romfs.idx"
-                        | ".longshot_romfs.json"
-                        | "longshot_shaders.bin"
-                        | "longshot_pipeline_states_shipped.bin"
-                        | "longshot.png"
-                        | "licenses"
-                        | "prompts"
-                        | "texts"
-                        | "longshot_title.txt"
-                        | "longshot_damaged_files.txt",
-                    ) => new.join("data").join(&name),
-                    _ => to.join(&name),
-                }
-            } else {
-                to.join(&name)
-            };
+                } else {
+                    to.join(&name)
+                };
             let relative = source.strip_prefix(old)?;
             if super::super::prune::generated_runtime_cache(relative) {
                 continue;

@@ -346,28 +346,40 @@ pub(super) fn check(ui: &MainWindow, home_dir: &Path, work: &SharedWork) -> Resu
         } else {
             releases::ensure_build_destination(&ctx, &target, cancel, progress)?
         };
-        intent.validate(&ctx.home, exe.parent().context("Invalid builder folder")?)?;
-        let _ = check_window.upgrade_in_event_loop(|ui| {
-            let g = ui.global::<Game>();
-            g.set_checking_file(true);
-            g.set_check_fraction(-1.);
-        });
-        progress("Checking your game files…", None);
-        let mut cmd = ctx.command(&exe, false)?;
-        cmd.args(["check", "--game"]).arg(&source);
-        ctx.configure(&mut cmd)?;
-        let check = run(cmd, "check", cancel, progress)?.require("Checking game files")?;
-        ensure!(
-            check["ok"] == true,
-            "{}",
-            check["text"]
-                .as_str()
-                .unwrap_or("These game files are not supported.")
-        );
-        cancel.check()?;
-        let mod_review = crate::mods::trust::pending(&ctx.home, &exe, &ctx.profile)
-            .map(|grants| !grants.is_empty());
-        cancel.check()?;
+        let checked = (|| -> Result<_> {
+            intent.validate(&ctx.home, exe.parent().context("Invalid builder folder")?)?;
+            let _ = check_window.upgrade_in_event_loop(|ui| {
+                let g = ui.global::<Game>();
+                g.set_checking_file(true);
+                g.set_check_fraction(-1.);
+            });
+            progress("Checking your game files…", None);
+            let mut cmd = ctx.command(&exe, false)?;
+            cmd.args(["check", "--game"]).arg(&source);
+            ctx.configure(&mut cmd)?;
+            let check = run(cmd, "check", cancel, progress)?.require("Checking game files")?;
+            ensure!(
+                check["ok"] == true,
+                "{}",
+                check["text"]
+                    .as_str()
+                    .unwrap_or("These game files are not supported.")
+            );
+            cancel.check()?;
+            let mod_review = crate::mods::trust::pending(&ctx.home, &exe, &ctx.profile)
+                .map(|grants| !grants.is_empty());
+            cancel.check()?;
+            Ok(mod_review)
+        })();
+        let mod_review = checked.inspect_err(|_| {
+            if cancel.check().is_err()
+                && !matches!(intent, BuildIntent::Rebuild(_))
+                && let Some(folder) = exe.parent()
+                && let Err(error) = super::library::discard_build(&ctx.home, folder, Some(&source))
+            {
+                eprintln!("Could not remove the cancelled build folder: {error:#}");
+            }
+        })?;
         Ok(Progress::Checked(
             Box::new(Prepared {
                 ctx,
@@ -568,12 +580,20 @@ fn execute_build(
             if options.shaders { "yes" } else { "no" },
         ),
     );
-    build_and_register(p, options, settings, cancel, progress, monitor, &mut record)
-        .inspect_err(|error| record("launcher", &format!("[ERROR] {error:#}")))
+    build_and_register(
+        &p,
+        options,
+        settings,
+        cancel,
+        progress,
+        monitor,
+        &mut record,
+    )
+    .inspect_err(|error| record("launcher", &format!("[ERROR] {error:#}")))
 }
 
 fn build_and_register(
-    p: Prepared,
+    p: &Prepared,
     options: &Options,
     settings: &Value,
     cancel: &Cancel,
@@ -582,45 +602,19 @@ fn build_and_register(
     record: &mut dyn FnMut(&str, &str),
 ) -> Result<()> {
     let destination = p.exe.parent().context("Invalid builder folder")?;
-    p.ctx.prepare_mod_store()?;
-    p.intent.validate(&p.ctx.home, destination)?;
-    if !cfg!(windows) && options.fsr {
-        let source = settings["fsrLibraryPath"]
-            .as_str()
-            .context("Choose your Vulkan FSR 4 library.")?;
-        super::upscaler::pin(destination, Path::new(source))?;
-    }
-    let marker = destination.join(versions::INSTALLING);
-    if !matches!(p.intent, BuildIntent::Rebuild(_)) && !marker.try_exists()? {
-        std::fs::File::create_new(&marker)?;
-    }
+    let folder = build_output(p, options, settings, cancel, progress, monitor, record)
+        .inspect_err(|_| {
+            if cancel.check().is_err() && !matches!(p.intent, BuildIntent::Rebuild(_)) {
+                match super::library::discard_build(&p.ctx.home, destination, Some(&p.game)) {
+                    Ok(()) => record("launcher", "[INFO] Removed the cancelled build folder"),
+                    Err(error) => record(
+                        "launcher",
+                        &format!("[WARN] Could not remove the cancelled build folder: {error:#}"),
+                    ),
+                }
+            }
+        })?;
     let upscalers = options.upscalers();
-    let _stay_awake = super::awake::BuildInhibitor::acquire();
-    let reused = super::reuse::existing(&p, options, cancel, progress).unwrap_or_else(|error| {
-        eprintln!("Could not reuse the existing game: {error:#}");
-        None
-    });
-    cancel.check()?;
-    let folder = if let Some(folder) = reused {
-        record(
-            "launcher",
-            "[INFO] Reused verified files from an installed copy of this version.",
-        );
-        folder
-    } else {
-        let storage = super::requirements::BuildSpace::inspect(&p.ctx.cache, destination);
-        if storage.below_estimate() {
-            record(
-                "launcher",
-                &format!(
-                    "[WARN] {}. {} Updates may use less.",
-                    storage.available(),
-                    storage.recommendation("en-US")
-                ),
-            );
-        }
-        run_builder(&p, options, settings, cancel, progress, monitor, record)?
-    };
     monitor.finalizing();
     progress("Registering the installation…", None);
     record("launcher", "[INFO] Registering the installation");
@@ -659,7 +653,7 @@ fn build_and_register(
         folder
     };
     if matches!(p.intent, BuildIntent::New) {
-        let _ = std::fs::remove_file(marker);
+        let _ = std::fs::remove_file(destination.join(versions::INSTALLING));
     }
     if let BuildIntent::Update(old) = &p.intent
         && old.default
@@ -706,6 +700,58 @@ fn build_and_register(
     Ok(())
 }
 
+fn build_output(
+    p: &Prepared,
+    options: &Options,
+    settings: &Value,
+    cancel: &Cancel,
+    progress: &mut dyn FnMut(&str, Option<f32>),
+    monitor: &mut super::forecast::Monitor,
+    record: &mut dyn FnMut(&str, &str),
+) -> Result<PathBuf> {
+    let destination = p.exe.parent().context("Invalid builder folder")?;
+    p.ctx.prepare_mod_store()?;
+    p.intent.validate(&p.ctx.home, destination)?;
+    if !cfg!(windows) && options.fsr {
+        let source = settings["fsrLibraryPath"]
+            .as_str()
+            .context("Choose your Vulkan FSR 4 library.")?;
+        super::upscaler::pin(destination, Path::new(source))?;
+    }
+    let marker = destination.join(versions::INSTALLING);
+    if !matches!(p.intent, BuildIntent::Rebuild(_)) && !marker.try_exists()? {
+        std::fs::File::create_new(&marker)?;
+    }
+    let _stay_awake = super::awake::BuildInhibitor::acquire();
+    let reused = super::reuse::existing(p, options, cancel, progress).unwrap_or_else(|error| {
+        eprintln!("Could not reuse the existing game: {error:#}");
+        None
+    });
+    cancel.check()?;
+    let folder = if let Some(folder) = reused {
+        record(
+            "launcher",
+            "[INFO] Reused verified files from an installed copy of this version.",
+        );
+        folder
+    } else {
+        let storage = super::requirements::BuildSpace::inspect(&p.ctx.cache, destination);
+        if storage.below_estimate() {
+            record(
+                "launcher",
+                &format!(
+                    "[WARN] {}. {} Updates may use less.",
+                    storage.available(),
+                    storage.recommendation("en-US")
+                ),
+            );
+        }
+        run_builder(p, options, settings, cancel, progress, monitor, record)?
+    };
+    cancel.check()?;
+    Ok(folder)
+}
+
 mod upgrade_files;
 use upgrade_files::carry_runtime_files;
 
@@ -736,7 +782,7 @@ fn replace_instance(
         "The installation ownership changed."
     );
     check_upgrade_paths(home, active)?;
-    let guards = versions::safe_tree(active)?;
+    let guards = versions::upgrade_tree(active)?;
     if cfg!(windows) {
         drop(guards);
     }
@@ -959,6 +1005,34 @@ mod tests {
         let error = check_upgrade_paths(root, &active).unwrap_err();
         assert!(error.to_string().contains("registered game source"));
         assert!(error.to_string().contains("Choose Add version"));
+        Ok(())
+    }
+
+    #[test]
+    fn replacing_an_organized_build_preserves_its_runtime_settings() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let root = temp.path();
+        let active = root.join("versions/nightly-1");
+        let staged = root.join("versions/nightly-2");
+        for (folder, settings) in [(&active, "player choices"), (&staged, "defaults")] {
+            crate::game::fake_version(folder)?;
+            let build = folder.join("builds/default");
+            fs::create_dir_all(build.join("data"))?;
+            fs::create_dir_all(build.join("config"))?;
+            fs::write(build.join("data/image.bin"), b"fixture")?;
+            fs::write(build.join("config/settings.ini"), settings)?;
+        }
+        let runtime = active.join("builds/default/config/settings.ini");
+        let private = active.join("settings.ini");
+        fs::write(&private, "unrelated")?;
+        let error = replace_instance(root, &active, &staged, || panic!("unexpected registration"))
+            .unwrap_err();
+        assert!(error.to_string().contains("protected data"));
+        assert_eq!(fs::read(&private)?, b"unrelated");
+        fs::remove_file(private)?;
+
+        replace_instance(root, &active, &staged, || Ok(()))?;
+        assert_eq!(fs::read(runtime)?, b"player choices");
         Ok(())
     }
 

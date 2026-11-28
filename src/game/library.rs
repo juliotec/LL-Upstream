@@ -179,6 +179,71 @@ pub(super) fn new_build(home: &Path, settings: &Value, tag: &str) -> Result<Path
     reserve_inner(home, settings, &name, true)
 }
 
+/// Discard only a fresh attempt, leaving every registered and protected copy in place.
+pub(super) fn discard_build(home: &Path, folder: &Path, game: Option<&Path>) -> Result<()> {
+    use super::versions;
+    let _lease = super::move_lease(home)?;
+    ensure!(
+        owned_folder(home, folder)
+            && safe_path(folder)
+            && !super::is_retired(folder)
+            && folder
+                .file_name()
+                .and_then(|s| s.to_str())
+                .is_some_and(|s| s.len() == 16 && s.bytes().all(|b| b.is_ascii_hexdigit())),
+        "The cancelled build folder is no longer a fresh launcher installation."
+    );
+    let mut reserved = crate::storage::protected_paths(home)?;
+    let own = super::registry::read(home, super::registry::OWN)?;
+    reserved.extend(
+        own["builds"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|row| row["folder"].as_str())
+            .map(PathBuf::from),
+    );
+    reserved.extend(
+        own["retiredFolders"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(Value::as_str)
+            .map(|path| home.join(path)),
+    );
+    reserved.extend(game.map(Path::to_owned));
+    ensure!(
+        !crate::storage::overlaps_private(folder, &reserved)?,
+        "The cancelled build folder is still referenced by an installation or contains a game source."
+    );
+    players::ensure_paths_idle(&[folder])?;
+    let guards = versions::upgrade_tree(folder)?;
+    for entry in fs::read_dir(folder)? {
+        let entry = entry?;
+        let name = entry.file_name();
+        ensure!(
+            tool_file(&name)
+                || matches!(
+                    name.to_str(),
+                    Some("builds" | "amd_fidelityfx_upscaler_vk.so")
+                )
+                || name == versions::INSTALLING,
+            "The cancelled build folder contains additional files."
+        );
+    }
+    let parent = folder
+        .parent()
+        .context("The cancelled build folder has no parent")?;
+    let quarantine = tempfile::Builder::new()
+        .prefix(".cancelled-")
+        .tempdir_in(parent)?;
+    let guards = versions::stage_for_removal(folder, &quarantine.path().join("version"), guards)?;
+    drop(guards);
+    quarantine.close()?;
+    forget_moved_version(home, folder);
+    Ok(())
+}
+
 pub(super) fn build_output_exists(folder: &Path) -> Result<bool> {
     let builds = folder.join("builds");
     if linked(&builds) {
@@ -371,6 +436,32 @@ pub(super) fn removable(home: &Path, folder: &Path) -> Result<()> {
 mod tests {
     use super::*;
     use crate::game::process::executable;
+    #[test]
+    fn cancelled_attempt_is_removed_without_touching_registered_or_private_data() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let root = temp.path();
+        let attempt = new_build(root, &json!({}), "nightly-1")?;
+        super::super::fake_version(&attempt)?;
+        let output = attempt.join("builds/default");
+        fs::write(output.join("partial"), b"fixture")?;
+        fs::write(attempt.join(crate::game::versions::INSTALLING), [])?;
+        let source = output.join("original.nup");
+        fs::write(&source, b"private fixture")?;
+        assert!(discard_build(root, &attempt, Some(&source)).is_err());
+        assert!(source.is_file());
+        fs::remove_file(source)?;
+
+        let own = root.join(crate::game::registry::OWN);
+        home::write_json(&own, &json!({"format":1,"builds":[{"folder":output}]}))?;
+        assert!(discard_build(root, &attempt, None).is_err());
+        assert!(output.is_dir());
+        fs::remove_file(own)?;
+
+        discard_build(root, &attempt, None)?;
+        assert!(!attempt.exists());
+        Ok(())
+    }
+
     #[test]
     fn multiple_libraries_keep_only_owned_versions() -> Result<()> {
         let home = tempfile::tempdir()?;

@@ -511,7 +511,13 @@ fn builder_for(
         return release(ctx, target.tag(), cancel, notify);
     }
     let folder = super::library::new_build(&ctx.home, &ctx.settings, target.tag())?;
-    let result = install_builder(ctx, target, folder, cancel, notify);
+    let result = install_builder(ctx, target, folder.clone(), cancel, notify);
+    if result.is_err() && cancel.check().is_err() {
+        drop(_lease);
+        if let Err(error) = super::library::discard_build(&ctx.home, &folder, None) {
+            eprintln!("Could not remove the cancelled builder download: {error:#}");
+        }
+    }
     if let Ok(exe) = &result
         && let Some(folder) = exe.parent()
     {
