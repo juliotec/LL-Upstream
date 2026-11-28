@@ -419,6 +419,9 @@ fn argument(path: &Path) -> Result<String> {
 // Match only our direct command with its exact quoted profile. The cache and modules
 // may have changed since the launcher last synchronized this owned Steam entry.
 fn direct_profile_matches(options: &str, profile: &Path) -> bool {
+    if let Some(id) = options.strip_prefix("--profile-id ") {
+        return crate::players::valid_id(id) && profile.file_name().is_some_and(|name| name == id);
+    }
     let Some(options) = options.strip_prefix("--no-self-update --upscaler ") else {
         return false;
     };
@@ -446,6 +449,14 @@ fn direct_options(home: &Path, builder: &Path, profile: &Path) -> Result<String>
     let cache = home::work(home, &home::settings(home)?).join("longshot-builder");
     let folder = builder.parent().context("Missing installation folder")?;
     let instance = super::super::versions::selected(home, Some(folder))?;
+    if instance.configure_managed_play(home)? {
+        let id = profile
+            .file_name()
+            .and_then(|s| s.to_str())
+            .filter(|id| crate::players::valid_id(id))
+            .context("Missing launcher profile ID")?;
+        return Ok(format!("play --profile-id {id}"));
+    }
     let modules = instance.modules()?;
     let modules = if modules.is_empty() {
         "none".into()
@@ -846,6 +857,29 @@ mod tests {
             [(other_profile.into(), profile_id)]
         );
         assert_eq!(shortcuts.available_title(title), format!("{title} (2)"));
+        Ok(())
+    }
+
+    #[test]
+    fn managed_shortcut_keeps_only_profile_id() -> Result<()> {
+        let home = tempfile::tempdir()?;
+        let instance = home.path().join("versions/1111222233334444");
+        crate::game::fake_version(&instance)?;
+        crate::home::write_json(
+            &instance.join("builds/default/longshot_build.json"),
+            &serde_json::json!({"features":["managed_profile_id"],"upscalers":["dlss"]}),
+        )?;
+        let profile = home.path().join("profiles/default");
+        let builder = instance.join(crate::game::process::executable());
+        let options = direct_options(home.path(), &builder, &profile)?;
+        assert_eq!(options, "play --profile-id default");
+        assert!(direct_profile_matches("--profile-id default", &profile));
+        assert!(!direct_profile_matches(
+            "--profile-id default",
+            &home.path().join("profiles/p-12345678")
+        ));
+        let settings = crate::home::read_json(&instance.join("launcher-instance.json"))?;
+        assert_eq!(settings["upscalers"], serde_json::json!(["dlss"]));
         Ok(())
     }
 

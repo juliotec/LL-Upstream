@@ -28,6 +28,28 @@ pub(super) fn write(row: &mut Value, enabled: &[&str]) {
 }
 
 impl Version {
+    pub(in crate::game) fn configure_managed_play(&self, home_dir: &Path) -> Result<bool> {
+        let record = home::read_json(&self.folder.join("builds/default/longshot_build.json"))?;
+        if !record["features"]
+            .as_array()
+            .is_some_and(|items| items.iter().any(|v| v == "managed_profile_id"))
+        {
+            return Ok(false);
+        }
+        let settings = home::settings(home_dir)?;
+        let config = json!({
+            "format": 1,
+            "profiles": home::data_folder(home_dir, &settings).join("profiles"),
+            "cache": home::work(home_dir, &settings).join("longshot-builder"),
+            "upscalers": self.modules()?,
+        });
+        let path = self.folder.join("launcher-instance.json");
+        if home::read_json(&path)? != config {
+            home::write_json(&path, &config)?;
+        }
+        Ok(true)
+    }
+
     pub(in crate::game) fn modules(&self) -> Result<Vec<&'static str>> {
         let mut modules = self.stored_modules()?;
         if !cfg!(windows) {
@@ -85,7 +107,9 @@ pub(in crate::game) fn set_modules(home_dir: &Path, folder: &Path, enabled: &[&s
     if keep_xess {
         row["xess"] = json!(true);
     }
-    crate::game::registry::write(home_dir, &data)
+    crate::game::registry::write(home_dir, &data)?;
+    by_folder(home_dir, folder)?.configure_managed_play(home_dir)?;
+    Ok(())
 }
 
 pub(super) fn prepare_licenses(ctx: &Builder, enabled: &[&str]) -> Result<()> {

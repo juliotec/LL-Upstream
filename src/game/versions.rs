@@ -496,17 +496,23 @@ pub(super) fn start_for(
     } else {
         "json"
     };
-    cmd.arg("--profile")
-        .arg(&builder.profile)
-        .args(["--output", output, "--cache"])
-        .arg(&builder.cache)
-        .arg("--no-self-update")
-        .arg("--upscaler")
-        .arg(if enabled.is_empty() {
-            "none".into()
-        } else {
-            enabled.join(",")
-        });
+    if version.configure_managed_play(home_dir)? {
+        cmd.arg("--profile-id")
+            .arg(builder.profile.file_name().context("Missing profile ID")?)
+            .args(["--output", output]);
+    } else {
+        cmd.arg("--profile")
+            .arg(&builder.profile)
+            .args(["--output", output, "--cache"])
+            .arg(&builder.cache)
+            .arg("--no-self-update")
+            .arg("--upscaler")
+            .arg(if enabled.is_empty() {
+                "none".into()
+            } else {
+                enabled.join(",")
+            });
+    }
     if mode == LaunchMode::Window {
         cmd.env("LONGSHOT_LAUNCHER_STARTUP", "1");
     }

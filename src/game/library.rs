@@ -24,6 +24,7 @@ pub(super) fn tool_file(name: &std::ffi::OsStr) -> bool {
                 OWNER
                     | FETCH_LOCK
                     | ".longshot-builder.lock"
+                    | "launcher-instance.json"
                     | "longshot_release.json"
                     | "source.json"
             )

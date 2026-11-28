@@ -142,6 +142,28 @@ fn only_tools(folder: &Path, retired: bool) -> Result<bool> {
     Ok(true)
 }
 
+pub(in crate::game) fn generated_runtime_cache(relative: &Path) -> bool {
+    let Some(name) = relative.file_name().and_then(|n| n.to_str()) else {
+        return false;
+    };
+    match relative.parent() {
+        Some(path) if path == Path::new("cache") => {
+            name == "longshot_prepared_key.txt" || crate::storage::is_game_cache(name)
+        }
+        Some(path) if path == Path::new("cache/prompts") => matches!(
+            name,
+            "Common.bntx.zs"
+                | "Common.blarc.zs"
+                | "Common.key"
+                | "Common.blarc.key"
+                | "External.bfotf.zs"
+                | "rsizetable.mod.zs"
+                | "rsizetable.zs"
+        ),
+        _ => false,
+    }
+}
+
 /// Remove only byte-identical outputs recorded by the builder. Unknown files
 /// and locally edited outputs are preserved.
 fn clean_recorded_builds(folder: &Path) -> Result<()> {
@@ -211,36 +233,14 @@ fn clean_recorded_builds(folder: &Path) -> Result<()> {
         // An in-place upgrade has already transferred the instance's runtime state.
         // Its old per-build cache is regenerable. Other nonempty files stay protected.
         if players::is_file(&folder.join(versions::INSTALLING)) && is_retired(folder) {
-            let cache = build.join("cache");
-            if players::is_dir(&cache) {
-                for item in fs::read_dir(&cache)? {
-                    let path = item?.path();
-                    if players::is_file(&path)
-                        && path
-                            .file_name()
-                            .and_then(|n| n.to_str())
-                            .is_some_and(|name| {
-                                name == "longshot_prepared_key.txt"
-                                    || crate::storage::is_game_cache(name)
-                            })
-                    {
-                        fs::remove_file(path)?;
-                    }
-                }
-                let prompts = cache.join("prompts");
-                if players::is_dir(&prompts) {
-                    for name in [
-                        "Common.bntx.zs",
-                        "Common.blarc.zs",
-                        "Common.key",
-                        "Common.blarc.key",
-                        "External.bfotf.zs",
-                        "rsizetable.mod.zs",
-                        "rsizetable.zs",
-                    ] {
-                        let file = prompts.join(name);
-                        if players::is_file(&file) {
-                            fs::remove_file(file)?;
+            for dir in [build.join("cache"), build.join("cache/prompts")] {
+                if players::is_dir(&dir) && !crate::storage::linked_location(&dir)? {
+                    for entry in fs::read_dir(&dir)? {
+                        let path = entry?.path();
+                        if players::is_file(&path)
+                            && generated_runtime_cache(path.strip_prefix(&build)?)
+                        {
+                            fs::remove_file(path)?;
                         }
                     }
                 }

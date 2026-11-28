@@ -612,6 +612,7 @@ fn build_and_register(
         versions::make_default(&p.ctx.home, &selected)?;
     }
     let selected = versions::selected(&p.ctx.home, Some(&folder))?;
+    let managed = selected.configure_managed_play(&p.ctx.home)?;
     let instance_id = if selected.id.is_empty() {
         &p.tag
     } else {
@@ -620,7 +621,9 @@ fn build_and_register(
     players::patch_profile(&p.ctx.profile, |o| {
         o.insert("version".into(), json!(instance_id));
         o.insert("game".into(), json!(p.game));
-        o.insert("upscalers".into(), json!(upscalers));
+        if !managed {
+            o.insert("upscalers".into(), json!(upscalers));
+        }
     })?;
     let mut patch = json!({"dlss": options.dlss, "fsr": options.fsr, "xess": options.xess, "language": options.language});
     for (key, value) in super::source::fields(&p.game)? {
@@ -647,69 +650,8 @@ fn build_and_register(
     Ok(())
 }
 
-/// Move runtime state using the upgrade's rename journal. Conflicting log or
-/// report files remain available to the normal residual-file preservation pass.
-fn carry_runtime_files(
-    old: &Path,
-    new: &Path,
-    scratch: &Path,
-    relocate: &mut impl FnMut(PathBuf, PathBuf) -> Result<()>,
-) -> Result<()> {
-    use std::fs;
-    let old_builds = old.join("builds");
-    let new_builds = new.join("builds");
-    if !players::is_dir(&old_builds) || !players::is_dir(&new_builds) {
-        return Ok(());
-    }
-    for entry in fs::read_dir(old_builds)? {
-        let entry = entry?;
-        let from = entry.path();
-        let to = new_builds.join(entry.file_name());
-        if !players::is_dir(&from) || !players::is_dir(&to) {
-            continue;
-        }
-        let backup = scratch.join(entry.file_name());
-        fs::create_dir(&backup)?;
-        for name in [
-            "longshot_options.ini",
-            "language.txt",
-            "mouse_sens.txt",
-            "longshot_env.txt",
-            "longshot_perf.ini",
-            "longshot_crash.ini",
-        ] {
-            let source = from.join(name);
-            let target = to.join(name);
-            if !players::is_file(&source) {
-                continue;
-            }
-            if players::is_file(&target) {
-                relocate(target.clone(), backup.join(name))?;
-            }
-            relocate(source, target)?;
-        }
-        let mut histories = ["logs", "bug-reports", "perf_pending", "perf_sent", "mods"]
-            .map(|name| (from.join(name), to.join(name)))
-            .to_vec();
-        while let Some((source, target)) = histories.pop() {
-            if !players::is_dir(&source) && !players::is_file(&source) {
-                continue;
-            }
-            match fs::symlink_metadata(&target) {
-                Err(e) if e.kind() == std::io::ErrorKind::NotFound => relocate(source, target)?,
-                Err(e) => return Err(e.into()),
-                Ok(_) if players::is_dir(&source) && players::is_dir(&target) => {
-                    for entry in fs::read_dir(source)? {
-                        let entry = entry?;
-                        histories.push((entry.path(), target.join(entry.file_name())));
-                    }
-                }
-                Ok(_) => (),
-            }
-        }
-    }
-    Ok(())
-}
+mod upgrade_files;
+use upgrade_files::carry_runtime_files;
 
 /// Keep the ownership marker and unrelated files in place. Move the old build to
 /// the staging slot so normal manifest-aware cleanup can reclaim its outputs.

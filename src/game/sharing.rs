@@ -57,10 +57,21 @@ impl Choices {
         if !folder.is_dir() {
             return Ok(false);
         }
-        let perf = folder.join("longshot_perf.ini");
-        let pending = folder.join("perf_pending");
-        let sent = folder.join("perf_sent");
-        let crash = folder.join("longshot_crash.ini");
+        let organized = crate::players::is_file(&folder.join("data/image.bin"));
+        let config = if organized {
+            folder.join("config")
+        } else {
+            folder.to_owned()
+        };
+        let diagnostics = if organized {
+            folder.join("diagnostics")
+        } else {
+            folder.to_owned()
+        };
+        let perf = config.join("longshot_perf.ini");
+        let pending = diagnostics.join("perf_pending");
+        let sent = diagnostics.join("perf_sent");
+        let crash = config.join("longshot_crash.ini");
         // A game must never interpret preferences or report queues from a linked directory.
         for path in [&perf, &pending, &sent, &crash] {
             ensure!(

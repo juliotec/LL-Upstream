@@ -190,6 +190,8 @@ fn copy_candidate(
                     | "mods.json"
                     | "modcache"
                     | "cache"
+                    | "config"
+                    | "diagnostics"
                     | "logs"
                     | "bug-reports"
                     | "perf_pending"
@@ -212,8 +214,18 @@ fn copy_candidate(
     }
     home::write_json(&staged.join(RECORD), &manifest)?;
     fs::File::create_new(staged.join(".longshot-builder.lock"))?;
+    let settings = if manifest["features"]
+        .as_array()
+        .is_some_and(|features| features.iter().any(|feature| feature == "organized_build"))
+    {
+        let dir = staged.join("config");
+        fs::create_dir_all(&dir)?;
+        dir
+    } else {
+        staged.clone()
+    };
     fs::write(
-        staged.join("language.txt"),
+        settings.join("language.txt"),
         format!("{}\n", options.language),
     )?;
     copy_file(source, &staged, SHADER_KEY)?;
