@@ -148,7 +148,8 @@ component ProfileTile inherits Rectangle {
 }
 
 export component ProfilePage inherits HorizontalLayout {
-    private property <int> selected-index:-1;
+    private property <string> selected-id;
+    private property <int> selected-index: Players.profile-position(Players.profiles,root.selected-id);
     private property <int> active-index: Players.current-index;
     private property <PlayerRow> player:Players.profiles[max(0,root.selected-index < 0 || root.selected-index >= Players.profiles.length ? root.active-index : root.selected-index)];
     private property <length> inset: Ink.page-inset(root.width);
@@ -201,7 +202,7 @@ export component ProfilePage inherits HorizontalLayout {
                         preferred-width: 0px;
                         player: row;
                         selected: root.player.id == row.id;
-                        picked => { root.selected-index = i; }
+                        picked => { root.selected-id = row.id; }
                     }
 
                     if i + 1 < Players.profiles.length: ProfileTile {
@@ -210,7 +211,7 @@ export component ProfilePage inherits HorizontalLayout {
                         preferred-width: 0px;
                         player: Players.profiles[i + 1];
                         selected: root.player.id == self.player.id;
-                        picked => { root.selected-index = i + 1; }
+                        picked => { root.selected-id = self.player.id; }
                     }
                     if i + 1 >= Players.profiles.length: Rectangle {
                         horizontal-stretch: 1;

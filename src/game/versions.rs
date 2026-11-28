@@ -62,10 +62,7 @@ pub(super) fn linked(path: &Path) -> bool {
 
 pub fn managed_folder(folder: &Path) -> bool {
     let program = folder.join(executable());
-    folder
-        .file_name()
-        .and_then(|name| name.to_str())
-        .is_some_and(valid_name)
+    folder.file_name().is_some()
         && !linked(folder)
         && folder.is_dir()
         && !linked(&program)
@@ -156,12 +153,90 @@ pub(super) fn installed(home_dir: &Path) -> Result<Vec<Version>> {
     Ok(versions)
 }
 
-/// A prefetched release contains tools only, so it does not appear in the player's list.
+/// Read playable releases directly from the configured library. Discovery does
+/// not grant ownership of a copied directory or make it eligible for deletion.
+pub(super) fn disk_release(folder: &Path) -> Option<String> {
+    let build = folder.join("builds/default");
+    let release = folder.join("longshot_release.json");
+    let record = build.join("longshot_build.json");
+    if !managed_folder(folder)
+        || folder.join(INSTALLING).exists()
+        || !players::is_dir(&folder.join("builds"))
+        || !players::is_dir(&build)
+        || !players::is_file(&release)
+        || !players::is_file(&record)
+    {
+        return None;
+    }
+    let release = home::read_json(&release).ok()?;
+    let tag = release["version"].as_str().filter(|s| valid_name(s))?;
+    let record = home::read_json(&record).ok()?;
+    (release["v"] == 1
+        && record["format"] == 1
+        && record["builder"] == tag
+        && [
+            "longshot",
+            "longshot.exe",
+            "bin/longshot",
+            "bin/longshot.exe",
+        ]
+        .iter()
+        .any(|name| players::is_file(&build.join(name))))
+    .then(|| tag.to_owned())
+}
+
+pub(super) fn discovered_id(folder: &Path) -> String {
+    use sha2::{Digest, Sha256};
+    format!(
+        "copy-{:x}",
+        Sha256::digest(folder.as_os_str().as_encoded_bytes())
+    )
+}
 pub(super) fn listed(home_dir: &Path) -> Result<Vec<Version>> {
-    Ok(installed(home_dir)?
-        .into_iter()
-        .filter(Version::is_listed)
-        .collect())
+    let mut found = installed(home_dir)?;
+    let library = super::install_root(home_dir, &home::settings(home_dir)?);
+    let stable = super::registry::stable_only(home_dir)?;
+    if players::is_dir(&library) {
+        for entry in fs::read_dir(&library)? {
+            let folder = entry?.path();
+            if found.iter().any(|v| v.folder == folder)
+                || super::registry::overlaps(&folder, &stable)
+            {
+                continue;
+            }
+            if let Some(tag) = disk_release(&folder) {
+                found.push(Version {
+                    id: String::new(),
+                    tag,
+                    folder,
+                    default: false,
+                    registered: false,
+                    retired: false,
+                    modules: None,
+                    previous_tags: vec![],
+                });
+            }
+        }
+    }
+    found.retain_mut(|v| {
+        if v.registered {
+            return true;
+        }
+        if let Some(tag) = disk_release(&v.folder) {
+            v.tag = tag;
+            v.id = discovered_id(&v.folder);
+            return true;
+        }
+        v.is_listed()
+    });
+    found.sort_by(|a, b| {
+        b.default
+            .cmp(&a.default)
+            .then_with(|| b.tag.cmp(&a.tag))
+            .then_with(|| b.registered.cmp(&a.registered))
+            .then_with(|| a.folder.cmp(&b.folder))
+    });
+    Ok(found)
 }
 
 /// All managed version directories, including prefetched tools and retired builds.
@@ -318,6 +393,22 @@ impl Session {
     }
 }
 
+pub(super) fn shortcut_version(home: &Path, key: Option<&Path>, profile: &Path) -> Result<Version> {
+    match key {
+        Some(key) if key.to_str().is_some_and(valid_name) => {
+            if let Some(v) = listed(home)?
+                .into_iter()
+                .find(|v| v.id == key.to_string_lossy())
+            {
+                return Ok(v);
+            }
+            by_folder(home, key)
+        }
+        Some(folder) => by_folder(home, folder),
+        None => for_profile(home, profile),
+    }
+}
+
 pub fn play(
     home_dir: &Path,
     folder: Option<&Path>,
@@ -333,10 +424,7 @@ pub fn play(
         Some(path) => Builder::for_profile(home_dir, path)?.profile,
         None => players::current_dir(home_dir)?,
     };
-    let version = match folder {
-        Some(folder) => by_folder(home_dir, folder)?,
-        None => for_profile(home_dir, &profile)?,
-    };
+    let version = shortcut_version(home_dir, folder, &profile)?;
     let exe = version.folder.join(executable());
     let grants = crate::mods::trust::pending(home_dir, &exe, &profile)?;
     if !grants.is_empty() {
@@ -477,7 +565,14 @@ pub(super) fn register(
     folder: &Path,
     upscalers: &[&str],
     replaces: Option<&Version>,
+    retired_stage: Option<&Path>,
 ) -> Result<()> {
+    if let Some(version) = folder.parent().and_then(Path::parent)
+        && version.parent() == Some(home_dir.join("versions").as_path())
+        && !version.join(".longshot-launcher-owner").exists()
+    {
+        super::library::record_moved_version(home_dir, version)?;
+    }
     let mut data = registry(home_dir)?;
     data["home"] = json!(home_dir);
     let rows = data["builds"].as_array_mut().expect("validated registry");
@@ -508,7 +603,13 @@ pub(super) fn register(
         Some(i) => i,
         None => {
             // Each destination has one row. Preserve its identity on updates.
-            let preferred = replaces.map_or(tag, |old| old.id.as_str());
+            let directory_id = folder
+                .ancestors()
+                .nth(2)
+                .and_then(Path::file_name)
+                .and_then(|n| n.to_str())
+                .filter(|n| n.len() == 16 && n.bytes().all(|b| b.is_ascii_hexdigit()));
+            let preferred = replaces.map_or(directory_id.unwrap_or(tag), |old| old.id.as_str());
             let mut id = preferred.to_owned();
             let mut suffix = 2;
             while rows.iter().any(|r| r["id"] == id) {
@@ -545,6 +646,13 @@ pub(super) fn register(
     }
     for key in ["bytes", "counted", "frees"] {
         row[key] = Value::Null;
+    }
+    if let Some(staged) = retired_stage {
+        super::registry::append_unique(
+            &mut data,
+            "retiredFolders",
+            json!(staged.strip_prefix(home_dir).unwrap_or(staged)),
+        )?;
     }
     crate::game::registry::write(home_dir, &data)
 }
@@ -721,7 +829,7 @@ mod removal {
             fs::File::create(&lock)?,
             crate::fsx::LockMode::Exclusive,
         )?;
-        register(home, "nightly-1", home, &build, &[], None)?;
+        register(home, "nightly-1", home, &build, &[], None, None)?;
         let version = installed(home)?.pop().unwrap();
         let before = registry(home)?;
         let error = delete_when_idle(home, &version).unwrap_err();
@@ -768,6 +876,49 @@ mod tests {
     }
 
     #[test]
+    fn configured_library_lists_renamed_and_retired_playable_copies() -> Result<()> {
+        let root = tempfile::tempdir()?;
+        let library = root.path().join("my games");
+        home::patch_settings(root.path(), &json!({"buildsFolder":library}))?;
+        let retired = super::super::library::new_build(
+            root.path(),
+            &home::settings(root.path())?,
+            "nightly-848",
+        )?;
+        let renamed = library.join("my renamed copy");
+        for (folder, tag) in [(&retired, "nightly-848"), (&renamed, "nightly-837")] {
+            crate::game::fake_version(folder)?;
+            home::write_json(
+                &folder.join("longshot_release.json"),
+                &json!({"v":1,"version":tag}),
+            )?;
+            home::write_json(
+                &folder.join("builds/default/longshot_build.json"),
+                &json!({"format":1,"builder":tag}),
+            )?;
+            fs::write(
+                folder.join("builds/default/longshot"),
+                b"synthetic executable",
+            )?;
+        }
+        super::super::prune::mark_retired(&retired);
+        super::super::registry::write(
+            root.path(),
+            &json!({"format":1,"builds":[],"retiredFolders":[retired]}),
+        )?;
+        let versions = listed(root.path())?;
+        assert_eq!(
+            versions.iter().map(|v| v.tag.as_str()).collect::<Vec<_>>(),
+            ["nightly-848", "nightly-837"]
+        );
+        assert!(!super::super::owned_folder(root.path(), &renamed));
+        assert_ne!(versions[0].id, versions[1].id);
+        fs::rename(&renamed, root.path().join("outside"))?;
+        assert_eq!(listed(root.path())?.len(), 1);
+        Ok(())
+    }
+
+    #[test]
     fn updating_one_instance_keeps_other_instances_and_profile_selections() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let root = temp.path();
@@ -778,12 +929,20 @@ mod tests {
         };
         let old = install("nightly-1")?;
         let other = install("nightly-2")?;
-        register(root, "nightly-1", root, &old, &[], None)?;
-        register(root, "nightly-2", root, &other, &[], None)?;
+        register(root, "nightly-1", root, &old, &[], None, None)?;
+        register(root, "nightly-2", root, &other, &[], None, None)?;
         let selected = selected(root, Some(&old))?;
-        assert!(register(root, "nightly-2", root, &other, &[], Some(&selected)).is_err());
+        assert!(register(root, "nightly-2", root, &other, &[], Some(&selected), None).is_err());
         let replacement = install("nightly-2-instance")?;
-        register(root, "nightly-2", root, &replacement, &[], Some(&selected))?;
+        register(
+            root,
+            "nightly-2",
+            root,
+            &replacement,
+            &[],
+            Some(&selected),
+            None,
+        )?;
         let versions = listed(root)?;
         assert_eq!(versions.len(), 2);
         for (id, folder) in [("nightly-1", &replacement), ("nightly-2", &other)] {
@@ -805,7 +964,7 @@ mod tests {
             crate::game::fake_version(&folder)?;
         }
         let dest = root.join("versions/nightly-2/builds/default");
-        register(root, "nightly-2", root, &dest, &[], None)?;
+        register(root, "nightly-2", root, &dest, &[], None, None)?;
         home::patch_settings(
             root,
             &json!({"rollbackVersion":"nightly-1", "updatedToVersion":"nightly-2"}),
@@ -854,6 +1013,7 @@ mod tests {
             &a.join("builds/default"),
             &[],
             None,
+            None,
         )?;
         assert!(by_folder(home, &a)?.modules()?.is_empty());
         assert_eq!(by_folder(home, &b)?.modules()?, ["dlss"]);
@@ -899,6 +1059,7 @@ mod tests {
             &home.join("owned.nup"),
             &folder,
             &["dlss"],
+            None,
             None,
         )?;
         let list = registry(home)?;
@@ -953,6 +1114,7 @@ mod tests {
             &dir.join("builds/default"),
             &[],
             None,
+            None,
         )?;
         assert!(crate::game::remove_managed(home, &dir).is_err());
         assert_eq!(fs::read(game.join("exefs/main"))?, b"synthetic fixture");
@@ -963,7 +1125,18 @@ mod tests {
         let temp = tempfile::tempdir()?;
         let path = temp.path().join(crate::game::registry::OWN);
         fs::write(&path, r#"{"format":99,"builds":[]}"#)?;
-        assert!(register(temp.path(), "v3.2.0", temp.path(), temp.path(), &[], None).is_err());
+        assert!(
+            register(
+                temp.path(),
+                "v3.2.0",
+                temp.path(),
+                temp.path(),
+                &[],
+                None,
+                None
+            )
+            .is_err()
+        );
         assert_eq!(fs::read_to_string(path)?, r#"{"format":99,"builds":[]}"#);
         Ok(())
     }

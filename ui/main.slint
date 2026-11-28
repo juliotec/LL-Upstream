@@ -163,6 +163,8 @@ export component MainWindow inherits Window {
     in-out property <string> notice;
     in property <bool> tv-mode;
     in-out property <bool> controller-active;
+    out property <bool> editing-text: Ink.editing-text;
+    changed page => { Ink.editing-text = false; }
     out property <bool> navigation-locked: (root.page == Page.launch && Game.show-log) || (root.page == Page.build && Game.folders-open) || Game.busy || Players.busy || Mods.busy || Preferences.cleaning || Preferences.changing-folder || Preferences.romfs-running || Updates.applying;
     out property <bool> modal-open: Updates.channel-prompt || StorageReview.open || Game.mod-trust-review != "" || Mods.review != "" || Game.confirming-removal
         || Game.show-log || Game.folders-open || Game.license != "" || Players.prompt != ""
@@ -377,22 +379,36 @@ export component MainWindow inherits Window {
                 }
             }
 
-            if root.notice != "": HorizontalLayout {
-                padding-left: 24px;
-                padding-right: 16px;
-                spacing: 14px;
-
-                Text {
-                    text: root.notice;
-                    color: Ink.gold;
-                    wrap: word-wrap;
-                    horizontal-stretch: 1;
-                }
-
-                Action {
-                    quiet: true;
-                    label: Locale.t("Dismiss");
-                    clicked => { root.notice = ""; }
+            if root.notice != "": Rectangle {
+                height: notice-card.height + 12px;
+                notice-card := Rectangle {
+                    x: (parent.width - self.width) / 2;
+                    y: 6px;
+                    width: min(parent.width - 32px, 760px, notice-content.preferred-width);
+                    height: notice-content.preferred-height;
+                    background: Ink.raised;
+                    border-radius: 8px;
+                    border-width: 1px;
+                    border-color: Ink.line;
+                    notice-content := HorizontalLayout {
+                        padding-left: 14px;
+                        padding-right: 6px;
+                        padding-top: 3px;
+                        padding-bottom: 3px;
+                        spacing: 16px;
+                        cross-axis-alignment: center;
+                        Text {
+                            text: root.notice;
+                            color: Ink.text;
+                            wrap: word-wrap;
+                            vertical-alignment: center;
+                        }
+                        Action {
+                            quiet: true;
+                            label: Locale.t("Dismiss");
+                            clicked => { root.notice = ""; }
+                        }
+                    }
                 }
             }
             if root.page == Page.home && !Updates.show-notes: HomePage {

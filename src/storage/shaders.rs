@@ -191,7 +191,7 @@ fn store_files(folder: &Path) -> Result<Vec<PathBuf>> {
     Ok(files)
 }
 
-fn is_game_cache(name: &str) -> bool {
+pub(crate) fn is_game_cache(name: &str) -> bool {
     let name = name.strip_suffix(".part").unwrap_or(name);
     GAME_FILES.contains(&name)
         || name

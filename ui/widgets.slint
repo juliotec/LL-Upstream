@@ -1,5 +1,6 @@
 export enum Page { home, mods, saves, versions, settings, profiles, choose-player, build, launch, logs }
 export global Ink {
+    in-out property <bool> editing-text;
     in-out property <bool> focus-visible;
     public pure function page-inset(page-width: length) -> length { return page-width < 1050px ? 24px : 44px; }
     public pure function page-top(page-width: length) -> length { return page-width < 1050px ? 18px : 28px; }

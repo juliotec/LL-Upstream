@@ -115,16 +115,19 @@ pub(super) fn record_replacement(
     old: &Path,
     tag: &str,
 ) -> Result<()> {
-    super::prune::mark_retired(old);
     let path = json!(old.strip_prefix(root).unwrap_or(old));
-    append_unique(data, "retiredFolders", path.clone())?;
+    if super::owned_folder(root, old) {
+        super::prune::mark_retired(old);
+        append_unique(data, "retiredFolders", path.clone())?;
+    }
     let row = &mut data["builds"][index];
+    append_unique(row, "previousFolders", path.clone())?;
     row["previousFolder"] = path;
     row["previousVersion"] = json!(tag);
     append_unique(row, "previousTags", json!(tag))
 }
 
-fn append_unique(object: &mut Value, key: &str, value: Value) -> Result<()> {
+pub(super) fn append_unique(object: &mut Value, key: &str, value: Value) -> Result<()> {
     if object[key].is_null() {
         object[key] = json!([]);
     }
@@ -225,7 +228,7 @@ pub(crate) fn prepare(root: &Path, portable: bool) -> Result<()> {
             home::write_json(&own, &data)?;
         }
     }
-    Ok(())
+    super::recovery::reconnect(root)
 }
 
 #[cfg(test)]

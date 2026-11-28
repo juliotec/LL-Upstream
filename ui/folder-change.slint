@@ -1,3 +1,4 @@
+import { PathHint } from "settings-row.slint";
 import { ModalLayer, SideSheet } from "modal-layer.slint";
 import { Action, Ink, Locale, SideCard } from "widgets.slint";
 import { PageList } from "scroll-view.slint";
@@ -32,7 +33,7 @@ export component FolderChangeDialog inherits ModalLayer {
                     for row in (Preferences.folder-from == Preferences.folder-to ? [{label: Locale.t("Data folder"), path: Preferences.folder-to}] : [{label: Locale.t("From"), path: Preferences.folder-from}, {label: Locale.t("To"), path: Preferences.folder-to}]): VerticalLayout {
                         spacing: 3px;
                         Text { text: row.label; color: Ink.muted; font-size: 13px; }
-                        Text { text: Locale.display-path(row.path); color: Ink.text; wrap: char-wrap; }
+                        PathHint { path: row.path; }
                     }
                 }
             }

@@ -53,6 +53,16 @@ impl BuildIntent {
         matches!(self, Self::Update(_))
     }
 
+    fn check_ownership(&self, home: &Path) -> Result<()> {
+        if let Some(instance) = self.instance() {
+            ensure!(
+                super::owned_folder(home, &instance.folder),
+                "This copy was added outside the launcher. Choose Add version to install a separate managed copy."
+            );
+        }
+        Ok(())
+    }
+
     fn validate(&self, home_dir: &Path, folder: &Path) -> Result<()> {
         let listed = versions::listed(home_dir)?;
         if let Some(instance) = self.instance() {
@@ -141,6 +151,8 @@ pub(super) fn open(
             }
         }
     };
+
+    intent.check_ownership(home_dir)?;
     g.set_install_tag(tag);
     g.set_update_target(pinned_update);
     location(ui, &ctx, &intent);
@@ -253,6 +265,7 @@ pub(super) fn location(ui: &MainWindow, ctx: &Context, intent: &BuildIntent) {
 }
 
 pub(super) fn check(ui: &MainWindow, home_dir: &Path, work: &SharedWork) -> Result<()> {
+    work.guard().intent.check_ownership(home_dir)?;
     let g = ui.global::<Game>();
     let source = validated_source(Path::new(g.get_source_path().as_str()))?;
     let ctx = Context::load(home_dir)?;
@@ -548,32 +561,43 @@ fn build_and_register(
     if !cfg!(windows) && options.fsr {
         super::upscaler::install_for_build(destination, &folder)?;
     }
-    versions::register(
-        &p.ctx.home,
-        &p.tag,
-        &p.game,
-        &folder,
-        &upscalers,
-        p.intent.instance(),
-    )?;
-    if !matches!(p.intent, BuildIntent::Rebuild(_)) {
+    let register = |folder: &Path, retired_stage: Option<&Path>| {
+        versions::register(
+            &p.ctx.home,
+            &p.tag,
+            &p.game,
+            folder,
+            &upscalers,
+            p.intent.instance(),
+            retired_stage,
+        )
+    };
+    let folder = if let BuildIntent::Update(old) = &p.intent {
+        let _library = super::move_lease(&p.ctx.home)?;
+        players::ensure_paths_idle(&[&old.folder, destination])?;
+        ensure!(
+            versions::listed(&p.ctx.home)?
+                .iter()
+                .any(|v| v.id == old.id && v.tag == old.tag && v.folder == old.folder),
+            "The selected installation changed during the upgrade."
+        );
+        let installed = old.folder.join(folder.strip_prefix(destination)?);
+        replace_instance(&p.ctx.home, &old.folder, destination, || {
+            register(&installed, Some(destination))
+        })?;
+        installed
+    } else {
+        register(&folder, None)?;
+        folder
+    };
+    if matches!(p.intent, BuildIntent::New) {
         let _ = std::fs::remove_file(marker);
     }
-    if let BuildIntent::Update(old) = &p.intent {
-        if let Some(version) = p.exe.parent()
-            && let Err(error) =
-                super::steam::retarget_updated_instance(&p.ctx.home, &old.folder, version)
-        {
-            let warning = format!(
-                "Could not update the Steam shortcut. Use Add to Steam on the updated version to repair it: {error}"
-            );
-            record("launcher", &format!("[WARN] {warning}"));
-            progress(&warning, None);
-        }
-        if old.default {
-            let selected = versions::selected(&p.ctx.home, Some(&folder))?;
-            versions::make_default(&p.ctx.home, &selected)?;
-        }
+    if let BuildIntent::Update(old) = &p.intent
+        && old.default
+    {
+        let selected = versions::selected(&p.ctx.home, Some(&folder))?;
+        versions::make_default(&p.ctx.home, &selected)?;
     }
     let selected = versions::selected(&p.ctx.home, Some(&folder))?;
     let instance_id = if selected.id.is_empty() {
@@ -601,6 +625,147 @@ fn build_and_register(
         crate::diagnostics::event("Build file cleanup did not complete");
         eprintln!("Build completed, but its temporary files could not be cleaned up: {error}");
     }
+    Ok(())
+}
+
+/// Move runtime state using the upgrade's rename journal. Conflicting log or
+/// report files remain available to the normal residual-file preservation pass.
+fn carry_runtime_files(
+    old: &Path,
+    new: &Path,
+    scratch: &Path,
+    relocate: &mut impl FnMut(PathBuf, PathBuf) -> Result<()>,
+) -> Result<()> {
+    use std::fs;
+    let old_builds = old.join("builds");
+    let new_builds = new.join("builds");
+    if !players::is_dir(&old_builds) || !players::is_dir(&new_builds) {
+        return Ok(());
+    }
+    for entry in fs::read_dir(old_builds)? {
+        let entry = entry?;
+        let from = entry.path();
+        let to = new_builds.join(entry.file_name());
+        if !players::is_dir(&from) || !players::is_dir(&to) {
+            continue;
+        }
+        let backup = scratch.join(entry.file_name());
+        fs::create_dir(&backup)?;
+        for name in [
+            "longshot_options.ini",
+            "language.txt",
+            "mouse_sens.txt",
+            "longshot_env.txt",
+            "longshot_perf.ini",
+            "longshot_crash.ini",
+        ] {
+            let source = from.join(name);
+            let target = to.join(name);
+            if !players::is_file(&source) {
+                continue;
+            }
+            if players::is_file(&target) {
+                relocate(target.clone(), backup.join(name))?;
+            }
+            relocate(source, target)?;
+        }
+        let mut histories = ["logs", "bug-reports", "perf_pending", "perf_sent", "mods"]
+            .map(|name| (from.join(name), to.join(name)))
+            .to_vec();
+        while let Some((source, target)) = histories.pop() {
+            if !players::is_dir(&source) && !players::is_file(&source) {
+                continue;
+            }
+            match fs::symlink_metadata(&target) {
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => relocate(source, target)?,
+                Err(e) => return Err(e.into()),
+                Ok(_) if players::is_dir(&source) && players::is_dir(&target) => {
+                    for entry in fs::read_dir(source)? {
+                        let entry = entry?;
+                        histories.push((entry.path(), target.join(entry.file_name())));
+                    }
+                }
+                Ok(_) => (),
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Keep the ownership marker and unrelated files in place. Move the old build to
+/// the staging slot so normal manifest-aware cleanup can reclaim its outputs.
+fn replace_instance(
+    home: &Path,
+    active: &Path,
+    staged: &Path,
+    register: impl FnOnce() -> Result<()>,
+) -> Result<()> {
+    use std::fs;
+    ensure!(
+        super::owned_folder(home, active) && super::owned_folder(home, staged),
+        "The installation ownership changed."
+    );
+    ensure!(
+        !versions::overlaps_private(active, &crate::storage::protected_paths(home)?)?,
+        "The installation contains a game source."
+    );
+    let guards = versions::safe_tree(active)?;
+    if cfg!(windows) {
+        drop(guards);
+    }
+    let temp = tempfile::Builder::new()
+        .prefix(".replacing-")
+        .tempdir_in(staged)?;
+    let mut moves = Vec::new();
+    let mut relocate = |from: PathBuf, to: PathBuf| -> Result<()> {
+        ensure!(
+            std::fs::symlink_metadata(&to).is_err_and(|e| e.kind() == std::io::ErrorKind::NotFound),
+            "An upgrade destination is occupied."
+        );
+        fs::rename(&from, &to)?;
+        moves.push((from, to));
+        Ok(())
+    };
+    let result = (|| -> Result<()> {
+        for entry in fs::read_dir(active)? {
+            let entry = entry?;
+            let name = entry.file_name();
+            if name != ".longshot-launcher-owner"
+                && (super::library::tool_file(&name) || name == "builds")
+            {
+                relocate(entry.path(), temp.path().join(name))?;
+            }
+        }
+        for entry in fs::read_dir(staged)? {
+            let entry = entry?;
+            let name = entry.file_name();
+            if entry.path() != temp.path()
+                && name != ".longshot-launcher-owner"
+                && name != versions::INSTALLING
+            {
+                relocate(entry.path(), active.join(name))?;
+            }
+        }
+        for entry in fs::read_dir(temp.path())? {
+            let entry = entry?;
+            relocate(entry.path(), staged.join(entry.file_name()))?;
+        }
+        carry_runtime_files(staged, active, temp.path(), &mut relocate)?;
+        register()
+    })();
+    if let Err(error) = result {
+        for (from, to) in moves.into_iter().rev() {
+            if let Err(rollback) = fs::rename(&to, &from) {
+                let kept = temp.keep();
+                anyhow::bail!(
+                    "{error}; rollback failed: {rollback}. Recovery files: {}",
+                    kept.display()
+                );
+            }
+        }
+        return Err(error);
+    }
+    super::prune::mark_retired(staged);
     Ok(())
 }
 
@@ -706,6 +871,60 @@ mod tests {
     }
 
     #[test]
+    fn updating_a_discovered_copy_explains_how_to_add_a_managed_copy() -> Result<()> {
+        let tmp = tempfile::tempdir()?;
+        let root = tmp.path();
+        let custom = root.join("library");
+        home::patch_settings(root, &json!({"buildsFolder": custom}))?;
+        let folder = custom.join("external");
+        crate::game::fake_version(&folder)?;
+        fs::write(folder.join("builds/default/longshot"), b"synthetic")?;
+        home::write_json(
+            &folder.join("longshot_release.json"),
+            &json!({"v":1,"version":"nightly-1"}),
+        )?;
+        home::write_json(
+            &folder.join("builds/default/longshot_build.json"),
+            &json!({"format":1,"builder":"nightly-1"}),
+        )?;
+        let instance = versions::selected(root, Some(&folder))?;
+        let error = BuildIntent::Update(instance)
+            .check_ownership(root)
+            .unwrap_err();
+        assert!(error.to_string().contains("Add version"));
+        assert_eq!(fs::read_dir(custom)?.count(), 1);
+        Ok(())
+    }
+
+    #[test]
+    fn failed_registration_restores_both_builds() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let home = temp.path();
+        let active = home.join("versions/1111222233334444");
+        let staged = home.join("versions/aaaabbbbccccdddd");
+        for (path, contents) in [(&active, "old"), (&staged, "new")] {
+            crate::game::fake_version(path)?;
+            fs::write(path.join("builds/default/output"), contents)?;
+            fs::write(path.join("builds/default/longshot_options.ini"), contents)?;
+        }
+        fs::write(active.join("personal.txt"), "keep")?;
+        let result = replace_instance(home, &active, &staged, || bail!("registration failed"));
+        assert_eq!(result.unwrap_err().to_string(), "registration failed");
+        assert_eq!(fs::read(active.join("builds/default/output"))?, b"old");
+        assert_eq!(fs::read(staged.join("builds/default/output"))?, b"new");
+        assert_eq!(fs::read(active.join("personal.txt"))?, b"keep");
+        assert_eq!(
+            fs::read(active.join("builds/default/longshot_options.ini"))?,
+            b"old"
+        );
+        assert_eq!(
+            fs::read(staged.join("builds/default/longshot_options.ini"))?,
+            b"new"
+        );
+        Ok(())
+    }
+
+    #[test]
     fn updating_an_instance_keeps_an_existing_copy_of_its_target_intact() -> Result<()> {
         use sha2::{Digest, Sha256};
         let temp = tempfile::tempdir()?;
@@ -716,7 +935,7 @@ mod tests {
         fs::create_dir_all(&profile)?;
         home::write_json(
             &profile.join("profile.json"),
-            &json!({"v":1,"name":"Player","version":"updating"}),
+            &json!({"v":1,"name":"Player","version":"1111222233334444"}),
         )?;
         let ctx = Context::load(home_dir)?;
         let name = super::super::process::executable();
@@ -728,26 +947,46 @@ mkdir -p builds/default
 echo made > builds/default/example
 printf '{\"v\":1,\"type\":\"done\",\"folder\":\"%s/builds/default\"}\n' \"$PWD\"
 ";
-        for (id, tag) in [("updating", "v3.2.0"), ("keep-me", target)] {
-            let version = home_dir.join("versions").join(tag);
+        for (id, tag) in [("1111222233334444", "v3.2.0"), ("aaaabbbbccccdddd", target)] {
+            let version = home_dir.join("versions").join(id);
             let folder = version.join("builds/default");
             fs::create_dir_all(&folder)?;
             fs::write(folder.join("example"), id)?;
+            home::write_json(
+                &folder.join("longshot_build.json"),
+                &json!({"format":1,"files":{"example":{"sha256":format!("{:x}", Sha256::digest(id.as_bytes()))}}}),
+            )?;
             fs::write(version.join(name), script)?;
             fs::set_permissions(version.join(name), fs::Permissions::from_mode(0o755))?;
             home::write_json(
                 &version.join("longshot_release.json"),
                 &json!({"v":1,"version":tag,"platform":releases::PLATFORM,"program":name,"full":{"size":script.len(),"sha256":format!("{:x}",Sha256::digest(script))}}),
             )?;
-            rows.push(json!({"id":id,"version":tag,"folder":folder,"default":id=="updating"}));
+            rows.push(
+                json!({"id":id,"version":tag,"folder":folder,"default":id=="1111222233334444"}),
+            );
         }
         home::write_json(
             &home_dir.join(crate::game::registry::OWN),
             &json!({"format":1,"builds":rows}),
         )?;
         let selected = versions::selected(home_dir, None)?;
-        let target_folder = home_dir.join("versions").join(target);
+        let target_folder = home_dir.join("versions/aaaabbbbccccdddd");
         let original = target_folder.join("builds/default/example");
+        let active_path = selected.folder.clone();
+        let runtime = active_path.join("builds/default");
+        fs::write(runtime.join("longshot_options.ini"), "custom options")?;
+        fs::write(runtime.join("language.txt"), "fr")?;
+        fs::create_dir_all(runtime.join("mods"))?;
+        fs::write(runtime.join("mods/custom.txt"), b"user mod")?;
+        fs::create_dir_all(runtime.join("cache/prompts"))?;
+        fs::write(runtime.join("cache/prompts/Common.key"), "stale")?;
+        fs::create_dir_all(runtime.join("logs"))?;
+        fs::create_dir_all(runtime.join("bug-reports/pending"))?;
+        fs::write(
+            runtime.join("bug-reports/pending/report.txt"),
+            "local report",
+        )?;
         let intent = BuildIntent::Update(selected);
         assert!(intent.validate(home_dir, &target_folder).is_err());
         let other = versions::selected(home_dir, Some(&target_folder))?;
@@ -791,25 +1030,43 @@ printf '{\"v\":1,\"type\":\"done\",\"folder\":\"%s/builds/default\"}\n' \"$PWD\"
             &mut |_, _| {},
             &mut super::super::forecast::Monitor::new(None, &json!({}), false, true),
         )?;
-        assert_eq!(fs::read_to_string(original)?, "keep-me");
+        assert_eq!(fs::read_to_string(original)?, "aaaabbbbccccdddd");
         assert_eq!(
-            fs::read_to_string(dest.join("builds/default/example"))?,
+            fs::read_to_string(active_path.join("builds/default/example"))?,
             "made\n"
         );
+        assert_eq!(
+            fs::read(runtime.join("longshot_options.ini"))?,
+            b"custom options"
+        );
+        assert_eq!(fs::read(runtime.join("language.txt"))?, b"fr");
+        assert_eq!(
+            fs::read(runtime.join("bug-reports/pending/report.txt"))?,
+            b"local report"
+        );
+        assert!(!runtime.join("cache/prompts/Common.key").exists());
+        assert_eq!(fs::read(runtime.join("mods/custom.txt"))?, b"user mod");
+        assert!(!fs::read_dir(home_dir.join("versions"))?.any(|e| {
+            e.unwrap()
+                .file_name()
+                .to_string_lossy()
+                .starts_with("preserved-files-")
+        }));
         let installed = versions::listed(home_dir)?;
+        assert!(!dest.exists(), "the superseded build must be reclaimed");
         assert_eq!(installed.len(), 2);
         assert!(installed.iter().all(|v| v.tag == target));
         assert!(
             installed
                 .iter()
-                .any(|v| v.id == "updating" && v.folder == dest)
+                .any(|v| v.id == "1111222233334444" && v.folder == active_path)
         );
         assert!(
             installed
                 .iter()
-                .any(|v| v.id == "keep-me" && v.folder == target_folder)
+                .any(|v| v.id == "aaaabbbbccccdddd" && v.folder == target_folder)
         );
-        assert_eq!(versions::selected(home_dir, None)?.id, "updating");
+        assert_eq!(versions::selected(home_dir, None)?.id, "1111222233334444");
         Ok(())
     }
 

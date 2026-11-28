@@ -37,7 +37,7 @@ On Linux, an in-place update keeps the AppImage filename. The updater writes `.n
 | `profiles/<id>/settings.ini` | Game options |
 | `mods/` | Shared mod files |
 | `builder-data/` | Persistent builder metadata |
-| `versions/<instance>/` | The verified builder (`Longshot.exe` or `Longshot.x86_64`), `longshot_release.json`, and instance metadata |
+| `versions/<instance>/` | Permanent installation folder named with a random 16-character hexadecimal ID. Upgrades replace the files here, so Steam can target this instance directly. Contains the verified builder (`Longshot.exe` or `Longshot.x86_64`), `longshot_release.json`, and instance metadata |
 | `versions/<instance>/builds/<build>/` | The generated game executable, renderer, resources, build metadata and game logs. A build can also have local `cache/` and `mods/` folders |
 
 ## Builder cache

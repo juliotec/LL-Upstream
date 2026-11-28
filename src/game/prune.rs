@@ -75,12 +75,39 @@ pub(super) fn remember(folder: &Path) {
     FETCHED.guard().insert(folder.to_owned());
 }
 
+const PENDING: &str = ".retired-cleanup-pending";
+
+pub(crate) fn retry_retired(home: &Path) {
+    if !players::is_file(&home.join(PENDING)) {
+        return;
+    }
+    if let Err(error) = run_cleanup(home, true) {
+        eprintln!("Retired version cleanup deferred: {error}");
+    }
+}
+
 pub(super) fn after_update(home: &Path) -> Result<()> {
+    match fs::File::create_new(home.join(PENDING)) {
+        Ok(_) => (),
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => (),
+        Err(e) => return Err(e.into()),
+    }
+    run_cleanup(home, false)
+}
+
+fn run_cleanup(home: &Path, retired_only: bool) -> Result<()> {
     let Ok(_exclusive) = move_lease(home) else {
         return Ok(());
     };
     players::ensure_idle()?;
-    prune_when_idle(home)
+    prune(home, retired_only)?;
+    if registry(home)?["retiredFolders"]
+        .as_array()
+        .is_none_or(Vec::is_empty)
+    {
+        fs::remove_file(home.join(PENDING))?;
+    }
+    Ok(())
 }
 
 /// Whole-directory pruning is only safe for a tools-only installation. Storage can
@@ -95,13 +122,18 @@ fn only_tools(folder: &Path, retired: bool) -> Result<bool> {
                 if !retired
                     || !players::is_dir(&build)
                     || build.extension().is_some_and(|ext| ext == "part")
-                    || fs::read_dir(build)?.next().transpose()?.is_some()
+                    || fs::read_dir(build)?.any(|e| {
+                        !e.is_ok_and(|e| {
+                            e.file_name() == ".longshot-builder.lock" && players::is_file(&e.path())
+                        })
+                    })
                 {
                     return Ok(false);
                 }
             }
         } else if !players::is_file(&path)
             || !(super::library::tool_file(&entry.file_name())
+                || retired && entry.file_name() == versions::INSTALLING
                 || entry.file_name() == RETIRED && is_retired(folder))
         {
             return Ok(false);
@@ -110,18 +142,170 @@ fn only_tools(folder: &Path, retired: bool) -> Result<bool> {
     Ok(true)
 }
 
+/// Remove only byte-identical outputs recorded by the builder. Unknown files
+/// and locally edited outputs are preserved.
+fn clean_recorded_builds(folder: &Path) -> Result<()> {
+    use sha2::{Digest, Sha256};
+    let Ok(_guards) = versions::safe_tree(folder) else {
+        return Ok(());
+    };
+    let fetch = fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(folder.join(super::library::FETCH_LOCK))?;
+    let Ok(_fetch_lock) = home::FileLease::try_acquire(fetch, crate::fsx::LockMode::Exclusive)
+    else {
+        return Ok(());
+    };
+    let builds = folder.join("builds");
+    if !players::is_dir(&builds) {
+        return Ok(());
+    }
+    for entry in fs::read_dir(builds)? {
+        let build = entry?.path();
+        let manifest = build.join("longshot_build.json");
+        if !players::is_dir(&build) || !players::is_file(&manifest) {
+            continue;
+        }
+        let Ok(record) = home::read_json(&manifest) else {
+            continue;
+        };
+        let Some(files) = record["files"]
+            .as_object()
+            .filter(|_| record["format"] == 1)
+        else {
+            continue;
+        };
+        let mut dirs = BTreeSet::new();
+        let mut modified = false;
+        for (name, data) in files {
+            let rel = Path::new(name);
+            if !rel
+                .components()
+                .all(|c| matches!(c, std::path::Component::Normal(_)))
+            {
+                continue;
+            }
+            let path = build.join(rel);
+            if !players::is_file(&path) || path.ancestors().any(versions::linked) {
+                continue;
+            }
+            let mut hash = Sha256::new();
+            std::io::copy(&mut fs::File::open(&path)?, &mut hash)?;
+            if data["sha256"].as_str() != Some(&format!("{:x}", hash.finalize())) {
+                modified = true;
+                continue;
+            }
+            fs::remove_file(&path)?;
+            dirs.extend(
+                path.ancestors()
+                    .skip(1)
+                    .take_while(|p| *p != build)
+                    .map(Path::to_owned),
+            );
+        }
+        for dir in dirs.into_iter().rev() {
+            let _ = fs::remove_dir(dir);
+        }
+        // An in-place upgrade has already transferred the instance's runtime state.
+        // Its old per-build cache is regenerable. Other nonempty files stay protected.
+        if players::is_file(&folder.join(versions::INSTALLING)) && is_retired(folder) {
+            let cache = build.join("cache");
+            if players::is_dir(&cache) {
+                for item in fs::read_dir(&cache)? {
+                    let path = item?.path();
+                    if players::is_file(&path)
+                        && path
+                            .file_name()
+                            .and_then(|n| n.to_str())
+                            .is_some_and(|name| {
+                                name == "longshot_prepared_key.txt"
+                                    || crate::storage::is_game_cache(name)
+                            })
+                    {
+                        fs::remove_file(path)?;
+                    }
+                }
+                let prompts = cache.join("prompts");
+                if players::is_dir(&prompts) {
+                    for name in [
+                        "Common.bntx.zs",
+                        "Common.blarc.zs",
+                        "Common.key",
+                        "Common.blarc.key",
+                        "External.bfotf.zs",
+                        "rsizetable.mod.zs",
+                        "rsizetable.zs",
+                    ] {
+                        let file = prompts.join(name);
+                        if players::is_file(&file) {
+                            fs::remove_file(file)?;
+                        }
+                    }
+                }
+            }
+            remove_empty_children(&build)?;
+        }
+        // Keep residual runtime data and personal files on the same volume.
+        // Moving them out allows the now-unused builder to be reclaimed.
+        let has_residuals = fs::read_dir(&build)?.any(|e| {
+            !e.is_ok_and(|e| {
+                e.file_name() == ".longshot-builder.lock" || e.file_name() == "longshot_build.json"
+            })
+        });
+        if has_residuals {
+            let base = folder.parent().context("Version has no library")?;
+            let preserved = tempfile::Builder::new()
+                .prefix("preserved-files-")
+                .tempdir_in(base)?;
+            let destination = preserved.path().join(folder.file_name().unwrap());
+            fs::create_dir(&destination)?;
+            let target = destination.join(build.file_name().unwrap());
+            fs::rename(&build, &target)?;
+            let _ = preserved.keep();
+            if !modified {
+                fs::remove_file(target.join("longshot_build.json"))?;
+            }
+        } else {
+            fs::remove_file(manifest)?;
+        }
+    }
+    Ok(())
+}
+
+fn remove_empty_children(dir: &Path) -> Result<()> {
+    for entry in fs::read_dir(dir)? {
+        let path = entry?.path();
+        if players::is_dir(&path) {
+            remove_empty_children(&path)?;
+            if fs::read_dir(&path)?.next().is_none() {
+                fs::remove_dir(path)?;
+            }
+        }
+    }
+    Ok(())
+}
+
+#[cfg(test)]
 fn prune_when_idle(home: &Path) -> Result<()> {
+    prune(home, false)
+}
+
+fn prune(home: &Path, retired_only: bool) -> Result<()> {
     let profiles = players::list_profiles(home)?;
     if profiles.iter().any(|p| p.problem.is_some()) {
         return Ok(());
     }
     let folders = super::managed_folders(home)?;
-    let mut keep: BTreeSet<PathBuf> = FETCHED.guard().clone();
+    let mut keep = BTreeSet::<PathBuf>::new();
+    let fetched = FETCHED.guard().clone();
     let records = registry(home)?;
     let rows = records["builds"].as_array().expect("validated registry");
     let mut keep_tags: BTreeSet<&str> = profiles
         .iter()
         .filter_map(|p| p.file["version"].as_str())
+        .filter(|key| !rows.iter().any(|r| r["id"] == *key))
         .collect();
     let settings = home::settings(home)?;
     // A launcher without instance history recorded only the previous tag.
@@ -135,9 +319,9 @@ fn prune_when_idle(home: &Path) -> Result<()> {
         keep_tags.insert(tag);
     }
     for row in rows {
-        if let Some(previous) = row["previousFolder"].as_str() {
-            keep.insert(home.join(previous));
-        } else if let Some(tag) = row["previousVersion"].as_str() {
+        if row["previousFolder"].is_null()
+            && let Some(tag) = row["previousVersion"].as_str()
+        {
             keep_tags.insert(tag);
         }
         for key in ["folder", "nup", "romfs", "exefs"] {
@@ -156,10 +340,14 @@ fn prune_when_idle(home: &Path) -> Result<()> {
     let mut expected = records.clone();
     let private = crate::storage::protected_paths(home)?;
     for folder in folders {
+        if retired_only && !retired.contains(&folder) {
+            continue;
+        }
         if folder
             .file_name()
             .and_then(|name| name.to_str())
             .is_some_and(|tag| keep_tags.contains(tag))
+            || keep_tags.contains(versions::discovered_id(&folder).as_str())
             || keep.iter().any(|path| path.starts_with(&folder))
             || super::library::removable(home, &folder).is_err()
             || folder.extension().is_some_and(|s| s == "part")
@@ -168,8 +356,14 @@ fn prune_when_idle(home: &Path) -> Result<()> {
             continue;
         }
         let was_retired = retired.contains(&folder);
-        if was_retired && !is_retired(&folder) {
+        if (!was_retired && fetched.contains(&folder)) || (was_retired && !is_retired(&folder)) {
             continue;
+        }
+        if was_retired {
+            if registry(home)? != expected {
+                break;
+            }
+            clean_recorded_builds(&folder)?;
         }
         if only_tools(&folder, was_retired)? {
             remove_tools(home, &folder, was_retired, &mut expected)?;
@@ -278,6 +472,51 @@ mod tests {
         for keep in &tags[..6] {
             assert!(root.join(keep).is_dir());
         }
+        Ok(())
+    }
+    #[test]
+    fn retired_build_keeps_personal_files_and_reclaims_verified_outputs() -> Result<()> {
+        use sha2::{Digest, Sha256};
+        let tmp = tempfile::tempdir()?;
+        let home = tmp.path();
+        players::initialize(home)?;
+        let old = home.join("versions/old");
+        let current = home.join("versions/new");
+        for folder in [&old, &current] {
+            super::super::fake_version(folder)?;
+        }
+        let game = old.join("builds/default");
+        fs::write(game.join("game.bin"), b"built locally")?;
+        fs::write(game.join("my-notes.txt"), b"preserve me")?;
+        fs::write(old.join(versions::INSTALLING), b"")?;
+        fs::create_dir_all(game.join("cache"))?;
+        fs::write(game.join("cache/personal.bin"), b"custom")?;
+        home::write_json(
+            &game.join("longshot_build.json"),
+            &serde_json::json!({"format":1,"files":{"game.bin":{"sha256":format!("{:x}",Sha256::digest(b"built locally"))}}}),
+        )?;
+        mark_retired(&old);
+        super::super::registry::write(
+            home,
+            &serde_json::json!({"format":1,"retiredFolders":[old],"builds":[{"id":"old","version":"new","previousFolder":old,"folder":current.join("builds/default")}]}),
+        )?;
+        prune_when_idle(home)?;
+        assert!(!old.exists());
+        assert!(current.join("builds/default").is_dir());
+        let kept = fs::read_dir(home.join("versions"))?
+            .filter_map(Result::ok)
+            .map(|e| e.path())
+            .find(|p| p.join("old/default/my-notes.txt").is_file())
+            .unwrap();
+        assert_eq!(
+            fs::read(kept.join("old/default/my-notes.txt"))?,
+            b"preserve me"
+        );
+        assert_eq!(
+            fs::read(kept.join("old/default/cache/personal.bin"))?,
+            b"custom"
+        );
+        assert!(!kept.join("old/default/game.bin").exists());
         Ok(())
     }
     #[test]

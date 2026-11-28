@@ -9,6 +9,7 @@ pub(crate) use reclaim::bind as bind_cleanup_review;
 mod shaders;
 pub use drives::Snapshot;
 pub(crate) use drives::volume;
+pub(crate) use shaders::is_game_cache;
 
 use crate::{DiskGroup, DiskPart, home};
 use anyhow::{Context, Result, bail, ensure};

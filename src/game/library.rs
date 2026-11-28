@@ -51,6 +51,29 @@ fn record_path(home: &Path, folder: &Path) -> PathBuf {
     home.join(LOCATIONS).join(format!("{hash:x}.json"))
 }
 
+pub(super) fn recorded_owner(home: &Path, folder: &Path) -> Option<String> {
+    let record = home::read_json(&record_path(home, folder)).ok()?;
+    (record["format"] == 1 && record["folder"].as_str().map(Path::new) == Some(folder))
+        .then(|| {
+            record["owner"]
+                .as_str()
+                .filter(|s| !s.is_empty())
+                .map(str::to_owned)
+        })
+        .flatten()
+}
+
+pub(super) fn record_move(home: &Path, folder: &Path, token: &str) -> Result<()> {
+    ensure!(
+        safe_path(&home.join(LOCATIONS)),
+        "Invalid version locations directory."
+    );
+    home::write_json(
+        &record_path(home, folder),
+        &json!({"format":1,"folder":folder,"owner":token}),
+    )
+}
+
 fn read_record(path: &Path) -> Option<PathBuf> {
     if !players::is_file(path) {
         return None;
@@ -68,19 +91,19 @@ fn read_record(path: &Path) -> Option<PathBuf> {
 }
 
 pub fn owned_folder(home: &Path, folder: &Path) -> bool {
-    if !folder
-        .file_name()
-        .and_then(|name| name.to_str())
-        .is_some_and(valid_name)
-        || !players::is_dir(folder)
-    {
+    if !players::is_dir(folder) {
         return false;
     }
     let default = home.join("versions");
-    if folder.parent().is_some_and(|parent| {
-        parent == default
-            || (cfg!(windows) && default.canonicalize().is_ok_and(|path| path == parent))
-    }) {
+    if folder
+        .file_name()
+        .and_then(|s| s.to_str())
+        .is_some_and(valid_name)
+        && folder.parent().is_some_and(|parent| {
+            parent == default
+                || (cfg!(windows) && default.canonicalize().is_ok_and(|path| path == parent))
+        })
+    {
         return players::is_dir(&default);
     }
     players::is_dir(&home.join(LOCATIONS))
@@ -95,7 +118,7 @@ pub fn managed_folders(home: &Path) -> Result<Vec<PathBuf>> {
         Ok(entries) => {
             for entry in entries {
                 let folder = entry?.path();
-                if managed_folder(&folder) {
+                if owned_folder(home, &folder) && managed_folder(&folder) {
                     result.push(folder);
                 }
             }
@@ -126,7 +149,7 @@ pub fn managed_folders(home: &Path) -> Result<Vec<PathBuf>> {
 pub(super) fn existing(home: &Path, settings: &Value, tag: &str) -> Result<Option<PathBuf>> {
     let playable = super::versions::listed(home)?
         .into_iter()
-        .find(|v| v.tag == tag);
+        .find(|v| v.tag == tag && owned_folder(home, &v.folder));
     if let Some(version) = playable {
         return Ok(Some(version.folder));
     }
@@ -150,27 +173,9 @@ pub(super) fn destination(home: &Path, settings: &Value, tag: &str) -> Result<Pa
 // Tools can be shared across installations. Game builds need their own output directory.
 pub(super) fn new_build(home: &Path, settings: &Value, tag: &str) -> Result<PathBuf> {
     ensure!(valid_name(tag), "Invalid builder version.");
-    let base = install_root(home, settings);
-    let base = base.canonicalize().unwrap_or(base);
-    let installed = super::versions::listed(home)?;
-    let reserved = super::registry::stable_only(home)?;
-    for number in 1..=u32::MAX {
-        let name = if number == 1 {
-            tag.to_owned()
-        } else {
-            format!("{tag}.instance-{number}")
-        };
-        let folder = base.join(&name);
-        if installed.iter().any(|v| v.folder == folder)
-            || build_output_exists(&folder)?
-            || (folder.try_exists()? && !owned_folder(home, &folder))
-            || super::registry::overlaps(&folder, &reserved)
-        {
-            continue;
-        }
-        return reserve(home, settings, &name);
-    }
-    anyhow::bail!("This library has too many copies of the selected version.")
+    use std::hash::{BuildHasher, RandomState};
+    let name = format!("{:016x}", RandomState::new().hash_one(tag));
+    reserve_inner(home, settings, &name, true)
 }
 
 pub(super) fn build_output_exists(folder: &Path) -> Result<bool> {
@@ -185,7 +190,12 @@ pub(super) fn build_output_exists(folder: &Path) -> Result<bool> {
     }
 }
 
+#[cfg(test)]
 fn reserve(home: &Path, settings: &Value, name: &str) -> Result<PathBuf> {
+    reserve_inner(home, settings, name, false)
+}
+
+fn reserve_inner(home: &Path, settings: &Value, name: &str, fresh: bool) -> Result<PathBuf> {
     ensure!(valid_name(name), "Invalid builder version.");
     ensure!(
         !super::registry::overlaps(
@@ -211,7 +221,11 @@ fn reserve(home: &Path, settings: &Value, name: &str) -> Result<PathBuf> {
     if base == home.join("versions") {
         let folder = base.join(name);
         ensure!(!linked(&folder), "The version folder is a link.");
-        fs::create_dir_all(&folder)?;
+        if fresh {
+            fs::create_dir(&folder)?;
+        } else {
+            fs::create_dir_all(&folder)?;
+        }
         return Ok(folder);
     }
     // Canonicalize once so a parent symlink can never silently redirect a recorded install.
@@ -231,7 +245,7 @@ fn reserve(home: &Path, settings: &Value, name: &str) -> Result<PathBuf> {
         .truncate(false)
         .open(lock_path)?;
     lock.lock()?;
-    if owned_folder(home, &folder) {
+    if !fresh && owned_folder(home, &folder) {
         return Ok(folder);
     }
     // Never adopt an existing directory in a user-selected library. It may belong to another application.
@@ -304,9 +318,6 @@ pub(crate) fn record_moved_version(home: &Path, folder: &Path) -> Result<()> {
     if fs::symlink_metadata(&owner).is_ok() {
         fs::remove_file(&owner)?;
     }
-    if home.join("versions").canonicalize().ok().as_deref() == folder.parent() {
-        return Ok(());
-    }
     fs::create_dir_all(&locations)?;
     let mut record = tempfile::NamedTempFile::new_in(&locations)?;
     let token = record
@@ -346,7 +357,9 @@ pub(super) fn removable(home: &Path, folder: &Path) -> Result<()> {
     for item in fs::read_dir(folder)? {
         let name = item?.file_name();
         ensure!(
-            tool_file(&name) || matches!(name.to_str(), Some(".longshot-retired" | "builds")),
+            tool_file(&name)
+                || matches!(name.to_str(), Some(".longshot-retired" | "builds"))
+                || (name == super::versions::INSTALLING && super::is_retired(folder)),
             "This custom version folder contains additional files and has been kept."
         );
     }
@@ -368,7 +381,14 @@ mod tests {
         let moved = json!({"dataFolder": data, "buildsFolder": base});
         assert_eq!(install_root(home.path(), &moved), data.join("versions"));
         let relocated = new_build(home.path(), &moved, "v4.0.0")?;
-        assert_eq!(relocated, data.canonicalize()?.join("versions/v4.0.0"));
+        assert_eq!(
+            relocated.parent().unwrap(),
+            data.canonicalize()?.join("versions")
+        );
+        let id = relocated.file_name().unwrap().to_str().unwrap();
+        assert_eq!(id.len(), 16);
+        assert!(id.bytes().all(|b| b.is_ascii_hexdigit()));
+        assert_ne!(relocated, new_build(home.path(), &moved, "v4.0.0")?);
         assert!(owned_folder(home.path(), &relocated));
         let old = destination(home.path(), &json!({}), "v3.0.0")?;
         crate::game::fake_version(&old)?;

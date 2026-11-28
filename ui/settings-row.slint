@@ -1,4 +1,5 @@
-import { Ink, Locale } from "widgets.slint";
+import { Preferences } from "settings-model.slint";
+import { Ink, Locale, Pressable } from "widgets.slint";
 
 export component Hint inherits Text {
     font-size: 13px;
@@ -9,8 +10,18 @@ export component Hint inherits Text {
 export component PathHint inherits Hint {
     in property <string> path;
     text: Locale.display-path(root.path);
-    color: Ink.sand;
+    color: hit.hovered || hit.has-focus ? Ink.gold : Ink.sand;
     wrap: char-wrap;
+    forward-focus: hit;
+    accessible-role: button;
+    accessible-label: root.path;
+    accessible-action-default => { Preferences.open(root.path); }
+    hit := Pressable {
+        width: parent.width;
+        height: parent.height;
+        activate => { Preferences.open(root.path); }
+    }
+
 }
 
 export component OptionRow inherits HorizontalLayout {

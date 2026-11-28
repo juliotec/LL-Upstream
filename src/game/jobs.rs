@@ -23,10 +23,17 @@ pub(super) struct Prepared {
 }
 
 impl Prepared {
+    fn installed_folder(&self) -> Option<&Path> {
+        self.intent
+            .instance()
+            .map(|v| v.folder.as_path())
+            .or_else(|| self.exe.parent())
+    }
+
     fn is_selected(&self, home_dir: &Path) -> bool {
         crate::players::current_dir(home_dir).is_ok_and(|profile| profile == self.ctx.profile)
             && super::versions::selected(home_dir, None).is_ok_and(|version| {
-                version.tag == self.tag && self.exe.parent() == Some(version.folder.as_path())
+                version.tag == self.tag && self.installed_folder() == Some(version.folder.as_path())
             })
     }
 }
@@ -170,7 +177,7 @@ fn finish(ui: &MainWindow, state: &SharedWork, home_dir: &Path, result: Result<P
         Ok(Progress::Checked(p, mod_review)) => {
             crate::diagnostics::event("Game file check passed");
             g.set_pending_tag(p.tag.clone().into());
-            if let Some(dir) = p.exe.parent() {
+            if let Some(dir) = p.installed_folder() {
                 g.set_build_location(dir.join("builds/default").to_string_lossy().as_ref().into());
             }
             // File verification succeeds independently of the permissions query.
@@ -210,10 +217,13 @@ fn finish(ui: &MainWindow, state: &SharedWork, home_dir: &Path, result: Result<P
         }
         Ok(Progress::Built(duration)) => {
             let mut work = state.guard();
-            work.finished_build = work
-                .prepared
-                .as_ref()
-                .and_then(|p| Some((p.ctx.profile.clone(), p.exe.parent()?.to_owned(), duration)));
+            work.finished_build = work.prepared.as_ref().and_then(|p| {
+                Some((
+                    p.ctx.profile.clone(),
+                    p.installed_folder()?.to_owned(),
+                    duration,
+                ))
+            });
             let play = g.get_play_after_build()
                 && work.cancel.check().is_ok()
                 && work

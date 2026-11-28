@@ -21,6 +21,7 @@ use folders::mod_store;
 mod game;
 mod home;
 mod i18n;
+mod live;
 mod logbook;
 mod mods;
 mod players;
@@ -345,6 +346,7 @@ fn window(root: PathBuf, folder: Option<PathBuf>) -> Result<()> {
             }
         }
     });
+    let _live = live::watch(&ui, &root);
     let _controller = controller::listen(&ui);
     let tv = controller::tv_mode();
     ui.set_tv_mode(tv);
@@ -494,7 +496,9 @@ fn run(show_error_dialog: &mut bool) -> Result<()> {
                 review_shortcut_grants(&root, grant)
             })?;
             if let Some(session) = session {
-                game::wait_shortcut(session)?;
+                let result = game::wait_shortcut(session);
+                game::retry_retired(&root);
+                result?;
             }
             Ok(())
         }

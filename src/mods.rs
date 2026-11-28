@@ -192,6 +192,10 @@ pub fn bind(ui: &MainWindow, root: &Path) {
     });
 }
 
+pub(crate) fn reload_installed(ui: &MainWindow) {
+    ui.global::<Mods>().invoke_action("disk-refresh".into());
+}
+
 pub fn refresh(ui: &MainWindow) {
     ui.global::<Mods>().invoke_action("installed".into());
 }

@@ -9,8 +9,12 @@ mod forecast;
 mod licenses;
 mod preload;
 mod prune;
+pub(crate) use prune::retry_retired;
 pub(crate) use requirements::disk as available_bytes;
 mod process;
+mod recovery;
+pub(crate) use recovery::reconnect as reconnect_library;
+pub(crate) use steam::migrate_shortcuts;
 pub(crate) mod registry;
 mod releases;
 mod report;
@@ -43,9 +47,9 @@ pub use library::{install_root, managed_folders, owned_folder};
 
 /// Includes playable discovered installations as well as every registered instance.
 pub(crate) fn playable_folders(root: &Path) -> anyhow::Result<Vec<std::path::PathBuf>> {
-    Ok(versions::listed(root)?
+    Ok(versions::storage_versions(root)?
         .into_iter()
-        .map(|version| version.folder)
+        .filter_map(|(folder, listed)| listed.then_some(folder))
         .collect())
 }
 
@@ -175,7 +179,12 @@ pub fn refresh(ui: &MainWindow, home_dir: &Path) {
         global.set_selected(index.map_or(-1, |i| i as i32));
         global.set_playable(selected.is_some());
         global.set_steam_shortcut_present(selected.is_some_and(|v| {
-            steam::installed(&profile, &record, &v.folder.join(process::executable()))
+            steam::installed(
+                home_dir,
+                &profile,
+                &record,
+                &v.folder.join(process::executable()),
+            )
         }));
         let catalog = CATALOG.read().unwrap();
         let sizes = SIZES.read().unwrap();

@@ -1,3 +1,4 @@
+import { PathHint } from "settings-row.slint";
 import { ModalLayer, SideSheet } from "modal-layer.slint";
 import { Game, GameStep } from "game-model.slint";
 import { GameAction, Label, Note, PanelTitle, Rule } from "game-controls.slint";
@@ -30,9 +31,8 @@ component FolderChoice inherits VerticalLayout {
         }
     }
     Note { text: root.description; font-size: 13px; }
-    Note {
-        text: Locale.display-path(root.path);
-        accessible-label: root.path;
+    PathHint {
+        path: root.path;
         wrap: char-wrap;
         font-size: 14px;
     }
@@ -73,7 +73,8 @@ export component BuildFolders inherits ModalLayer {
                         path: Preferences.work-folder;
                         can-change: root.can-change;
                     }
-                    if Game.step == GameStep.settings && Game.build-location != "": Note {
+                    if Game.step == GameStep.settings && Game.build-location != "": PathHint {
+                        path: Game.build-location;
                         text: Locale.t("Game folder") + " · " + Locale.display-path(Game.build-location);
                         wrap: char-wrap;
                         font-size: 12px;

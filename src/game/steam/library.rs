@@ -210,22 +210,22 @@ impl Shortcuts {
                 found.push((claim.name.clone(), tile.app));
                 continue;
             }
-            let options = tile.options.strip_prefix("play ").unwrap_or(&tile.options);
-            let Some(target_profile) = options
-                .strip_prefix("--profile \"")
-                .and_then(|v| v.strip_suffix('"'))
-            else {
-                continue;
-            };
-            if !same_path(exe, builder)
-                || !same_path(Path::new(&target_profile.replace("\\\"", "\"")), &profile)
-            {
+            if !same_path(exe, builder) {
                 continue;
             }
             let claim = self
                 .claims
                 .iter()
                 .find(|c| c.app == tile.app && (c.exe == tile.exe || c.origin == tile.exe));
+            let options = tile.options.strip_prefix("play ").unwrap_or(&tile.options);
+            let legacy = options
+                .strip_prefix("--profile \"")
+                .and_then(|v| v.strip_suffix('"'))
+                .is_some_and(|p| same_path(Path::new(&p.replace("\\\"", "\"")), &profile));
+            let managed = claim.is_some() && direct_profile_matches(options, &profile);
+            if !legacy && !managed {
+                continue;
+            }
             let name = if let Some(claim) = claim {
                 &claim.name
             } else if tile.name == legacy_name && tile.app == app_id(&tile.exe, legacy_name) {
@@ -234,6 +234,23 @@ impl Shortcuts {
                 continue;
             };
             found.push((name.clone(), tile.app));
+        }
+        found
+    }
+
+    pub fn owned_in(
+        &self,
+        home: &Path,
+        builder: &Path,
+        profile: &Path,
+        name: &str,
+    ) -> Vec<(String, u32)> {
+        let mut found = self.owned(builder, profile, name);
+        if let Some(id) = self.launcher_id(builder, profile, home)
+            && let Some(claim) = self.claims.iter().find(|c| c.app == id)
+            && !found.iter().any(|(_, app)| *app == id)
+        {
+            found.push((claim.name.clone(), id));
         }
         found
     }
@@ -273,6 +290,7 @@ impl Shortcuts {
 /// Early builder tiles can predate the relocation note. Record their original
 /// identity only when both the app ID and the profile options still verify.
 pub(super) fn prepare_retarget(
+    home: &Path,
     library: &Path,
     title: &str,
     builder: &Path,
@@ -283,7 +301,7 @@ pub(super) fn prepare_retarget(
     let snapshot = Shortcuts::open(&library_path).context("Could not read Steam's shortcuts.")?;
     ensure!(
         snapshot
-            .owned(builder, profile, title)
+            .owned_in(home, builder, profile, title)
             .iter()
             .any(|(name, app)| name == title && *app == id),
         "Steam shortcut {title} changed. Its target was left untouched."
@@ -398,6 +416,49 @@ fn argument(path: &Path) -> Result<String> {
     Ok(format!("\"{path}\""))
 }
 
+// Match only our direct command with its exact quoted profile. The cache and modules
+// may have changed since the launcher last synchronized this owned Steam entry.
+fn direct_profile_matches(options: &str, profile: &Path) -> bool {
+    let Some(options) = options.strip_prefix("--no-self-update --upscaler ") else {
+        return false;
+    };
+    let Some((modules, options)) = options.split_once(" --cache ") else {
+        return false;
+    };
+    if modules != "none"
+        && !modules
+            .split(',')
+            .all(|m| matches!(m, "dlss" | "fsr4" | "xess"))
+    {
+        return false;
+    }
+    let Ok(quoted_profile) = argument(profile) else {
+        return false;
+    };
+    options
+        .strip_suffix(&format!(" --profile {quoted_profile}"))
+        .is_some_and(|cache| cache.starts_with('"') && cache.ends_with('"'))
+}
+
+fn direct_options(home: &Path, builder: &Path, profile: &Path) -> Result<String> {
+    // A folder move publishes the new profile and installation before it updates the
+    // settings that name them. The caller already matched this profile to the tile.
+    let cache = home::work(home, &home::settings(home)?).join("longshot-builder");
+    let folder = builder.parent().context("Missing installation folder")?;
+    let instance = super::super::versions::selected(home, Some(folder))?;
+    let modules = instance.modules()?;
+    let modules = if modules.is_empty() {
+        "none".into()
+    } else {
+        modules.join(",")
+    };
+    Ok(format!(
+        "play --no-self-update --upscaler {modules} --cache {} --profile {}",
+        argument(&cache)?,
+        argument(profile)?
+    ))
+}
+
 fn play_options(builder: &Path, profile: &Path) -> Result<String> {
     let version = builder
         .parent()
@@ -409,18 +470,70 @@ fn play_options(builder: &Path, profile: &Path) -> Result<String> {
     ))
 }
 
+pub(super) fn history(home: &Path, row: &serde_json::Value) -> Vec<PathBuf> {
+    let mut paths: Vec<_> = row["previousFolders"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .chain(std::iter::once(&row["previousFolder"]))
+        .filter_map(|p| p.as_str())
+        .map(|p| home.join(p))
+        .collect();
+    paths.sort();
+    paths.dedup();
+    paths
+}
+
+pub(super) fn instance_id(home: &Path, builder: &Path) -> Result<Option<String>> {
+    let Some(folder) = builder.parent() else {
+        return Ok(None);
+    };
+    let data = super::super::versions::registry(home)?;
+    let rows = data["builds"].as_array().unwrap();
+    let active = rows.iter().find(|row| {
+        row["folder"]
+            .as_str()
+            .and_then(|s| Path::new(s).ancestors().nth(2))
+            == Some(folder)
+    });
+    if active.is_none() && super::super::versions::disk_release(folder).is_some() {
+        return Ok(Some(super::super::versions::discovered_id(folder)));
+    }
+    let row = active.or_else(|| {
+        if folder.exists() && !super::super::is_retired(folder) {
+            return None;
+        }
+        let mut owners = rows
+            .iter()
+            .filter(|row| history(home, row).contains(&folder.to_owned()));
+        let owner = owners.next()?;
+        owners.next().is_none().then_some(owner)
+    });
+    Ok(row
+        .and_then(|r| r["id"].as_str())
+        .filter(|id| super::super::versions::valid_name(id))
+        .map(str::to_owned))
+}
+
 fn launcher_command(builder: &Path, profile: &Path, home: &Path) -> Result<(String, String)> {
     let launcher = super::super::process::launcher_executable()?;
     let exe = argument(&launcher)?;
     let options = format!(
         "{} --launcher-home {}",
-        play_options(builder, profile)?,
+        match instance_id(home, builder)?.as_deref() {
+            Some(id) => format!(
+                "--play {} --profile {}",
+                argument(Path::new(id))?,
+                argument(profile)?
+            ),
+            None => play_options(builder, profile)?,
+        },
         argument(home)?
     );
     Ok((exe, options))
 }
 
-pub(super) fn use_launcher(
+pub(super) fn use_instance_executable(
     path: &Path,
     title: &str,
     id: u32,
@@ -428,13 +541,26 @@ pub(super) fn use_launcher(
     profile: &Path,
     home: &Path,
 ) -> Result<()> {
-    let (exe, options) = launcher_command(builder, profile, home)?;
+    retarget_executable(path, title, id, builder, builder, profile, home)
+}
+
+pub(super) fn retarget_executable(
+    path: &Path,
+    title: &str,
+    id: u32,
+    builder: &Path,
+    target_builder: &Path,
+    profile: &Path,
+    home: &Path,
+) -> Result<()> {
+    let exe = argument(target_builder)?;
+    let options = direct_options(home, target_builder, profile)?;
     let path = fs::canonicalize(path)?;
     let before = read(&path, 16 << 20).context("Could not read Steam’s library.")?;
     let entries = Shortcuts::open(&path).context("Could not identify Steam’s shortcuts.")?;
     ensure!(
         entries
-            .owned(builder, profile, title)
+            .owned_in(home, builder, profile, title)
             .contains(&(title.to_owned(), id)),
         "The Steam shortcut changed; try again."
     );
@@ -444,7 +570,7 @@ pub(super) fn use_launcher(
     if tile.exe == exe && tile.options == options {
         return Ok(());
     }
-    prepare_retarget(&path, title, builder, profile, id)?;
+    prepare_retarget(home, &path, title, builder, profile, id)?;
     let mut note = path.as_os_str().to_owned();
     note.push(".longshot-builder");
     let note = Path::new(&note);
@@ -625,6 +751,7 @@ fn tiles(mut input: &[u8]) -> Option<Vec<Tile>> {
     None
 }
 
+#[cfg(test)]
 pub(super) fn installed_id(
     library: &Path,
     name: &str,
@@ -723,10 +850,17 @@ mod tests {
     }
 
     #[test]
-    fn library_play_uses_the_launcher_and_preserves_the_steam_identity() -> Result<()> {
+    fn library_play_targets_the_instance_and_preserves_the_steam_identity() -> Result<()> {
         let root = tempfile::tempdir()?;
-        let builder = root.path().join("Version A/game");
-        let profile = root.path().join("profiles/My Player");
+        let instance = root.path().join("versions/1111222233334444");
+        crate::game::fake_version(&instance)?;
+        crate::home::write_json(
+            &instance.join("builds/default/longshot_build.json"),
+            &serde_json::json!({"upscalers":["dlss"]}),
+        )?;
+        let builder = instance.join(crate::game::process::executable());
+        let profile = root.path().join("profiles/default");
+        fs::create_dir_all(&profile)?;
         let game = format!("\"{}\"", builder.display());
         let opts = format!("--profile \"{}\"", profile.display());
         let id = app_id(&game, "Longshot");
@@ -736,23 +870,15 @@ mod tests {
             &path,
             shortcuts(&[("Longshot", &game, id, &opts), external]),
         )?;
-        use_launcher(&path, "Longshot", id, &builder, &profile, root.path())?;
-        let exe = argument(&super::super::super::process::launcher_executable()?)?;
-        let launch = format!(
-            "{} --launcher-home {}",
-            play_options(&builder, &profile)?,
-            argument(root.path())?
+        use_instance_executable(&path, "Longshot", id, &builder, &profile, root.path())?;
+        let launch = direct_options(root.path(), &builder, &profile)?;
+        let moving_profile = root.path().join("new-library/profiles/default");
+        assert!(
+            direct_options(root.path(), &builder, &moving_profile)?
+                .ends_with(&argument(&moving_profile)?)
         );
-        let expected = shortcuts(&[("Longshot", &exe, id, &launch), external]);
-        let entries = Shortcuts::open(&path).unwrap();
-        assert_eq!(
-            entries.launcher_id(&builder, &profile, root.path()),
-            Some(id)
-        );
-        assert_eq!(
-            entries.launcher_id(&builder, &profile, &root.path().join("other")),
-            None
-        );
+        assert!(launch.starts_with("play --no-self-update --upscaler dlss --cache "));
+        let expected = shortcuts(&[("Longshot", &game, id, &launch), external]);
         assert_eq!(fs::read(&path)?, expected);
         assert_eq!(
             installed_id(&path, "Longshot", &builder, &profile),
@@ -767,10 +893,98 @@ mod tests {
             ),
             None
         );
-        use_launcher(&path, "Longshot", id, &builder, &profile, root.path())?;
+        use_instance_executable(&path, "Longshot", id, &builder, &profile, root.path())?;
         assert_eq!(fs::read(&path)?, expected);
-        assert!(use_launcher(&path, "Other", 42, &builder, &profile, root.path()).is_err());
+        assert!(
+            use_instance_executable(&path, "Other", 42, &builder, &profile, root.path()).is_err()
+        );
         assert_eq!(fs::read(&path)?, expected);
+        Ok(())
+    }
+
+    #[test]
+    fn shortcut_target_survives_replacing_instance_files() -> Result<()> {
+        let tmp = tempfile::tempdir()?;
+        let root = tmp.path();
+        let instance = root.join("versions/1111222233334444");
+        crate::game::fake_version(&instance)?;
+        let profile = root.join("profiles/default");
+        fs::create_dir_all(&profile)?;
+        crate::home::write_json(
+            &instance.join("builds/default/longshot_build.json"),
+            &serde_json::json!({"upscalers":[]}),
+        )?;
+        let builder = instance.join(crate::game::process::executable());
+        let game = argument(&builder)?;
+        let app = app_id(&game, "Longshot");
+        let vdf = root.join("shortcuts.vdf");
+        fs::write(
+            &vdf,
+            shortcut(&game, app, &format!("--profile {}", argument(&profile)?)),
+        )?;
+        use_instance_executable(&vdf, "Longshot", app, &builder, &profile, root)?;
+        let original = fs::read(&vdf)?;
+        fs::write(&builder, b"replacement")?;
+        let shortcuts = Shortcuts::open(&vdf).unwrap();
+        assert_eq!(shortcuts.tiles[0].exe, game);
+        assert_eq!(
+            shortcuts.owned(&builder, &profile, "Longshot"),
+            vec![("Longshot".into(), app)]
+        );
+        assert_eq!(fs::read(vdf)?, original);
+        Ok(())
+    }
+
+    #[test]
+    fn reconnected_instance_repairs_the_owned_direct_steam_entry() -> Result<()> {
+        use crate::game::{process::executable, recovery, versions};
+        let tmp = tempfile::tempdir()?;
+        let root = tmp.path();
+        crate::players::initialize(root)?;
+        let profile = crate::players::current_dir(root)?;
+        let active = root.join("versions/1111222233334444");
+        let renamed = active.with_file_name("renamed");
+        crate::game::fake_version(&active)?;
+        crate::home::write_json(
+            &active.join("longshot_release.json"),
+            &serde_json::json!({"v":1,"version":"nightly-1"}),
+        )?;
+        let build = active.join("builds/default");
+        crate::home::write_json(
+            &build.join("longshot_build.json"),
+            &serde_json::json!({"format":1,"builder":"nightly-1","upscalers":[]}),
+        )?;
+        versions::register(
+            root,
+            "nightly-1",
+            &root.join("input.nup"),
+            &build,
+            &[],
+            None,
+            None,
+        )?;
+        let builder = active.join(executable());
+        let game = argument(&builder)?;
+        let app = app_id(&game, "Longshot");
+        let vdf = root.join("shortcuts.vdf");
+        fs::write(
+            &vdf,
+            shortcut(&game, app, &format!("--profile {}", argument(&profile)?)),
+        )?;
+        use_instance_executable(&vdf, "Longshot", app, &builder, &profile, root)?;
+        fs::rename(&active, &renamed)?;
+        recovery::reconnect(root)?;
+        super::super::migrate_library(root, &vdf)?;
+        let shortcuts = Shortcuts::open(&vdf).unwrap();
+        assert_eq!(shortcuts.tiles[0].app, app);
+        assert_eq!(
+            shortcuts.tiles[0].exe,
+            argument(&renamed.join(executable()))?
+        );
+        assert_eq!(
+            shortcuts.owned(&renamed.join(executable()), &profile, "Longshot"),
+            [("Longshot".into(), app)]
+        );
         Ok(())
     }
 
@@ -788,9 +1002,9 @@ mod tests {
         fs::write(&vdf, &original)?;
         let note = tmp.path().join("shortcuts.vdf.longshot-builder");
         fs::write(&note, "preserve this unknown record")?;
-        assert!(prepare_retarget(&vdf, "Longshot", &builder, &other, id).is_err());
+        assert!(prepare_retarget(tmp.path(), &vdf, "Longshot", &builder, &other, id).is_err());
         assert_eq!(fs::read_to_string(&note)?, "preserve this unknown record");
-        prepare_retarget(&vdf, "Longshot", &builder, &profile, id)?;
+        prepare_retarget(tmp.path(), &vdf, "Longshot", &builder, &profile, id)?;
         let content = fs::read_to_string(&note)?;
         assert_eq!(
             content,
@@ -799,7 +1013,7 @@ mod tests {
                 id as i32
             )
         );
-        prepare_retarget(&vdf, "Longshot", &builder, &profile, id)?;
+        prepare_retarget(tmp.path(), &vdf, "Longshot", &builder, &profile, id)?;
         assert_eq!(fs::read_to_string(&note)?, content);
         assert_eq!(fs::read(&vdf)?, original);
         Ok(())

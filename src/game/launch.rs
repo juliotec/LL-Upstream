@@ -68,6 +68,9 @@ pub(super) fn play(
     let home = home.to_owned();
     thread::spawn(move || {
         let result = wait(&mut session, &weak, &home, &cancel);
+        if !session.steam_opener {
+            super::prune::retry_retired(&home);
+        }
         let _ = weak
             .upgrade_in_event_loop(move |ui| finished(&ui, &home, session.steam_opener, result));
     });

@@ -70,6 +70,7 @@ pub fn bind(ui: &MainWindow, home_dir: PathBuf) -> super::preload::Downloads {
         if let Err(error) = super::steam::migrate_shortcuts(&shortcut_home) {
             eprintln!("Steam shortcut migration: {error}");
         }
+        super::prune::retry_retired(&shortcut_home);
     });
     #[cfg(windows)]
     {
@@ -99,7 +100,7 @@ pub fn bind(ui: &MainWindow, home_dir: PathBuf) -> super::preload::Downloads {
     super::nvidia::windows::bind(ui);
     g.on_inspect_library(session.action(|ui, home, _| super::inspect_library(ui, home)));
     g.on_open_logs(session.action(|_, home, _| {
-        open::that(home.join("logs"))?;
+        open::that_detached(home.join("logs"))?;
         Ok(())
     }));
     g.on_file_name(|file| {
@@ -211,7 +212,7 @@ fn bind_builder(game: &Game<'_>, session: &Rc<Bindings>) {
     }));
     game.on_intro_words(|intro| super::labels(intro.split_whitespace().map(str::to_owned)));
     game.on_requirements_link(session.action(|_, _, _| {
-        open::that("https://longshot.magicbean.dev/requirements/")?;
+        open::that_detached("https://longshot.magicbean.dev/requirements/")?;
         Ok(())
     }));
     game.on_begin_build(
@@ -333,7 +334,7 @@ fn bind_upscalers(game: &Game<'_>, session: &Rc<Bindings>) {
     game.on_open_license(session.action(|window, _, _| {
         let key = window.global::<Game>().get_license();
         if let Some(url) = super::licenses::for_module(&key, cfg!(windows))?.source {
-            open::that(url)?;
+            open::that_detached(url)?;
         }
         Ok(())
     }));
@@ -413,7 +414,7 @@ fn bind_library(game: &Game<'_>, session: &Rc<Bindings>) {
     }));
     game.on_open_folder(session.action(|_, home, _| {
         let v = versions::selected(home, None)?;
-        open::that(v.folder)?;
+        open::that_detached(v.folder)?;
         Ok(())
     }));
     game.on_play(session.action(|ui, home, work| {

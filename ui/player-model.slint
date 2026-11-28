@@ -37,6 +37,8 @@ export struct ImportSource { label: string, path: string, slots: [string] }
 export struct TagRow { name: string, detail: string, format: string, selected: bool }
 
 export global Players {
+    pure callback profile-position([PlayerRow], string) -> int;
+    pure callback save-position([SlotRow], string) -> int;
     in property <[ProfileSwatch]> colours;
     in property <[PlayerRow]> profiles;
     in property <[SlotRow]> slots;

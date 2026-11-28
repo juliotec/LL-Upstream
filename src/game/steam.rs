@@ -24,12 +24,17 @@ fn name(profile: &Path, data: &serde_json::Value) -> String {
     format!("Longshot ({title})")
 }
 
-pub(super) fn installed(profile: &Path, record: &serde_json::Value, builder: &Path) -> bool {
+pub(super) fn installed(
+    home: &Path,
+    profile: &Path,
+    record: &serde_json::Value,
+    builder: &Path,
+) -> bool {
     library::library()
         .and_then(|p| library::Shortcuts::open(&p))
         .is_some_and(|library| {
             !library
-                .owned(builder, profile, &name(profile, record))
+                .owned_in(home, builder, profile, &name(profile, record))
                 .is_empty()
         })
 }
@@ -49,7 +54,7 @@ pub(super) fn shortcut(
         &home::read_json(&ctx.profile.join("profile.json"))?,
     );
     let existing = library
-        .owned(&version.join(executable()), &ctx.profile, &base)
+        .owned_in(&ctx.home, &version.join(executable()), &ctx.profile, &base)
         .into_iter()
         .next();
     let title = if let Some((title, _)) = existing {
@@ -99,7 +104,7 @@ fn write_shortcut(
             library::library().and_then(|p| p.canonicalize().ok()) == Some(path.canonicalize()?),
             "The signed-in Steam account changed."
         );
-        library::use_launcher(
+        library::use_instance_executable(
             path,
             title,
             id,
@@ -120,22 +125,68 @@ fn write_shortcut(
 }
 
 /// Upgrade the signed-in user's previously registered shortcuts in place. Unknown targets stay intact.
-pub(super) fn migrate_shortcuts(home: &Path) -> Result<()> {
-    let _guard = LIBRARY_WRITE.lock().unwrap_or_else(|err| err.into_inner());
+pub(crate) fn migrate_shortcuts(home: &Path) -> Result<()> {
     let Some(path) = library::library().filter(|path| path.is_file()) else {
         return Ok(());
     };
-    let snapshot = library::Shortcuts::open(&path).context("Could not read Steam’s shortcuts.")?;
+    migrate_library(home, &path)
+}
+
+fn migrate_library(home: &Path, path: &Path) -> Result<()> {
+    let _guard = LIBRARY_WRITE.lock().unwrap_or_else(|err| err.into_inner());
+    let snapshot = library::Shortcuts::open(path).context("Could not read Steam’s shortcuts.")?;
     if snapshot.is_empty() {
         return Ok(());
     }
     let versions = super::versions::listed(home)?;
+    let records = super::versions::registry(home)?;
     for profile in crate::players::list_profiles(home)? {
         let base = name(&profile.dir, &profile.file);
         for version in &versions {
-            let builder = version.folder.join(executable());
-            for (name, id) in snapshot.owned(&builder, &profile.dir, &base) {
-                library::use_launcher(&path, &name, id, &builder, &profile.dir, home)?;
+            let row = records["builds"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|row| row["id"] == version.id);
+            let records = records["builds"].as_array().unwrap();
+            let historical_owner = |folder: &Path| {
+                records
+                    .iter()
+                    .filter(|r| library::history(home, r).iter().any(|p| p == folder))
+                    .count()
+            };
+            if row.is_none()
+                && super::is_retired(&version.folder)
+                && historical_owner(&version.folder) > 0
+            {
+                continue;
+            }
+            let mut folders = row.map(|r| library::history(home, r)).unwrap_or_default();
+            folders.retain(|old| {
+                (!old.exists() || super::is_retired(old))
+                    && historical_owner(old) == 1
+                    && !records.iter().any(|r| {
+                        r["folder"]
+                            .as_str()
+                            .and_then(|p| Path::new(p).ancestors().nth(2))
+                            == Some(old)
+                    })
+            });
+            folders.push(version.folder.clone());
+            let target = version.folder.join(executable());
+            for folder in folders {
+                let builder = folder.join(executable());
+                for (name, id) in snapshot.owned_in(home, &builder, &profile.dir, &base) {
+                    library::retarget_executable(
+                        path,
+                        &name,
+                        id,
+                        &builder,
+                        &target,
+                        &profile.dir,
+                        home,
+                    )?;
+                }
             }
         }
     }
@@ -248,7 +299,11 @@ pub(super) fn route(ctx: &Context, exe: &Path) -> Option<Child> {
     if !active {
         return None;
     }
-    let id = library::Shortcuts::open(&library)?.launcher_id(exe, &ctx.profile, &ctx.home)?;
+    let profile = home::read_json(&ctx.profile.join("profile.json")).ok()?;
+    let (_, id) = library::Shortcuts::open(&library)?
+        .owned_in(&ctx.home, exe, &ctx.profile, &name(&ctx.profile, &profile))
+        .into_iter()
+        .next()?;
     let mut command = Command::new("xdg-open");
     super::process::restore_host_environment(&mut command);
     let mut opener = command
@@ -289,7 +344,10 @@ impl ShortcutMove {
             (&self.new_profile, &self.profile)
         };
         let present = || {
-            library::installed_id(&self.library, &self.title, &exe, new_profile) == Some(self.id)
+            library::Shortcuts::open(&self.library).is_some_and(|s| {
+                s.owned_in(home, &exe, new_profile, &self.title)
+                    .contains(&(self.title.clone(), self.id))
+            })
         };
         if present() {
             return Ok(());
@@ -300,6 +358,7 @@ impl ShortcutMove {
         );
         let original = if forward { &self.from } else { &self.to };
         library::prepare_retarget(
+            home,
             &self.library,
             &self.title,
             &original.join(executable()),
@@ -346,9 +405,12 @@ pub(crate) fn shortcuts_to_move_data(
     let mut moves = Vec::new();
     for profile in crate::players::list_profiles(home)? {
         let dir = profile.dir;
-        for (title, id) in
-            snapshot.owned(&from.join(executable()), &dir, &name(&dir, &profile.file))
-        {
+        for (title, id) in snapshot.owned_in(
+            home,
+            &from.join(executable()),
+            &dir,
+            &name(&dir, &profile.file),
+        ) {
             moves.push(ShortcutMove {
                 profile: dir.clone(),
                 library: library.clone(),
@@ -361,15 +423,4 @@ pub(crate) fn shortcuts_to_move_data(
         }
     }
     Ok(moves)
-}
-
-/// Follow an instance to its new builder, retaining the app IDs and artwork of
-/// the signed-in user's shortcuts. Other versions and profiles keep their targets.
-pub(super) fn retarget_updated_instance(home: &Path, from: &Path, to: &Path) -> Result<()> {
-    if from != to {
-        for shortcut in shortcuts_to_move(home, from, to)? {
-            shortcut.retarget(home, true)?;
-        }
-    }
-    Ok(())
 }

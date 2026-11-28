@@ -5,7 +5,7 @@ mod disk;
 mod imports;
 pub(crate) use disk::{copy_tree, is_dir, is_file, require_dir};
 mod nfc;
-pub(crate) use nfc::folder as nfc_folder;
+pub(crate) use nfc::{candidate as tag_candidate, folder as nfc_folder};
 pub(crate) use profiles::{backup_root, read as read_profile};
 mod profiles;
 #[cfg(any(windows, test))]
@@ -13,6 +13,7 @@ mod reader;
 mod rows;
 mod running;
 mod saves;
+pub(crate) use saves::UID as SAVE_UID;
 mod stable;
 pub(crate) use profiles::list as list_profiles;
 pub(crate) use profiles::{active_dir, edit_profile, valid_id, with_edit_lock};
@@ -242,7 +243,14 @@ pub fn refresh_saves(ui: &MainWindow, home: &Path) -> Result<()> {
 }
 pub fn refresh_tags(ui: &MainWindow, home: &Path) -> Result<()> {
     let folder = nfc::folder(home)?;
-    let tags = nfc::files(&folder, false)?
+    let bound = ui.global::<Players>();
+    let selected: std::collections::BTreeSet<_> = bound
+        .get_tags()
+        .iter()
+        .filter(|r| r.selected)
+        .map(|r| r.name.to_string())
+        .collect();
+    let tags: Vec<_> = nfc::files(&folder, false)?
         .into_iter()
         .map(|p| {
             let detail = nfc::bytes(&p)
@@ -258,13 +266,15 @@ pub fn refresh_tags(ui: &MainWindow, home: &Path) -> Result<()> {
                     .to_string_lossy()
                     .to_uppercase()
                     .into(),
-                selected: false,
+                selected: p
+                    .file_name()
+                    .and_then(|s| s.to_str())
+                    .is_some_and(|s| selected.contains(s)),
             }
         })
         .collect();
-    let bound = ui.global::<Players>();
+    bound.set_selected_tags(tags.iter().filter(|r| r.selected).count() as i32);
     bound.set_tags(model(tags));
-    bound.set_selected_tags(0);
     bound.set_tag_folder(folder.to_string_lossy().as_ref().into());
     Ok(())
 }
@@ -384,6 +394,16 @@ fn rename_result(ui: &MainWindow, result: Result<()>) -> bool {
 
 pub fn bind(ui: &MainWindow, home: PathBuf) -> Result<bool> {
     let players = ui.global::<Players>();
+    players.on_profile_position(|rows, id| {
+        rows.iter()
+            .position(|r| r.id == id)
+            .map_or(-1, |i| i as i32)
+    });
+    players.on_save_position(|rows, id| {
+        rows.iter()
+            .position(|r| r.id == id)
+            .map_or(-1, |i| i as i32)
+    });
     players.set_colours(model(
         profiles::COLORS
             .iter()

@@ -1,3 +1,4 @@
+import { PathHint } from "settings-row.slint";
 import { ModalLayer, ConfirmDialog } from "modal-layer.slint";
 import { Preferences } from "settings-model.slint";
 import { Action, Ink, Locale, ProgressBar } from "widgets.slint";
@@ -22,8 +23,8 @@ export component RomfsDialog inherits ModalLayer {
                     ? (Preferences.romfs-cancelling ? Locale.t("Cancelling…") : Locale.t("Extracting game RomFS…"))
                     : (Preferences.romfs-error == "" ? Locale.t("RomFS extracted") : Locale.t("Could not extract RomFS"));
             }
-            Note {
-                text: Locale.display-path(Preferences.romfs-destination);
+            PathHint {
+                path: Preferences.romfs-destination;
                 wrap: char-wrap;
             }
             if Preferences.romfs-running: ProgressBar {

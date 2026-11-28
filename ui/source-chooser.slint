@@ -210,8 +210,13 @@ export component SourcePicker inherits VerticalLayout {
                     color: Ink.text;
                 }
 
-                Note {
-                    text: root.checked ? Locale.t("The builder checked this copy.") : Locale.display-path(root.current);
+                if !root.checked: PathHint {
+                    path: root.current;
+                    wrap: no-wrap;
+                    overflow: elide;
+                }
+                if root.checked: Note {
+                    text: Locale.t("The builder checked this copy.");
                     font-size: 13px;
                     wrap: no-wrap;
                     overflow: elide;

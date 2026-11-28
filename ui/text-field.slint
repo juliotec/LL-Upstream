@@ -103,6 +103,7 @@ export component TextField inherits Rectangle {
                 }
 
                 input := TextInput {
+                    changed has-focus => { Ink.editing-text = self.has-focus; }
                     private property <length> offset;
                     width: max(viewport.width - self.text-cursor-width, self.preferred-width);
                     x: clamp(self.offset, viewport.width - self.width - self.text-cursor-width, 0px);

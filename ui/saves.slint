@@ -112,7 +112,8 @@ component SaveItem inherits Rectangle {
 
 export component SavePage inherits HorizontalLayout {
     private property <bool> has-progress: root.slot.health != "" || root.slot.medals.length > 0 || root.slot.stones.length > 0;
-    private property <int> selected: -1;
+    private property <string> selected-id;
+    private property <int> selected: Players.save-position(Players.slots,root.selected-id);
     private property <int> index:max(0,root.selected >= 0 && root.selected < Players.slots.length ? root.selected : Players.slot-index);
     changed index => { summary.content-y = 0px; }
     private property <SlotRow> slot:Players.slots[root.index];
@@ -182,7 +183,7 @@ export component SavePage inherits HorizontalLayout {
                 for s[i] in Players.slots: SaveItem {
                     slot: s;
                     chosen: i == root.index;
-                    picked => { root.selected = i; }
+                    picked => { root.selected-id = s.id; }
                 }
                 if !root.has-save: Rectangle {
                     height: 100px;

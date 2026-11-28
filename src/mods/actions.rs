@@ -394,7 +394,7 @@ impl Screen {
         if action == "folder" {
             let dir = profile.join("mods");
             std::fs::create_dir_all(&dir)?;
-            open::that(dir)?;
+            open::that_detached(dir)?;
             return Ok(());
         }
         let identity = (
@@ -411,7 +411,13 @@ impl Screen {
             };
             if !matches!(
                 action,
-                "installed" | "discover" | "manual" | "add" | "sources" | "emulators"
+                "installed"
+                    | "disk-refresh"
+                    | "discover"
+                    | "manual"
+                    | "add"
+                    | "sources"
+                    | "emulators"
             ) {
                 self.load(root, Section::Installed)?;
                 bail!("The active profile or game version changed. Select the mod again.")
@@ -422,6 +428,22 @@ impl Screen {
             self.review = None;
         }
         match action {
+            "disk-refresh" => {
+                let selected = self
+                    .rows
+                    .get(self.selection)
+                    .map(|r| (r["id"].clone(), r["path"].clone()));
+                self.load(root, Section::Installed)?;
+                if let Some((id, path)) = selected
+                    && let Some(i) = self
+                        .rows
+                        .iter()
+                        .position(|r| r["id"] == id && r["path"] == path)
+                {
+                    self.select(i);
+                }
+                return Ok(());
+            }
             "installed" => return self.load(root, Section::Installed),
             "manual" => return self.load(root, Section::Manual),
             "discover" if self.basic => return self.load(root, Section::Manual),

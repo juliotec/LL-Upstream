@@ -1,3 +1,4 @@
+import { PathHint } from "settings-row.slint";
 import { ModalLayer } from "modal-layer.slint";
 import { Action, Ink, Locale } from "widgets.slint";
 import { Game } from "game-model.slint";
@@ -144,8 +145,8 @@ export component ModuleDialog inherits ModalLayer {
                 label: Game.license-library == "" ? Locale.t("Choose FSR 4 library") : Locale.t("Change FSR 4 library");
                 clicked => { Game.choose-library(); }
             }
-            if Game.license == "fsr4" && !Game.windows && Game.license-library != "":Note {
-                text: Locale.display-path(Game.license-library);
+            if Game.license == "fsr4" && !Game.windows && Game.license-library != "": PathHint {
+                path: Game.license-library;
                 font-size: 12px;
                 wrap: char-wrap;
             }
