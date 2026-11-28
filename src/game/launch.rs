@@ -64,10 +64,20 @@ pub(super) fn play(
     let cancel = Cancel::default();
     work.guard().launch_cancel = cancel.clone();
     g.set_playing(true);
+    let (stop, requests) = std::sync::mpsc::channel();
+    g.on_stop_launch_preparation(move || {
+        let (reply, result) = std::sync::mpsc::channel();
+        if stop.send(reply).is_ok()
+            && let Ok(Err(error)) = result.recv()
+        {
+            return format!("Could not stop launch preparation: {error}").into();
+        }
+        "".into()
+    });
     let weak = window.as_weak();
     let home = home.to_owned();
     thread::spawn(move || {
-        let result = wait(&mut session, &weak, &home, &cancel);
+        let result = wait(&mut session, &weak, &home, &cancel, requests);
         if !session.steam_opener {
             super::prune::retry_retired(&home);
         }
@@ -324,7 +334,8 @@ fn running(system: &mut System, builder: Pid, folder: &Path) -> bool {
         true,
         ProcessRefreshKind::nothing()
             .without_tasks()
-            .with_exe(UpdateKind::OnlyIfNotSet),
+            .with_exe(UpdateKind::OnlyIfNotSet)
+            .with_cmd(UpdateKind::OnlyIfNotSet),
     );
     system.processes().values().any(|p| {
         let Some(exe) = p.exe() else { return false };
@@ -339,7 +350,7 @@ fn running(system: &mut System, builder: Pid, folder: &Path) -> bool {
                 && exe
                     .canonicalize()
                     .is_ok_and(|path| path.starts_with(folder)));
-        if !in_build {
+        if !in_build || p.cmd().iter().any(|arg| arg == "--prepare-shaders") {
             return false;
         }
         let mut parent = p.parent();
@@ -443,8 +454,10 @@ fn wait(
     window: &slint::Weak<MainWindow>,
     home: &Path,
     cancel: &Cancel,
+    requests: std::sync::mpsc::Receiver<std::sync::mpsc::Sender<io::Result<()>>>,
 ) -> io::Result<Option<ExitStatus>> {
     let Some(mut output) = session.output.take() else {
+        drop(requests);
         return session.child.wait().map(Some);
     };
     let mut transcript = Transcript::start(home, BuildLog::Launch)
@@ -544,17 +557,34 @@ fn wait(
         let rebuild_seconds = state
             .elapsed
             .map_or(-1, |elapsed| elapsed.as_secs().min(i32::MAX as u64) as i32);
+        let stop = requests.try_recv().ok();
         if !state.play_plan
             && !state.game_started
             && !rebuilding
             && !loading
-            && last_scan.is_none_or(|t| now.duration_since(t) >= Duration::from_secs(1))
+            && (stop.is_some()
+                || last_scan.is_none_or(|t| now.duration_since(t) >= Duration::from_secs(1)))
         {
             last_scan = Some(now);
             if let Some(system) = &mut system
                 && running(system, Pid::from_u32(session.child.id()), &builds)
             {
                 state.game_started = true;
+            }
+        }
+        if let Some(reply) = stop {
+            if !state.game_started {
+                match session.cancel_rebuild().and_then(|()| session.child.wait()) {
+                    Ok(_) => {
+                        let _ = reply.send(Ok(()));
+                        return Ok(None);
+                    }
+                    Err(error) => {
+                        let _ = reply.send(Err(error));
+                    }
+                }
+            } else {
+                let _ = reply.send(Ok(()));
             }
         }
         let phase = if state.game_started {
@@ -630,8 +660,59 @@ mod tests {
         }
         let cancel = Cancel::default();
         cancel.request();
-        assert!(wait(&mut session, &slint::Weak::default(), temp.path(), &cancel)?.is_none());
+        assert!(
+            wait(
+                &mut session,
+                &slint::Weak::default(),
+                temp.path(),
+                &cancel,
+                std::sync::mpsc::channel().1
+            )?
+            .is_none()
+        );
         assert!(!session.child.wait()?.success());
+        Ok(())
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn closing_launcher_stops_loading_and_preserves_ready_game() -> anyhow::Result<()> {
+        for ready in [false, true] {
+            let temp = tempfile::tempdir()?;
+            let mut command = super::super::process::launch_program(Path::new("sh"), true);
+            command
+                .args(["-c", "touch started; sleep 1"])
+                .current_dir(temp.path());
+            let mut output = LaunchOutput::attach(&mut command, temp.path())?;
+            use std::io::Write as _;
+            let mut events = output.stdout.reader.get_ref().try_clone()?;
+            writeln!(events, "{}", json!({"v":1,"type":"game_starting"}))?;
+            writeln!(events, "{}", json!({"v":1,"type":"game_started"}))?;
+            if ready {
+                writeln!(events, "{}", json!({"v":1,"type":"game_ready"}))?;
+            }
+            use std::io::Seek as _;
+            output.stdout.reader.rewind()?;
+            let mut session = Session {
+                child: command.spawn()?,
+                output: Some(output),
+                steam_opener: false,
+                folder: temp.path().into(),
+                profile: temp.path().into(),
+            };
+            let (stop, requests) = std::sync::mpsc::channel();
+            let (reply, result) = std::sync::mpsc::channel();
+            stop.send(reply)?;
+            let exit = wait(
+                &mut session,
+                &slint::Weak::default(),
+                temp.path(),
+                &Cancel::default(),
+                requests,
+            )?;
+            result.recv()??;
+            assert_eq!(exit.is_some_and(|status| status.success()), ready);
+        }
         Ok(())
     }
 

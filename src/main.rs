@@ -280,7 +280,9 @@ fn window(root: PathBuf, folder: Option<PathBuf>) -> Result<()> {
     }));
     let weak = ui.as_weak();
     ui.window().on_close_requested(move || {
-        if let Some(ui) = weak.upgrade() && busy(&ui) {
+        let Some(ui) = weak.upgrade() else { return CloseRequestResponse::HideWindow };
+        if ui.get_page() == Page::Launch { ui.global::<Game>().set_show_log(false); }
+        if busy(&ui) {
             let game = ui.global::<Game>();
             if game.get_busy() && game.get_step() == GameStep::Building {
                 ui.set_close_after_stop(true);
@@ -288,6 +290,9 @@ fn window(root: PathBuf, folder: Option<PathBuf>) -> Result<()> {
             } else {
                 ui.set_notice("An operation is in progress. Let it finish or cancel it before closing the launcher.".into());
             }
+            CloseRequestResponse::KeepWindowShown
+        } else if ui.global::<Game>().get_playing() && let error = ui.global::<Game>().invoke_stop_launch_preparation() && !error.is_empty() {
+            ui.set_notice(error);
             CloseRequestResponse::KeepWindowShown
         } else {
             CloseRequestResponse::HideWindow

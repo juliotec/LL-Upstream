@@ -170,6 +170,7 @@ export component MainWindow inherits Window {
         || Game.show-log || Game.folders-open || Game.license != "" || Players.prompt != ""
         || Preferences.changing-folder || Preferences.romfs-open || Updates.applying || root.asking-to-stop;
     private property <bool> shortcuts-available: !root.header-disabled && Shell.popup == Popup.closed && !Game.show-notes && !Updates.show-notes;
+    private property <Page> home-destination: Game.playing ? Page.launch : Page.home;
     private property <bool> home-shortcuts: root.shortcuts-available && root.page == Page.home;
     private property <length> content-bottom: hints.y;
     changed content-bottom => { MenuValues.content-bottom = root.content-bottom; }
@@ -240,7 +241,7 @@ export component MainWindow inherits Window {
                         accessible-role: button;
                         accessible-label: Locale.t("Home");
                         accessible-enabled: self.available;
-                        accessible-action-default => { if self.available { root.navigate(Page.home); } }
+                        accessible-action-default => { if self.available { root.navigate(root.home-destination); } }
 
                         brand-content := HorizontalLayout {
                             spacing: 8px;
@@ -262,7 +263,7 @@ export component MainWindow inherits Window {
                             enabled: brand.available;
                             cursor: brand.available ? pointer : default;
                             mouse-focus: false;
-                            activate => { root.navigate(Page.home); }
+                            activate => { root.navigate(root.home-destination); }
                         }
                     }
 
@@ -332,7 +333,7 @@ export component MainWindow inherits Window {
                     }
 
                     for tab in [
-                        { name:"Home", page:Page.home },
+                        { name:"Home", page:root.home-destination },
                         { name:"Saves", page:Page.saves },
                         { name:"Versions", page:Page.versions },
                         { name:"Mods", page:Page.mods },

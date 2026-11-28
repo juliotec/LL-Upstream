@@ -30,6 +30,7 @@ export global Game {
     in property <bool> mod-review-needed;
     in property <string> mod-trust-review;
     callback review-mods();
+    callback stop-launch-preparation() -> string;
     callback approve-mod-trust();
     callback cancel-mod-trust();
     in property <string> launch-phase: "launching";
