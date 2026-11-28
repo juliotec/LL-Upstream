@@ -49,6 +49,7 @@ impl Places {
         if installing || before.as_deref() != Some(value) {
             shortcuts::write(&self.link, &self.exe, "", DISPLAY, shortcuts::LAUNCHER_ID)?;
             shortcuts::refresh_game(&self.exe, true)?;
+            shortcuts::refresh_icons(&self.exe, &self.link);
         }
         let (key, _) = hkcu.create_subkey(ENTRY)?;
         let exe = self.exe.to_string_lossy();

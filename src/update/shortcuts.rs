@@ -19,7 +19,8 @@ use windows::{
         System::Variant::VT_LPWSTR,
         UI::Shell::{
             FOLDERID_Desktop, FOLDERID_Programs, IShellLinkW, PropertiesSystem::IPropertyStore,
-            SHStrDupW, ShellLink,
+            SHCNE_ASSOCCHANGED, SHCNE_UPDATEITEM, SHCNF_FLUSHNOWAIT, SHCNF_IDLIST, SHCNF_PATHW,
+            SHChangeNotify, SHStrDupW, ShellLink,
         },
     },
     core::{HSTRING, Interface},
@@ -27,6 +28,7 @@ use windows::{
 
 pub(super) const LAUNCHER_ID: &str = "MagicBean.LongshotLauncher";
 const GAME_ID: &str = "MagicBean.Longshot";
+const PINNED: &str = r"Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar";
 
 fn with_link<T>(task: impl FnOnce(IShellLinkW) -> windows::core::Result<T>) -> Result<T> {
     // A successful CoInitializeEx is balanced after the shell interfaces drop. An existing
@@ -144,9 +146,73 @@ pub(super) fn refresh_game(exe: &Path, keep: bool) -> Result<()> {
     Ok(())
 }
 
+/// The shortcuts among `candidates` that start `exe`: only those show its icon.
+fn owned_links(exe: &Path, candidates: impl IntoIterator<Item = PathBuf>) -> Vec<PathBuf> {
+    candidates
+        .into_iter()
+        .filter(|path| {
+            path.extension()
+                .is_some_and(|ext| ext.eq_ignore_ascii_case("lnk"))
+                && path.is_file()
+                && owns(path, exe).unwrap_or(false)
+        })
+        .collect()
+}
+
+/// Explorer keeps the icon it last read for a program's path, and an update puts the new
+/// launcher at the same path. Explorer is told that the program and the shortcuts that show
+/// its icon changed (the launcher's and the game's Start menu entries, the desktop, items pinned
+/// to the taskbar), and to drop the icons it holds, so they show the new launcher's icon. The
+/// icon cache on disk is left alone.
+pub(super) fn refresh_icons(exe: &Path, launcher_link: &Path) {
+    let mut candidates = vec![launcher_link.to_owned()];
+    candidates.extend([true, false].into_iter().filter_map(|d| game_link(d).ok()));
+    if let Ok(entries) =
+        crate::home::roaming_data_folder().and_then(|d| Ok(fs::read_dir(d.join(PINNED))?))
+    {
+        candidates.extend(entries.flatten().map(|entry| entry.path()));
+    }
+    let links = owned_links(exe, candidates);
+    unsafe {
+        for path in std::iter::once(exe).chain(links.iter().map(PathBuf::as_path)) {
+            let path = HSTRING::from(path.as_os_str());
+            SHChangeNotify(
+                SHCNE_UPDATEITEM,
+                SHCNF_PATHW,
+                Some(path.as_ptr().cast()),
+                None,
+            );
+        }
+        SHChangeNotify(
+            SHCNE_ASSOCCHANGED,
+            SHCNF_IDLIST | SHCNF_FLUSHNOWAIT,
+            None,
+            None,
+        );
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn icons_refresh_only_on_shortcuts_that_start_the_launcher() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let exe = env::current_exe()?;
+        let other = dir.path().join("Another launcher.exe");
+        fs::write(&other, b"fixture")?;
+        let ours = dir.path().join("Longshot Launcher.lnk");
+        let theirs = dir.path().join("Another launcher.lnk");
+        let not_a_link = dir.path().join("notes.txt");
+        write(&ours, &exe, "", "Longshot Launcher", LAUNCHER_ID)?;
+        write(&theirs, &other, "", "Another launcher", "Another.Launcher")?;
+        fs::write(&not_a_link, b"fixture")?;
+        let missing = dir.path().join("Longshot.lnk");
+        let candidates = [&ours, &theirs, &not_a_link, &missing].map(|p| p.to_path_buf());
+        assert_eq!(owned_links(&exe, candidates), vec![ours.clone()]);
+        Ok(())
+    }
     #[test]
     fn only_our_game_link_is_changed() -> Result<()> {
         let dir = tempfile::tempdir()?;
