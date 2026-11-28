@@ -546,9 +546,16 @@ pub fn bind(ui: &MainWindow, home: PathBuf) -> Result<bool> {
         }
     });
     initialize(&home)?;
+    // Reuse the game file the previous launcher had selected, so a player
+    // upgrading does not have to find it again. Best effort: a start succeeds
+    // even when the old path is gone (the wizard then asks for the file).
+    let source_link = crate::game::link_stable_source(&home);
     let migration = migrate_stable(&home);
     let selected = profiles::apply_startup_profile(&home)?;
     refresh(ui, &home)?;
+    if let Err(error) = source_link {
+        eprintln!("Could not use the previous launcher's game file: {error:#}");
+    }
     if let Err(error) = migration {
         ui.set_notice(
             format!("Could not import saves and mods from the stable launcher. {error:#}").into(),

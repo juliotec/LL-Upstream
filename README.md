@@ -62,7 +62,7 @@ Linux respects `XDG_DATA_HOME` and `XDG_CACHE_HOME`. Existing installations keep
 
 ### Release notes for players upgrading from 1.3.x
 
-The Rust launcher copies your stable saves and loose mods on first launch. Your original copies stay available when you return to stable. Your launcher language, game language and a custom build-files folder are reused too; the launcher's update channel, profile choice and telemetry choices start fresh. Choose the cache drive before starting a build if you used a custom one.
+The Rust launcher copies your stable saves and loose mods on first launch. Your original copies stay available when you return to stable. If the previous launcher still knows your game files and they are where they were, the new launcher uses them automatically, so the first build starts from the same `.nup`, `.nx` or dump folder. Your launcher language, game language and a custom build-files folder are reused too; the launcher's update channel, profile choice and telemetry choices start fresh. Choose the cache drive before starting a build if you used a custom one.
 
 Save progress is read-only. The old save editor and its binary-editing contract have been retired. Hookshot game settings import has also been retired. Import individual Hookshot slots from Saves, or import a complete save ZIP to include account and option files. [Save imports and compatibility](docs/saves.md)
 

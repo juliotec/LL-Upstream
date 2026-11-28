@@ -24,7 +24,7 @@ On Linux, an in-place update keeps the AppImage filename. The updater writes `.n
 | `launcher-settings.json` | Rust launcher preferences, including custom paths and the launcher update channel |
 | `versions.json`, `version-locations/` | Current instances and ownership records for installations outside the default library |
 | `settings.json`, `builds.json` | Current stable launcher's files, read for save and mod import and cleanup |
-| `stable-saves-v1.json`, `stable-mods-v1.json`, `stable-prefs-v1.json` | Record which previous saves, mods and settings were reused |
+| `stable-saves-v1.json`, `stable-mods-v1.json`, `stable-prefs-v1.json`, `stable-source-v1.json` | Record which previous saves, mods, settings and game file were reused |
 | `launcher.lock` | Single-instance lock on Linux |
 | `logs/` | Launcher and shortcut sessions, plus the latest build and launch logs |
 

@@ -490,6 +490,7 @@ fn run(show_error_dialog: &mut bool) -> Result<()> {
                 folders::resume_move(&root)?;
                 game::registry::prepare(&root, home::is_portable(&root))?;
                 players::initialize(&root)?;
+                let _ = game::link_stable_source(&root);
                 players::migrate_stable(&root)?;
             }
             let session = game::play(&root, folder.as_deref(), profile.as_deref(), |grant| {

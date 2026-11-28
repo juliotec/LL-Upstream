@@ -23,6 +23,8 @@ mod reuse;
 mod romfs;
 mod sharing;
 mod source;
+mod stable_source;
+pub(crate) use stable_source::link_stable_source;
 mod steam;
 pub(crate) use steam::{ShortcutMove, shortcuts_to_move, shortcuts_to_move_data};
 mod upscaler;
